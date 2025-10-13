@@ -1,0 +1,2281 @@
+{
+  "domains": [
+    {
+      "domain": "light",
+      "entities": [
+        {
+          "id": "light.lamperion_bane_of_shadows",
+          "friendlyName": "Lamperion Bane of Shadows",
+          "cSharpName": "LamperionBaneOfShadows"
+        },
+        {
+          "id": "light.loft_shelf",
+          "friendlyName": "Loft shelf",
+          "cSharpName": "LoftShelf"
+        },
+        {
+          "id": "light.wiz_rgbw_tunable_22099a",
+          "friendlyName": "Ste\u0027s Desk Lamp",
+          "cSharpName": "WizRgbwTunable22099a"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "supported_color_modes",
+          "cSharpName": "SupportedColorModes",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "color_mode",
+          "cSharpName": "ColorMode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "min_color_temp_kelvin",
+          "cSharpName": "MinColorTempKelvin",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max_color_temp_kelvin",
+          "cSharpName": "MaxColorTempKelvin",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "min_mireds",
+          "cSharpName": "MinMireds",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max_mireds",
+          "cSharpName": "MaxMireds",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "brightness",
+          "cSharpName": "Brightness",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "color_temp_kelvin",
+          "cSharpName": "ColorTempKelvin",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "color_temp",
+          "cSharpName": "ColorTemp",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "hs_color",
+          "cSharpName": "HsColor",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Double]"
+        },
+        {
+          "jsonName": "rgb_color",
+          "cSharpName": "RgbColor",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Double]"
+        },
+        {
+          "jsonName": "xy_color",
+          "cSharpName": "XyColor",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Double]"
+        },
+        {
+          "jsonName": "entity_id",
+          "cSharpName": "EntityId",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "effect_list",
+          "cSharpName": "EffectList",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "color",
+          "cSharpName": "Color",
+          "clrType": "System.Object"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "effect",
+          "cSharpName": "Effect",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "rgbw_color",
+          "cSharpName": "RgbwColor",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Double]"
+        }
+      ]
+    },
+    {
+      "domain": "media_player",
+      "entities": [
+        {
+          "id": "media_player.all_speakers",
+          "friendlyName": "All speakers",
+          "cSharpName": "AllSpeakers"
+        },
+        {
+          "id": "media_player.bedroom_speaker",
+          "friendlyName": "Bedroom speaker",
+          "cSharpName": "BedroomSpeaker"
+        },
+        {
+          "id": "media_player.dining_room",
+          "friendlyName": "Dining room",
+          "cSharpName": "DiningRoom"
+        },
+        {
+          "id": "media_player.downstairs_speakers",
+          "friendlyName": "Downstairs speakers",
+          "cSharpName": "DownstairsSpeakers"
+        },
+        {
+          "id": "media_player.kitchen_speaker",
+          "friendlyName": "Kitchen speaker",
+          "cSharpName": "KitchenSpeaker"
+        },
+        {
+          "id": "media_player.living_room_google_home",
+          "friendlyName": "Living Room Google Home",
+          "cSharpName": "LivingRoomGoogleHome"
+        },
+        {
+          "id": "media_player.living_room_tv",
+          "friendlyName": "Living Room TV",
+          "cSharpName": "LivingRoomTv"
+        },
+        {
+          "id": "media_player.main_speakers",
+          "friendlyName": "Main speakers",
+          "cSharpName": "MainSpeakers"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "app_id",
+          "cSharpName": "AppId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "app_name",
+          "cSharpName": "AppName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "entity_picture_local",
+          "cSharpName": "EntityPictureLocal",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "entity_picture",
+          "cSharpName": "EntityPicture",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "volume_level",
+          "cSharpName": "VolumeLevel",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "is_volume_muted",
+          "cSharpName": "IsVolumeMuted",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "media_content_id",
+          "cSharpName": "MediaContentId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_content_type",
+          "cSharpName": "MediaContentType",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_duration",
+          "cSharpName": "MediaDuration",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "media_position",
+          "cSharpName": "MediaPosition",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "media_position_updated_at",
+          "cSharpName": "MediaPositionUpdatedAt",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_title",
+          "cSharpName": "MediaTitle",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_album_name",
+          "cSharpName": "MediaAlbumName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_image_url",
+          "cSharpName": "MediaImageUrl",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "media_artist",
+          "cSharpName": "MediaArtist",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "sound_mode_list",
+          "cSharpName": "SoundModeList",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "media_track",
+          "cSharpName": "MediaTrack",
+          "clrType": "System.Object"
+        },
+        {
+          "jsonName": "shuffle",
+          "cSharpName": "Shuffle",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "repeat",
+          "cSharpName": "Repeat",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "source_list",
+          "cSharpName": "SourceList",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "source",
+          "cSharpName": "Source",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "adb_response",
+          "cSharpName": "AdbResponse",
+          "clrType": "System.Object"
+        },
+        {
+          "jsonName": "hdmi_input",
+          "cSharpName": "HdmiInput",
+          "clrType": "System.Object"
+        },
+        {
+          "jsonName": "sound_mode",
+          "cSharpName": "SoundMode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "sound_mode_raw",
+          "cSharpName": "SoundModeRaw",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "automation",
+      "entities": [
+        {
+          "id": "automation.bedroom_3_dehumidifier_plug_read_state",
+          "friendlyName": "Sync - Bedroom 3 - Dehumidifier Plug - Read State",
+          "cSharpName": "Bedroom3DehumidifierPlugReadState"
+        },
+        {
+          "id": "automation.bedroom_3_dehumidifier_plug_write_state",
+          "friendlyName": "Sync - Bedroom 3 - Dehumidifier Plug - Write State",
+          "cSharpName": "Bedroom3DehumidifierPlugWriteState"
+        },
+        {
+          "id": "automation.dining_room_desk_button_toggles_plug",
+          "friendlyName": "Dining Room - Desk - Button Toggles Plug",
+          "cSharpName": "DiningRoomDeskButtonTogglesPlug"
+        },
+        {
+          "id": "automation.dining_room_desk_night_time_notifies_if_plug_is_on",
+          "friendlyName": "Dining Room - Desk - Night Time Notifies If Plug is on",
+          "cSharpName": "DiningRoomDeskNightTimeNotifiesIfPlugIsOn"
+        },
+        {
+          "id": "automation.games_room_desk_button_toggles_plug",
+          "friendlyName": "Games Room - Desk - Button Toggles Plug",
+          "cSharpName": "GamesRoomDeskButtonTogglesPlug"
+        },
+        {
+          "id": "automation.kitchen_washing_machine_notify_when_done",
+          "friendlyName": "Kitchen - Washing Machine - Notify when done",
+          "cSharpName": "KitchenWashingMachineNotifyWhenDone"
+        },
+        {
+          "id": "automation.living_room_charging_dock_completion",
+          "friendlyName": "Living room charging dock completion",
+          "cSharpName": "LivingRoomChargingDockCompletion"
+        },
+        {
+          "id": "automation.sync_device_to_helper_kitchen_sink_flood",
+          "friendlyName": "Sync-Device-To-Helper - Kitchen-sink-flood",
+          "cSharpName": "SyncDeviceToHelperKitchenSinkFlood"
+        },
+        {
+          "id": "automation.sync_kitchen_flood_detector_to_helper",
+          "friendlyName": "Sync Kitchen Flood Detector to Helper",
+          "cSharpName": "SyncKitchenFloodDetectorToHelper"
+        },
+        {
+          "id": "automation.turn_off_bedroom_3_dehumidifier",
+          "friendlyName": "Turn off Bedroom 3 dehumidifier",
+          "cSharpName": "TurnOffBedroom3Dehumidifier"
+        },
+        {
+          "id": "automation.turn_on_bedroom_3_dehumidifier",
+          "friendlyName": "Turn on Bedroom 3 dehumidifier",
+          "cSharpName": "TurnOnBedroom3Dehumidifier"
+        },
+        {
+          "id": "automation.update_washing_drying_score",
+          "friendlyName": "Update Washing Drying Score",
+          "cSharpName": "UpdateWashingDryingScore"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "id",
+          "cSharpName": "Id",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "last_triggered",
+          "cSharpName": "LastTriggered",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "mode",
+          "cSharpName": "Mode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "current",
+          "cSharpName": "Current",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "binary_sensor",
+      "entities": [
+        {
+          "id": "binary_sensor.octopus_energy_a_98d9d332_octoplus_saving_sessions",
+          "friendlyName": "Octoplus Saving Session (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessions"
+        },
+        {
+          "id": "binary_sensor.octopus_energy_electricity_24j0494691_1591015382045_off_peak",
+          "friendlyName": "Off Peak Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045OffPeak"
+        },
+        {
+          "id": "binary_sensor.sonoff_snzb_05p",
+          "friendlyName": "Flood detector",
+          "cSharpName": "SonoffSnzb05p"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "current_joined_event_start",
+          "cSharpName": "CurrentJoinedEventStart",
+          "clrType": null
+        },
+        {
+          "jsonName": "current_joined_event_end",
+          "cSharpName": "CurrentJoinedEventEnd",
+          "clrType": null
+        },
+        {
+          "jsonName": "current_joined_event_duration_in_minutes",
+          "cSharpName": "CurrentJoinedEventDurationInMinutes",
+          "clrType": null
+        },
+        {
+          "jsonName": "next_joined_event_start",
+          "cSharpName": "NextJoinedEventStart",
+          "clrType": null
+        },
+        {
+          "jsonName": "next_joined_event_end",
+          "cSharpName": "NextJoinedEventEnd",
+          "clrType": null
+        },
+        {
+          "jsonName": "next_joined_event_duration_in_minutes",
+          "cSharpName": "NextJoinedEventDurationInMinutes",
+          "clrType": null
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "current_start",
+          "cSharpName": "CurrentStart",
+          "clrType": null
+        },
+        {
+          "jsonName": "current_end",
+          "cSharpName": "CurrentEnd",
+          "clrType": null
+        },
+        {
+          "jsonName": "next_start",
+          "cSharpName": "NextStart",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_end",
+          "cSharpName": "NextEnd",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "button",
+      "entities": [
+        {
+          "id": "button.bedroom_3_temperature_and_humidity_identify",
+          "friendlyName": "Bedroom 3 temperature and humidity Identify",
+          "cSharpName": "Bedroom3TemperatureAndHumidityIdentify"
+        },
+        {
+          "id": "button.dining_room_desk_plug_identify",
+          "friendlyName": "Dining Room - Desk - Plug Identify",
+          "cSharpName": "DiningRoomDeskPlugIdentify"
+        },
+        {
+          "id": "button.ewelink_snzb_01p_identify",
+          "friendlyName": "Dining Room - Desk - Button Identify",
+          "cSharpName": "EwelinkSnzb01pIdentify"
+        },
+        {
+          "id": "button.games_room_desk_button_identify",
+          "friendlyName": "Games Room - Desk - Button Identify",
+          "cSharpName": "GamesRoomDeskButtonIdentify"
+        },
+        {
+          "id": "button.games_room_desk_plug_identify",
+          "friendlyName": "Games Room - Desk - Plug Identify",
+          "cSharpName": "GamesRoomDeskPlugIdentify"
+        },
+        {
+          "id": "button.kitchen_temperature_and_humidity_identify",
+          "friendlyName": "Kitchen temperature and humidity Identify",
+          "cSharpName": "KitchenTemperatureAndHumidityIdentify"
+        },
+        {
+          "id": "button.loving_room_charging_dock_identify",
+          "friendlyName": "Living room plug - charging dock Identify",
+          "cSharpName": "LovingRoomChargingDockIdentify"
+        },
+        {
+          "id": "button.sonoff_s60zbtpg_identify",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Identify",
+          "cSharpName": "SonoffS60zbtpgIdentify"
+        },
+        {
+          "id": "button.sonoff_s60zbtpg_identify_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Identify",
+          "cSharpName": "SonoffS60zbtpgIdentify2"
+        },
+        {
+          "id": "button.sonoff_snzb_02d_identify",
+          "friendlyName": "Games Room - Desk - Climate Identify",
+          "cSharpName": "SonoffSnzb02dIdentify"
+        },
+        {
+          "id": "button.sonoff_snzb_05p_identify",
+          "friendlyName": "Kitchen flood detector Identify",
+          "cSharpName": "SonoffSnzb05pIdentify"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "conversation",
+      "entities": [
+        {
+          "id": "conversation.home_assistant",
+          "friendlyName": "Home Assistant",
+          "cSharpName": "HomeAssistant"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "device_tracker",
+      "entities": [
+        {
+          "id": "device_tracker.sm_a546b",
+          "friendlyName": "SM-A546B",
+          "cSharpName": "SmA546b"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "source_type",
+          "cSharpName": "SourceType",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "latitude",
+          "cSharpName": "Latitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "longitude",
+          "cSharpName": "Longitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "gps_accuracy",
+          "cSharpName": "GpsAccuracy",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "altitude",
+          "cSharpName": "Altitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "course",
+          "cSharpName": "Course",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "speed",
+          "cSharpName": "Speed",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "vertical_accuracy",
+          "cSharpName": "VerticalAccuracy",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "event",
+      "entities": [
+        {
+          "id": "event.backup_automatic_backup",
+          "friendlyName": "Backup Automatic backup",
+          "cSharpName": "BackupAutomaticBackup"
+        },
+        {
+          "id": "event.octopus_energy_a_98d9d332_octoplus_saving_session_events",
+          "friendlyName": "Octoplus Saving Session Events (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessionEvents"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_current_day_rates",
+          "friendlyName": "Current Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_next_day_rates",
+          "friendlyName": "Next Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_previous_day_rates",
+          "friendlyName": "Previous Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousDayRates"
+        },
+        {
+          "id": "event.octopus_energy_gas_e6s12951182562_1902909205_current_day_rates",
+          "friendlyName": "Current Day Rates Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentDayRates"
+        },
+        {
+          "id": "event.octopus_energy_gas_e6s12951182562_1902909205_next_day_rates",
+          "friendlyName": "Next Day Rates Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205NextDayRates"
+        },
+        {
+          "id": "event.octopus_energy_gas_e6s12951182562_1902909205_previous_day_rates",
+          "friendlyName": "Previous Day Rates Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousDayRates"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "event_types",
+          "cSharpName": "EventTypes",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "event_type",
+          "cSharpName": "EventType",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "backup_stage",
+          "cSharpName": "BackupStage",
+          "clrType": null
+        },
+        {
+          "jsonName": "failed_reason",
+          "cSharpName": "FailedReason",
+          "clrType": null
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "account_id",
+          "cSharpName": "AccountId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "available_events",
+          "cSharpName": "AvailableEvents",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "joined_events",
+          "cSharpName": "JoinedEvents",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "rates",
+          "cSharpName": "Rates",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "min_rate",
+          "cSharpName": "MinRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max_rate",
+          "cSharpName": "MaxRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "average_rate",
+          "cSharpName": "AverageRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "mpan",
+          "cSharpName": "Mpan",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "serial_number",
+          "cSharpName": "SerialNumber",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "tariff_code",
+          "cSharpName": "TariffCode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "mprn",
+          "cSharpName": "Mprn",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "input_boolean",
+      "entities": [
+        {
+          "id": "input_boolean.automation_test",
+          "friendlyName": "Automation test",
+          "cSharpName": "AutomationTest"
+        },
+        {
+          "id": "input_boolean.bedroom_3_dehumidifier_plug_state",
+          "friendlyName": "Bedroom 3 - Dehumidifier Plug - State",
+          "cSharpName": "Bedroom3DehumidifierPlugState"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_app_model_hello_yaml_app",
+          "friendlyName": "dev_netdaemon_app_model_hello_yaml_app",
+          "cSharpName": "DevNetdaemonAppModelHelloYamlApp"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_extensions_scheduling_scheduling_app",
+          "friendlyName": "dev_netdaemon_extensions_scheduling_scheduling_app",
+          "cSharpName": "DevNetdaemonExtensionsSchedulingSchedulingApp"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_hello_world_app",
+          "friendlyName": "dev_netdaemon_hass_model_hello_world_app",
+          "cSharpName": "DevNetdaemonHassModelHelloWorldApp"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_light_on_movement",
+          "friendlyName": "dev_netdaemon_hass_model_light_on_movement",
+          "cSharpName": "DevNetdaemonHassModelLightOnMovement"
+        },
+        {
+          "id": "input_boolean.kitchen_under_sink_flood",
+          "friendlyName": "Kitchen - sink - flood",
+          "cSharpName": "KitchenUnderSinkFlood"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "editable",
+          "cSharpName": "Editable",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "input_number",
+      "isNumeric": true,
+      "entities": [
+        {
+          "id": "input_number.bedroom_3_dehumidifier_lower_threshold",
+          "friendlyName": "Bedroom 3 dehumidifier - lower threshold",
+          "cSharpName": "Bedroom3DehumidifierLowerThreshold"
+        },
+        {
+          "id": "input_number.bedroom_3_dehumidifier_projection_look_ahead_minutes",
+          "friendlyName": "Bedroom 3 dehumidifier - projection look ahead minutes",
+          "cSharpName": "Bedroom3DehumidifierProjectionLookAheadMinutes"
+        },
+        {
+          "id": "input_number.bedroom_3_dehumidifier_upper_threshold",
+          "friendlyName": "Bedroom 3 dehumidifier - upper threshold",
+          "cSharpName": "Bedroom3DehumidifierUpperThreshold"
+        },
+        {
+          "id": "input_number.weather_drying_score",
+          "friendlyName": "input_number.weather_drying_score",
+          "cSharpName": "WeatherDryingScore"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "initial",
+          "cSharpName": "Initial",
+          "clrType": null
+        },
+        {
+          "jsonName": "editable",
+          "cSharpName": "Editable",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "min",
+          "cSharpName": "Min",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max",
+          "cSharpName": "Max",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "step",
+          "cSharpName": "Step",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "mode",
+          "cSharpName": "Mode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "unit_of_measurement",
+          "cSharpName": "UnitOfMeasurement",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "number",
+      "isNumeric": true,
+      "entities": [
+        {
+          "id": "number.kitchen_temperature_and_humidity_comfort_humidity_max",
+          "friendlyName": "Kitchen temperature and humidity Comfort humidity max",
+          "cSharpName": "KitchenTemperatureAndHumidityComfortHumidityMax"
+        },
+        {
+          "id": "number.kitchen_temperature_and_humidity_comfort_humidity_min",
+          "friendlyName": "Kitchen temperature and humidity Comfort humidity min",
+          "cSharpName": "KitchenTemperatureAndHumidityComfortHumidityMin"
+        },
+        {
+          "id": "number.kitchen_temperature_and_humidity_comfort_temperature_max",
+          "friendlyName": "Kitchen temperature and humidity Comfort temperature max",
+          "cSharpName": "KitchenTemperatureAndHumidityComfortTemperatureMax"
+        },
+        {
+          "id": "number.kitchen_temperature_and_humidity_comfort_temperature_min",
+          "friendlyName": "Kitchen temperature and humidity Comfort temperature min",
+          "cSharpName": "KitchenTemperatureAndHumidityComfortTemperatureMin"
+        },
+        {
+          "id": "number.kitchen_temperature_and_humidity_humidity_offset",
+          "friendlyName": "Kitchen temperature and humidity Humidity offset",
+          "cSharpName": "KitchenTemperatureAndHumidityHumidityOffset"
+        },
+        {
+          "id": "number.kitchen_temperature_and_humidity_temperature_offset",
+          "friendlyName": "Kitchen temperature and humidity Temperature offset",
+          "cSharpName": "KitchenTemperatureAndHumidityTemperatureOffset"
+        },
+        {
+          "id": "number.lamperion_bane_of_shadows_effect_speed",
+          "friendlyName": "Lamperion Bane of Shadows Effect speed",
+          "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_max",
+          "friendlyName": "Games Room - Desk - Climate Comfort humidity max",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMax"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_min",
+          "friendlyName": "Games Room - Desk - Climate Comfort humidity min",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMin"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_max",
+          "friendlyName": "Games Room - Desk - Climate Comfort temperature max",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMax"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_min",
+          "friendlyName": "Games Room - Desk - Climate Comfort temperature min",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMin"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_humidity_offset",
+          "friendlyName": "Games Room - Desk - Climate Humidity offset",
+          "cSharpName": "SonoffSnzb02dHumidityOffset"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_temperature_offset",
+          "friendlyName": "Games Room - Desk - Climate Temperature offset",
+          "cSharpName": "SonoffSnzb02dTemperatureOffset"
+        },
+        {
+          "id": "number.wiz_rgbw_tunable_22099a_effect_speed",
+          "friendlyName": "Ste\u0027s Desk Lamp Effect speed",
+          "cSharpName": "WizRgbwTunable22099aEffectSpeed"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "min",
+          "cSharpName": "Min",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max",
+          "cSharpName": "Max",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "step",
+          "cSharpName": "Step",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "mode",
+          "cSharpName": "Mode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "unit_of_measurement",
+          "cSharpName": "UnitOfMeasurement",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "person",
+      "entities": [
+        {
+          "id": "person.ste",
+          "friendlyName": "Ste",
+          "cSharpName": "Ste"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "editable",
+          "cSharpName": "Editable",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "id",
+          "cSharpName": "Id",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "device_trackers",
+          "cSharpName": "DeviceTrackers",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "latitude",
+          "cSharpName": "Latitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "longitude",
+          "cSharpName": "Longitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "gps_accuracy",
+          "cSharpName": "GpsAccuracy",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "source",
+          "cSharpName": "Source",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "user_id",
+          "cSharpName": "UserId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "select",
+      "entities": [
+        {
+          "id": "select.dining_room_desk_plug_start_up_behaviour",
+          "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
+          "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
+        },
+        {
+          "id": "select.games_room_desk_plug_start_up_behaviour",
+          "friendlyName": "Games Room - Desk - Plug Start-up behaviour",
+          "cSharpName": "GamesRoomDeskPlugStartUpBehaviour"
+        },
+        {
+          "id": "select.kitchen_temperature_and_humidity_display_unit",
+          "friendlyName": "Kitchen temperature and humidity Display unit",
+          "cSharpName": "KitchenTemperatureAndHumidityDisplayUnit"
+        },
+        {
+          "id": "select.loving_room_charging_dock_start_up_behaviour",
+          "friendlyName": "Living room plug - charging dock Start-up behaviour",
+          "cSharpName": "LovingRoomChargingDockStartUpBehaviour"
+        },
+        {
+          "id": "select.sonoff_s60zbtpg_start_up_behaviour",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Start-up behaviour",
+          "cSharpName": "SonoffS60zbtpgStartUpBehaviour"
+        },
+        {
+          "id": "select.sonoff_s60zbtpg_start_up_behaviour_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Start-up behaviour",
+          "cSharpName": "SonoffS60zbtpgStartUpBehaviour2"
+        },
+        {
+          "id": "select.sonoff_snzb_02d_display_unit",
+          "friendlyName": "Games Room - Desk - Climate Display unit",
+          "cSharpName": "SonoffSnzb02dDisplayUnit"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "options",
+          "cSharpName": "Options",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "sensor",
+      "entities": [
+        {
+          "id": "sensor.backup_backup_manager_state",
+          "friendlyName": "Backup Backup Manager state",
+          "cSharpName": "BackupBackupManagerState"
+        },
+        {
+          "id": "sensor.backup_last_attempted_automatic_backup",
+          "friendlyName": "Backup Last attempted automatic backup",
+          "cSharpName": "BackupLastAttemptedAutomaticBackup"
+        },
+        {
+          "id": "sensor.backup_last_successful_automatic_backup",
+          "friendlyName": "Backup Last successful automatic backup",
+          "cSharpName": "BackupLastSuccessfulAutomaticBackup"
+        },
+        {
+          "id": "sensor.backup_next_scheduled_automatic_backup",
+          "friendlyName": "Backup Next scheduled automatic backup",
+          "cSharpName": "BackupNextScheduledAutomaticBackup"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_octoplus_points",
+          "friendlyName": "Octoplus Points (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusPoints"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_wheel_of_fortune_spins_electricity",
+          "friendlyName": "Wheel Of Fortune Spins Electricity (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332WheelOfFortuneSpinsElectricity"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_wheel_of_fortune_spins_gas",
+          "friendlyName": "Wheel Of Fortune Spins Gas (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332WheelOfFortuneSpinsGas"
+        },
+        {
+          "id": "sensor.sm_a546b_battery_state",
+          "friendlyName": "SM-A546B Battery state",
+          "cSharpName": "SmA546bBatteryState"
+        },
+        {
+          "id": "sensor.sm_a546b_charger_type",
+          "friendlyName": "SM-A546B Charger type",
+          "cSharpName": "SmA546bChargerType"
+        },
+        {
+          "id": "sensor.sun_next_dawn",
+          "friendlyName": "Sun Next dawn",
+          "cSharpName": "SunNextDawn"
+        },
+        {
+          "id": "sensor.sun_next_dusk",
+          "friendlyName": "Sun Next dusk",
+          "cSharpName": "SunNextDusk"
+        },
+        {
+          "id": "sensor.sun_next_midnight",
+          "friendlyName": "Sun Next midnight",
+          "cSharpName": "SunNextMidnight"
+        },
+        {
+          "id": "sensor.sun_next_noon",
+          "friendlyName": "Sun Next noon",
+          "cSharpName": "SunNextNoon"
+        },
+        {
+          "id": "sensor.sun_next_rising",
+          "friendlyName": "Sun Next rising",
+          "cSharpName": "SunNextRising"
+        },
+        {
+          "id": "sensor.sun_next_setting",
+          "friendlyName": "Sun Next setting",
+          "cSharpName": "SunNextSetting"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "options",
+          "cSharpName": "Options",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "state_class",
+          "cSharpName": "StateClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "redeemable_points",
+          "cSharpName": "RedeemablePoints",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "sensor",
+      "isNumeric": true,
+      "entities": [
+        {
+          "id": "sensor.bedroom_3_dehumidifier_60_minute_trend",
+          "friendlyName": "Bedroom 3 dehumidifier - 60 minute trend",
+          "cSharpName": "Bedroom3Dehumidifier60MinuteTrend"
+        },
+        {
+          "id": "sensor.bedroom_3_temperature_and_humidity_battery",
+          "friendlyName": "Bedroom 3 temperature and humidity Battery",
+          "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
+        },
+        {
+          "id": "sensor.bedroom_3_temperature_and_humidity_humidity",
+          "friendlyName": "Bedroom 3 temperature and humidity Humidity",
+          "cSharpName": "Bedroom3TemperatureAndHumidityHumidity"
+        },
+        {
+          "id": "sensor.bedroom_3_temperature_and_humidity_temperature",
+          "friendlyName": "Bedroom 3 temperature",
+          "cSharpName": "Bedroom3TemperatureAndHumidityTemperature"
+        },
+        {
+          "id": "sensor.clock_temperature_and_humidity_humidity",
+          "friendlyName": "Clock Temperature and Humidity Humidity",
+          "cSharpName": "ClockTemperatureAndHumidityHumidity"
+        },
+        {
+          "id": "sensor.clock_temperature_and_humidity_temperature",
+          "friendlyName": "Clock Temperature and Humidity Temperature",
+          "cSharpName": "ClockTemperatureAndHumidityTemperature"
+        },
+        {
+          "id": "sensor.dining_room_desk_plug_current",
+          "friendlyName": "Dining Room - Desk - Plug Current",
+          "cSharpName": "DiningRoomDeskPlugCurrent"
+        },
+        {
+          "id": "sensor.dining_room_desk_plug_power",
+          "friendlyName": "Dining Room - Desk - Plug Power",
+          "cSharpName": "DiningRoomDeskPlugPower"
+        },
+        {
+          "id": "sensor.dining_room_desk_plug_summation_delivered",
+          "friendlyName": "Dining Room - Desk - Plug Summation delivered",
+          "cSharpName": "DiningRoomDeskPlugSummationDelivered"
+        },
+        {
+          "id": "sensor.dining_room_desk_plug_voltage",
+          "friendlyName": "Dining Room - Desk - Plug Voltage",
+          "cSharpName": "DiningRoomDeskPlugVoltage"
+        },
+        {
+          "id": "sensor.ewelink_snzb_01p_battery",
+          "friendlyName": "Dining Room - Desk - Button Battery",
+          "cSharpName": "EwelinkSnzb01pBattery"
+        },
+        {
+          "id": "sensor.games_room_desk_button_battery",
+          "friendlyName": "Games Room - Desk - Button Battery",
+          "cSharpName": "GamesRoomDeskButtonBattery"
+        },
+        {
+          "id": "sensor.games_room_desk_plug_current",
+          "friendlyName": "Games Room - Desk - Plug Current",
+          "cSharpName": "GamesRoomDeskPlugCurrent"
+        },
+        {
+          "id": "sensor.games_room_desk_plug_power",
+          "friendlyName": "Games Room - Desk - Plug Power",
+          "cSharpName": "GamesRoomDeskPlugPower"
+        },
+        {
+          "id": "sensor.games_room_desk_plug_summation_delivered",
+          "friendlyName": "Games Room - Desk - Plug Summation delivered",
+          "cSharpName": "GamesRoomDeskPlugSummationDelivered"
+        },
+        {
+          "id": "sensor.games_room_desk_plug_voltage",
+          "friendlyName": "Games Room - Desk - Plug Voltage",
+          "cSharpName": "GamesRoomDeskPlugVoltage"
+        },
+        {
+          "id": "sensor.kitchen_temperature_and_humidity_battery",
+          "friendlyName": "Kitchen temperature and humidity Battery",
+          "cSharpName": "KitchenTemperatureAndHumidityBattery"
+        },
+        {
+          "id": "sensor.kitchen_temperature_and_humidity_humidity",
+          "friendlyName": "Kitchen temperature and humidity Humidity",
+          "cSharpName": "KitchenTemperatureAndHumidityHumidity"
+        },
+        {
+          "id": "sensor.kitchen_temperature_and_humidity_temperature",
+          "friendlyName": "Kitchen temperature",
+          "cSharpName": "KitchenTemperatureAndHumidityTemperature"
+        },
+        {
+          "id": "sensor.lamperion_bane_of_shadows_power",
+          "friendlyName": "Lamperion Bane of Shadows Power",
+          "cSharpName": "LamperionBaneOfShadowsPower"
+        },
+        {
+          "id": "sensor.loving_room_charging_dock_current",
+          "friendlyName": "Living room plug - charging dock Current",
+          "cSharpName": "LovingRoomChargingDockCurrent"
+        },
+        {
+          "id": "sensor.loving_room_charging_dock_power",
+          "friendlyName": "Living room plug - charging dock Power",
+          "cSharpName": "LovingRoomChargingDockPower"
+        },
+        {
+          "id": "sensor.loving_room_charging_dock_summation_delivered",
+          "friendlyName": "Living room plug - charging dock Summation delivered",
+          "cSharpName": "LovingRoomChargingDockSummationDelivered"
+        },
+        {
+          "id": "sensor.loving_room_charging_dock_voltage",
+          "friendlyName": "Living room plug - charging dock Voltage",
+          "cSharpName": "LovingRoomChargingDockVoltage"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_home_mini",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusHomeMini"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini_month",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_home_mini Month",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusHomeMiniMonth"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini_week",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_home_mini Week",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusHomeMiniWeek"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_summation_cost_tracker",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_summation_cost_tracker",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusSummationCostTracker"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_summation_cost_tracker_month",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_summation_cost_tracker Month",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusSummationCostTrackerMonth"
+        },
+        {
+          "id": "sensor.octopus_energy_cost_tracker_octopus_summation_cost_tracker_week",
+          "friendlyName": "Octopus Energy Cost Tracker octopus_summation_cost_tracker Week",
+          "cSharpName": "OctopusEnergyCostTrackerOctopusSummationCostTrackerWeek"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption",
+          "friendlyName": "Current Accumulative Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_cost",
+          "friendlyName": "Current Accumulative Cost Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_demand",
+          "friendlyName": "Live demand",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDemand"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_rate",
+          "friendlyName": "Current Rate Electricity (24J0494691 1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_standing_charge",
+          "friendlyName": "Current Standing Charge Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentStandingCharge"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_total_consumption",
+          "friendlyName": "Current Total Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentTotalConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_next_rate",
+          "friendlyName": "Next Rate Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_consumption",
+          "friendlyName": "Previous Accumulative Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_cost",
+          "friendlyName": "Previous Accumulative Cost Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_rate",
+          "friendlyName": "Previous Rate Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousRate"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_accumulative_consumption_kwh",
+          "friendlyName": "Current Accumulative Consumption Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentAccumulativeConsumptionKwh"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_accumulative_consumption_m3",
+          "friendlyName": "Current Accumulative Consumption (m\u00B3) Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentAccumulativeConsumptionM3"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_accumulative_cost",
+          "friendlyName": "Current Accumulative Cost Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_rate",
+          "friendlyName": "Current Rate Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentRate"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_standing_charge",
+          "friendlyName": "Current Standing Charge Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentStandingCharge"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_total_consumption_kwh",
+          "friendlyName": "Current Total Consumption (kWh) Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentTotalConsumptionKwh"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_total_consumption_m3",
+          "friendlyName": "Current Total Consumption (m3) Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205CurrentTotalConsumptionM3"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_next_rate",
+          "friendlyName": "Next Rate Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205NextRate"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_previous_accumulative_consumption_kwh",
+          "friendlyName": "Previous Accumulative Consumption (kWh) Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousAccumulativeConsumptionKwh"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_previous_accumulative_consumption_m3",
+          "friendlyName": "Previous Accumulative Consumption Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousAccumulativeConsumptionM3"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_previous_accumulative_cost",
+          "friendlyName": "Previous Accumulative Cost Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_previous_rate",
+          "friendlyName": "Previous Rate Gas (E6S12951182562/1902909205)",
+          "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousRate"
+        },
+        {
+          "id": "sensor.sm_a546b_battery_level",
+          "friendlyName": "SM-A546B Battery level",
+          "cSharpName": "SmA546bBatteryLevel"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_current",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Current",
+          "cSharpName": "SonoffS60zbtpgCurrent"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_current_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Current",
+          "cSharpName": "SonoffS60zbtpgCurrent2"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_power",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Power",
+          "cSharpName": "SonoffS60zbtpgPower"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_power_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Power",
+          "cSharpName": "SonoffS60zbtpgPower2"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_summation_delivered",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Summation delivered",
+          "cSharpName": "SonoffS60zbtpgSummationDelivered"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_summation_delivered_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Summation delivered",
+          "cSharpName": "SonoffS60zbtpgSummationDelivered2"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_voltage",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Voltage",
+          "cSharpName": "SonoffS60zbtpgVoltage"
+        },
+        {
+          "id": "sensor.sonoff_s60zbtpg_voltage_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Voltage",
+          "cSharpName": "SonoffS60zbtpgVoltage2"
+        },
+        {
+          "id": "sensor.sonoff_snzb_02d_battery",
+          "friendlyName": "Games Room - Desk - Climate Battery",
+          "cSharpName": "SonoffSnzb02dBattery"
+        },
+        {
+          "id": "sensor.sonoff_snzb_02d_humidity",
+          "friendlyName": "Games Room - Desk - Climate Humidity",
+          "cSharpName": "SonoffSnzb02dHumidity"
+        },
+        {
+          "id": "sensor.sonoff_snzb_02d_temperature",
+          "friendlyName": "Games Room - Desk - Climate Temperature",
+          "cSharpName": "SonoffSnzb02dTemperature"
+        },
+        {
+          "id": "sensor.sonoff_snzb_05p_battery",
+          "friendlyName": "Kitchen flood detector Battery",
+          "cSharpName": "SonoffSnzb05pBattery"
+        },
+        {
+          "id": "sensor.weather_drying_score_sensor",
+          "friendlyName": "Weather Drying Score Sensor",
+          "cSharpName": "WeatherDryingScoreSensor"
+        },
+        {
+          "id": "sensor.wiz_rgbw_tunable_22099a_power",
+          "friendlyName": "Ste\u0027s Desk Lamp Power",
+          "cSharpName": "WizRgbwTunable22099aPower"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "state_class",
+          "cSharpName": "StateClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "age_coverage_ratio",
+          "cSharpName": "AgeCoverageRatio",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "source_value_valid",
+          "cSharpName": "SourceValueValid",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "unit_of_measurement",
+          "cSharpName": "UnitOfMeasurement",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "mpan",
+          "cSharpName": "Mpan",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "serial_number",
+          "cSharpName": "SerialNumber",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "is_export",
+          "cSharpName": "IsExport",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "is_smart_meter",
+          "cSharpName": "IsSmartMeter",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "tariff",
+          "cSharpName": "Tariff",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "start",
+          "cSharpName": "Start",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "end",
+          "cSharpName": "End",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "is_capped",
+          "cSharpName": "IsCapped",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "is_intelligent_adjusted",
+          "cSharpName": "IsIntelligentAdjusted",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "current_day_min_rate",
+          "cSharpName": "CurrentDayMinRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "current_day_max_rate",
+          "cSharpName": "CurrentDayMaxRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "current_day_average_rate",
+          "cSharpName": "CurrentDayAverageRate",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "last_reset",
+          "cSharpName": "LastReset",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "total",
+          "cSharpName": "Total",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "charges",
+          "cSharpName": "Charges",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "tariff_code",
+          "cSharpName": "TariffCode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "standing_charge",
+          "cSharpName": "StandingCharge",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "total_without_standing_charge",
+          "cSharpName": "TotalWithoutStandingCharge",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "mprn",
+          "cSharpName": "Mprn",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "is_estimated",
+          "cSharpName": "IsEstimated",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "total_kwh",
+          "cSharpName": "TotalKwh",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "total_m3",
+          "cSharpName": "TotalM3",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "calorific_value",
+          "cSharpName": "CalorificValue",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "name",
+          "cSharpName": "Name",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "target_entity_id",
+          "cSharpName": "TargetEntityId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "entity_accumulative_value",
+          "cSharpName": "EntityAccumulativeValue",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "manual_reset",
+          "cSharpName": "ManualReset",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "weekday_reset",
+          "cSharpName": "WeekdayReset",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "month_day_reset",
+          "cSharpName": "MonthDayReset",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "kind",
+          "cSharpName": "Kind",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "account_id",
+          "cSharpName": "AccountId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "is_tracking",
+          "cSharpName": "IsTracking",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "tracked_charges",
+          "cSharpName": "TrackedCharges",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "untracked_charges",
+          "cSharpName": "UntrackedCharges",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "total_consumption",
+          "cSharpName": "TotalConsumption",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "accumulated_data",
+          "cSharpName": "AccumulatedData",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "entity_id",
+          "cSharpName": "EntityId",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "last_entity_id",
+          "cSharpName": "LastEntityId",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "measurement_type",
+          "cSharpName": "MeasurementType",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "status",
+          "cSharpName": "Status",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "zcl_unit_of_measurement",
+          "cSharpName": "ZclUnitOfMeasurement",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "device_type",
+          "cSharpName": "DeviceType",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "battery_voltage",
+          "cSharpName": "BatteryVoltage",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "sun",
+      "entities": [
+        {
+          "id": "sun.sun",
+          "friendlyName": "Sun",
+          "cSharpName": "Sun"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "next_dawn",
+          "cSharpName": "NextDawn",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_dusk",
+          "cSharpName": "NextDusk",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_midnight",
+          "cSharpName": "NextMidnight",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_noon",
+          "cSharpName": "NextNoon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_rising",
+          "cSharpName": "NextRising",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_setting",
+          "cSharpName": "NextSetting",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "elevation",
+          "cSharpName": "Elevation",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "azimuth",
+          "cSharpName": "Azimuth",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "rising",
+          "cSharpName": "Rising",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "switch",
+      "entities": [
+        {
+          "id": "switch.dining_room_desk_plug",
+          "friendlyName": "Dining Room - Desk - Plug",
+          "cSharpName": "DiningRoomDeskPlug"
+        },
+        {
+          "id": "switch.games_room_desk_plug",
+          "friendlyName": "Games Room - Desk - Plug",
+          "cSharpName": "GamesRoomDeskPlug"
+        },
+        {
+          "id": "switch.living_room_charging_dock",
+          "friendlyName": "Living room plug - charging dock",
+          "cSharpName": "LivingRoomChargingDock"
+        },
+        {
+          "id": "switch.sonoff_s60zbtpg",
+          "friendlyName": "Bedroom 3 plug - dehumidifier",
+          "cSharpName": "SonoffS60zbtpg"
+        },
+        {
+          "id": "switch.sonoff_s60zbtpg_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug",
+          "cSharpName": "SonoffS60zbtpg2"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "todo",
+      "entities": [
+        {
+          "id": "todo.shopping_list",
+          "friendlyName": "Shopping List",
+          "cSharpName": "ShoppingList"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "tts",
+      "entities": [
+        {
+          "id": "tts.google_translate_en_com",
+          "friendlyName": "Google Translate en com",
+          "cSharpName": "GoogleTranslateEnCom"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "update",
+      "entities": [
+        {
+          "id": "update.advanced_ssh_web_terminal_update",
+          "friendlyName": "Advanced SSH \u0026 Web Terminal Update",
+          "cSharpName": "AdvancedSshWebTerminalUpdate"
+        },
+        {
+          "id": "update.auto_entities_update",
+          "friendlyName": "auto-entities update",
+          "cSharpName": "AutoEntitiesUpdate"
+        },
+        {
+          "id": "update.bedroom_3_temperature_and_humidity_firmware",
+          "friendlyName": "Bedroom 3 temperature and humidity Firmware",
+          "cSharpName": "Bedroom3TemperatureAndHumidityFirmware"
+        },
+        {
+          "id": "update.dining_room_desk_plug_firmware",
+          "friendlyName": "Dining Room - Desk - Plug Firmware",
+          "cSharpName": "DiningRoomDeskPlugFirmware"
+        },
+        {
+          "id": "update.ewelink_snzb_01p_firmware",
+          "friendlyName": "Dining Room - Desk - Button Firmware",
+          "cSharpName": "EwelinkSnzb01pFirmware"
+        },
+        {
+          "id": "update.games_room_desk_button_firmware",
+          "friendlyName": "Games Room - Desk - Button Firmware",
+          "cSharpName": "GamesRoomDeskButtonFirmware"
+        },
+        {
+          "id": "update.games_room_desk_plug_firmware",
+          "friendlyName": "Games Room - Desk - Plug Firmware",
+          "cSharpName": "GamesRoomDeskPlugFirmware"
+        },
+        {
+          "id": "update.ha_floorplan_your_imagination_almost_defines_the_limits_update",
+          "friendlyName": "ha-floorplan \uD83D\uDD8C\uD83C\uDFA8 | Your imagination (almost) defines the limits update",
+          "cSharpName": "HaFloorplanYourImaginationAlmostDefinesTheLimitsUpdate"
+        },
+        {
+          "id": "update.hacs_update",
+          "friendlyName": "HACS update",
+          "cSharpName": "HacsUpdate"
+        },
+        {
+          "id": "update.home_assistant_core_update",
+          "friendlyName": "Home Assistant Core Update",
+          "cSharpName": "HomeAssistantCoreUpdate"
+        },
+        {
+          "id": "update.home_assistant_operating_system_update",
+          "friendlyName": "Home Assistant Operating System Update",
+          "cSharpName": "HomeAssistantOperatingSystemUpdate"
+        },
+        {
+          "id": "update.home_assistant_supervisor_update",
+          "friendlyName": "Home Assistant Supervisor Update",
+          "cSharpName": "HomeAssistantSupervisorUpdate"
+        },
+        {
+          "id": "update.kitchen_temperature_and_humidity_firmware",
+          "friendlyName": "Kitchen temperature and humidity Firmware",
+          "cSharpName": "KitchenTemperatureAndHumidityFirmware"
+        },
+        {
+          "id": "update.loving_room_charging_dock_firmware",
+          "friendlyName": "Living room plug - charging dock Firmware",
+          "cSharpName": "LovingRoomChargingDockFirmware"
+        },
+        {
+          "id": "update.octopus_energy_update",
+          "friendlyName": "Octopus Energy update",
+          "cSharpName": "OctopusEnergyUpdate"
+        },
+        {
+          "id": "update.sonoff_s60zbtpg_firmware",
+          "friendlyName": "Bedroom 3 plug - dehumidifier Firmware",
+          "cSharpName": "SonoffS60zbtpgFirmware"
+        },
+        {
+          "id": "update.sonoff_s60zbtpg_firmware_2",
+          "friendlyName": "Kitchen - sink - washing machine - plug Firmware",
+          "cSharpName": "SonoffS60zbtpgFirmware2"
+        },
+        {
+          "id": "update.sonoff_snzb_02d_firmware",
+          "friendlyName": "Games Room - Desk - Climate Firmware",
+          "cSharpName": "SonoffSnzb02dFirmware"
+        },
+        {
+          "id": "update.sonoff_snzb_05p_firmware",
+          "friendlyName": "Kitchen flood detector Firmware",
+          "cSharpName": "SonoffSnzb05pFirmware"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "auto_update",
+          "cSharpName": "AutoUpdate",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "display_precision",
+          "cSharpName": "DisplayPrecision",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "installed_version",
+          "cSharpName": "InstalledVersion",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "in_progress",
+          "cSharpName": "InProgress",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "latest_version",
+          "cSharpName": "LatestVersion",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "release_summary",
+          "cSharpName": "ReleaseSummary",
+          "clrType": null
+        },
+        {
+          "jsonName": "release_url",
+          "cSharpName": "ReleaseUrl",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "skipped_version",
+          "cSharpName": "SkippedVersion",
+          "clrType": null
+        },
+        {
+          "jsonName": "title",
+          "cSharpName": "Title",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "update_percentage",
+          "cSharpName": "UpdatePercentage",
+          "clrType": null
+        },
+        {
+          "jsonName": "entity_picture",
+          "cSharpName": "EntityPicture",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "weather",
+      "entities": [
+        {
+          "id": "weather.forecast_home",
+          "friendlyName": "Forecast Home",
+          "cSharpName": "ForecastHome"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "temperature",
+          "cSharpName": "Temperature",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "dew_point",
+          "cSharpName": "DewPoint",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "temperature_unit",
+          "cSharpName": "TemperatureUnit",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "humidity",
+          "cSharpName": "Humidity",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "cloud_coverage",
+          "cSharpName": "CloudCoverage",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "uv_index",
+          "cSharpName": "UvIndex",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "pressure",
+          "cSharpName": "Pressure",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "pressure_unit",
+          "cSharpName": "PressureUnit",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "wind_bearing",
+          "cSharpName": "WindBearing",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "wind_speed",
+          "cSharpName": "WindSpeed",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "wind_speed_unit",
+          "cSharpName": "WindSpeedUnit",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "visibility_unit",
+          "cSharpName": "VisibilityUnit",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "precipitation_unit",
+          "cSharpName": "PrecipitationUnit",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "attribution",
+          "cSharpName": "Attribution",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "zone",
+      "entities": [
+        {
+          "id": "zone.home",
+          "friendlyName": "Home",
+          "cSharpName": "Home"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "latitude",
+          "cSharpName": "Latitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "longitude",
+          "cSharpName": "Longitude",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "radius",
+          "cSharpName": "Radius",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "passive",
+          "cSharpName": "Passive",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "persons",
+          "cSharpName": "Persons",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "editable",
+          "cSharpName": "Editable",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    }
+  ]
+}

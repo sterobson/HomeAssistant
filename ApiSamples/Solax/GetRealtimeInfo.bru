@@ -1,0 +1,20 @@
+meta {
+  name: GetRealtimeInfo
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://www.solaxcloud.com/proxyApp/proxy/api/getRealtimeInfo.do?tokenId={{tokenId}}&sn={{reg}}
+  body: none
+  auth: inherit
+}
+
+params:query {
+  tokenId: {{tokenId}}
+  sn: {{reg}}
+}
+
+settings {
+  encodeUrl: true
+}

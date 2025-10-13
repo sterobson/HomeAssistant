@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36518.9 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant", "HomeAssistant.csproj", "{A3F30546-D836-4529-4A6F-C33C750550E3}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A3F30546-D836-4529-4A6F-C33C750550E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3F30546-D836-4529-4A6F-C33C750550E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3F30546-D836-4529-4A6F-C33C750550E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3F30546-D836-4529-4A6F-C33C750550E3}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {63ED69A6-7FA0-4BC8-8C7D-FD1A0A6412F5}
+	EndGlobalSection
+EndGlobal

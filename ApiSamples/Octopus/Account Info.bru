@@ -1,0 +1,20 @@
+meta {
+  name: Account Info
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://api.octopus.energy/v1/accounts/{{accountId}}/
+  body: none
+  auth: basic
+}
+
+auth:basic {
+  username: {{token}}
+  password: 
+}
+
+settings {
+  encodeUrl: true
+}
