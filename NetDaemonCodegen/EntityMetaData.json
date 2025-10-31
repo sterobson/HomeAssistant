@@ -14,8 +14,13 @@
           "cSharpName": "LoftShelf"
         },
         {
+          "id": "light.porch_light",
+          "friendlyName": "Porch light",
+          "cSharpName": "PorchLight"
+        },
+        {
           "id": "light.wiz_rgbw_tunable_22099a",
-          "friendlyName": "Ste\u0027s Desk Lamp",
+          "friendlyName": "Games Room Desk Lamp",
           "cSharpName": "WizRgbwTunable22099a"
         }
       ],
@@ -152,12 +157,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": "Living Room TV",
+          "friendlyName": null,
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": "Main speakers",
+          "friendlyName": null,
           "cSharpName": "MainSpeakers"
         }
       ],
@@ -306,6 +311,11 @@
           "jsonName": "sound_mode_raw",
           "cSharpName": "SoundModeRaw",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -314,12 +324,12 @@
       "entities": [
         {
           "id": "automation.bedroom_3_dehumidifier_plug_read_state",
-          "friendlyName": "Sync - Bedroom 3 - Dehumidifier Plug - Read State",
+          "friendlyName": "Sync - Dining room - Dehumidifier Plug - Read State",
           "cSharpName": "Bedroom3DehumidifierPlugReadState"
         },
         {
           "id": "automation.bedroom_3_dehumidifier_plug_write_state",
-          "friendlyName": "Sync - Bedroom 3 - Dehumidifier Plug - Write State",
+          "friendlyName": "Sync - Dining room - Dehumidifier Plug - Write State",
           "cSharpName": "Bedroom3DehumidifierPlugWriteState"
         },
         {
@@ -348,6 +358,31 @@
           "cSharpName": "LivingRoomChargingDockCompletion"
         },
         {
+          "id": "automation.porch_light_motion_sensing",
+          "friendlyName": "Porch light motion sensing",
+          "cSharpName": "PorchLightMotionSensing"
+        },
+        {
+          "id": "automation.porch_light_off_after_a_certain_time",
+          "friendlyName": "Porch light off after a certain time",
+          "cSharpName": "PorchLightOffAfterACertainTime"
+        },
+        {
+          "id": "automation.porch_light_off_when_no_one_there_for_a_time",
+          "friendlyName": "Porch light off when no one there for a time",
+          "cSharpName": "PorchLightOffWhenNoOneThereForATime"
+        },
+        {
+          "id": "automation.porch_light_turns_off_charger_led",
+          "friendlyName": "Porch light turns off charger LED",
+          "cSharpName": "PorchLightTurnsOffChargerLed"
+        },
+        {
+          "id": "automation.porch_light_turns_on_charger_led",
+          "friendlyName": "Porch light turns on charger LED",
+          "cSharpName": "PorchLightTurnsOnChargerLed"
+        },
+        {
           "id": "automation.sync_device_to_helper_kitchen_sink_flood",
           "friendlyName": "Sync-Device-To-Helper - Kitchen-sink-flood",
           "cSharpName": "SyncDeviceToHelperKitchenSinkFlood"
@@ -359,12 +394,12 @@
         },
         {
           "id": "automation.turn_off_bedroom_3_dehumidifier",
-          "friendlyName": "Turn off Bedroom 3 dehumidifier",
+          "friendlyName": "Turn off dining room dehumidifier",
           "cSharpName": "TurnOffBedroom3Dehumidifier"
         },
         {
           "id": "automation.turn_on_bedroom_3_dehumidifier",
-          "friendlyName": "Turn on Bedroom 3 dehumidifier",
+          "friendlyName": "Turn on dining room 3 dehumidifier",
           "cSharpName": "TurnOnBedroom3Dehumidifier"
         },
         {
@@ -405,8 +440,118 @@
       "domain": "binary_sensor",
       "entities": [
         {
+          "id": "binary_sensor.ewelink_snzb_03p",
+          "friendlyName": "Porch motion detector",
+          "cSharpName": "EwelinkSnzb03p"
+        },
+        {
+          "id": "binary_sensor.ewelink_snzb_03p_occupancy",
+          "friendlyName": "Porch motion detector Occupancy",
+          "cSharpName": "EwelinkSnzb03pOccupancy"
+        },
+        {
+          "id": "binary_sensor.hypervolt_car_plugged",
+          "friendlyName": "Hypervolt Car Plugged",
+          "cSharpName": "HypervoltCarPlugged"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_bonnet_status",
+          "friendlyName": "MG MG4 Electric Bonnet Status",
+          "cSharpName": "MgMg4ElectricBonnetStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_boot_status",
+          "friendlyName": "MG MG4 Electric Boot Status",
+          "cSharpName": "MgMg4ElectricBootStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_charging_gun_state",
+          "friendlyName": "MG MG4 Electric Charging Gun State",
+          "cSharpName": "MgMg4ElectricChargingGunState"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_dipped_beam_status",
+          "friendlyName": "MG MG4 Electric Dipped Beam Status",
+          "cSharpName": "MgMg4ElectricDippedBeamStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_door_front_left",
+          "friendlyName": "MG MG4 Electric Door Front Left",
+          "cSharpName": "MgMg4ElectricDoorFrontLeft"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_door_front_right",
+          "friendlyName": "MG MG4 Electric Door Front Right",
+          "cSharpName": "MgMg4ElectricDoorFrontRight"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_door_rear_left",
+          "friendlyName": "MG MG4 Electric Door Rear Left",
+          "cSharpName": "MgMg4ElectricDoorRearLeft"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_door_rear_right",
+          "friendlyName": "MG MG4 Electric Door Rear Right",
+          "cSharpName": "MgMg4ElectricDoorRearRight"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_engine_status",
+          "friendlyName": "MG MG4 Electric Engine Status",
+          "cSharpName": "MgMg4ElectricEngineStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_hvac_status",
+          "friendlyName": "MG MG4 Electric HVAC Status",
+          "cSharpName": "MgMg4ElectricHvacStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_lock_status",
+          "friendlyName": "MG MG4 Electric Lock Status",
+          "cSharpName": "MgMg4ElectricLockStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_main_beam_status",
+          "friendlyName": "MG MG4 Electric Main Beam Status",
+          "cSharpName": "MgMg4ElectricMainBeamStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_side_light_status",
+          "friendlyName": "MG MG4 Electric Side Light Status",
+          "cSharpName": "MgMg4ElectricSideLightStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_wheel_tyre_monitor_status",
+          "friendlyName": "MG MG4 Electric Wheel Tyre Monitor Status",
+          "cSharpName": "MgMg4ElectricWheelTyreMonitorStatus"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_window_front_left",
+          "friendlyName": "MG MG4 Electric Window Front Left",
+          "cSharpName": "MgMg4ElectricWindowFrontLeft"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_window_front_right",
+          "friendlyName": "MG MG4 Electric Window Front Right",
+          "cSharpName": "MgMg4ElectricWindowFrontRight"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_window_rear_left",
+          "friendlyName": "MG MG4 Electric Window Rear Left",
+          "cSharpName": "MgMg4ElectricWindowRearLeft"
+        },
+        {
+          "id": "binary_sensor.mg_mg4_electric_window_rear_right",
+          "friendlyName": "MG MG4 Electric Window Rear Right",
+          "cSharpName": "MgMg4ElectricWindowRearRight"
+        },
+        {
+          "id": "binary_sensor.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_dispatching",
+          "friendlyName": "Intelligent Dispatching (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentDispatching"
+        },
+        {
           "id": "binary_sensor.octopus_energy_a_98d9d332_octoplus_saving_sessions",
-          "friendlyName": "Octoplus Saving Session (A-98D9D332)",
+          "friendlyName": "Octoplus Saving Sessions (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessions"
         },
         {
@@ -485,6 +630,41 @@
           "jsonName": "device_class",
           "cSharpName": "DeviceClass",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "planned_dispatches",
+          "cSharpName": "PlannedDispatches",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "completed_dispatches",
+          "cSharpName": "CompletedDispatches",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "started_dispatches",
+          "cSharpName": "StartedDispatches",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "provider",
+          "cSharpName": "Provider",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "vehicle_battery_size_in_kwh",
+          "cSharpName": "VehicleBatterySizeInKwh",
+          "clrType": null
+        },
+        {
+          "jsonName": "charge_point_power_in_kw",
+          "cSharpName": "ChargePointPowerInKw",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "manually_refresh_dispatches",
+          "cSharpName": "ManuallyRefreshDispatches",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -507,6 +687,11 @@
           "cSharpName": "EwelinkSnzb01pIdentify"
         },
         {
+          "id": "button.ewelink_snzb_03p_identify",
+          "friendlyName": "Porch motion detector Identify",
+          "cSharpName": "EwelinkSnzb03pIdentify"
+        },
+        {
           "id": "button.games_room_desk_button_identify",
           "friendlyName": "Games Room - Desk - Button Identify",
           "cSharpName": "GamesRoomDeskButtonIdentify"
@@ -515,6 +700,11 @@
           "id": "button.games_room_desk_plug_identify",
           "friendlyName": "Games Room - Desk - Plug Identify",
           "cSharpName": "GamesRoomDeskPlugIdentify"
+        },
+        {
+          "id": "button.hypervolt_apply_schedule",
+          "friendlyName": "Hypervolt Apply Schedule",
+          "cSharpName": "HypervoltApplySchedule"
         },
         {
           "id": "button.kitchen_temperature_and_humidity_identify",
@@ -527,8 +717,48 @@
           "cSharpName": "LovingRoomChargingDockIdentify"
         },
         {
+          "id": "button.mg_mg4_electric_trigger_alarm",
+          "friendlyName": "MG MG4 Electric Trigger Alarm",
+          "cSharpName": "MgMg4ElectricTriggerAlarm"
+        },
+        {
+          "id": "button.mg_mg4_electric_update_vehicle_data",
+          "friendlyName": "MG MG4 Electric Update Vehicle Data",
+          "cSharpName": "MgMg4ElectricUpdateVehicleData"
+        },
+        {
+          "id": "button.solax_inverter_battery_awaken",
+          "friendlyName": "SolaX Inverter Battery Awaken",
+          "cSharpName": "SolaxInverterBatteryAwaken"
+        },
+        {
+          "id": "button.solax_inverter_powercontrolmode_trigger_mode_8_9",
+          "friendlyName": "SolaX Inverter PowerControlMode Trigger (mode 8/9)",
+          "cSharpName": "SolaxInverterPowercontrolmodeTriggerMode89"
+        },
+        {
+          "id": "button.solax_inverter_remotecontrol_trigger_mode_1_7",
+          "friendlyName": "SolaX Inverter Remotecontrol Trigger (mode 1-7)",
+          "cSharpName": "SolaxInverterRemotecontrolTriggerMode17"
+        },
+        {
+          "id": "button.solax_inverter_sync_rtc",
+          "friendlyName": "SolaX Inverter Sync RTC",
+          "cSharpName": "SolaxInverterSyncRtc"
+        },
+        {
+          "id": "button.solax_inverter_system_off",
+          "friendlyName": "SolaX Inverter System Off",
+          "cSharpName": "SolaxInverterSystemOff"
+        },
+        {
+          "id": "button.solax_inverter_system_on",
+          "friendlyName": "SolaX Inverter System On",
+          "cSharpName": "SolaxInverterSystemOn"
+        },
+        {
           "id": "button.sonoff_s60zbtpg_identify",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Identify",
+          "friendlyName": "Dining room plug - dehumidifier Identify",
           "cSharpName": "SonoffS60zbtpgIdentify"
         },
         {
@@ -540,6 +770,16 @@
           "id": "button.sonoff_snzb_02d_identify",
           "friendlyName": "Games Room - Desk - Climate Identify",
           "cSharpName": "SonoffSnzb02dIdentify"
+        },
+        {
+          "id": "button.sonoff_snzb_02d_identify_2",
+          "friendlyName": "Living Room - Climate Identify",
+          "cSharpName": "SonoffSnzb02dIdentify2"
+        },
+        {
+          "id": "button.sonoff_snzb_02d_identify_3",
+          "friendlyName": "Dining Room - Climate Identify",
+          "cSharpName": "SonoffSnzb02dIdentify3"
         },
         {
           "id": "button.sonoff_snzb_05p_identify",
@@ -556,6 +796,11 @@
         {
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
           "clrType": "System.String"
         }
       ]
@@ -585,6 +830,11 @@
     {
       "domain": "device_tracker",
       "entities": [
+        {
+          "id": "device_tracker.mg_mg4_electric_gps_location",
+          "friendlyName": "MG MG4 Electric GPS Location",
+          "cSharpName": "MgMg4ElectricGpsLocation"
+        },
         {
           "id": "device_tracker.sm_a546b",
           "friendlyName": "SM-A546B",
@@ -763,6 +1013,11 @@
           "jsonName": "mprn",
           "cSharpName": "Mprn",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "intelligent_dispatches_updated",
+          "cSharpName": "IntelligentDispatchesUpdated",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -775,14 +1030,14 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.bedroom_3_dehumidifier_plug_state",
-          "friendlyName": "Bedroom 3 - Dehumidifier Plug - State",
-          "cSharpName": "Bedroom3DehumidifierPlugState"
-        },
-        {
           "id": "input_boolean.dev_netdaemon_app_model_hello_yaml_app",
           "friendlyName": "dev_netdaemon_app_model_hello_yaml_app",
           "cSharpName": "DevNetdaemonAppModelHelloYamlApp"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_energy_octopus_app",
+          "friendlyName": "dev_netdaemon_energy_octopus_app",
+          "cSharpName": "DevNetdaemonEnergyOctopusApp"
         },
         {
           "id": "input_boolean.dev_netdaemon_extensions_scheduling_scheduling_app",
@@ -798,6 +1053,16 @@
           "id": "input_boolean.dev_netdaemon_hass_model_light_on_movement",
           "friendlyName": "dev_netdaemon_hass_model_light_on_movement",
           "cSharpName": "DevNetdaemonHassModelLightOnMovement"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.diningroom_dehumidifier_plug_state",
+          "friendlyName": "Dining Room - Dehumidifier Plug - State",
+          "cSharpName": "DiningroomDehumidifierPlugState"
         },
         {
           "id": "input_boolean.kitchen_under_sink_flood",
@@ -828,19 +1093,19 @@
       "isNumeric": true,
       "entities": [
         {
-          "id": "input_number.bedroom_3_dehumidifier_lower_threshold",
-          "friendlyName": "Bedroom 3 dehumidifier - lower threshold",
-          "cSharpName": "Bedroom3DehumidifierLowerThreshold"
+          "id": "input_number.diningroom_dehumidifier_lower_threshold",
+          "friendlyName": "Dining room dehumidifier - lower threshold",
+          "cSharpName": "DiningroomDehumidifierLowerThreshold"
         },
         {
-          "id": "input_number.bedroom_3_dehumidifier_projection_look_ahead_minutes",
-          "friendlyName": "Bedroom 3 dehumidifier - projection look ahead minutes",
-          "cSharpName": "Bedroom3DehumidifierProjectionLookAheadMinutes"
+          "id": "input_number.diningroom_dehumidifier_projection_look_ahead_minutes",
+          "friendlyName": "Dining room dehumidifier - projection look ahead minutes",
+          "cSharpName": "DiningroomDehumidifierProjectionLookAheadMinutes"
         },
         {
-          "id": "input_number.bedroom_3_dehumidifier_upper_threshold",
-          "friendlyName": "Bedroom 3 dehumidifier - upper threshold",
-          "cSharpName": "Bedroom3DehumidifierUpperThreshold"
+          "id": "input_number.diningroom_dehumidifier_upper_threshold",
+          "friendlyName": "Dining room dehumidifier - upper threshold",
+          "cSharpName": "DiningroomDehumidifierUpperThreshold"
         },
         {
           "id": "input_number.weather_drying_score",
@@ -901,6 +1166,16 @@
       "isNumeric": true,
       "entities": [
         {
+          "id": "number.hypervolt_led_brightness",
+          "friendlyName": "Hypervolt LED Brightness",
+          "cSharpName": "HypervoltLedBrightness"
+        },
+        {
+          "id": "number.hypervolt_max_current",
+          "friendlyName": "Hypervolt Max Current",
+          "cSharpName": "HypervoltMaxCurrent"
+        },
+        {
           "id": "number.kitchen_temperature_and_humidity_comfort_humidity_max",
           "friendlyName": "Kitchen temperature and humidity Comfort humidity max",
           "cSharpName": "KitchenTemperatureAndHumidityComfortHumidityMax"
@@ -936,9 +1211,204 @@
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
+          "id": "number.mg_mg4_electric_target_soc",
+          "friendlyName": "MG MG4 Electric Target SOC",
+          "cSharpName": "MgMg4ElectricTargetSoc"
+        },
+        {
+          "id": "number.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_charge_target",
+          "friendlyName": "Intelligent Charge Target (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentChargeTarget"
+        },
+        {
+          "id": "number.porch_light_effect_speed",
+          "friendlyName": "Porch light Effect speed",
+          "cSharpName": "PorchLightEffectSpeed"
+        },
+        {
+          "id": "number.solax_inverter_backup_discharge_min_soc",
+          "friendlyName": "SolaX Inverter Backup Discharge Min SOC",
+          "cSharpName": "SolaxInverterBackupDischargeMinSoc"
+        },
+        {
+          "id": "number.solax_inverter_backup_nightcharge_upper_soc",
+          "friendlyName": "SolaX Inverter Backup Nightcharge Upper SOC",
+          "cSharpName": "SolaxInverterBackupNightchargeUpperSoc"
+        },
+        {
+          "id": "number.solax_inverter_battery_charge_max_current",
+          "friendlyName": "SolaX Inverter Battery Charge Max Current",
+          "cSharpName": "SolaxInverterBatteryChargeMaxCurrent"
+        },
+        {
+          "id": "number.solax_inverter_battery_charge_upper_soc",
+          "friendlyName": "SolaX Inverter Battery Charge Upper SOC",
+          "cSharpName": "SolaxInverterBatteryChargeUpperSoc"
+        },
+        {
+          "id": "number.solax_inverter_battery_discharge_max_current",
+          "friendlyName": "SolaX Inverter Battery Discharge Max Current",
+          "cSharpName": "SolaxInverterBatteryDischargeMaxCurrent"
+        },
+        {
+          "id": "number.solax_inverter_export_control_user_limit",
+          "friendlyName": "SolaX Inverter Export Control User Limit",
+          "cSharpName": "SolaxInverterExportControlUserLimit"
+        },
+        {
+          "id": "number.solax_inverter_export_first_battery_charge_limit_mode_8_9",
+          "friendlyName": "SolaX Inverter Export-First Battery Charge Limit (mode 8/9)",
+          "cSharpName": "SolaxInverterExportFirstBatteryChargeLimitMode89"
+        },
+        {
+          "id": "number.solax_inverter_feedin_discharge_min_soc",
+          "friendlyName": "SolaX Inverter Feedin Discharge Min SOC",
+          "cSharpName": "SolaxInverterFeedinDischargeMinSoc"
+        },
+        {
+          "id": "number.solax_inverter_feedin_nightcharge_upper_soc",
+          "friendlyName": "SolaX Inverter Feedin Nightcharge Upper SOC",
+          "cSharpName": "SolaxInverterFeedinNightchargeUpperSoc"
+        },
+        {
+          "id": "number.solax_inverter_main_breaker_current_limit",
+          "friendlyName": "SolaX Inverter Main Breaker Current Limit",
+          "cSharpName": "SolaxInverterMainBreakerCurrentLimit"
+        },
+        {
+          "id": "number.solax_inverter_peakshaving_charge_limit",
+          "friendlyName": "SolaX Inverter PeakShaving Charge Limit",
+          "cSharpName": "SolaxInverterPeakshavingChargeLimit"
+        },
+        {
+          "id": "number.solax_inverter_peakshaving_discharge_limit_1",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Limit 1",
+          "cSharpName": "SolaxInverterPeakshavingDischargeLimit1"
+        },
+        {
+          "id": "number.solax_inverter_peakshaving_discharge_limit_2",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Limit 2",
+          "cSharpName": "SolaxInverterPeakshavingDischargeLimit2"
+        },
+        {
+          "id": "number.solax_inverter_peakshaving_max_soc",
+          "friendlyName": "SolaX Inverter PeakShaving Max SOC",
+          "cSharpName": "SolaxInverterPeakshavingMaxSoc"
+        },
+        {
+          "id": "number.solax_inverter_peakshaving_reserved_soc",
+          "friendlyName": "SolaX Inverter PeakShaving Reserved SOC",
+          "cSharpName": "SolaxInverterPeakshavingReservedSoc"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_active_power_mode_1",
+          "friendlyName": "SolaX Inverter Remotecontrol Active Power (mode 1)",
+          "cSharpName": "SolaxInverterRemotecontrolActivePowerMode1"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_active_power_mode_1_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Active Power (mode 1; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolActivePowerMode1Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_autorepeat_duration_mode_1_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Autorepeat Duration (mode 1-9)",
+          "cSharpName": "SolaxInverterRemotecontrolAutorepeatDurationMode19"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_charge_discharge_power_mode_2_3_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Charge/Discharge Power (mode 2/3; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolChargeDischargePowerMode23Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_duration_mode_1_8",
+          "friendlyName": "SolaX Inverter Remotecontrol Duration (mode 1-8)",
+          "cSharpName": "SolaxInverterRemotecontrolDurationMode18"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_duration_mode_1_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Duration (mode 1; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolDurationMode1Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_import_limit_mode_1_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Import Limit (mode 1-9)",
+          "cSharpName": "SolaxInverterRemotecontrolImportLimitMode19"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_push_mode_power_mode_4_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Push Mode Power (mode 4; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolPushModePowerMode4Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_push_mode_power_mode_8_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Push Mode Power (mode 8/9)",
+          "cSharpName": "SolaxInverterRemotecontrolPushModePowerMode89"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_pv_power_limit_mode_8_9",
+          "friendlyName": "SolaX Inverter Remotecontrol PV Power Limit (mode 8/9)",
+          "cSharpName": "SolaxInverterRemotecontrolPvPowerLimitMode89"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_reactive_power_mode_1",
+          "friendlyName": "SolaX Inverter Remotecontrol Reactive Power (mode 1)",
+          "cSharpName": "SolaxInverterRemotecontrolReactivePowerMode1"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_reactive_power_mode_1_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Reactive Power (mode 1; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolReactivePowerMode1Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_target_energy_mode_2_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Target Energy (mode 2; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolTargetEnergyMode2Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_target_soc_mode_3_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol Target SOC (mode 3; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolTargetSocMode3Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_target_soc_mode_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Target SOC (mode 9)",
+          "cSharpName": "SolaxInverterRemotecontrolTargetSocMode9"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_timeout_mode_1_7_direct",
+          "friendlyName": "SolaX Inverter Remotecontrol TimeOut (mode 1-7; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolTimeoutMode17Direct"
+        },
+        {
+          "id": "number.solax_inverter_remotecontrol_timeout_mode_1_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Timeout (mode 1-9)",
+          "cSharpName": "SolaxInverterRemotecontrolTimeoutMode19"
+        },
+        {
+          "id": "number.solax_inverter_selfuse_discharge_min_soc",
+          "friendlyName": "SolaX Inverter Selfuse Discharge Min SOC",
+          "cSharpName": "SolaxInverterSelfuseDischargeMinSoc"
+        },
+        {
+          "id": "number.solax_inverter_selfuse_nightcharge_upper_soc",
+          "friendlyName": "SolaX Inverter Selfuse Nightcharge Upper SOC",
+          "cSharpName": "SolaxInverterSelfuseNightchargeUpperSoc"
+        },
+        {
           "id": "number.sonoff_snzb_02d_comfort_humidity_max",
           "friendlyName": "Games Room - Desk - Climate Comfort humidity max",
           "cSharpName": "SonoffSnzb02dComfortHumidityMax"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_max_2",
+          "friendlyName": "Living Room - Climate Comfort humidity max",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMax2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_max_3",
+          "friendlyName": "Dining Room - Climate Comfort humidity max",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMax3"
         },
         {
           "id": "number.sonoff_snzb_02d_comfort_humidity_min",
@@ -946,9 +1416,29 @@
           "cSharpName": "SonoffSnzb02dComfortHumidityMin"
         },
         {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_min_2",
+          "friendlyName": "Living Room - Climate Comfort humidity min",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMin2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_humidity_min_3",
+          "friendlyName": "Dining Room - Climate Comfort humidity min",
+          "cSharpName": "SonoffSnzb02dComfortHumidityMin3"
+        },
+        {
           "id": "number.sonoff_snzb_02d_comfort_temperature_max",
           "friendlyName": "Games Room - Desk - Climate Comfort temperature max",
           "cSharpName": "SonoffSnzb02dComfortTemperatureMax"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_max_2",
+          "friendlyName": "Living Room - Climate Comfort temperature max",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMax2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_max_3",
+          "friendlyName": "Dining Room - Climate Comfort temperature max",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMax3"
         },
         {
           "id": "number.sonoff_snzb_02d_comfort_temperature_min",
@@ -956,9 +1446,29 @@
           "cSharpName": "SonoffSnzb02dComfortTemperatureMin"
         },
         {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_min_2",
+          "friendlyName": "Living Room - Climate Comfort temperature min",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMin2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_comfort_temperature_min_3",
+          "friendlyName": "Dining Room - Climate Comfort temperature min",
+          "cSharpName": "SonoffSnzb02dComfortTemperatureMin3"
+        },
+        {
           "id": "number.sonoff_snzb_02d_humidity_offset",
           "friendlyName": "Games Room - Desk - Climate Humidity offset",
           "cSharpName": "SonoffSnzb02dHumidityOffset"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_humidity_offset_2",
+          "friendlyName": "Living Room - Climate Humidity offset",
+          "cSharpName": "SonoffSnzb02dHumidityOffset2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_humidity_offset_3",
+          "friendlyName": "Dining Room - Climate Humidity offset",
+          "cSharpName": "SonoffSnzb02dHumidityOffset3"
         },
         {
           "id": "number.sonoff_snzb_02d_temperature_offset",
@@ -966,8 +1476,18 @@
           "cSharpName": "SonoffSnzb02dTemperatureOffset"
         },
         {
+          "id": "number.sonoff_snzb_02d_temperature_offset_2",
+          "friendlyName": "Living Room - Climate Temperature offset",
+          "cSharpName": "SonoffSnzb02dTemperatureOffset2"
+        },
+        {
+          "id": "number.sonoff_snzb_02d_temperature_offset_3",
+          "friendlyName": "Dining Room - Climate Temperature offset",
+          "cSharpName": "SonoffSnzb02dTemperatureOffset3"
+        },
+        {
           "id": "number.wiz_rgbw_tunable_22099a_effect_speed",
-          "friendlyName": "Ste\u0027s Desk Lamp Effect speed",
+          "friendlyName": "Games Room Desk Lamp Effect speed",
           "cSharpName": "WizRgbwTunable22099aEffectSpeed"
         }
       ],
@@ -1000,6 +1520,16 @@
         {
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "device_class",
+          "cSharpName": "DeviceClass",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
           "clrType": "System.String"
         }
       ]
@@ -1075,6 +1605,36 @@
           "cSharpName": "GamesRoomDeskPlugStartUpBehaviour"
         },
         {
+          "id": "select.hypervolt_activation_mode",
+          "friendlyName": "Hypervolt Activation Mode",
+          "cSharpName": "HypervoltActivationMode"
+        },
+        {
+          "id": "select.hypervolt_charge_mode",
+          "friendlyName": "Hypervolt Charge Mode",
+          "cSharpName": "HypervoltChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_1_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 1 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession1ChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_2_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 2 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession2ChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_3_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 3 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession3ChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_4_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 4 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession4ChargeMode"
+        },
+        {
           "id": "select.kitchen_temperature_and_humidity_display_unit",
           "friendlyName": "Kitchen temperature and humidity Display unit",
           "cSharpName": "KitchenTemperatureAndHumidityDisplayUnit"
@@ -1085,8 +1645,238 @@
           "cSharpName": "LovingRoomChargingDockStartUpBehaviour"
         },
         {
+          "id": "select.mg_mg4_electric_charging_current_limit",
+          "friendlyName": "MG MG4 Electric Charging Current Limit",
+          "cSharpName": "MgMg4ElectricChargingCurrentLimit"
+        },
+        {
+          "id": "select.mg_mg4_electric_heated_seat_front_left_level",
+          "friendlyName": "MG MG4 Electric Heated Seat Front Left Level",
+          "cSharpName": "MgMg4ElectricHeatedSeatFrontLeftLevel"
+        },
+        {
+          "id": "select.mg_mg4_electric_heated_seat_front_right_level",
+          "friendlyName": "MG MG4 Electric Heated Seat Front Right Level",
+          "cSharpName": "MgMg4ElectricHeatedSeatFrontRightLevel"
+        },
+        {
+          "id": "select.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_target_time",
+          "friendlyName": "Intelligent Target Time (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentTargetTime"
+        },
+        {
+          "id": "select.solax_inverter_battery_heating",
+          "friendlyName": "SolaX Inverter Battery Heating",
+          "cSharpName": "SolaxInverterBatteryHeating"
+        },
+        {
+          "id": "select.solax_inverter_battery_heating_end_time_1",
+          "friendlyName": "SolaX Inverter Battery Heating End Time 1",
+          "cSharpName": "SolaxInverterBatteryHeatingEndTime1"
+        },
+        {
+          "id": "select.solax_inverter_battery_heating_end_time_2",
+          "friendlyName": "SolaX Inverter Battery Heating End Time 2",
+          "cSharpName": "SolaxInverterBatteryHeatingEndTime2"
+        },
+        {
+          "id": "select.solax_inverter_battery_heating_start_time_1",
+          "friendlyName": "SolaX Inverter Battery Heating Start Time 1",
+          "cSharpName": "SolaxInverterBatteryHeatingStartTime1"
+        },
+        {
+          "id": "select.solax_inverter_battery_heating_start_time_2",
+          "friendlyName": "SolaX Inverter Battery Heating Start Time 2",
+          "cSharpName": "SolaxInverterBatteryHeatingStartTime2"
+        },
+        {
+          "id": "select.solax_inverter_charge_and_discharge_period2_enable",
+          "friendlyName": "SolaX Inverter Charge and Discharge Period2 Enable",
+          "cSharpName": "SolaxInverterChargeAndDischargePeriod2Enable"
+        },
+        {
+          "id": "select.solax_inverter_charger_end_time_1",
+          "friendlyName": "SolaX Inverter Charger End Time 1",
+          "cSharpName": "SolaxInverterChargerEndTime1"
+        },
+        {
+          "id": "select.solax_inverter_charger_end_time_2",
+          "friendlyName": "SolaX Inverter Charger End Time 2",
+          "cSharpName": "SolaxInverterChargerEndTime2"
+        },
+        {
+          "id": "select.solax_inverter_charger_start_time_1",
+          "friendlyName": "SolaX Inverter Charger Start Time 1",
+          "cSharpName": "SolaxInverterChargerStartTime1"
+        },
+        {
+          "id": "select.solax_inverter_charger_start_time_2",
+          "friendlyName": "SolaX Inverter Charger Start Time 2",
+          "cSharpName": "SolaxInverterChargerStartTime2"
+        },
+        {
+          "id": "select.solax_inverter_charger_use_mode",
+          "friendlyName": "SolaX Inverter Charger Use Mode",
+          "cSharpName": "SolaxInverterChargerUseMode"
+        },
+        {
+          "id": "select.solax_inverter_ct_cycle_detection",
+          "friendlyName": "SolaX Inverter CT Cycle Detection",
+          "cSharpName": "SolaxInverterCtCycleDetection"
+        },
+        {
+          "id": "select.solax_inverter_device_lock",
+          "friendlyName": "SolaX Inverter Device Lock",
+          "cSharpName": "SolaxInverterDeviceLock"
+        },
+        {
+          "id": "select.solax_inverter_discharge_cut_off_point_different",
+          "friendlyName": "SolaX Inverter Discharge Cut Off Point Different",
+          "cSharpName": "SolaxInverterDischargeCutOffPointDifferent"
+        },
+        {
+          "id": "select.solax_inverter_discharger_end_time_1",
+          "friendlyName": "SolaX Inverter Discharger End Time 1",
+          "cSharpName": "SolaxInverterDischargerEndTime1"
+        },
+        {
+          "id": "select.solax_inverter_discharger_end_time_2",
+          "friendlyName": "SolaX Inverter Discharger End Time 2",
+          "cSharpName": "SolaxInverterDischargerEndTime2"
+        },
+        {
+          "id": "select.solax_inverter_discharger_start_time_1",
+          "friendlyName": "SolaX Inverter Discharger Start Time 1",
+          "cSharpName": "SolaxInverterDischargerStartTime1"
+        },
+        {
+          "id": "select.solax_inverter_discharger_start_time_2",
+          "friendlyName": "SolaX Inverter Discharger Start Time 2",
+          "cSharpName": "SolaxInverterDischargerStartTime2"
+        },
+        {
+          "id": "select.solax_inverter_extend_bms_setting",
+          "friendlyName": "SolaX Inverter Extend BMS Setting",
+          "cSharpName": "SolaxInverterExtendBmsSetting"
+        },
+        {
+          "id": "select.solax_inverter_hotstandby",
+          "friendlyName": "SolaX Inverter HotStandBy",
+          "cSharpName": "SolaxInverterHotstandby"
+        },
+        {
+          "id": "select.solax_inverter_lease_mode",
+          "friendlyName": "SolaX Inverter Lease Mode",
+          "cSharpName": "SolaxInverterLeaseMode"
+        },
+        {
+          "id": "select.solax_inverter_lock_state",
+          "friendlyName": "SolaX Inverter Lock State",
+          "cSharpName": "SolaxInverterLockState"
+        },
+        {
+          "id": "select.solax_inverter_manual_mode_select",
+          "friendlyName": "SolaX Inverter Manual Mode Select",
+          "cSharpName": "SolaxInverterManualModeSelect"
+        },
+        {
+          "id": "select.solax_inverter_modbus_power_control_direct",
+          "friendlyName": "SolaX Inverter Modbus Power Control (direct)",
+          "cSharpName": "SolaxInverterModbusPowerControlDirect"
+        },
+        {
+          "id": "select.solax_inverter_mppt",
+          "friendlyName": "SolaX Inverter MPPT",
+          "cSharpName": "SolaxInverterMppt"
+        },
+        {
+          "id": "select.solax_inverter_parallel_setting",
+          "friendlyName": "SolaX Inverter Parallel Setting",
+          "cSharpName": "SolaxInverterParallelSetting"
+        },
+        {
+          "id": "select.solax_inverter_peakshaving_charge_from_grid",
+          "friendlyName": "SolaX Inverter PeakShaving Charge from Grid",
+          "cSharpName": "SolaxInverterPeakshavingChargeFromGrid"
+        },
+        {
+          "id": "select.solax_inverter_peakshaving_discharge_start_time_1",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Start Time 1",
+          "cSharpName": "SolaxInverterPeakshavingDischargeStartTime1"
+        },
+        {
+          "id": "select.solax_inverter_peakshaving_discharge_start_time_2",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Start Time 2",
+          "cSharpName": "SolaxInverterPeakshavingDischargeStartTime2"
+        },
+        {
+          "id": "select.solax_inverter_peakshaving_discharge_stop_time_1",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Stop Time 1",
+          "cSharpName": "SolaxInverterPeakshavingDischargeStopTime1"
+        },
+        {
+          "id": "select.solax_inverter_peakshaving_discharge_stop_time_2",
+          "friendlyName": "SolaX Inverter PeakShaving Discharge Stop Time 2",
+          "cSharpName": "SolaxInverterPeakshavingDischargeStopTime2"
+        },
+        {
+          "id": "select.solax_inverter_pgrid_bias",
+          "friendlyName": "SolaX Inverter Pgrid Bias",
+          "cSharpName": "SolaxInverterPgridBias"
+        },
+        {
+          "id": "select.solax_inverter_remotecontrol_power_control_mode_1",
+          "friendlyName": "SolaX Inverter Remotecontrol Power Control (mode 1)",
+          "cSharpName": "SolaxInverterRemotecontrolPowerControlMode1"
+        },
+        {
+          "id": "select.solax_inverter_remotecontrol_power_control_mode_mode_8_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Power Control Mode (mode 8/9)",
+          "cSharpName": "SolaxInverterRemotecontrolPowerControlModeMode89"
+        },
+        {
+          "id": "select.solax_inverter_remotecontrol_set_type_mode_1_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Set Type (mode 1-9)",
+          "cSharpName": "SolaxInverterRemotecontrolSetTypeMode19"
+        },
+        {
+          "id": "select.solax_inverter_remotecontrol_target_set_type_mode_8_9_direct",
+          "friendlyName": "SolaX Inverter RemoteControl Target Set Type (mode 8/9; direct)",
+          "cSharpName": "SolaxInverterRemotecontrolTargetSetTypeMode89Direct"
+        },
+        {
+          "id": "select.solax_inverter_remotecontrol_timeout_next_motion_mode_1_9",
+          "friendlyName": "SolaX Inverter Remotecontrol Timeout Next Motion (mode 1-9)",
+          "cSharpName": "SolaxInverterRemotecontrolTimeoutNextMotionMode19"
+        },
+        {
+          "id": "select.solax_inverter_selfuse_mode_backup",
+          "friendlyName": "SolaX Inverter Selfuse Mode Backup",
+          "cSharpName": "SolaxInverterSelfuseModeBackup"
+        },
+        {
+          "id": "select.solax_inverter_selfuse_night_charge_enable",
+          "friendlyName": "SolaX Inverter Selfuse Night Charge Enable",
+          "cSharpName": "SolaxInverterSelfuseNightChargeEnable"
+        },
+        {
+          "id": "select.solax_inverter_shadow_fix_function_level_pv1_gmppt",
+          "friendlyName": "SolaX Inverter Shadow Fix Function Level PV1 (GMPPT)",
+          "cSharpName": "SolaxInverterShadowFixFunctionLevelPv1Gmppt"
+        },
+        {
+          "id": "select.solax_inverter_shadow_fix_function_level_pv2_gmppt",
+          "friendlyName": "SolaX Inverter Shadow Fix Function Level PV2 (GMPPT)",
+          "cSharpName": "SolaxInverterShadowFixFunctionLevelPv2Gmppt"
+        },
+        {
+          "id": "select.solax_inverter_shadow_fix_function_level_pv3_gmppt",
+          "friendlyName": "SolaX Inverter Shadow Fix Function Level PV3 (GMPPT)",
+          "cSharpName": "SolaxInverterShadowFixFunctionLevelPv3Gmppt"
+        },
+        {
           "id": "select.sonoff_s60zbtpg_start_up_behaviour",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Start-up behaviour",
+          "friendlyName": "Dining room plug - dehumidifier Start-up behaviour",
           "cSharpName": "SonoffS60zbtpgStartUpBehaviour"
         },
         {
@@ -1098,6 +1888,16 @@
           "id": "select.sonoff_snzb_02d_display_unit",
           "friendlyName": "Games Room - Desk - Climate Display unit",
           "cSharpName": "SonoffSnzb02dDisplayUnit"
+        },
+        {
+          "id": "select.sonoff_snzb_02d_display_unit_2",
+          "friendlyName": "Living Room - Climate Display unit",
+          "cSharpName": "SonoffSnzb02dDisplayUnit2"
+        },
+        {
+          "id": "select.sonoff_snzb_02d_display_unit_3",
+          "friendlyName": "Dining Room - Climate Display unit",
+          "cSharpName": "SonoffSnzb02dDisplayUnit3"
         }
       ],
       "attributes": [
@@ -1109,6 +1909,16 @@
         {
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "raw_time",
+          "cSharpName": "RawTime",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
           "clrType": "System.String"
         }
       ]
@@ -1137,6 +1947,101 @@
           "cSharpName": "BackupNextScheduledAutomaticBackup"
         },
         {
+          "id": "sensor.hypervolt_charging_readiness",
+          "friendlyName": "Hypervolt Charging Readiness",
+          "cSharpName": "HypervoltChargingReadiness"
+        },
+        {
+          "id": "sensor.hypervolt_firmware_version",
+          "friendlyName": "Hypervolt Firmware Version",
+          "cSharpName": "HypervoltFirmwareVersion"
+        },
+        {
+          "id": "sensor.hypervolt_session_id",
+          "friendlyName": "Hypervolt Session ID",
+          "cSharpName": "HypervoltSessionId"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_battery_heating_status",
+          "friendlyName": "MG MG4 Electric Battery Heating Status",
+          "cSharpName": "MgMg4ElectricBatteryHeatingStatus"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_brand",
+          "friendlyName": "MG MG4 Electric Brand",
+          "cSharpName": "MgMg4ElectricBrand"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_current_limit",
+          "friendlyName": "MG MG4 Electric Charging Current Limit",
+          "cSharpName": "MgMg4ElectricChargingCurrentLimit"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_status",
+          "friendlyName": "MG MG4 Electric Charging Status",
+          "cSharpName": "MgMg4ElectricChargingStatus"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_front_left_heated_seat_level",
+          "friendlyName": "MG MG4 Electric Front Left Heated Seat Level",
+          "cSharpName": "MgMg4ElectricFrontLeftHeatedSeatLevel"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_front_right_heated_seat_level",
+          "friendlyName": "MG MG4 Electric Front Right Heated Seat Level",
+          "cSharpName": "MgMg4ElectricFrontRightHeatedSeatLevel"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_last_key_seen",
+          "friendlyName": "MG MG4 Electric Last Key Seen",
+          "cSharpName": "MgMg4ElectricLastKeySeen"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_last_powered_off",
+          "friendlyName": "MG MG4 Electric Last Powered Off",
+          "cSharpName": "MgMg4ElectricLastPoweredOff"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_last_powered_on",
+          "friendlyName": "MG MG4 Electric Last Powered On",
+          "cSharpName": "MgMg4ElectricLastPoweredOn"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_last_update_time",
+          "friendlyName": "MG MG4 Electric Last Update Time",
+          "cSharpName": "MgMg4ElectricLastUpdateTime"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_last_vehicle_activity",
+          "friendlyName": "MG MG4 Electric Last Vehicle Activity",
+          "cSharpName": "MgMg4ElectricLastVehicleActivity"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_model",
+          "friendlyName": "MG MG4 Electric Model",
+          "cSharpName": "MgMg4ElectricModel"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_model_year",
+          "friendlyName": "MG MG4 Electric Model Year",
+          "cSharpName": "MgMg4ElectricModelYear"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_next_update_time",
+          "friendlyName": "MG MG4 Electric Next Update Time",
+          "cSharpName": "MgMg4ElectricNextUpdateTime"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_power_mode",
+          "friendlyName": "MG MG4 Electric Power Mode",
+          "cSharpName": "MgMg4ElectricPowerMode"
+        },
+        {
+          "id": "sensor.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_state",
+          "friendlyName": "Intelligent State (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentState"
+        },
+        {
           "id": "sensor.octopus_energy_a_98d9d332_octoplus_points",
           "friendlyName": "Octoplus Points (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusPoints"
@@ -1160,6 +2065,31 @@
           "id": "sensor.sm_a546b_charger_type",
           "friendlyName": "SM-A546B Charger type",
           "cSharpName": "SmA546bChargerType"
+        },
+        {
+          "id": "sensor.solax_inverter_bdc_status",
+          "friendlyName": "SolaX Inverter BDC Status",
+          "cSharpName": "SolaxInverterBdcStatus"
+        },
+        {
+          "id": "sensor.solax_inverter_modbus_power_control",
+          "friendlyName": "SolaX Inverter Modbus Power Control",
+          "cSharpName": "SolaxInverterModbusPowerControl"
+        },
+        {
+          "id": "sensor.solax_inverter_mppt_count",
+          "friendlyName": "SolaX Inverter MPPT Count",
+          "cSharpName": "SolaxInverterMpptCount"
+        },
+        {
+          "id": "sensor.solax_inverter_run_mode",
+          "friendlyName": "SolaX Inverter Run Mode",
+          "cSharpName": "SolaxInverterRunMode"
+        },
+        {
+          "id": "sensor.solax_inverter_target_finish_flag",
+          "friendlyName": "SolaX Inverter Target Finish Flag",
+          "cSharpName": "SolaxInverterTargetFinishFlag"
         },
         {
           "id": "sensor.sun_next_dawn",
@@ -1230,9 +2160,14 @@
       "isNumeric": true,
       "entities": [
         {
-          "id": "sensor.bedroom_3_dehumidifier_60_minute_trend",
-          "friendlyName": "Bedroom 3 dehumidifier - 60 minute trend",
-          "cSharpName": "Bedroom3Dehumidifier60MinuteTrend"
+          "id": "sensor.bathroom_humidity",
+          "friendlyName": "Bathroom",
+          "cSharpName": "BathroomHumidity"
+        },
+        {
+          "id": "sensor.bathroom_temperature",
+          "friendlyName": "Bathroom",
+          "cSharpName": "BathroomTemperature"
         },
         {
           "id": "sensor.bedroom_3_temperature_and_humidity_battery",
@@ -1240,23 +2175,13 @@
           "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
         },
         {
-          "id": "sensor.bedroom_3_temperature_and_humidity_humidity",
-          "friendlyName": "Bedroom 3 temperature and humidity Humidity",
-          "cSharpName": "Bedroom3TemperatureAndHumidityHumidity"
-        },
-        {
-          "id": "sensor.bedroom_3_temperature_and_humidity_temperature",
-          "friendlyName": "Bedroom 3 temperature",
-          "cSharpName": "Bedroom3TemperatureAndHumidityTemperature"
-        },
-        {
           "id": "sensor.clock_temperature_and_humidity_humidity",
-          "friendlyName": "Clock Temperature and Humidity Humidity",
+          "friendlyName": "Bedroom 1",
           "cSharpName": "ClockTemperatureAndHumidityHumidity"
         },
         {
           "id": "sensor.clock_temperature_and_humidity_temperature",
-          "friendlyName": "Clock Temperature and Humidity Temperature",
+          "friendlyName": "Bedroom 1",
           "cSharpName": "ClockTemperatureAndHumidityTemperature"
         },
         {
@@ -1280,9 +2205,29 @@
           "cSharpName": "DiningRoomDeskPlugVoltage"
         },
         {
+          "id": "sensor.diningroom_dehumidifier_60_minute_trend",
+          "friendlyName": "Diningn room dehumidifier - 60 minute trend",
+          "cSharpName": "DiningroomDehumidifier60MinuteTrend"
+        },
+        {
+          "id": "sensor.diningroom_humidity",
+          "friendlyName": "Dining room",
+          "cSharpName": "DiningroomHumidity"
+        },
+        {
+          "id": "sensor.diningroom_temperature",
+          "friendlyName": "Dining room",
+          "cSharpName": "DiningroomTemperature"
+        },
+        {
           "id": "sensor.ewelink_snzb_01p_battery",
           "friendlyName": "Dining Room - Desk - Button Battery",
           "cSharpName": "EwelinkSnzb01pBattery"
+        },
+        {
+          "id": "sensor.ewelink_snzb_03p_battery",
+          "friendlyName": "Porch motion detector Battery",
+          "cSharpName": "EwelinkSnzb03pBattery"
         },
         {
           "id": "sensor.games_room_desk_button_battery",
@@ -1310,18 +2255,78 @@
           "cSharpName": "GamesRoomDeskPlugVoltage"
         },
         {
+          "id": "sensor.hypervolt_charger_current",
+          "friendlyName": "Hypervolt Charger Current",
+          "cSharpName": "HypervoltChargerCurrent"
+        },
+        {
+          "id": "sensor.hypervolt_ct_current",
+          "friendlyName": "Hypervolt CT Current",
+          "cSharpName": "HypervoltCtCurrent"
+        },
+        {
+          "id": "sensor.hypervolt_ct_power",
+          "friendlyName": "Hypervolt CT Power",
+          "cSharpName": "HypervoltCtPower"
+        },
+        {
+          "id": "sensor.hypervolt_ev_power",
+          "friendlyName": "Hypervolt EV Power",
+          "cSharpName": "HypervoltEvPower"
+        },
+        {
+          "id": "sensor.hypervolt_generation_power",
+          "friendlyName": "Hypervolt Generation Power",
+          "cSharpName": "HypervoltGenerationPower"
+        },
+        {
+          "id": "sensor.hypervolt_grid_power",
+          "friendlyName": "Hypervolt Grid Power",
+          "cSharpName": "HypervoltGridPower"
+        },
+        {
+          "id": "sensor.hypervolt_house_power",
+          "friendlyName": "Hypervolt House Power",
+          "cSharpName": "HypervoltHousePower"
+        },
+        {
+          "id": "sensor.hypervolt_session_carbon_saved",
+          "friendlyName": "Hypervolt Session Carbon Saved",
+          "cSharpName": "HypervoltSessionCarbonSaved"
+        },
+        {
+          "id": "sensor.hypervolt_session_energy",
+          "friendlyName": "Hypervolt Session Energy",
+          "cSharpName": "HypervoltSessionEnergy"
+        },
+        {
+          "id": "sensor.hypervolt_session_energy_total_increasing",
+          "friendlyName": "Hypervolt Session Energy Total Increasing",
+          "cSharpName": "HypervoltSessionEnergyTotalIncreasing"
+        },
+        {
+          "id": "sensor.hypervolt_session_power",
+          "friendlyName": "Hypervolt Session Power",
+          "cSharpName": "HypervoltSessionPower"
+        },
+        {
+          "id": "sensor.hypervolt_voltage",
+          "friendlyName": "Hypervolt Voltage",
+          "cSharpName": "HypervoltVoltage"
+        },
+        {
           "id": "sensor.kitchen_temperature_and_humidity_battery",
           "friendlyName": "Kitchen temperature and humidity Battery",
           "cSharpName": "KitchenTemperatureAndHumidityBattery"
         },
         {
           "id": "sensor.kitchen_temperature_and_humidity_humidity",
-          "friendlyName": "Kitchen temperature and humidity Humidity",
+          "friendlyName": "Kitchen",
           "cSharpName": "KitchenTemperatureAndHumidityHumidity"
         },
         {
           "id": "sensor.kitchen_temperature_and_humidity_temperature",
-          "friendlyName": "Kitchen temperature",
+          "friendlyName": "Kitchen",
           "cSharpName": "KitchenTemperatureAndHumidityTemperature"
         },
         {
@@ -1348,6 +2353,121 @@
           "id": "sensor.loving_room_charging_dock_voltage",
           "friendlyName": "Living room plug - charging dock Voltage",
           "cSharpName": "LovingRoomChargingDockVoltage"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_added_electric_range",
+          "friendlyName": "MG MG4 Electric Added Electric Range",
+          "cSharpName": "MgMg4ElectricAddedElectricRange"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_ancillary_battery_voltage",
+          "friendlyName": "MG MG4 Electric Ancillary Battery Voltage",
+          "cSharpName": "MgMg4ElectricAncillaryBatteryVoltage"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_current",
+          "friendlyName": "MG MG4 Electric Charging Current",
+          "cSharpName": "MgMg4ElectricChargingCurrent"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_duration",
+          "friendlyName": "MG MG4 Electric Charging Duration",
+          "cSharpName": "MgMg4ElectricChargingDuration"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_power",
+          "friendlyName": "MG MG4 Electric Charging Power",
+          "cSharpName": "MgMg4ElectricChargingPower"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_charging_voltage",
+          "friendlyName": "MG MG4 Electric Charging Voltage",
+          "cSharpName": "MgMg4ElectricChargingVoltage"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_electric_range",
+          "friendlyName": "MG MG4 Electric Electric Range",
+          "cSharpName": "MgMg4ElectricElectricRange"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_estimated_range_after_charging",
+          "friendlyName": "MG MG4 Electric Estimated Range After Charging",
+          "cSharpName": "MgMg4ElectricEstimatedRangeAfterCharging"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_exterior_temperature",
+          "friendlyName": "MG MG4 Electric Exterior Temperature",
+          "cSharpName": "MgMg4ElectricExteriorTemperature"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_instant_power",
+          "friendlyName": "MG MG4 Electric Instant Power",
+          "cSharpName": "MgMg4ElectricInstantPower"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_interior_temperature",
+          "friendlyName": "MG MG4 Electric Interior Temperature",
+          "cSharpName": "MgMg4ElectricInteriorTemperature"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_mileage",
+          "friendlyName": "MG MG4 Electric Mileage",
+          "cSharpName": "MgMg4ElectricMileage"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_mileage_since_last_charge",
+          "friendlyName": "MG MG4 Electric Mileage Since Last Charge",
+          "cSharpName": "MgMg4ElectricMileageSinceLastCharge"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_power_usage_since_last_charge",
+          "friendlyName": "MG MG4 Electric Power Usage Since Last Charge",
+          "cSharpName": "MgMg4ElectricPowerUsageSinceLastCharge"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_remaining_charging_time",
+          "friendlyName": "MG MG4 Electric Remaining Charging Time",
+          "cSharpName": "MgMg4ElectricRemainingChargingTime"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_speed",
+          "friendlyName": "MG MG4 Electric Speed",
+          "cSharpName": "MgMg4ElectricSpeed"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_state_of_charge",
+          "friendlyName": "MG MG4 Electric State of Charge",
+          "cSharpName": "MgMg4ElectricStateOfCharge"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_target_soc",
+          "friendlyName": "MG MG4 Electric Target SOC",
+          "cSharpName": "MgMg4ElectricTargetSoc"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_total_battery_capacity",
+          "friendlyName": "MG MG4 Electric Total Battery Capacity",
+          "cSharpName": "MgMg4ElectricTotalBatteryCapacity"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_tyre_pressure_front_left",
+          "friendlyName": "MG MG4 Electric Tyre Pressure Front Left",
+          "cSharpName": "MgMg4ElectricTyrePressureFrontLeft"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_tyre_pressure_front_right",
+          "friendlyName": "MG MG4 Electric Tyre Pressure Front Right",
+          "cSharpName": "MgMg4ElectricTyrePressureFrontRight"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_tyre_pressure_rear_left",
+          "friendlyName": "MG MG4 Electric Tyre Pressure Rear Left",
+          "cSharpName": "MgMg4ElectricTyrePressureRearLeft"
+        },
+        {
+          "id": "sensor.mg_mg4_electric_tyre_pressure_rear_right",
+          "friendlyName": "MG MG4 Electric Tyre Pressure Rear Right",
+          "cSharpName": "MgMg4ElectricTyrePressureRearRight"
         },
         {
           "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini",
@@ -1490,13 +2610,263 @@
           "cSharpName": "OctopusEnergyGasE6s129511825621902909205PreviousRate"
         },
         {
+          "id": "sensor.porch_light_power",
+          "friendlyName": "Porch light Power",
+          "cSharpName": "PorchLightPower"
+        },
+        {
           "id": "sensor.sm_a546b_battery_level",
           "friendlyName": "SM-A546B Battery level",
           "cSharpName": "SmA546bBatteryLevel"
         },
         {
+          "id": "sensor.solax_inverter_active_power_lower",
+          "friendlyName": "SolaX Inverter Active Power Lower",
+          "cSharpName": "SolaxInverterActivePowerLower"
+        },
+        {
+          "id": "sensor.solax_inverter_active_power_real",
+          "friendlyName": "SolaX Inverter Active Power Real",
+          "cSharpName": "SolaxInverterActivePowerReal"
+        },
+        {
+          "id": "sensor.solax_inverter_active_power_target",
+          "friendlyName": "SolaX Inverter Active Power Target",
+          "cSharpName": "SolaxInverterActivePowerTarget"
+        },
+        {
+          "id": "sensor.solax_inverter_active_power_upper",
+          "friendlyName": "SolaX Inverter Active Power Upper",
+          "cSharpName": "SolaxInverterActivePowerUpper"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_1_capacity",
+          "friendlyName": "SolaX Inverter Battery 1 Capacity",
+          "cSharpName": "SolaxInverterBattery1Capacity"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_1_current_charge",
+          "friendlyName": "SolaX Inverter Battery 1 Current Charge",
+          "cSharpName": "SolaxInverterBattery1CurrentCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_1_power_charge",
+          "friendlyName": "SolaX Inverter Battery 1 Power Charge",
+          "cSharpName": "SolaxInverterBattery1PowerCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_1_temperature",
+          "friendlyName": "SolaX Inverter Battery 1 Temperature",
+          "cSharpName": "SolaxInverterBattery1Temperature"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_1_voltage_charge",
+          "friendlyName": "SolaX Inverter Battery 1 Voltage Charge",
+          "cSharpName": "SolaxInverterBattery1VoltageCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_2_capacity",
+          "friendlyName": "SolaX Inverter Battery 2 Capacity",
+          "cSharpName": "SolaxInverterBattery2Capacity"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_2_current_charge",
+          "friendlyName": "SolaX Inverter Battery 2 Current Charge",
+          "cSharpName": "SolaxInverterBattery2CurrentCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_2_power_charge",
+          "friendlyName": "SolaX Inverter Battery 2 Power Charge",
+          "cSharpName": "SolaxInverterBattery2PowerCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_2_temperature",
+          "friendlyName": "SolaX Inverter Battery 2 Temperature",
+          "cSharpName": "SolaxInverterBattery2Temperature"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_2_voltage_charge",
+          "friendlyName": "SolaX Inverter Battery 2 Voltage Charge",
+          "cSharpName": "SolaxInverterBattery2VoltageCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_capacity",
+          "friendlyName": "SolaX Inverter Battery Capacity",
+          "cSharpName": "SolaxInverterBatteryCapacity"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_input_energy_today",
+          "friendlyName": "SolaX Inverter Battery Input Energy Today",
+          "cSharpName": "SolaxInverterBatteryInputEnergyToday"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_output_energy_today",
+          "friendlyName": "SolaX Inverter Battery Output Energy Today",
+          "cSharpName": "SolaxInverterBatteryOutputEnergyToday"
+        },
+        {
+          "id": "sensor.solax_inverter_battery_total_capacity",
+          "friendlyName": "SolaX Inverter Battery Total Capacity",
+          "cSharpName": "SolaxInverterBatteryTotalCapacity"
+        },
+        {
+          "id": "sensor.solax_inverter_grid_export",
+          "friendlyName": "SolaX Inverter Grid Export",
+          "cSharpName": "SolaxInverterGridExport"
+        },
+        {
+          "id": "sensor.solax_inverter_grid_import",
+          "friendlyName": "SolaX Inverter Grid Import",
+          "cSharpName": "SolaxInverterGridImport"
+        },
+        {
+          "id": "sensor.solax_inverter_house_load",
+          "friendlyName": "SolaX Inverter House Load",
+          "cSharpName": "SolaxInverterHouseLoad"
+        },
+        {
+          "id": "sensor.solax_inverter_inverter_current",
+          "friendlyName": "SolaX Inverter Inverter Current",
+          "cSharpName": "SolaxInverterInverterCurrent"
+        },
+        {
+          "id": "sensor.solax_inverter_inverter_frequency",
+          "friendlyName": "SolaX Inverter Inverter Frequency",
+          "cSharpName": "SolaxInverterInverterFrequency"
+        },
+        {
+          "id": "sensor.solax_inverter_inverter_power",
+          "friendlyName": "SolaX Inverter Inverter Power",
+          "cSharpName": "SolaxInverterInverterPower"
+        },
+        {
+          "id": "sensor.solax_inverter_inverter_temperature",
+          "friendlyName": "SolaX Inverter Inverter Temperature",
+          "cSharpName": "SolaxInverterInverterTemperature"
+        },
+        {
+          "id": "sensor.solax_inverter_inverter_voltage",
+          "friendlyName": "SolaX Inverter Inverter Voltage",
+          "cSharpName": "SolaxInverterInverterVoltage"
+        },
+        {
+          "id": "sensor.solax_inverter_measured_power",
+          "friendlyName": "SolaX Inverter Measured Power",
+          "cSharpName": "SolaxInverterMeasuredPower"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_current_1",
+          "friendlyName": "SolaX Inverter PV Current 1",
+          "cSharpName": "SolaxInverterPvCurrent1"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_current_2",
+          "friendlyName": "SolaX Inverter PV Current 2",
+          "cSharpName": "SolaxInverterPvCurrent2"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_current_3",
+          "friendlyName": "SolaX Inverter PV Current 3",
+          "cSharpName": "SolaxInverterPvCurrent3"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_power_1",
+          "friendlyName": "SolaX Inverter PV Power 1",
+          "cSharpName": "SolaxInverterPvPower1"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_power_2",
+          "friendlyName": "SolaX Inverter PV Power 2",
+          "cSharpName": "SolaxInverterPvPower2"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_power_3",
+          "friendlyName": "SolaX Inverter PV Power 3",
+          "cSharpName": "SolaxInverterPvPower3"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_power_total",
+          "friendlyName": "SolaX Inverter PV Power Total",
+          "cSharpName": "SolaxInverterPvPowerTotal"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_voltage_1",
+          "friendlyName": "SolaX Inverter PV Voltage 1",
+          "cSharpName": "SolaxInverterPvVoltage1"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_voltage_2",
+          "friendlyName": "SolaX Inverter PV Voltage 2",
+          "cSharpName": "SolaxInverterPvVoltage2"
+        },
+        {
+          "id": "sensor.solax_inverter_pv_voltage_3",
+          "friendlyName": "SolaX Inverter PV Voltage 3",
+          "cSharpName": "SolaxInverterPvVoltage3"
+        },
+        {
+          "id": "sensor.solax_inverter_reactive_power_lower",
+          "friendlyName": "SolaX Inverter Reactive Power Lower",
+          "cSharpName": "SolaxInverterReactivePowerLower"
+        },
+        {
+          "id": "sensor.solax_inverter_reactive_power_real",
+          "friendlyName": "SolaX Inverter Reactive Power Real",
+          "cSharpName": "SolaxInverterReactivePowerReal"
+        },
+        {
+          "id": "sensor.solax_inverter_reactive_power_target",
+          "friendlyName": "SolaX Inverter Reactive Power Target",
+          "cSharpName": "SolaxInverterReactivePowerTarget"
+        },
+        {
+          "id": "sensor.solax_inverter_reactive_power_upper",
+          "friendlyName": "SolaX Inverter Reactive Power Upper",
+          "cSharpName": "SolaxInverterReactivePowerUpper"
+        },
+        {
+          "id": "sensor.solax_inverter_remotecontrol_autorepeat_remaining",
+          "friendlyName": "SolaX Inverter Remotecontrol Autorepeat Remaining",
+          "cSharpName": "SolaxInverterRemotecontrolAutorepeatRemaining"
+        },
+        {
+          "id": "sensor.solax_inverter_today_s_export_energy",
+          "friendlyName": "SolaX Inverter Today\u0027s Export Energy",
+          "cSharpName": "SolaxInverterTodaySExportEnergy"
+        },
+        {
+          "id": "sensor.solax_inverter_today_s_import_energy",
+          "friendlyName": "SolaX Inverter Today\u0027s Import Energy",
+          "cSharpName": "SolaxInverterTodaySImportEnergy"
+        },
+        {
+          "id": "sensor.solax_inverter_today_s_solar_energy",
+          "friendlyName": "SolaX Inverter Today\u0027s Solar Energy",
+          "cSharpName": "SolaxInverterTodaySSolarEnergy"
+        },
+        {
+          "id": "sensor.solax_inverter_today_s_yield",
+          "friendlyName": "SolaX Inverter Today\u0027s Yield",
+          "cSharpName": "SolaxInverterTodaySYield"
+        },
+        {
+          "id": "sensor.solax_inverter_total_battery_power_charge",
+          "friendlyName": "SolaX Inverter Total Battery Power Charge",
+          "cSharpName": "SolaxInverterTotalBatteryPowerCharge"
+        },
+        {
+          "id": "sensor.solax_inverter_total_solar_energy",
+          "friendlyName": "SolaX Inverter Total Solar Energy",
+          "cSharpName": "SolaxInverterTotalSolarEnergy"
+        },
+        {
+          "id": "sensor.solax_inverter_total_yield",
+          "friendlyName": "SolaX Inverter Total Yield",
+          "cSharpName": "SolaxInverterTotalYield"
+        },
+        {
           "id": "sensor.sonoff_s60zbtpg_current",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Current",
+          "friendlyName": "Dining room plug - dehumidifier Current",
           "cSharpName": "SonoffS60zbtpgCurrent"
         },
         {
@@ -1506,7 +2876,7 @@
         },
         {
           "id": "sensor.sonoff_s60zbtpg_power",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Power",
+          "friendlyName": "Dining room plug - dehumidifier Power",
           "cSharpName": "SonoffS60zbtpgPower"
         },
         {
@@ -1516,7 +2886,7 @@
         },
         {
           "id": "sensor.sonoff_s60zbtpg_summation_delivered",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Summation delivered",
+          "friendlyName": "Dining room plug - dehumidifier Summation delivered",
           "cSharpName": "SonoffS60zbtpgSummationDelivered"
         },
         {
@@ -1526,7 +2896,7 @@
         },
         {
           "id": "sensor.sonoff_s60zbtpg_voltage",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Voltage",
+          "friendlyName": "Dining room plug - dehumidifier Voltage",
           "cSharpName": "SonoffS60zbtpgVoltage"
         },
         {
@@ -1540,14 +2910,34 @@
           "cSharpName": "SonoffSnzb02dBattery"
         },
         {
+          "id": "sensor.sonoff_snzb_02d_battery_2",
+          "friendlyName": "Living Room - Climate Battery",
+          "cSharpName": "SonoffSnzb02dBattery2"
+        },
+        {
+          "id": "sensor.sonoff_snzb_02d_battery_3",
+          "friendlyName": "Dining Room - Climate Battery",
+          "cSharpName": "SonoffSnzb02dBattery3"
+        },
+        {
           "id": "sensor.sonoff_snzb_02d_humidity",
-          "friendlyName": "Games Room - Desk - Climate Humidity",
+          "friendlyName": "Games Room",
           "cSharpName": "SonoffSnzb02dHumidity"
         },
         {
+          "id": "sensor.sonoff_snzb_02d_humidity_2",
+          "friendlyName": "Living Room",
+          "cSharpName": "SonoffSnzb02dHumidity2"
+        },
+        {
           "id": "sensor.sonoff_snzb_02d_temperature",
-          "friendlyName": "Games Room - Desk - Climate Temperature",
+          "friendlyName": "Games Room",
           "cSharpName": "SonoffSnzb02dTemperature"
+        },
+        {
+          "id": "sensor.sonoff_snzb_02d_temperature_2",
+          "friendlyName": "Living Room",
+          "cSharpName": "SonoffSnzb02dTemperature2"
         },
         {
           "id": "sensor.sonoff_snzb_05p_battery",
@@ -1561,7 +2951,7 @@
         },
         {
           "id": "sensor.wiz_rgbw_tunable_22099a_power",
-          "friendlyName": "Ste\u0027s Desk Lamp Power",
+          "friendlyName": "Games Room Desk Lamp Power",
           "cSharpName": "WizRgbwTunable22099aPower"
         }
       ],
@@ -1894,13 +3284,68 @@
           "cSharpName": "GamesRoomDeskPlug"
         },
         {
+          "id": "switch.hypervolt_charging",
+          "friendlyName": "Hypervolt Charging",
+          "cSharpName": "HypervoltCharging"
+        },
+        {
+          "id": "switch.hypervolt_lock_state",
+          "friendlyName": "Hypervolt Lock State",
+          "cSharpName": "HypervoltLockState"
+        },
+        {
           "id": "switch.living_room_charging_dock",
           "friendlyName": "Living room plug - charging dock",
           "cSharpName": "LivingRoomChargingDock"
         },
         {
+          "id": "switch.mg_mg4_electric_battery_heating",
+          "friendlyName": "MG MG4 Electric Battery Heating",
+          "cSharpName": "MgMg4ElectricBatteryHeating"
+        },
+        {
+          "id": "switch.mg_mg4_electric_charging",
+          "friendlyName": "MG MG4 Electric Charging",
+          "cSharpName": "MgMg4ElectricCharging"
+        },
+        {
+          "id": "switch.mg_mg4_electric_charging_port_lock",
+          "friendlyName": "MG MG4 Electric Charging Port Lock",
+          "cSharpName": "MgMg4ElectricChargingPortLock"
+        },
+        {
+          "id": "switch.mg_mg4_electric_front_defrost",
+          "friendlyName": "MG MG4 Electric Front Defrost",
+          "cSharpName": "MgMg4ElectricFrontDefrost"
+        },
+        {
+          "id": "switch.mg_mg4_electric_heated_seat_front_left",
+          "friendlyName": "MG MG4 Electric Heated Seat Front Left",
+          "cSharpName": "MgMg4ElectricHeatedSeatFrontLeft"
+        },
+        {
+          "id": "switch.mg_mg4_electric_heated_seat_front_right",
+          "friendlyName": "MG MG4 Electric Heated Seat Front Right",
+          "cSharpName": "MgMg4ElectricHeatedSeatFrontRight"
+        },
+        {
+          "id": "switch.mg_mg4_electric_rear_window_defrost",
+          "friendlyName": "MG MG4 Electric Rear Window Defrost",
+          "cSharpName": "MgMg4ElectricRearWindowDefrost"
+        },
+        {
+          "id": "switch.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_bump_charge",
+          "friendlyName": "Intelligent Bump Charge (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentBumpCharge"
+        },
+        {
+          "id": "switch.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_smart_charge",
+          "friendlyName": "Intelligent Smart Charge (00000000-0009-4000-8020-00000005f18d)",
+          "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentSmartCharge"
+        },
+        {
           "id": "switch.sonoff_s60zbtpg",
-          "friendlyName": "Bedroom 3 plug - dehumidifier",
+          "friendlyName": "Dining room plug - dehumidifier",
           "cSharpName": "SonoffS60zbtpg"
         },
         {
@@ -1990,6 +3435,11 @@
           "cSharpName": "EwelinkSnzb01pFirmware"
         },
         {
+          "id": "update.ewelink_snzb_03p_firmware",
+          "friendlyName": "Porch motion detector Firmware",
+          "cSharpName": "EwelinkSnzb03pFirmware"
+        },
+        {
           "id": "update.games_room_desk_button_firmware",
           "friendlyName": "Games Room - Desk - Button Firmware",
           "cSharpName": "GamesRoomDeskButtonFirmware"
@@ -2025,6 +3475,11 @@
           "cSharpName": "HomeAssistantSupervisorUpdate"
         },
         {
+          "id": "update.hypervolt_charger_update",
+          "friendlyName": "Hypervolt Charger update",
+          "cSharpName": "HypervoltChargerUpdate"
+        },
+        {
           "id": "update.kitchen_temperature_and_humidity_firmware",
           "friendlyName": "Kitchen temperature and humidity Firmware",
           "cSharpName": "KitchenTemperatureAndHumidityFirmware"
@@ -2035,13 +3490,28 @@
           "cSharpName": "LovingRoomChargingDockFirmware"
         },
         {
+          "id": "update.mg_saic_update",
+          "friendlyName": "MG SAIC update",
+          "cSharpName": "MgSaicUpdate"
+        },
+        {
           "id": "update.octopus_energy_update",
           "friendlyName": "Octopus Energy update",
           "cSharpName": "OctopusEnergyUpdate"
         },
         {
+          "id": "update.saic_mqtt_gateway_python_update",
+          "friendlyName": "SAIC MQTT Gateway (Python) Update",
+          "cSharpName": "SaicMqttGatewayPythonUpdate"
+        },
+        {
+          "id": "update.solax_inverter_modbus_update",
+          "friendlyName": "SolaX Inverter Modbus update",
+          "cSharpName": "SolaxInverterModbusUpdate"
+        },
+        {
           "id": "update.sonoff_s60zbtpg_firmware",
-          "friendlyName": "Bedroom 3 plug - dehumidifier Firmware",
+          "friendlyName": "Dining room plug - dehumidifier Firmware",
           "cSharpName": "SonoffS60zbtpgFirmware"
         },
         {
@@ -2053,6 +3523,16 @@
           "id": "update.sonoff_snzb_02d_firmware",
           "friendlyName": "Games Room - Desk - Climate Firmware",
           "cSharpName": "SonoffSnzb02dFirmware"
+        },
+        {
+          "id": "update.sonoff_snzb_02d_firmware_2",
+          "friendlyName": "Living Room - Climate Firmware",
+          "cSharpName": "SonoffSnzb02dFirmware2"
+        },
+        {
+          "id": "update.sonoff_snzb_02d_firmware_3",
+          "friendlyName": "Dining Room - Climate Firmware",
+          "cSharpName": "SonoffSnzb02dFirmware3"
         },
         {
           "id": "update.sonoff_snzb_05p_firmware",
@@ -2274,6 +3754,231 @@
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
           "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "calendar",
+      "entities": [
+        {
+          "id": "calendar.octopus_energy_a_98d9d332_greener_nights",
+          "friendlyName": "Greener Nights (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332GreenerNights"
+        },
+        {
+          "id": "calendar.octopus_energy_a_98d9d332_octoplus_saving_sessions",
+          "friendlyName": "Octoplus Saving Sessions (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessions"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "text",
+      "entities": [
+        {
+          "id": "text.hypervolt_charger_name",
+          "friendlyName": "Hypervolt Charger Name",
+          "cSharpName": "HypervoltChargerName"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_1_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 1 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession1DaysOfWeek"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_2_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 2 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession2DaysOfWeek"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_3_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 3 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession3DaysOfWeek"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_4_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 4 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession4DaysOfWeek"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "mode",
+          "cSharpName": "Mode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "min",
+          "cSharpName": "Min",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max",
+          "cSharpName": "Max",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "pattern",
+          "cSharpName": "Pattern",
+          "clrType": null
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "time",
+      "entities": [
+        {
+          "id": "time.hypervolt_schedule_session_1_end_time",
+          "friendlyName": "Hypervolt Schedule Session 1 End Time",
+          "cSharpName": "HypervoltScheduleSession1EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_1_start_time",
+          "friendlyName": "Hypervolt Schedule Session 1 Start Time",
+          "cSharpName": "HypervoltScheduleSession1StartTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_2_end_time",
+          "friendlyName": "Hypervolt Schedule Session 2 End Time",
+          "cSharpName": "HypervoltScheduleSession2EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_2_start_time",
+          "friendlyName": "Hypervolt Schedule Session 2 Start Time",
+          "cSharpName": "HypervoltScheduleSession2StartTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_3_end_time",
+          "friendlyName": "Hypervolt Schedule Session 3 End Time",
+          "cSharpName": "HypervoltScheduleSession3EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_3_start_time",
+          "friendlyName": "Hypervolt Schedule Session 3 Start Time",
+          "cSharpName": "HypervoltScheduleSession3StartTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_4_end_time",
+          "friendlyName": "Hypervolt Schedule Session 4 End Time",
+          "cSharpName": "HypervoltScheduleSession4EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_4_start_time",
+          "friendlyName": "Hypervolt Schedule Session 4 Start Time",
+          "cSharpName": "HypervoltScheduleSession4StartTime"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        }
+      ]
+    },
+    {
+      "domain": "climate",
+      "entities": [
+        {
+          "id": "climate.mg_mg4_electric_climate",
+          "friendlyName": "MG MG4 Electric Climate",
+          "cSharpName": "MgMg4ElectricClimate"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "hvac_modes",
+          "cSharpName": "HvacModes",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "min_temp",
+          "cSharpName": "MinTemp",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "max_temp",
+          "cSharpName": "MaxTemp",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "target_temp_step",
+          "cSharpName": "TargetTempStep",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "fan_modes",
+          "cSharpName": "FanModes",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.String]"
+        },
+        {
+          "jsonName": "current_temperature",
+          "cSharpName": "CurrentTemperature",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "temperature",
+          "cSharpName": "Temperature",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "fan_mode",
+          "cSharpName": "FanMode",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        }
+      ]
+    },
+    {
+      "domain": "lock",
+      "entities": [
+        {
+          "id": "lock.mg_mg4_electric_boot",
+          "friendlyName": "MG MG4 Electric Boot",
+          "cSharpName": "MgMg4ElectricBoot"
+        },
+        {
+          "id": "lock.mg_mg4_electric_lock",
+          "friendlyName": "MG MG4 Electric Lock",
+          "cSharpName": "MgMg4ElectricLock"
+        }
+      ],
+      "attributes": [
+        {
+          "jsonName": "icon",
+          "cSharpName": "Icon",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "friendly_name",
+          "cSharpName": "FriendlyName",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     }

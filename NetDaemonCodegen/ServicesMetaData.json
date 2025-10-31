@@ -9,8 +9,8 @@
           "example": "Please check your configuration.yaml.",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Message",
@@ -20,8 +20,8 @@
           "example": "Test notification",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Title",
@@ -31,8 +31,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Notification ID",
@@ -49,8 +49,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Notification ID",
@@ -218,62 +218,6 @@
       "fields": {}
     }
   },
-  "system_log": {
-    "clear": {
-      "name": "Clear",
-      "description": "Deletes all log entries.",
-      "fields": {}
-    },
-    "write": {
-      "name": "Write",
-      "description": "Write log entry.",
-      "fields": {
-        "message": {
-          "required": true,
-          "example": "Something went wrong",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Message",
-          "description": "Message to log."
-        },
-        "level": {
-          "default": "error",
-          "selector": {
-            "select": {
-              "options": [
-                "debug",
-                "info",
-                "warning",
-                "error",
-                "critical"
-              ],
-              "translation_key": "level",
-              "multiple": false,
-              "custom_value": false,
-              "sort": false
-            }
-          },
-          "name": "Level",
-          "description": "Log level."
-        },
-        "logger": {
-          "example": "mycomponent.myplatform",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Logger",
-          "description": "Logger name under which to log the message. Defaults to \u0060system_log.external\u0060."
-        }
-      }
-    }
-  },
   "logger": {
     "set_default_level": {
       "name": "Set default level",
@@ -292,8 +236,8 @@
               ],
               "translation_key": "level",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Level",
@@ -305,6 +249,62 @@
       "name": "Set level",
       "description": "Sets the log level for one or more integrations.",
       "fields": {}
+    }
+  },
+  "system_log": {
+    "clear": {
+      "name": "Clear",
+      "description": "Deletes all log entries.",
+      "fields": {}
+    },
+    "write": {
+      "name": "Write",
+      "description": "Write log entry.",
+      "fields": {
+        "message": {
+          "required": true,
+          "example": "Something went wrong",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Message",
+          "description": "Message to log."
+        },
+        "level": {
+          "default": "error",
+          "selector": {
+            "select": {
+              "options": [
+                "debug",
+                "info",
+                "warning",
+                "error",
+                "critical"
+              ],
+              "translation_key": "level",
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Level",
+          "description": "Log level."
+        },
+        "logger": {
+          "example": "mycomponent.myplatform",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Logger",
+          "description": "Logger name under which to log the message. Defaults to \u0060system_log.external\u0060."
+        }
+      }
     }
   },
   "frontend": {
@@ -333,8 +333,8 @@
               ],
               "translation_key": "mode",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Mode",
@@ -496,8 +496,8 @@
                 "month"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Period",
@@ -521,8 +521,8 @@
                 "sum"
               ],
               "multiple": true,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Types",
@@ -627,8 +627,8 @@
           "example": "Backup 1",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Name",
@@ -638,8 +638,8 @@
           "example": "password",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Password",
@@ -721,8 +721,8 @@
           "example": "Partial backup 1",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Name",
@@ -732,8 +732,8 @@
           "example": "password",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Password",
@@ -765,8 +765,8 @@
           "required": true,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Slug",
@@ -776,8 +776,8 @@
           "example": "password",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Password",
@@ -793,8 +793,8 @@
           "required": true,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Slug",
@@ -838,8 +838,8 @@
           "example": "password",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Password",
@@ -860,8 +860,8 @@
               "domain": [
                 "binary_sensor"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Entity",
@@ -880,8 +880,8 @@
               "domain": [
                 "binary_sensor"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Entity",
@@ -900,8 +900,8 @@
               "domain": [
                 "binary_sensor"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Entity",
@@ -964,8 +964,8 @@
           "example": "1.0.0",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Version",
@@ -1041,8 +1041,8 @@
           "required": true,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Text",
@@ -1052,8 +1052,8 @@
           "example": "NL",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Language",
@@ -1071,8 +1071,8 @@
           "example": "my_conversation_1",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Conversation ID",
@@ -1091,8 +1091,8 @@
           "example": "NL",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Language",
@@ -1121,8 +1121,8 @@
               "domain": [
                 "media_player"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Media player entity",
@@ -1133,8 +1133,8 @@
           "required": true,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Message",
@@ -1152,8 +1152,8 @@
           "example": "ru",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Language",
@@ -1305,8 +1305,8 @@
           "example": "/tmp/snapshot_{{ entity_id.name }}.jpg",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Filename",
@@ -1334,8 +1334,8 @@
               "domain": [
                 "media_player"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Media player",
@@ -1349,8 +1349,8 @@
                 "hls"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Format",
@@ -1376,8 +1376,8 @@
           "example": "/tmp/snapshot_{{ entity_id.name }}.mp4",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Filename",
@@ -1496,8 +1496,8 @@
           "example": "all_lights",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Scene entity ID",
@@ -1540,6 +1540,59 @@
             ]
           }
         ]
+      }
+    }
+  },
+  "logbook": {
+    "log": {
+      "name": "Log",
+      "description": "Tracks a custom activity.",
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Kitchen",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Name",
+          "description": "Custom name for an entity, can be referenced using the \u0027Entity ID\u0027 field."
+        },
+        "message": {
+          "required": true,
+          "example": "is being used",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Message",
+          "description": "Message of the activity."
+        },
+        "entity_id": {
+          "selector": {
+            "entity": {
+              "multiple": false,
+              "reorder": false
+            }
+          },
+          "name": "Entity ID",
+          "description": "Entity to reference in the activity."
+        },
+        "domain": {
+          "example": "light",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Domain",
+          "description": "Determines which icon is used in the activity. The icon illustrates the integration domain related to this activity."
+        }
       }
     }
   },
@@ -1688,108 +1741,6 @@
       }
     }
   },
-  "logbook": {
-    "log": {
-      "name": "Log",
-      "description": "Tracks a custom activity.",
-      "fields": {
-        "name": {
-          "required": true,
-          "example": "Kitchen",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Name",
-          "description": "Custom name for an entity, can be referenced using the \u0027Entity ID\u0027 field."
-        },
-        "message": {
-          "required": true,
-          "example": "is being used",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Message",
-          "description": "Message of the activity."
-        },
-        "entity_id": {
-          "selector": {
-            "entity": {
-              "reorder": false,
-              "multiple": false
-            }
-          },
-          "name": "Entity ID",
-          "description": "Entity to reference in the activity."
-        },
-        "domain": {
-          "example": "light",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Domain",
-          "description": "Determines which icon is used in the activity. The icon illustrates the integration domain related to this activity."
-        }
-      }
-    }
-  },
-  "script": {
-    "reload": {
-      "name": "Reload",
-      "description": "Reloads all the available scripts.",
-      "fields": {}
-    },
-    "turn_on": {
-      "name": "Turn on",
-      "description": "Runs the sequence of actions defined in a script.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "script"
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "name": "Turn off",
-      "description": "Stops a running script.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "script"
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "name": "Toggle",
-      "description": "Starts a script if it isn\u0027t running, stops it otherwise.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "script"
-            ]
-          }
-        ]
-      }
-    }
-  },
   "timer": {
     "reload": {
       "name": "Reload",
@@ -1804,8 +1755,8 @@
           "example": "00:01:00 or 60",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Duration",
@@ -1874,8 +1825,8 @@
           "example": "00:01:00, 60 or -60",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Duration",
@@ -1887,6 +1838,118 @@
           {
             "domain": [
               "timer"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "script": {
+    "reload": {
+      "name": "Reload",
+      "description": "Reloads all the available scripts.",
+      "fields": {}
+    },
+    "turn_on": {
+      "name": "Turn on",
+      "description": "Runs the sequence of actions defined in a script.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "script"
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "name": "Turn off",
+      "description": "Stops a running script.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "script"
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "name": "Toggle",
+      "description": "Starts a script if it isn\u0027t running, stops it otherwise.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "script"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "input_number": {
+    "reload": {
+      "name": "Reload",
+      "description": "Reloads helpers from the YAML-configuration.",
+      "fields": {}
+    },
+    "set_value": {
+      "name": "Set",
+      "description": "Sets the value.",
+      "fields": {
+        "value": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 9.223372036854776e18,
+              "step": 0.001,
+              "mode": "box"
+            }
+          },
+          "name": "Value",
+          "description": "The target value."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_number"
+            ]
+          }
+        ]
+      }
+    },
+    "increment": {
+      "name": "Increment",
+      "description": "Increments the current value by 1 step.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_number"
+            ]
+          }
+        ]
+      }
+    },
+    "decrement": {
+      "name": "Decrement",
+      "description": "Decrements the current value by 1 step.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_number"
             ]
           }
         ]
@@ -1963,7 +2026,14 @@
       }
     }
   },
-  "input_number": {
+  "person": {
+    "reload": {
+      "name": "Reload",
+      "description": "Reloads persons from the YAML-configuration.",
+      "fields": {}
+    }
+  },
+  "input_text": {
     "reload": {
       "name": "Reload",
       "description": "Reloads helpers from the YAML-configuration.",
@@ -1975,12 +2045,11 @@
       "fields": {
         "value": {
           "required": true,
+          "example": "This is an example text",
           "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 9.223372036854776e18,
-              "step": 0.001,
-              "mode": "box"
+            "text": {
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Value",
@@ -1991,21 +2060,228 @@
         "entity": [
           {
             "domain": [
-              "input_number"
+              "input_text"
             ]
           }
         ]
       }
+    }
+  },
+  "shopping_list": {
+    "add_item": {
+      "name": "Add item",
+      "description": "Adds an item to the shopping list.",
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Name",
+          "description": "The name of the item to add."
+        }
+      }
     },
+    "remove_item": {
+      "name": "Remove item",
+      "description": "Removes the first item with matching name from the shopping list.",
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Name",
+          "description": "The name of the item to remove."
+        }
+      }
+    },
+    "complete_item": {
+      "name": "Complete item",
+      "description": "Marks the first item with matching name as completed in the shopping list.",
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Name",
+          "description": "The name of the item to mark as completed (without removing)."
+        }
+      }
+    },
+    "incomplete_item": {
+      "name": "Incomplete item",
+      "description": "Marks the first item with matching name as incomplete in the shopping list.",
+      "fields": {
+        "name": {
+          "example": "Beer",
+          "required": true,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Name",
+          "description": "The name of the item to mark as incomplete."
+        }
+      }
+    },
+    "complete_all": {
+      "name": "Complete all",
+      "description": "Marks all items as completed in the shopping list (without removing them from the list).",
+      "fields": {}
+    },
+    "incomplete_all": {
+      "name": "Incomplete all",
+      "description": "Marks all items as incomplete in the shopping list.",
+      "fields": {}
+    },
+    "clear_completed_items": {
+      "name": "Clear completed items",
+      "description": "Removes completed items from the shopping list.",
+      "fields": {}
+    },
+    "sort": {
+      "name": "Sort all items",
+      "description": "Sorts all items by name in the shopping list.",
+      "fields": {
+        "reverse": {
+          "default": false,
+          "selector": {
+            "boolean": {}
+          },
+          "name": "Sort reverse",
+          "description": "Whether to sort in reverse (descending) order."
+        }
+      }
+    }
+  },
+  "file": {
+    "read_file": {
+      "name": "Read file",
+      "description": "Reads a file and returns the contents.",
+      "fields": {
+        "file_name": {
+          "example": "www/my_file.json",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "File name",
+          "description": "Name of the file to read."
+        },
+        "file_encoding": {
+          "example": "JSON",
+          "selector": {
+            "select": {
+              "options": [
+                "JSON",
+                "YAML"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "File encoding",
+          "description": "Encoding of the file (JSON, YAML.)"
+        }
+      },
+      "response": {
+        "optional": false
+      }
+    }
+  },
+  "input_datetime": {
+    "reload": {
+      "name": "Reload",
+      "description": "Reloads helpers from the YAML-configuration.",
+      "fields": {}
+    },
+    "set_datetime": {
+      "name": "Set",
+      "description": "Sets the date and/or time.",
+      "fields": {
+        "date": {
+          "example": "\u00222019-04-20\u0022",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Date",
+          "description": "The target date."
+        },
+        "time": {
+          "example": "\u002205:04:20\u0022",
+          "selector": {
+            "time": {}
+          },
+          "name": "Time",
+          "description": "The target time."
+        },
+        "datetime": {
+          "example": "\u00222019-04-20 05:04:20\u0022",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Date \u0026 time",
+          "description": "The target date \u0026 time."
+        },
+        "timestamp": {
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 9.223372036854776e18,
+              "mode": "box",
+              "step": 1.0
+            }
+          },
+          "name": "Timestamp",
+          "description": "The target date \u0026 time, expressed by a UNIX timestamp."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_datetime"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "counter": {
     "increment": {
       "name": "Increment",
-      "description": "Increments the current value by 1 step.",
+      "description": "Increments a counter by its step size.",
       "fields": {},
       "target": {
         "entity": [
           {
             "domain": [
-              "input_number"
+              "counter"
             ]
           }
         ]
@@ -2013,24 +2289,59 @@
     },
     "decrement": {
       "name": "Decrement",
-      "description": "Decrements the current value by 1 step.",
+      "description": "Decrements a counter by its step size.",
       "fields": {},
       "target": {
         "entity": [
           {
             "domain": [
-              "input_number"
+              "counter"
             ]
           }
         ]
       }
-    }
-  },
-  "person": {
-    "reload": {
-      "name": "Reload",
-      "description": "Reloads persons from the YAML-configuration.",
-      "fields": {}
+    },
+    "reset": {
+      "name": "Reset",
+      "description": "Resets a counter to its initial value.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "counter"
+            ]
+          }
+        ]
+      }
+    },
+    "set_value": {
+      "name": "Set",
+      "description": "Sets the counter to a specific value.",
+      "fields": {
+        "value": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 9.223372036854776e18,
+              "mode": "box",
+              "step": 1.0
+            }
+          },
+          "name": "Value",
+          "description": "The new counter value the entity should be set to."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "counter"
+            ]
+          }
+        ]
+      }
     }
   },
   "octopus_energy": {
@@ -2039,18 +2350,15 @@
       "description": "Removes external statistics for all meters that don\u0027t have an active tariff",
       "fields": {}
     },
-    "join_octoplus_saving_session_event": {
-      "name": "Join Octoplus saving session event",
-      "description": "Joins a given Octoplus saving session event.",
+    "get_point_in_time_intelligent_dispatch_history": {
+      "name": "Get point in time intelligent dispatch history",
+      "description": "Retrieve the intelligent dispatch history which was active for a given point in time based on up to the last 48 hours of intelligent dispatches that have been captured locally. For more information please see https://bottlecapdave.github.io/HomeAssistant-OctopusEnergy/services/#octopus_energyget_intelligent_dispatch_history.",
       "fields": {
-        "event_code": {
-          "name": "Event code",
-          "description": "The code of the event that is to be joined.",
+        "point_in_time": {
+          "name": "Point in time",
+          "description": "The datetime of the point in time to retrieve the application intelligent dispatch history for",
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
+            "datetime": {}
           }
         }
       },
@@ -2059,10 +2367,13 @@
           {
             "integration": "octopus_energy",
             "domain": [
-              "event"
+              "binary_sensor"
             ]
           }
         ]
+      },
+      "response": {
+        "optional": false
       }
     },
     "refresh_previous_consumption_data": {
@@ -2152,6 +2463,32 @@
             "integration": "octopus_energy",
             "domain": [
               "sensor"
+            ]
+          }
+        ]
+      }
+    },
+    "join_octoplus_saving_session_event": {
+      "name": "Join Octoplus saving session event",
+      "description": "Joins a given Octoplus saving session event.",
+      "fields": {
+        "event_code": {
+          "name": "Event code",
+          "description": "The code of the event that is to be joined.",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "integration": "octopus_energy",
+            "domain": [
+              "event"
             ]
           }
         ]
@@ -2288,8 +2625,8 @@
               "domain": [
                 "media_player"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           },
           "name": "Entity",
@@ -2299,8 +2636,8 @@
           "example": "lovelace-cast",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Dashboard path",
@@ -2311,8 +2648,8 @@
           "example": "downstairs",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "View path",
@@ -2321,41 +2658,74 @@
       }
     }
   },
-  "file": {
-    "read_file": {
-      "name": "Read file",
-      "description": "Reads a file and returns the contents.",
+  "hypervolt_charger": {
+    "set_schedule": {
+      "name": "Set Schedule",
+      "description": "To be used by \uD83D\uDC19 Octopus Agile users with the Octopus Energy integration, specifically the Target Rates sensors which allow you to find the cheapest periods between two times",
       "fields": {
-        "file_name": {
-          "example": "www/my_file.json",
+        "tracker_rate": {
+          "name": "Tracker Rate",
+          "required": true,
+          "description": "Target tracker rate to schedule",
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "File name",
-          "description": "Name of the file to read."
-        },
-        "file_encoding": {
-          "example": "JSON",
-          "selector": {
-            "select": {
-              "options": [
-                "JSON",
-                "YAML"
+            "entity": {
+              "integration": "octopus_energy",
+              "domain": [
+                "binary_sensor"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "reorder": false
             }
-          },
-          "name": "File encoding",
-          "description": "Encoding of the file (JSON, YAML.)"
+          }
+        },
+        "backup_schedule_start": {
+          "name": "Backup Start",
+          "description": "Backup start time if time retrieval fails",
+          "selector": {
+            "time": {}
+          }
+        },
+        "backup_schedule_end": {
+          "name": "Backup End",
+          "description": "Backup end time if start time retrieval fails",
+          "selector": {
+            "time": {}
+          }
+        },
+        "append_backup": {
+          "name": "Append Backup",
+          "required": true,
+          "description": "Append the backup period to the schedule",
+          "selector": {
+            "boolean": {}
+          }
         }
       },
-      "response": {
-        "optional": false
+      "target": {
+        "device": [
+          {
+            "integration": "hypervolt_charger"
+          }
+        ]
+      }
+    }
+  },
+  "solax_modbus": {
+    "stop_all": {
+      "name": "Stop all SolaX hubs",
+      "description": "Force-stop all SolaX hubs (kills timers, tasks, sockets).",
+      "fields": {}
+    },
+    "stop_hub": {
+      "name": "Stop a specific SolaX hub",
+      "description": "Force-stop a single SolaX hub by name.",
+      "fields": {
+        "name": {
+          "name": "Hub name",
+          "description": "Name of the hub to stop (e.g., \u0022SolaX\u0022)",
+          "required": true,
+          "example": "SolaX"
+        }
       }
     }
   },
@@ -2383,276 +2753,492 @@
       }
     }
   },
-  "input_text": {
-    "reload": {
-      "name": "Reload",
-      "description": "Reloads helpers from the YAML-configuration.",
-      "fields": {}
-    },
-    "set_value": {
-      "name": "Set",
-      "description": "Sets the value.",
+  "todo": {
+    "add_item": {
+      "name": "Add item",
+      "description": "Adds a new to-do list item.",
       "fields": {
-        "value": {
+        "item": {
           "required": true,
-          "example": "This is an example text",
+          "example": "Submit income tax return",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
-          "name": "Value",
-          "description": "The target value."
+          "name": "Item name",
+          "description": "The name that represents the to-do item."
+        },
+        "due_date": {
+          "filter": {
+            "supported_features": [
+              16
+            ]
+          },
+          "example": "2023-11-17",
+          "selector": {
+            "date": {}
+          },
+          "name": "Due date",
+          "description": "The date the to-do item is expected to be completed."
+        },
+        "due_datetime": {
+          "filter": {
+            "supported_features": [
+              32
+            ]
+          },
+          "example": "2023-11-17 13:30:00",
+          "selector": {
+            "datetime": {}
+          },
+          "name": "Due date and time",
+          "description": "The date and time the to-do item is expected to be completed."
+        },
+        "description": {
+          "filter": {
+            "supported_features": [
+              64
+            ]
+          },
+          "example": "A more complete description of the to-do item than that provided by the summary.",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Description",
+          "description": "A more complete description of the to-do item than provided by the item name."
         }
       },
       "target": {
         "entity": [
           {
             "domain": [
-              "input_text"
+              "todo"
+            ],
+            "supported_features": [
+              1
             ]
           }
         ]
       }
-    }
-  },
-  "shopping_list": {
-    "add_item": {
-      "name": "Add item",
-      "description": "Adds an item to the shopping list.",
+    },
+    "update_item": {
+      "name": "Update item",
+      "description": "Updates an existing to-do list item based on its name or UID.",
       "fields": {
-        "name": {
+        "item": {
           "required": true,
-          "example": "Beer",
+          "example": "Submit income tax return",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
-          "name": "Name",
-          "description": "The name of the item to add."
+          "name": "Item name or UID",
+          "description": "The name/summary of the to-do item. If you have items with duplicate names, you can reference specific ones using their UID instead."
+        },
+        "rename": {
+          "example": "Something else",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Rename item",
+          "description": "The new name for the to-do item"
+        },
+        "status": {
+          "example": "needs_action",
+          "selector": {
+            "select": {
+              "translation_key": "status",
+              "options": [
+                "needs_action",
+                "completed"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Set status",
+          "description": "A status or confirmation of the to-do item."
+        },
+        "due_date": {
+          "filter": {
+            "supported_features": [
+              16
+            ]
+          },
+          "example": "2023-11-17",
+          "selector": {
+            "date": {}
+          },
+          "name": "Due date",
+          "description": "The date the to-do item is expected to be completed."
+        },
+        "due_datetime": {
+          "filter": {
+            "supported_features": [
+              32
+            ]
+          },
+          "example": "2023-11-17 13:30:00",
+          "selector": {
+            "datetime": {}
+          },
+          "name": "Due date and time",
+          "description": "The date and time the to-do item is expected to be completed."
+        },
+        "description": {
+          "filter": {
+            "supported_features": [
+              64
+            ]
+          },
+          "example": "A more complete description of the to-do item than that provided by the summary.",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Description",
+          "description": "A more complete description of the to-do item than provided by the item name."
         }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "todo"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
       }
     },
     "remove_item": {
       "name": "Remove item",
-      "description": "Removes the first item with matching name from the shopping list.",
+      "description": "Removes an existing to-do list item by its name or UID.",
       "fields": {
-        "name": {
+        "item": {
           "required": true,
-          "example": "Beer",
+          "example": "Submit income tax return",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
-          "name": "Name",
-          "description": "The name of the item to remove."
-        }
-      }
-    },
-    "complete_item": {
-      "name": "Complete item",
-      "description": "Marks the first item with matching name as completed in the shopping list.",
-      "fields": {
-        "name": {
-          "required": true,
-          "example": "Beer",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Name",
-          "description": "The name of the item to mark as completed (without removing)."
-        }
-      }
-    },
-    "incomplete_item": {
-      "name": "Incomplete item",
-      "description": "Marks the first item with matching name as incomplete in the shopping list.",
-      "fields": {
-        "name": {
-          "example": "Beer",
-          "required": true,
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Name",
-          "description": "The name of the item to mark as incomplete."
-        }
-      }
-    },
-    "complete_all": {
-      "name": "Complete all",
-      "description": "Marks all items as completed in the shopping list (without removing them from the list).",
-      "fields": {}
-    },
-    "incomplete_all": {
-      "name": "Incomplete all",
-      "description": "Marks all items as incomplete in the shopping list.",
-      "fields": {}
-    },
-    "clear_completed_items": {
-      "name": "Clear completed items",
-      "description": "Removes completed items from the shopping list.",
-      "fields": {}
-    },
-    "sort": {
-      "name": "Sort all items",
-      "description": "Sorts all items by name in the shopping list.",
-      "fields": {
-        "reverse": {
-          "default": false,
-          "selector": {
-            "boolean": {}
-          },
-          "name": "Sort reverse",
-          "description": "Whether to sort in reverse (descending) order."
-        }
-      }
-    }
-  },
-  "counter": {
-    "increment": {
-      "name": "Increment",
-      "description": "Increments a counter by its step size.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "counter"
-            ]
-          }
-        ]
-      }
-    },
-    "decrement": {
-      "name": "Decrement",
-      "description": "Decrements a counter by its step size.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "counter"
-            ]
-          }
-        ]
-      }
-    },
-    "reset": {
-      "name": "Reset",
-      "description": "Resets a counter to its initial value.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "counter"
-            ]
-          }
-        ]
-      }
-    },
-    "set_value": {
-      "name": "Set",
-      "description": "Sets the counter to a specific value.",
-      "fields": {
-        "value": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 9.223372036854776e18,
-              "mode": "box",
-              "step": 1.0
-            }
-          },
-          "name": "Value",
-          "description": "The new counter value the entity should be set to."
+          "name": "Item name or UID",
+          "description": "The name/summary of the to-do item. If you have items with duplicate names, you can reference specific ones using their UID instead."
         }
       },
       "target": {
         "entity": [
           {
             "domain": [
-              "counter"
+              "todo"
+            ],
+            "supported_features": [
+              2
             ]
           }
         ]
       }
-    }
-  },
-  "input_datetime": {
-    "reload": {
-      "name": "Reload",
-      "description": "Reloads helpers from the YAML-configuration.",
-      "fields": {}
     },
-    "set_datetime": {
-      "name": "Set",
-      "description": "Sets the date and/or time.",
+    "get_items": {
+      "name": "Get items",
+      "description": "Gets items on a to-do list.",
       "fields": {
-        "date": {
-          "example": "\u00222019-04-20\u0022",
+        "status": {
+          "example": "needs_action",
+          "default": "needs_action",
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
+            "select": {
+              "translation_key": "status",
+              "options": [
+                "needs_action",
+                "completed"
+              ],
+              "multiple": true,
+              "sort": false,
+              "custom_value": false
             }
           },
-          "name": "Date",
-          "description": "The target date."
-        },
-        "time": {
-          "example": "\u002205:04:20\u0022",
-          "selector": {
-            "time": {}
-          },
-          "name": "Time",
-          "description": "The target time."
-        },
-        "datetime": {
-          "example": "\u00222019-04-20 05:04:20\u0022",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Date \u0026 time",
-          "description": "The target date \u0026 time."
-        },
-        "timestamp": {
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 9.223372036854776e18,
-              "mode": "box",
-              "step": 1.0
-            }
-          },
-          "name": "Timestamp",
-          "description": "The target date \u0026 time, expressed by a UNIX timestamp."
+          "name": "Status",
+          "description": "Only return to-do items with the specified statuses. Returns not completed actions by default."
         }
       },
       "target": {
         "entity": [
           {
             "domain": [
-              "input_datetime"
+              "todo"
             ]
           }
         ]
+      },
+      "response": {
+        "optional": false
+      }
+    },
+    "remove_completed_items": {
+      "name": "Remove completed items",
+      "description": "Removes all to-do list items that have been completed.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "todo"
+            ],
+            "supported_features": [
+              2
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "notify": {
+    "send_message": {
+      "name": "Send a notification message",
+      "description": "Sends a notification message.",
+      "fields": {
+        "message": {
+          "required": true,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Message",
+          "description": "Your notification message."
+        },
+        "title": {
+          "required": false,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "filter": {
+            "supported_features": [
+              1
+            ]
+          },
+          "name": "Title",
+          "description": "Title for your notification message."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "notify"
+            ]
+          }
+        ]
+      }
+    },
+    "persistent_notification": {
+      "name": "Send a persistent notification",
+      "description": "Sends a notification that is visible in the notifications panel.",
+      "fields": {
+        "message": {
+          "required": true,
+          "example": "The garage door has been open for 10 minutes.",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Message",
+          "description": "Message body of the notification."
+        },
+        "title": {
+          "example": "Your Garage Door Friend",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Title",
+          "description": "Title of the notification."
+        },
+        "data": {
+          "example": "platform specific",
+          "selector": {
+            "object": {
+              "multiple": false
+            }
+          },
+          "name": "Data",
+          "description": "Some integrations provide extended functionality via this field. For more information, refer to the integration documentation."
+        }
+      }
+    },
+    "mobile_app_sm_a546b": {
+      "name": "Send a notification via mobile_app_sm_a546b",
+      "description": "Sends a notification message using the mobile_app_sm_a546b integration.",
+      "fields": {
+        "message": {
+          "required": true,
+          "example": "The garage door has been open for 10 minutes.",
+          "selector": {
+            "text": null
+          }
+        },
+        "title": {
+          "example": "Your Garage Door Friend",
+          "selector": {
+            "text": null
+          }
+        },
+        "target": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        },
+        "data": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        }
+      }
+    },
+    "notify": {
+      "name": "Send a notification with notify",
+      "description": "Sends a notification message using the notify service.",
+      "fields": {
+        "message": {
+          "required": true,
+          "example": "The garage door has been open for 10 minutes.",
+          "selector": {
+            "text": null
+          }
+        },
+        "title": {
+          "example": "Your Garage Door Friend",
+          "selector": {
+            "text": null
+          }
+        },
+        "target": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        },
+        "data": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        }
+      }
+    }
+  },
+  "device_tracker": {
+    "see": {
+      "name": "See",
+      "description": "Manually update the records of a seen legacy device tracker in the known_devices.yaml file.",
+      "fields": {
+        "mac": {
+          "example": "FF:FF:FF:FF:FF:FF",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "MAC address",
+          "description": "MAC address of the device."
+        },
+        "dev_id": {
+          "example": "phonedave",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Device ID",
+          "description": "ID of the device (find the ID in \u0060known_devices.yaml\u0060)."
+        },
+        "host_name": {
+          "example": "Dave",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Hostname",
+          "description": "Hostname of the device."
+        },
+        "location_name": {
+          "example": "home",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Location",
+          "description": "Name of the location where the device is located. The options are: \u0060home\u0060, \u0060not_home\u0060, or the name of the zone."
+        },
+        "gps": {
+          "example": "[51.509802, -0.086692]",
+          "selector": {
+            "object": {
+              "multiple": false
+            }
+          },
+          "name": "GPS coordinates",
+          "description": "GPS coordinates where the device is located, specified by latitude and longitude (for example: [51.513845, -0.100539])."
+        },
+        "gps_accuracy": {
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "mode": "box",
+              "unit_of_measurement": "m",
+              "step": 1.0
+            }
+          },
+          "name": "GPS accuracy",
+          "description": "Accuracy of the GPS coordinates."
+        },
+        "battery": {
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          },
+          "name": "Battery level",
+          "description": "Battery level of the device."
+        }
       }
     }
   },
@@ -2665,8 +3251,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2691,8 +3277,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2720,8 +3306,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2749,8 +3335,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2778,8 +3364,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2807,8 +3393,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2836,8 +3422,8 @@
           "example": "1234",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -2964,8 +3550,8 @@
           "example": "away",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Preset mode",
@@ -3056,8 +3642,8 @@
               ],
               "translation_key": "hvac_mode",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "HVAC mode",
@@ -3119,8 +3705,8 @@
           "example": "low",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Fan mode",
@@ -3149,8 +3735,8 @@
           "example": "on",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Swing mode",
@@ -3179,8 +3765,8 @@
           "example": "on",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Horizontal swing mode",
@@ -3435,8 +4021,8 @@
           },
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Preset mode",
@@ -3593,8 +4179,8 @@
               ],
               "translation_key": "direction",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Direction",
@@ -3655,8 +4241,8 @@
           "example": "auto",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Preset mode",
@@ -3729,8 +4315,8 @@
           "example": "away",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Mode",
@@ -3905,8 +4491,8 @@
           },
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Effect",
@@ -4119,8 +4705,8 @@
                     "yellowgreen"
                   ],
                   "multiple": false,
-                  "custom_value": false,
-                  "sort": false
+                  "sort": false,
+                  "custom_value": false
                 }
               }
             },
@@ -4248,8 +4834,8 @@
               "example": "relax",
               "selector": {
                 "text": {
-                  "multiline": false,
-                  "multiple": false
+                  "multiple": false,
+                  "multiline": false
                 }
               }
             },
@@ -4267,8 +4853,8 @@
                     "short"
                   ],
                   "multiple": false,
-                  "custom_value": false,
-                  "sort": false
+                  "sort": false,
+                  "custom_value": false
                 }
               }
             }
@@ -4324,8 +4910,8 @@
                     "short"
                   ],
                   "multiple": false,
-                  "custom_value": false,
-                  "sort": false
+                  "sort": false,
+                  "custom_value": false
                 }
               }
             }
@@ -4440,8 +5026,8 @@
           },
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Effect",
@@ -4654,8 +5240,8 @@
                     "yellowgreen"
                   ],
                   "multiple": false,
-                  "custom_value": false,
-                  "sort": false
+                  "sort": false,
+                  "custom_value": false
                 }
               }
             },
@@ -4760,8 +5346,8 @@
               "example": "relax",
               "selector": {
                 "text": {
-                  "multiline": false,
-                  "multiple": false
+                  "multiple": false,
+                  "multiline": false
                 }
               }
             },
@@ -4779,8 +5365,8 @@
                     "short"
                   ],
                   "multiple": false,
-                  "custom_value": false,
-                  "sort": false
+                  "sort": false,
+                  "custom_value": false
                 }
               }
             }
@@ -4808,8 +5394,8 @@
           "required": true,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Value",
@@ -4948,8 +5534,8 @@
           "required": false,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Tone",
@@ -4984,8 +5570,8 @@
           "required": false,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Duration",
@@ -5149,8 +5735,8 @@
           "example": "low",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Fan speed",
@@ -5176,8 +5762,8 @@
           "example": "set_dnd_timer",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Command",
@@ -5307,410 +5893,46 @@
       }
     }
   },
-  "notify": {
-    "send_message": {
-      "name": "Send a notification message",
-      "description": "Sends a notification message.",
+  "weather": {
+    "get_forecasts": {
+      "name": "Get forecasts",
+      "description": "Retrieves the forecast from selected weather services.",
       "fields": {
-        "message": {
+        "type": {
           "required": true,
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
+            "select": {
+              "options": [
+                "daily",
+                "hourly",
+                "twice_daily"
+              ],
+              "translation_key": "forecast_type",
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
             }
           },
-          "name": "Message",
-          "description": "Your notification message."
-        },
-        "title": {
-          "required": false,
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "filter": {
+          "name": "Forecast type",
+          "description": "The scope of the weather forecast."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "weather"
+            ],
             "supported_features": [
-              1
+              1,
+              2,
+              4
             ]
-          },
-          "name": "Title",
-          "description": "Title for your notification message."
-        }
+          }
+        ]
       },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "notify"
-            ]
-          }
-        ]
-      }
-    },
-    "persistent_notification": {
-      "name": "Send a persistent notification",
-      "description": "Sends a notification that is visible in the notifications panel.",
-      "fields": {
-        "message": {
-          "required": true,
-          "example": "The garage door has been open for 10 minutes.",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Message",
-          "description": "Message body of the notification."
-        },
-        "title": {
-          "example": "Your Garage Door Friend",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Title",
-          "description": "Title of the notification."
-        },
-        "data": {
-          "example": "platform specific",
-          "selector": {
-            "object": {
-              "multiple": false
-            }
-          },
-          "name": "Data",
-          "description": "Some integrations provide extended functionality via this field. For more information, refer to the integration documentation."
-        }
-      }
-    },
-    "mobile_app_sm_a546b": {
-      "name": "Send a notification via mobile_app_sm_a546b",
-      "description": "Sends a notification message using the mobile_app_sm_a546b integration.",
-      "fields": {
-        "message": {
-          "required": true,
-          "example": "The garage door has been open for 10 minutes.",
-          "selector": {
-            "text": null
-          }
-        },
-        "title": {
-          "example": "Your Garage Door Friend",
-          "selector": {
-            "text": null
-          }
-        },
-        "target": {
-          "example": "platform specific",
-          "selector": {
-            "object": null
-          }
-        },
-        "data": {
-          "example": "platform specific",
-          "selector": {
-            "object": null
-          }
-        }
-      }
-    },
-    "notify": {
-      "name": "Send a notification with notify",
-      "description": "Sends a notification message using the notify service.",
-      "fields": {
-        "message": {
-          "required": true,
-          "example": "The garage door has been open for 10 minutes.",
-          "selector": {
-            "text": null
-          }
-        },
-        "title": {
-          "example": "Your Garage Door Friend",
-          "selector": {
-            "text": null
-          }
-        },
-        "target": {
-          "example": "platform specific",
-          "selector": {
-            "object": null
-          }
-        },
-        "data": {
-          "example": "platform specific",
-          "selector": {
-            "object": null
-          }
-        }
-      }
-    }
-  },
-  "device_tracker": {
-    "see": {
-      "name": "See",
-      "description": "Manually update the records of a seen legacy device tracker in the known_devices.yaml file.",
-      "fields": {
-        "mac": {
-          "example": "FF:FF:FF:FF:FF:FF",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "MAC address",
-          "description": "MAC address of the device."
-        },
-        "dev_id": {
-          "example": "phonedave",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Device ID",
-          "description": "ID of the device (find the ID in \u0060known_devices.yaml\u0060)."
-        },
-        "host_name": {
-          "example": "Dave",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Hostname",
-          "description": "Hostname of the device."
-        },
-        "location_name": {
-          "example": "home",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Location",
-          "description": "Name of the location where the device is located. The options are: \u0060home\u0060, \u0060not_home\u0060, or the name of the zone."
-        },
-        "gps": {
-          "example": "[51.509802, -0.086692]",
-          "selector": {
-            "object": {
-              "multiple": false
-            }
-          },
-          "name": "GPS coordinates",
-          "description": "GPS coordinates where the device is located, specified by latitude and longitude (for example: [51.513845, -0.100539])."
-        },
-        "gps_accuracy": {
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "mode": "box",
-              "unit_of_measurement": "m",
-              "step": 1.0
-            }
-          },
-          "name": "GPS accuracy",
-          "description": "Accuracy of the GPS coordinates."
-        },
-        "battery": {
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          },
-          "name": "Battery level",
-          "description": "Battery level of the device."
-        }
-      }
-    }
-  },
-  "text": {
-    "set_value": {
-      "name": "Set value",
-      "description": "Sets the value.",
-      "fields": {
-        "value": {
-          "required": true,
-          "example": "Hello world!",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Value",
-          "description": "Enter your text."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "text"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "time": {
-    "set_value": {
-      "name": "Set Time",
-      "description": "Sets the time.",
-      "fields": {
-        "time": {
-          "required": true,
-          "example": "22:15",
-          "selector": {
-            "time": {}
-          },
-          "name": "Time",
-          "description": "The time to set."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "time"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "water_heater": {
-    "turn_on": {
-      "name": "Turn on",
-      "description": "Turns water heater on.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "water_heater"
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "name": "Turn off",
-      "description": "Turns water heater off.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "water_heater"
-            ]
-          }
-        ]
-      }
-    },
-    "set_away_mode": {
-      "name": "Set away mode",
-      "description": "Turns away mode on/off.",
-      "fields": {
-        "away_mode": {
-          "required": true,
-          "selector": {
-            "boolean": {}
-          },
-          "name": "Away mode",
-          "description": "New value of away mode."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "water_heater"
-            ]
-          }
-        ]
-      }
-    },
-    "set_temperature": {
-      "name": "Set temperature",
-      "description": "Sets the target temperature.",
-      "fields": {
-        "temperature": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "step": 0.5,
-              "unit_of_measurement": "\u00B0",
-              "mode": "slider"
-            }
-          },
-          "name": "Temperature",
-          "description": "New target temperature for the water heater."
-        },
-        "operation_mode": {
-          "example": "eco",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Operation mode",
-          "description": "New value of the operation mode. For a list of possible modes, refer to the integration documentation."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "water_heater"
-            ]
-          }
-        ]
-      }
-    },
-    "set_operation_mode": {
-      "name": "Set operation mode",
-      "description": "Sets the operation mode.",
-      "fields": {
-        "operation_mode": {
-          "required": true,
-          "example": "eco",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Operation mode",
-          "description": "New value of the operation mode. For a list of possible modes, refer to the integration documentation."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "water_heater"
-            ]
-          }
-        ]
+      "response": {
+        "optional": false
       }
     }
   },
@@ -6051,8 +6273,8 @@
           "example": "video1",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Source",
@@ -6080,8 +6302,8 @@
           "example": "Music",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Sound mode",
@@ -6131,8 +6353,8 @@
               ],
               "translation_key": "enqueue",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Enqueue",
@@ -6175,8 +6397,8 @@
           "example": "music",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Content type",
@@ -6187,8 +6409,8 @@
           "example": "A:ALBUMARTIST/Beatles",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Content ID",
@@ -6220,8 +6442,8 @@
           "example": "Beatles",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Search query",
@@ -6232,8 +6454,8 @@
           "example": "music",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Content type",
@@ -6244,8 +6466,8 @@
           "example": "A:ALBUMARTIST/Beatles",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Content ID",
@@ -6341,8 +6563,8 @@
               ],
               "translation_key": "repeat",
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Repeat mode",
@@ -6363,71 +6585,263 @@
       }
     }
   },
-  "todo": {
-    "add_item": {
-      "name": "Add item",
-      "description": "Adds a new to-do list item.",
+  "time": {
+    "set_value": {
+      "name": "Set Time",
+      "description": "Sets the time.",
       "fields": {
-        "item": {
+        "time": {
           "required": true,
-          "example": "Submit income tax return",
+          "example": "22:15",
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
+            "time": {}
           },
-          "name": "Item name",
-          "description": "The name that represents the to-do item."
-        },
-        "due_date": {
-          "filter": {
-            "supported_features": [
-              16
-            ]
-          },
-          "example": "2023-11-17",
-          "selector": {
-            "date": {}
-          },
-          "name": "Due date",
-          "description": "The date the to-do item is expected to be completed."
-        },
-        "due_datetime": {
-          "filter": {
-            "supported_features": [
-              32
-            ]
-          },
-          "example": "2023-11-17 13:30:00",
-          "selector": {
-            "datetime": {}
-          },
-          "name": "Due date and time",
-          "description": "The date and time the to-do item is expected to be completed."
-        },
-        "description": {
-          "filter": {
-            "supported_features": [
-              64
-            ]
-          },
-          "example": "A more complete description of the to-do item than that provided by the summary.",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Description",
-          "description": "A more complete description of the to-do item than provided by the item name."
+          "name": "Time",
+          "description": "The time to set."
         }
       },
       "target": {
         "entity": [
           {
             "domain": [
-              "todo"
+              "time"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "text": {
+    "set_value": {
+      "name": "Set value",
+      "description": "Sets the value.",
+      "fields": {
+        "value": {
+          "required": true,
+          "example": "Hello world!",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Value",
+          "description": "Enter your text."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "text"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "water_heater": {
+    "turn_on": {
+      "name": "Turn on",
+      "description": "Turns water heater on.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "water_heater"
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "name": "Turn off",
+      "description": "Turns water heater off.",
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "water_heater"
+            ]
+          }
+        ]
+      }
+    },
+    "set_away_mode": {
+      "name": "Set away mode",
+      "description": "Turns away mode on/off.",
+      "fields": {
+        "away_mode": {
+          "required": true,
+          "selector": {
+            "boolean": {}
+          },
+          "name": "Away mode",
+          "description": "New value of away mode."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "water_heater"
+            ]
+          }
+        ]
+      }
+    },
+    "set_temperature": {
+      "name": "Set temperature",
+      "description": "Sets the target temperature.",
+      "fields": {
+        "temperature": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "step": 0.5,
+              "unit_of_measurement": "\u00B0",
+              "mode": "slider"
+            }
+          },
+          "name": "Temperature",
+          "description": "New target temperature for the water heater."
+        },
+        "operation_mode": {
+          "example": "eco",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Operation mode",
+          "description": "New value of the operation mode. For a list of possible modes, refer to the integration documentation."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "water_heater"
+            ]
+          }
+        ]
+      }
+    },
+    "set_operation_mode": {
+      "name": "Set operation mode",
+      "description": "Sets the operation mode.",
+      "fields": {
+        "operation_mode": {
+          "required": true,
+          "example": "eco",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Operation mode",
+          "description": "New value of the operation mode. For a list of possible modes, refer to the integration documentation."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "water_heater"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "calendar": {
+    "create_event": {
+      "name": "Create event",
+      "description": "Adds a new calendar event.",
+      "fields": {
+        "summary": {
+          "required": true,
+          "example": "Department Party",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Summary",
+          "description": "Defines the short summary or subject for the event."
+        },
+        "description": {
+          "example": "Meeting to provide technical review for \u0027Phoenix\u0027 design.",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Description",
+          "description": "A more complete description of the event than the one provided by the summary."
+        },
+        "start_date_time": {
+          "example": "2022-03-22 20:00:00",
+          "selector": {
+            "datetime": {}
+          },
+          "name": "Start time",
+          "description": "The date and time the event should start."
+        },
+        "end_date_time": {
+          "example": "2022-03-22 22:00:00",
+          "selector": {
+            "datetime": {}
+          },
+          "name": "End time",
+          "description": "The date and time the event should end."
+        },
+        "start_date": {
+          "example": "2022-03-22",
+          "selector": {
+            "date": {}
+          },
+          "name": "Start date",
+          "description": "The date the all-day event should start."
+        },
+        "end_date": {
+          "example": "2022-03-23",
+          "selector": {
+            "date": {}
+          },
+          "name": "End date",
+          "description": "The date the all-day event should end (exclusive)."
+        },
+        "in": {
+          "example": "{\u0022days\u0022: 2} or {\u0022weeks\u0022: 2}",
+          "name": "In",
+          "description": "Days or weeks that you want to create the event in."
+        },
+        "location": {
+          "example": "Conference Room - F123, Bldg. 002",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "Location",
+          "description": "The location of the event."
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "calendar"
             ],
             "supported_features": [
               1
@@ -6436,224 +6850,39 @@
         ]
       }
     },
-    "update_item": {
-      "name": "Update item",
-      "description": "Updates an existing to-do list item based on its name or UID.",
+    "get_events": {
+      "name": "Get events",
+      "description": "Retrieves events on a calendar within a time range.",
       "fields": {
-        "item": {
-          "required": true,
-          "example": "Submit income tax return",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Item name or UID",
-          "description": "The name/summary of the to-do item. If you have items with duplicate names, you can reference specific ones using their UID instead."
-        },
-        "rename": {
-          "example": "Something else",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Rename item",
-          "description": "The new name for the to-do item"
-        },
-        "status": {
-          "example": "needs_action",
-          "selector": {
-            "select": {
-              "translation_key": "status",
-              "options": [
-                "needs_action",
-                "completed"
-              ],
-              "multiple": false,
-              "custom_value": false,
-              "sort": false
-            }
-          },
-          "name": "Set status",
-          "description": "A status or confirmation of the to-do item."
-        },
-        "due_date": {
-          "filter": {
-            "supported_features": [
-              16
-            ]
-          },
-          "example": "2023-11-17",
-          "selector": {
-            "date": {}
-          },
-          "name": "Due date",
-          "description": "The date the to-do item is expected to be completed."
-        },
-        "due_datetime": {
-          "filter": {
-            "supported_features": [
-              32
-            ]
-          },
-          "example": "2023-11-17 13:30:00",
+        "start_date_time": {
+          "example": "2022-03-22 20:00:00",
           "selector": {
             "datetime": {}
           },
-          "name": "Due date and time",
-          "description": "The date and time the to-do item is expected to be completed."
+          "name": "Start time",
+          "description": "Returns active events after this time (exclusive). When not set, defaults to now."
         },
-        "description": {
-          "filter": {
-            "supported_features": [
-              64
-            ]
-          },
-          "example": "A more complete description of the to-do item than that provided by the summary.",
+        "end_date_time": {
+          "example": "2022-03-22 22:00:00",
           "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
+            "datetime": {}
           },
-          "name": "Description",
-          "description": "A more complete description of the to-do item than provided by the item name."
+          "name": "End time",
+          "description": "Returns active events before this time (exclusive). Cannot be used with Duration."
+        },
+        "duration": {
+          "selector": {
+            "duration": {}
+          },
+          "name": "Duration",
+          "description": "Returns active events from Start time for the specified duration."
         }
       },
       "target": {
         "entity": [
           {
             "domain": [
-              "todo"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "remove_item": {
-      "name": "Remove item",
-      "description": "Removes an existing to-do list item by its name or UID.",
-      "fields": {
-        "item": {
-          "required": true,
-          "example": "Submit income tax return",
-          "selector": {
-            "text": {
-              "multiline": false,
-              "multiple": false
-            }
-          },
-          "name": "Item name or UID",
-          "description": "The name/summary of the to-do item. If you have items with duplicate names, you can reference specific ones using their UID instead."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "todo"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "get_items": {
-      "name": "Get items",
-      "description": "Gets items on a to-do list.",
-      "fields": {
-        "status": {
-          "example": "needs_action",
-          "default": "needs_action",
-          "selector": {
-            "select": {
-              "translation_key": "status",
-              "options": [
-                "needs_action",
-                "completed"
-              ],
-              "multiple": true,
-              "custom_value": false,
-              "sort": false
-            }
-          },
-          "name": "Status",
-          "description": "Only return to-do items with the specified statuses. Returns not completed actions by default."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "todo"
-            ]
-          }
-        ]
-      },
-      "response": {
-        "optional": false
-      }
-    },
-    "remove_completed_items": {
-      "name": "Remove completed items",
-      "description": "Removes all to-do list items that have been completed.",
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "todo"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "weather": {
-    "get_forecasts": {
-      "name": "Get forecasts",
-      "description": "Retrieves the forecast from selected weather services.",
-      "fields": {
-        "type": {
-          "required": true,
-          "selector": {
-            "select": {
-              "options": [
-                "daily",
-                "hourly",
-                "twice_daily"
-              ],
-              "translation_key": "forecast_type",
-              "multiple": false,
-              "custom_value": false,
-              "sort": false
-            }
-          },
-          "name": "Forecast type",
-          "description": "The scope of the weather forecast."
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "weather"
-            ],
-            "supported_features": [
-              1,
-              2,
-              4
+              "calendar"
             ]
           }
         ]
@@ -6686,8 +6915,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -6697,8 +6926,8 @@
           "example": "00:0a:bf:00:01:10:23:35",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Source IEEE",
@@ -6708,8 +6937,8 @@
           "example": "1234-5678-1234-5678-AABB-CCDD-AABB-CCDD-EEFF",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Install code",
@@ -6719,8 +6948,8 @@
           "example": "Z:000D6FFFFED4163B$I:52797BF4A5084DAA8E1712B61741CA024051",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "QR code",
@@ -6737,8 +6966,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -6755,8 +6984,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -6797,8 +7026,8 @@
                 "out"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Cluster type",
@@ -6823,8 +7052,8 @@
           "example": 1,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Value",
@@ -6834,8 +7063,8 @@
           "example": 252,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Manufacturer",
@@ -6852,8 +7081,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -6894,8 +7123,8 @@
                 "out"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Cluster type",
@@ -6923,8 +7152,8 @@
                 "server"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Command Type",
@@ -6953,8 +7182,8 @@
           "example": 252,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Manufacturer",
@@ -6971,8 +7200,8 @@
           "example": 546,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Group",
@@ -7000,8 +7229,8 @@
                 "out"
               ],
               "multiple": false,
-              "custom_value": false,
-              "sort": false
+              "sort": false,
+              "custom_value": false
             }
           },
           "name": "Cluster type",
@@ -7034,8 +7263,8 @@
           "example": 252,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Manufacturer",
@@ -7052,8 +7281,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -7109,8 +7338,8 @@
           "example": "00:0d:6f:00:05:7d:2d:34",
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "IEEE",
@@ -7206,8 +7435,8 @@
           "example": 1,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code slot",
@@ -7218,8 +7447,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -7246,8 +7475,8 @@
           "example": 1,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code slot",
@@ -7274,8 +7503,8 @@
           "example": 1,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code slot",
@@ -7302,8 +7531,8 @@
           "example": 1,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code slot",
@@ -7331,8 +7560,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -7357,8 +7586,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -7383,8 +7612,8 @@
           "example": 1234,
           "selector": {
             "text": {
-              "multiline": false,
-              "multiple": false
+              "multiple": false,
+              "multiline": false
             }
           },
           "name": "Code",
@@ -7484,6 +7713,478 @@
       "name": "Reload",
       "description": "Reloads the automation configuration.",
       "fields": {}
+    }
+  },
+  "mg_saic": {
+    "control_charging_port_lock": {
+      "name": "Control Charging Port Lock",
+      "description": "Control the charging port lock (lock/unlock).",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number to control the charging port lock.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "unlock": {
+          "description": "True to unlock the charging port, false to lock.",
+          "example": true,
+          "selector": {
+            "boolean": {}
+          },
+          "name": "Unlock"
+        }
+      }
+    },
+    "control_heated_seats": {
+      "name": "Control Heated Seats",
+      "description": "Set the heating levels for both front seats.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "left_level": {
+          "description": "Heating level for the left seat (Off = 0, Low = 1, Medium = 2, High = 3).",
+          "example": 2,
+          "selector": {
+            "select": {
+              "options": [
+                "0",
+                "1",
+                "2",
+                "3"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Left Seat Level"
+        },
+        "right_level": {
+          "description": "Heating level for the right seat (Off = 0, Low = 1, Medium = 2, High = 3).",
+          "example": 3,
+          "selector": {
+            "select": {
+              "options": [
+                "0",
+                "1",
+                "2",
+                "3"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Right Seat Level"
+        }
+      }
+    },
+    "control_rear_window_heat": {
+      "name": "Control Rear Window Heat",
+      "description": "Control the rear window heating of the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "action": {
+          "description": "Select \u0027start\u0027 to enable or \u0027stop\u0027 to disable.",
+          "example": "start",
+          "selector": {
+            "select": {
+              "options": [
+                "start",
+                "stop"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Action"
+        }
+      }
+    },
+    "control_sunroof": {
+      "name": "Control Sunroof",
+      "description": "Control the sunroof (open or close).",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number to control the sunroof.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "should_open": {
+          "description": "True to open the sunroof, false to close.",
+          "example": true,
+          "selector": {
+            "boolean": {}
+          },
+          "name": "Should Open"
+        }
+      }
+    },
+    "lock_vehicle": {
+      "name": "Lock Vehicle",
+      "description": "Lock the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to lock.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "open_tailgate": {
+      "name": "Open Tailgate",
+      "description": "Open the vehicle\u0027s tailgate.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to open the tailgate.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "set_charging_current_limit": {
+      "name": "Set Charging Current Limit",
+      "description": "Set the charging current limit for the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "current_limit": {
+          "description": "Select the desired charging current limit.",
+          "example": "16A",
+          "selector": {
+            "select": {
+              "options": [
+                "0 (Ignore)",
+                "6A",
+                "8A",
+                "16A",
+                "Max"
+              ],
+              "multiple": false,
+              "sort": false,
+              "custom_value": false
+            }
+          },
+          "name": "Charging Current Limit"
+        }
+      }
+    },
+    "set_target_soc": {
+      "name": "Set Target SOC",
+      "description": "Set the target state of charge (SOC) for the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "target_soc": {
+          "description": "Desired target SOC percentage (10-100).",
+          "example": 80,
+          "selector": {
+            "number": {
+              "min": 10.0,
+              "max": 100.0,
+              "step": 1.0,
+              "mode": "slider"
+            }
+          },
+          "name": "Target SOC"
+        }
+      }
+    },
+    "start_ac": {
+      "name": "Start AC",
+      "description": "Start the vehicle\u0027s AC system.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to start AC.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "temperature": {
+          "description": "Desired temperature in degrees Celsius.",
+          "example": 22.0,
+          "selector": {
+            "number": {
+              "min": 16.0,
+              "max": 30.0,
+              "step": 1.0,
+              "mode": "slider"
+            }
+          },
+          "name": "Temperature"
+        }
+      }
+    },
+    "start_climate": {
+      "name": "Start Climate",
+      "description": "Start the vehicle\u0027s Climate system with specific temperature and fan speed.",
+      "fields": {
+        "vin": {
+          "description": "Vehicle Identification Number.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        },
+        "temperature": {
+          "description": "Desired temperature in degrees Celsius.",
+          "example": 22.0,
+          "selector": {
+            "number": {
+              "min": 16.0,
+              "max": 30.0,
+              "step": 1.0,
+              "mode": "slider"
+            }
+          },
+          "name": "Temperature"
+        },
+        "fan_speed": {
+          "description": "Fan speed level (e.g., 1-7).",
+          "example": 3,
+          "selector": {
+            "number": {
+              "min": 1.0,
+              "max": 5.0,
+              "step": 1.0,
+              "mode": "slider"
+            }
+          },
+          "name": "Fan Speed"
+        },
+        "ac_on": {
+          "description": "True to enable the AC, false to disable.",
+          "example": true,
+          "selector": {
+            "boolean": {}
+          },
+          "name": "AC On"
+        }
+      }
+    },
+    "start_battery_heating": {
+      "name": "Start Battery Heating",
+      "description": "Start the vehicle battery heating process.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to start battery heating.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "start_charging": {
+      "name": "Start Charging",
+      "description": "Start the vehicle charging process.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to start charging.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "start_front_defrost": {
+      "name": "Start Front Defrost",
+      "description": "Start the front defrost system of the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to start front defrost.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "stop_ac": {
+      "name": "Stop AC",
+      "description": "Stop the vehicle\u0027s AC system.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to stop AC.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "stop_battery_heating": {
+      "name": "Stop Battery Heating",
+      "description": "Stop the vehicle battery heating process.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to stop battery heating.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "stop_charging": {
+      "name": "Stop Charging",
+      "description": "Stop the vehicle charging process.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to stop charging.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "trigger_alarm": {
+      "name": "Trigger Alarm",
+      "description": "Trigger the vehicle\u0027s alarm.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to trigger the alarm.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "unlock_vehicle": {
+      "name": "Unlock Vehicle",
+      "description": "Unlock the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to unlock.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
+    },
+    "update_vehicle_data": {
+      "name": "Update Vehicle Data",
+      "description": "Manually trigger a data update from the vehicle.",
+      "fields": {
+        "vin": {
+          "description": "The vehicle identification number of the car to update data.",
+          "example": "1HGCM82633A123456",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          },
+          "name": "VIN"
+        }
+      }
     }
   }
 }
