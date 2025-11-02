@@ -1,6 +1,5 @@
 using HomeAssistant.apps.Energy;
 using HomeAssistant.apps.Energy.Octopus;
-using HomeAssistant.apps.Energy.Solax;
 using HomeAssistantGenerated;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,7 +27,6 @@ try
                 .AddNetDaemonScheduler()
                 .AddHomeAssistantGenerated()
                 .AddConfiguration<OctopusConfiguration>(context, "Octopus")
-                .AddConfiguration<SolaxConfiguration>(context, "Solax")
                 .AddSingleton<IElectricityRatesReader, OctopusReader>();
         })
         .Build()
@@ -41,7 +39,7 @@ catch (Exception e)
     throw;
 }
 
-static class ServiceCollectionExtensions
+internal static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddConfiguration<T>(this IServiceCollection services, HostBuilderContext context, string configSection) where T : class, new()
     {

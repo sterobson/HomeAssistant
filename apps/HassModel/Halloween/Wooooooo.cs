@@ -18,9 +18,6 @@ public class Wooooooo
         Entities entities = new(ha);
         MyDevices myDevices = new(entities, ha);
 
-        Console.WriteLine("Testing occupancy");
-        LightEntity light = myDevices.PorchLight;
-
         myDevices.PorchMotionSensor.StateChanges().SubscribeAsync(async e =>
         {
             if (e.New?.State == "on")
@@ -30,7 +27,7 @@ public class Wooooooo
                 if (now.Month == 10 && now.Day == 31 && now.Hour >= 16 && now.Hour <= 21)
                 {
                     _ = PlaySounds(myDevices);
-                    _ = FlashLight(light);
+                    _ = FlashLight(myDevices.PorchLight);
                 }
             }
         });

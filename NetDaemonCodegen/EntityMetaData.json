@@ -20,7 +20,7 @@
         },
         {
           "id": "light.wiz_rgbw_tunable_22099a",
-          "friendlyName": "Games Room Desk Lamp",
+          "friendlyName": null,
           "cSharpName": "WizRgbwTunable22099a"
         }
       ],
@@ -119,6 +119,11 @@
           "jsonName": "rgbw_color",
           "cSharpName": "RgbwColor",
           "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Double]"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -702,6 +707,11 @@
           "cSharpName": "GamesRoomDeskPlugIdentify"
         },
         {
+          "id": "button.hallway_button_identify",
+          "friendlyName": "Hallway - Button Identify",
+          "cSharpName": "HallwayButtonIdentify"
+        },
+        {
           "id": "button.hypervolt_apply_schedule",
           "friendlyName": "Hypervolt Apply Schedule",
           "cSharpName": "HypervoltApplySchedule"
@@ -1030,36 +1040,6 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.dev_netdaemon_app_model_hello_yaml_app",
-          "friendlyName": "dev_netdaemon_app_model_hello_yaml_app",
-          "cSharpName": "DevNetdaemonAppModelHelloYamlApp"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_energy_octopus_app",
-          "friendlyName": "dev_netdaemon_energy_octopus_app",
-          "cSharpName": "DevNetdaemonEnergyOctopusApp"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_extensions_scheduling_scheduling_app",
-          "friendlyName": "dev_netdaemon_extensions_scheduling_scheduling_app",
-          "cSharpName": "DevNetdaemonExtensionsSchedulingSchedulingApp"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_hello_world_app",
-          "friendlyName": "dev_netdaemon_hass_model_hello_world_app",
-          "cSharpName": "DevNetdaemonHassModelHelloWorldApp"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_light_on_movement",
-          "friendlyName": "dev_netdaemon_hass_model_light_on_movement",
-          "cSharpName": "DevNetdaemonHassModelLightOnMovement"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
           "id": "input_boolean.diningroom_dehumidifier_plug_state",
           "friendlyName": "Dining Room - Dehumidifier Plug - State",
           "cSharpName": "DiningroomDehumidifierPlugState"
@@ -1068,6 +1048,16 @@
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
+        },
+        {
+          "id": "input_boolean.netdaemon_hass_model_light_on_movement",
+          "friendlyName": "netdaemon_hass_model_light_on_movement",
+          "cSharpName": "NetdaemonHassModelLightOnMovement"
+        },
+        {
+          "id": "input_boolean.netdaemon_hass_model_wooooooo",
+          "friendlyName": "netdaemon_hass_model_wooooooo",
+          "cSharpName": "NetdaemonHassModelWooooooo"
         }
       ],
       "attributes": [
@@ -1487,7 +1477,7 @@
         },
         {
           "id": "number.wiz_rgbw_tunable_22099a_effect_speed",
-          "friendlyName": "Games Room Desk Lamp Effect speed",
+          "friendlyName": "Effect speed",
           "cSharpName": "WizRgbwTunable22099aEffectSpeed"
         }
       ],
@@ -1531,6 +1521,16 @@
           "jsonName": "icon",
           "cSharpName": "Icon",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -2206,7 +2206,7 @@
         },
         {
           "id": "sensor.diningroom_dehumidifier_60_minute_trend",
-          "friendlyName": "Diningn room dehumidifier - 60 minute trend",
+          "friendlyName": "Dining room dehumidifier - 60 minute trend",
           "cSharpName": "DiningroomDehumidifier60MinuteTrend"
         },
         {
@@ -2253,6 +2253,11 @@
           "id": "sensor.games_room_desk_plug_voltage",
           "friendlyName": "Games Room - Desk - Plug Voltage",
           "cSharpName": "GamesRoomDeskPlugVoltage"
+        },
+        {
+          "id": "sensor.hallway_button_battery",
+          "friendlyName": "Hallway - Button Battery",
+          "cSharpName": "HallwayButtonBattery"
         },
         {
           "id": "sensor.hypervolt_charger_current",
@@ -2951,7 +2956,7 @@
         },
         {
           "id": "sensor.wiz_rgbw_tunable_22099a_power",
-          "friendlyName": "Games Room Desk Lamp Power",
+          "friendlyName": "Power",
           "cSharpName": "WizRgbwTunable22099aPower"
         }
       ],
@@ -3205,6 +3210,16 @@
           "jsonName": "battery_voltage",
           "cSharpName": "BatteryVoltage",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -3440,6 +3455,11 @@
           "cSharpName": "EwelinkSnzb03pFirmware"
         },
         {
+          "id": "update.file_editor_update",
+          "friendlyName": "File editor Update",
+          "cSharpName": "FileEditorUpdate"
+        },
+        {
           "id": "update.games_room_desk_button_firmware",
           "friendlyName": "Games Room - Desk - Button Firmware",
           "cSharpName": "GamesRoomDeskButtonFirmware"
@@ -3458,6 +3478,11 @@
           "id": "update.hacs_update",
           "friendlyName": "HACS update",
           "cSharpName": "HacsUpdate"
+        },
+        {
+          "id": "update.hallway_button_firmware",
+          "friendlyName": "Hallway - Button Firmware",
+          "cSharpName": "HallwayButtonFirmware"
         },
         {
           "id": "update.home_assistant_core_update",
@@ -3495,6 +3520,11 @@
           "cSharpName": "MgSaicUpdate"
         },
         {
+          "id": "update.netdaemon_v5_net_9_update",
+          "friendlyName": "NetDaemon V5 (.NET 9) Update",
+          "cSharpName": "NetdaemonV5Net9Update"
+        },
+        {
           "id": "update.octopus_energy_update",
           "friendlyName": "Octopus Energy update",
           "cSharpName": "OctopusEnergyUpdate"
@@ -3503,6 +3533,11 @@
           "id": "update.saic_mqtt_gateway_python_update",
           "friendlyName": "SAIC MQTT Gateway (Python) Update",
           "cSharpName": "SaicMqttGatewayPythonUpdate"
+        },
+        {
+          "id": "update.samba_share_update",
+          "friendlyName": "Samba share Update",
+          "cSharpName": "SambaShareUpdate"
         },
         {
           "id": "update.solax_inverter_modbus_update",
@@ -3569,7 +3604,7 @@
         {
           "jsonName": "release_summary",
           "cSharpName": "ReleaseSummary",
-          "clrType": null
+          "clrType": "System.String"
         },
         {
           "jsonName": "release_url",
@@ -3776,6 +3811,46 @@
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "message",
+          "cSharpName": "Message",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "all_day",
+          "cSharpName": "AllDay",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "start_time",
+          "cSharpName": "StartTime",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "end_time",
+          "cSharpName": "EndTime",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "location",
+          "cSharpName": "Location",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "description",
+          "cSharpName": "Description",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "greenness_index",
+          "cSharpName": "GreennessIndex",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "greenness_score",
+          "cSharpName": "GreennessScore",
+          "clrType": "System.Double"
         }
       ]
     },

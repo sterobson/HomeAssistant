@@ -68,18 +68,40 @@ public class MyDevices
 
     // Bedroom 3
 
+    // Hallway
+    public SonoffButton HallwayButton => new(_ha, "d4:48:67:ff:fe:08:1a:bc");
+
     // Porch
     public LightEntity PorchLight => _entities.Light.PorchLight;
     public BinarySensorEntity PorchMotionSensor => _entities.BinarySensor.EwelinkSnzb03pOccupancy;
-}
 
-public static class GamesRoomDeskButtonEntityExtensions
-{
-    public static IObservable<Event<ZhaEventData>> DiningRoomDeskButtonToggleStateChanged(this ButtonEntities buttonEntities, IHaContext ha)
+    // Car
+    private Mg4Ev? _car = null;
+    public Mg4Ev Car
     {
-        return ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == "d4:48:67:ff:fe:0b:f6:0b" && e.Data?.Command == "toggle");
+        get
+        {
+            _car ??= new Mg4Ev(_entities);
+            return _car;
+        }
     }
 }
+
+//public static class GamesRoomDeskButtonEntityExtensions
+//{
+//    public static IObservable<Event<ZhaEventData>> DiningRoomDeskButtonToggleStateChanged(this ButtonEntities buttonEntities, IHaContext ha)
+//    {
+//        return ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == "d4:48:67:ff:fe:0b:f6:0b" && e.Data?.Command == "toggle");
+//    }
+//}
+
+//public static class HallwayButtonEntityExtensions
+//{
+//    public static IObservable<Event<ZhaEventData>> DiningRoomDeskButtonToggleStateChanged(this ButtonEntities buttonEntities, IHaContext ha)
+//    {
+//        return ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.Command == "toggle");
+//    }
+//}
 
 public static class LightEntityExtensions
 {
@@ -101,4 +123,44 @@ public static class LightEntityExtensions
         return lightEntity;
     }
 
+}
+
+public class Mg4Ev
+{
+    private readonly Entities _entities;
+
+    public BinarySensorEntity IgnitionEntity => _entities.BinarySensor.MgMg4ElectricEngineStatus;
+    public SwitchEntity FrontDefrostEntity => _entities.Switch.MgMg4ElectricFrontDefrost;
+    public SwitchEntity RearDefrostEntity => _entities.Switch.MgMg4ElectricRearWindowDefrost;
+
+    public bool? IgnitionState => IgnitionEntity.IsOn;
+
+    public Mg4Ev(Entities entities)
+    {
+        _entities = entities;
+    }
+
+    public void SetFrontDefrost(bool value)
+    {
+        if (FrontDefrostEntity.State == BinarySensorEntity.StateOff && value)
+        {
+            FrontDefrostEntity.TurnOn();
+        }
+        else if (FrontDefrostEntity.State == BinarySensorEntity.StateOn && !value)
+        {
+            FrontDefrostEntity.TurnOff();
+        }
+    }
+
+    public void SetRearDefrost(bool value)
+    {
+        if (RearDefrostEntity.State == BinarySensorEntity.StateOff && value)
+        {
+            RearDefrostEntity.TurnOn();
+        }
+        else if (RearDefrostEntity.State == BinarySensorEntity.StateOn && !value)
+        {
+            RearDefrostEntity.TurnOff();
+        }
+    }
 }
