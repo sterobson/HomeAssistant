@@ -1,4 +1,9 @@
-﻿using HomeAssistantGenerated;
+﻿using HomeAssistant.Devices.Batteries;
+using HomeAssistant.Devices.CarChargers;
+using HomeAssistant.Devices.Meters;
+using HomeAssistant.Services;
+using HomeAssistant.Weather;
+using HomeAssistantGenerated;
 using System.Reactive.Concurrency;
 using System.Threading.Tasks;
 
@@ -7,19 +12,22 @@ namespace HomeAssistant.apps.HassModel.Energy;
 [NetDaemonApp]
 internal class HomeBatteryManager
 {
-    private readonly IHaContext _ha;
-    private readonly Services _services;
+    private readonly IElectricityMeter _electricityMeter;
+    private readonly IHomeBattery _homeBattery;
+    private readonly ICarCharger _carCharger;
+    private readonly NotificationService _notificationService;
+    private readonly IWeatherProvider _weatherProvider;
 
-    public HomeBatteryManager(IHaContext ha, IScheduler scheduler)
+    public HomeBatteryManager(IHaContext ha, IScheduler scheduler, IElectricityMeter electricityMeter,
+                               IHomeBattery homeBattery, ICarCharger carCharger, NotificationService notificationService,
+                               IWeatherProvider weatherProvider)
     {
         Entities entities = new(ha);
-        _services = new(ha);
-        _ha = ha;
-
-        double? maxDischargeCurrent = entities.Number.SolaxInverterBatteryDischargeMaxCurrent.State;
-        double? chargePct = entities.Sensor.SolaxInverterBatteryCapacity.State;
-
-        double? chargerCurrent = entities.Sensor.HypervoltChargerCurrent.State;
+        _electricityMeter = electricityMeter;
+        _homeBattery = homeBattery;
+        _carCharger = carCharger;
+        _notificationService = notificationService;
+        _weatherProvider = weatherProvider;
 
         // Initially run this very soon after start up
         scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () => await SetBatteryState(entities));
@@ -28,19 +36,19 @@ internal class HomeBatteryManager
         scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), async () => await SetBatteryState(entities));
 
         // Car battery has changed current
-        entities.Sensor.HypervoltChargerCurrent.StateChanges().SubscribeAsync(async e =>
+        _carCharger.OnChargerCurrentChanged(async e =>
         {
             await SetBatteryState(entities);
         });
 
         // Home battery capacity has changed
-        entities.Sensor.SolaxInverterBatteryCapacity.StateChanges().SubscribeAsync(async e =>
+        _homeBattery.OnBatteryChargePercentChanged(async _ =>
         {
             await SetBatteryState(entities);
         });
 
         // Listen for the import unit rate changing
-        entities.Sensor.OctopusEnergyElectricity24j04946911591015382045CurrentRate.StateChanges().SubscribeAsync(async e =>
+        _electricityMeter.OnCurrentRatePerKwhChanged(async e =>
         {
             await SetBatteryState(entities);
         });
@@ -48,33 +56,47 @@ internal class HomeBatteryManager
 
     private async Task SetBatteryState(Entities entities)
     {
+
+        // WeatherForecast ret = await _weatherProvider.GetForecast();
+
         // If the unit price is cheap and we have less than 50% in the battery, charge from the grid.
-        double? currentUnitPriceRate = entities.Sensor.OctopusEnergyElectricity24j04946911591015382045CurrentRate.State;
-        double? homeBatteryChargePct = entities.Sensor.SolaxInverterBatteryCapacity.State;
-        bool carIsCharging = entities.Sensor.HypervoltChargerCurrent.State > 1;
+        double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
+        double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
+        bool carIsCharging = _carCharger.ChargerCurrent > 1;
+        bool electricityIsCheap = currentUnitPriceRate < 0.1;
 
-        BatteryState homeBatteryState = GetHomeBatteryState(entities);
+        BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
 
-        // Set the battery's max charging current, which is 50A minute whatever the car is drawing (gives us lots of headroom)
+        // Set the battery's max charging current, which is 50A minus whatever the car is drawing (gives us lots of headroom)
         double hypervoltCurrent = entities.Sensor.HypervoltChargerCurrent.State ?? 0;
-        entities.Number.SolaxInverterBatteryChargeMaxCurrent.SetValue(((int)(50 - hypervoltCurrent)).ToString());
+        _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
 
         BatteryState desiredHomeBatteryState = BatteryState.Unknown;
 
-        if (carIsCharging && currentUnitPriceRate < 0.1)
+        if (carIsCharging && electricityIsCheap)
         {
-            // Car is charging and the energy is cheap. Charge the home battery, or don't use it.
+            // Car is charging and the energy is cheap. Either charge the home battery, or don't use it.
             if (homeBatteryChargePct < 50)
             {
+                // Start charging
+                desiredHomeBatteryState = BatteryState.ForceCharging;
+            }
+            else if (currentHomeBatteryState == BatteryState.ForceCharging && homeBatteryChargePct < 60)
+            {
+                // If we're already charging then go up to 60%. Todo: work out the projected solar flux
+                // to see how much lovely feree energy we can get from our friend the sun.
                 desiredHomeBatteryState = BatteryState.ForceCharging;
             }
             else
             {
+                // We've got enough energy in the battery, and since it's cheap we want to use the grid
+                // for the car charging - save the battery for heating and general use when the rate
+                // goes up later on in the day.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
         }
 
-        if (carIsCharging && currentUnitPriceRate >= 0.1)
+        if (carIsCharging && !electricityIsCheap)
         {
             if (homeBatteryChargePct >= 20)
             {
@@ -84,23 +106,34 @@ internal class HomeBatteryManager
             }
             else
             {
-                // We've not got much inthe home battery, so stop using it and save some.
+                // We've not got much in the home battery, so stop using it and save some.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
         }
 
-        if (!carIsCharging && currentUnitPriceRate < 0.1)
+        if (!carIsCharging && electricityIsCheap)
         {
             // If we're generating no electricity, and it's nearly night, and we don't have enough juice to
-            // get us through the night, then charge the battery
+            // get us through the night, then charge the battery.
+            // Todo: We need to work out how much we're likely to need during the night. Look at how much
+            // we used on previous days (minus car and battery charging) to project how much we'll need now.
             if (homeBatteryChargePct < 50)
             {
                 DateTime nextDusk = DateTime.Parse(entities.Sun.Sun.Attributes?.NextDusk ?? "");
-                if (DateTime.UtcNow.AddHours(1) > nextDusk)
+                DateTime nextDawn = DateTime.Parse(entities.Sun.Sun.Attributes?.NextDawn ?? "");
+                if (DateTime.UtcNow.TimeOfDay > nextDusk.AddHours(-1).TimeOfDay
+                 || DateTime.UtcNow.TimeOfDay < nextDawn.AddHours(1).TimeOfDay)
                 {
                     desiredHomeBatteryState = BatteryState.ForceCharging;
                 }
             }
+        }
+
+        if (!carIsCharging && !electricityIsCheap)
+        {
+            // Not charging the car, and the electricity is quite expensive, so set the battery to 
+            // whatever the default schedule is (probably using it to power the house).
+            desiredHomeBatteryState = BatteryState.NormalTOU;
         }
 
         if (desiredHomeBatteryState == BatteryState.Unknown)
@@ -109,82 +142,14 @@ internal class HomeBatteryManager
         }
 
         // Charge the home battery too
-        if (desiredHomeBatteryState != homeBatteryState)
+        if (desiredHomeBatteryState != currentHomeBatteryState)
         {
+            _homeBattery.SetHomeBatteryState(desiredHomeBatteryState);
+
             string title = "Home battery status changed";
             string message = $"Battery changed to {desiredHomeBatteryState}, unit price £{currentUnitPriceRate}, Hypervolt current {hypervoltCurrent}A, home battery {homeBatteryChargePct}%";
-            _ha.CallService("notify", "persistent_notification", data: new { message, title });
-
-            switch (desiredHomeBatteryState)
-            {
-                case BatteryState.NormalTOU:
-                case BatteryState.Unknown:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [entities.Select.SolaxInverterChargerUseMode.EntityId] },
-                        option: "Smart Schedule"
-                    );
-                    break;
-
-                case BatteryState.ForceCharging:
-                case BatteryState.ForceDischarging:
-                case BatteryState.Stopped:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [entities.Select.SolaxInverterChargerUseMode.EntityId] },
-                        option: "Manual Mode"
-                    );
-                    break;
-            }
-
-            switch (desiredHomeBatteryState)
-            {
-                case BatteryState.ForceCharging:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [entities.Select.SolaxInverterManualModeSelect.EntityId] },
-                        option: "Force Charge"
-                    );
-                    break;
-                case BatteryState.ForceDischarging:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [entities.Select.SolaxInverterManualModeSelect.EntityId] },
-                        option: "Force Discharge"
-                    );
-                    break;
-                case BatteryState.Stopped:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [entities.Select.SolaxInverterManualModeSelect.EntityId] },
-                        option: "Stop Charge and Discharge"
-                    );
-                    break;
-            }
+            _notificationService.SendPersistentNotification(title, message);
         }
 
-    }
-
-    private static BatteryState GetHomeBatteryState(Entities entities)
-    {
-        string? chargerUseMode = entities.Select.SolaxInverterChargerUseMode.State;
-        string? chargerManualMode = entities.Select.SolaxInverterManualModeSelect.State;
-
-        return chargerUseMode switch
-        {
-            "Smart Schedule" => BatteryState.NormalTOU,
-            "Manual Mode" => chargerManualMode switch
-            {
-                "Stop Charge and Discharge" => BatteryState.Stopped,
-                "Force Charge" => BatteryState.ForceCharging,
-                "Force Discharge" => BatteryState.ForceDischarging,
-                _ => BatteryState.Unknown,
-            },
-            _ => BatteryState.Unknown,
-        };
-    }
-
-    private enum BatteryState
-    {
-        NormalTOU,
-        ForceCharging,
-        ForceDischarging,
-        Stopped,
-        Unknown
     }
 }

@@ -13,7 +13,7 @@ namespace HassModel;
 [NetDaemonApp]
 public class Wooooooo
 {
-    public Wooooooo(IHaContext ha, ITriggerManager triggerManager)
+    public Wooooooo(IHaContext ha, ITriggerManager triggerManager, IServiceProvider serviceProvider)
     {
         Entities entities = new(ha);
         MyDevices myDevices = new(entities, ha);

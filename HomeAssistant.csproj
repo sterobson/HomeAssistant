@@ -34,8 +34,4 @@
         <PackageReference Include="NetDaemon.Extensions.Logging" Version="25.42.0" />
         <PackageReference Include="NetDaemon.Extensions.Tts" Version="25.42.0" />
     </ItemGroup>
-        
-    <ItemGroup>
-      <Folder Include="apps\Energy\Solax\" />
-    </ItemGroup>
 </Project>

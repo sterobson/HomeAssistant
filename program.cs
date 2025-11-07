@@ -1,5 +1,11 @@
 using HomeAssistant.apps.Energy;
 using HomeAssistant.apps.Energy.Octopus;
+using HomeAssistant.Devices.Batteries;
+using HomeAssistant.Devices.CarChargers;
+using HomeAssistant.Devices.Meters;
+using HomeAssistant.Services;
+using HomeAssistant.Weather;
+using HomeAssistant.Weather.WeatherApi;
 using HomeAssistantGenerated;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +33,13 @@ try
                 .AddNetDaemonScheduler()
                 .AddHomeAssistantGenerated()
                 .AddConfiguration<OctopusConfiguration>(context, "Octopus")
-                .AddSingleton<IElectricityRatesReader, OctopusReader>();
+                .AddScoped<IElectricityRatesReader, OctopusReader>()
+                .AddScoped<IElectricityMeter, OctopusElectricityMeter>()
+                .AddScoped<OctopusElectricityMeter>()
+                .AddScoped<IHomeBattery, SolaxInverter>()
+                .AddScoped<ICarCharger, HypervoltPro3>()
+                .AddScoped<IWeatherProvider, WeatherApiProvider>()
+                .AddScoped<NotificationService>();
         })
         .Build()
         .RunAsync()
