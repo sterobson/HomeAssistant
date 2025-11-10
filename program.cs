@@ -1,3 +1,4 @@
+using HomeAssistant;
 using HomeAssistant.apps.Energy;
 using HomeAssistant.apps.Energy.Octopus;
 using HomeAssistant.Devices.Batteries;
@@ -38,8 +39,12 @@ try
                 .AddScoped<OctopusElectricityMeter>()
                 .AddScoped<IHomeBattery, SolaxInverter>()
                 .AddScoped<ICarCharger, HypervoltPro3>()
-                .AddScoped<IWeatherProvider, WeatherApiProvider>()
-                .AddScoped<NotificationService>();
+                .AddScoped<NotificationService>()
+                .AddConfiguration<WeatherApiConfiguration>(context, "WeatherApi")
+                .AddSingleton<IWeatherProvider, WeatherApiProvider>()
+                .AddSingleton<LocationProvider>()
+                .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistant")
+                .AddSingleton<HistoryService>();
         })
         .Build()
         .RunAsync()

@@ -7,7 +7,7 @@ public class WeatherForecast
     /// <summary>
     /// Collection of forecast days.
     /// </summary>
-    public List<WeatherDay>? Days { get; set; }
+    public List<WeatherDay> Days { get; set; } = [];
 }
 
 public class WeatherDay
@@ -15,17 +15,17 @@ public class WeatherDay
     /// <summary>
     /// The date of the forecast.
     /// </summary>
-    public DateTime? Date { get; set; }
+    public DateOnly DateLocal { get; set; }
 
     /// <summary>
     /// Sunrise time for the day.
     /// </summary>
-    public DateTime? Sunrise { get; set; }
+    public TimeOnly? SunriseLocal { get; set; }
 
     /// <summary>
     /// Sunset time for the day.
     /// </summary>
-    public DateTime? Sunset { get; set; }
+    public TimeOnly? SunsetLocal { get; set; }
 
     /// <summary>
     /// Hourly forecasts for this day.
@@ -38,7 +38,7 @@ public class WeatherHour
     /// <summary>
     /// The local time of this forecast hour.
     /// </summary>
-    public DateTime? TimeLocal { get; set; }
+    public DateTime TimeLocal { get; set; }
 
     /// <summary>
     /// Temperature in Celsius.

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -40,6 +41,7 @@ public class Location
     public long? LocalTimeEpoch { get; set; }
 
     [JsonPropertyName("localtime")]
+    [JsonConverter(typeof(StringToDateTimeConverter))]
     public DateTime? LocalTime { get; set; }
 }
 
@@ -49,13 +51,15 @@ public class CurrentWeather
     public long? LastUpdatedEpoch { get; set; }
 
     [JsonPropertyName("last_updated")]
+    [JsonConverter(typeof(StringToDateTimeConverter))]
     public DateTime? LastUpdatedLocal { get; set; }
 
     [JsonPropertyName("temp_c")]
     public decimal? TemperatureCelsius { get; set; }
 
     [JsonPropertyName("is_day")]
-    public int? IsDay { get; set; }
+    [JsonConverter(typeof(IntToBoolConverter))]
+    public bool? IsDay { get; set; }
 
     [JsonPropertyName("condition")]
     public Condition? Condition { get; set; }
@@ -124,10 +128,11 @@ public class Forecast
 public class ForecastDay
 {
     [JsonPropertyName("date")]
-    public DateTime? DateLocal { get; set; }
+    [JsonConverter(typeof(StringToDateOnlyConverter))]
+    public DateOnly DateLocal { get; set; }
 
     [JsonPropertyName("date_epoch")]
-    public long? DateEpoch { get; set; }
+    public long DateEpoch { get; set; }
 
     [JsonPropertyName("day")]
     public DaySummary? Day { get; set; }
@@ -136,7 +141,7 @@ public class ForecastDay
     public Astro? Astro { get; set; }
 
     [JsonPropertyName("hour")]
-    public List<HourlyForecast>? Hourly { get; set; }
+    public List<HourlyForecast> Hourly { get; set; } = [];
 }
 
 public class DaySummary
@@ -187,16 +192,20 @@ public class DaySummary
 public class Astro
 {
     [JsonPropertyName("sunrise")]
-    public DateTime? SunriseLocal { get; set; }
+    [JsonConverter(typeof(StringToTimeOnlyConverter))]
+    public TimeOnly? SunriseLocal { get; set; }
 
     [JsonPropertyName("sunset")]
-    public DateTime? SunsetLocal { get; set; }
+    [JsonConverter(typeof(StringToTimeOnlyConverter))]
+    public TimeOnly? SunsetLocal { get; set; }
 
     [JsonPropertyName("moonrise")]
-    public DateTime? MoonriseLocal { get; set; }
+    [JsonConverter(typeof(StringToTimeOnlyConverter))]
+    public TimeOnly? MoonriseLocal { get; set; }
 
     [JsonPropertyName("moonset")]
-    public DateTime? MoonsetLocal { get; set; }
+    [JsonConverter(typeof(StringToTimeOnlyConverter))]
+    public TimeOnly? MoonsetLocal { get; set; }
 
     [JsonPropertyName("moon_phase")]
     public string? MoonPhase { get; set; }
@@ -219,13 +228,15 @@ public class HourlyForecast
     public long? TimeEpoch { get; set; }
 
     [JsonPropertyName("time")]
-    public DateTime? TimeLocal { get; set; }
+    [JsonConverter(typeof(StringToDateTimeConverter))]
+    public DateTime TimeLocal { get; set; }
 
     [JsonPropertyName("temp_c")]
     public decimal? TemperatureCelsius { get; set; }
 
     [JsonPropertyName("is_day")]
-    public int? IsDay { get; set; }
+    [JsonConverter(typeof(IntToBoolConverter))]
+    public bool? IsDay { get; set; }
 
     [JsonPropertyName("condition")]
     public Condition? Condition { get; set; }
@@ -304,5 +315,53 @@ public class IntToBoolConverter : JsonConverter<bool>
     public override void Write(Utf8JsonWriter writer, bool value, JsonSerializerOptions options)
     {
         writer.WriteNumberValue(value ? 1 : 0);
+    }
+}
+
+public class StringToDateTimeConverter : JsonConverter<DateTime>
+{
+    private const string Format = "yyyy-MM-dd HH:mm";
+
+    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? str = reader.GetString();
+        return DateTime.ParseExact(str!, Format, CultureInfo.InvariantCulture);
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString(Format));
+    }
+}
+
+public class StringToDateOnlyConverter : JsonConverter<DateOnly>
+{
+    private const string Format = "yyyy-MM-dd";
+
+    public override DateOnly Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? str = reader.GetString();
+        return DateOnly.ParseExact(str!, Format, CultureInfo.InvariantCulture);
+    }
+
+    public override void Write(Utf8JsonWriter writer, DateOnly value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString(Format));
+    }
+}
+
+public class StringToTimeOnlyConverter : JsonConverter<TimeOnly>
+{
+    private const string Format = "hh:mm tt";
+
+    public override TimeOnly Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        string? str = reader.GetString();
+        return TimeOnly.ParseExact(str!, Format, CultureInfo.InvariantCulture);
+    }
+
+    public override void Write(Utf8JsonWriter writer, TimeOnly value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString(Format));
     }
 }

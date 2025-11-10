@@ -4,5 +4,5 @@ namespace HomeAssistant.Weather;
 
 internal interface IWeatherProvider
 {
-    Task<WeatherForecast> GetForecast();
+    Task<WeatherForecast> GetWeatherAsync();
 }

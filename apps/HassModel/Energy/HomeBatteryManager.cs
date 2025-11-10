@@ -4,6 +4,7 @@ using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
 using HomeAssistant.Weather;
 using HomeAssistantGenerated;
+using System.Collections.Generic;
 using System.Reactive.Concurrency;
 using System.Threading.Tasks;
 
@@ -20,7 +21,7 @@ internal class HomeBatteryManager
 
     public HomeBatteryManager(IHaContext ha, IScheduler scheduler, IElectricityMeter electricityMeter,
                                IHomeBattery homeBattery, ICarCharger carCharger, NotificationService notificationService,
-                               IWeatherProvider weatherProvider)
+                               IWeatherProvider weatherProvider, HistoryService historyService)
     {
         Entities entities = new(ha);
         _electricityMeter = electricityMeter;
@@ -28,6 +29,19 @@ internal class HomeBatteryManager
         _carCharger = carCharger;
         _notificationService = notificationService;
         _weatherProvider = weatherProvider;
+
+        WeatherForecast forecast = weatherProvider.GetWeatherAsync().GetAwaiter().GetResult();
+
+        IReadOnlyList<HistoryEntry> history = historyService.GetEntityHistory(entities.Sensor.SolaxInverterPvPowerTotal.EntityId, DateTime.UtcNow.AddDays(-1)).GetAwaiter().GetResult();
+
+        double totalWattSeconds = HistoryIntegrator.Integrate(history, DateTime.UtcNow.Date, DateTime.UtcNow);
+        double totalkWh = (totalWattSeconds / 1000) / 3600;
+
+        // We need to know how much power was used by the battery in total yesterday, minus whatever we might have used to charge the car.
+        // The naive way is to just go through the battery history, but where the car was charging then insert a battery history record
+        // for that time of 0W, and delete all other history records up until the charger current dropped back to 0, at which point insert
+        // another battery record of 0W.
+
 
         // Initially run this very soon after start up
         scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () => await SetBatteryState(entities));
@@ -57,7 +71,7 @@ internal class HomeBatteryManager
     private async Task SetBatteryState(Entities entities)
     {
 
-        // WeatherForecast ret = await _weatherProvider.GetForecast();
+        WeatherForecast forecast = await _weatherProvider.GetWeatherAsync();
 
         // If the unit price is cheap and we have less than 50% in the battery, charge from the grid.
         double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
