@@ -28,15 +28,29 @@ public class HistoryService
         };
     }
 
-    public async Task<IReadOnlyList<HistoryEntry>> GetEntityHistory(string entityId, DateTime from)
+    public async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityHistory(string entityId, DateTime from, DateTime to)
     {
-        string url = $"/api/history/period/{from:o}?filter_entity_id={entityId}";
+        // Normalize to UTC
+        DateTime fromUtc = from.ToUniversalTime();
+        DateTime toUtc = to.ToUniversalTime();
+
+        // Format as ISO 8601 with Z suffix
+        string fromStr = fromUtc.ToString("yyyy-MM-ddTHH:mm:ssZ");
+        string toStr = toUtc.ToString("yyyy-MM-ddTHH:mm:ssZ");
+
+        string url = $"/api/history/period/{fromStr}?end_time={toStr}&filter_entity_id={entityId}";
         string response = await _httpClient.GetStringAsync(url);
 
         // Home Assistant returns a nested array: [[ {state1}, {state2}, ... ]]
         List<List<HistoryEntry>>? outer = JsonSerializer.Deserialize<List<List<HistoryEntry>>>(response, _jsonOptions);
 
-        return outer?.FirstOrDefault() ?? [];
+        List<HistoryEntry> states = outer?.FirstOrDefault() ?? [];
+
+        return [.. states.Select(s => new NumericHistoryEntry
+        {
+            LastChanged = s.LastChanged,
+            State = double.TryParse(s.State, out double value) ? value : 0
+        })];
     }
 }
 
@@ -45,4 +59,9 @@ public class HistoryEntry
     [JsonPropertyName("last_changed")]
     public DateTime LastChanged { get; set; }
     public string? State { get; set; }
+}
+
+public class NumericHistoryEntry : HistoryEntry
+{
+    public new double State { get; set; }
 }

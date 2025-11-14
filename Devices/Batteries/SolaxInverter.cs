@@ -1,37 +1,47 @@
 ﻿using HomeAssistant.Devices.Meters;
+using HomeAssistant.Services;
 using HomeAssistantGenerated;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.Batteries;
 
-public class SolaxInverter : IHomeBattery
+public class SolaxInverter : IHomeBattery, ISolarPanels
 {
     private readonly IHaContext _ha;
-    private readonly NumericSensorEntity _batteryCapacitySensor;
+    private readonly HistoryService _historyService;
+    private readonly NumericSensorEntity _batteryChargePercentSensor;
     private readonly SelectEntity _chargerUseMode;
     private readonly SelectEntity _chargerManualMode;
     private readonly NumberEntity _batteryChargeMaxCurrent;
+    private readonly NumericSensorEntity _totalBatteryPowerCharge;
+    private readonly NumericSensorEntity _totalPvPowerSensor;
     private readonly HomeAssistantGenerated.Services _services;
 
-    public double? CurrentChargePercent => _batteryCapacitySensor?.State;
+    public double? CurrentChargePercent => _batteryChargePercentSensor?.State;
 
-    public SolaxInverter(IHaContext ha)
+    public double BatteryCapacitykWh => 20.4;
+
+    public SolaxInverter(IHaContext ha, HistoryService historyService)
     {
         Entities entities = new(ha);
         _ha = ha;
+        _historyService = historyService;
         _services = new(ha);
 
-        _batteryCapacitySensor = entities.Sensor.SolaxInverterBatteryCapacity;
+        _batteryChargePercentSensor = entities.Sensor.SolaxInverterBatteryCapacity;
         _chargerUseMode = entities.Select.SolaxInverterChargerUseMode;
         _chargerManualMode = entities.Select.SolaxInverterManualModeSelect;
         _batteryChargeMaxCurrent = entities.Number.SolaxInverterBatteryChargeMaxCurrent;
+        _totalBatteryPowerCharge = entities.Sensor.SolaxInverterTotalBatteryPowerCharge;
+        _totalPvPowerSensor = entities.Sensor.SolaxInverterPvPowerTotal;
     }
 
     public void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action)
     {
-        _batteryCapacitySensor.StateChanges().SubscribeAsync(async (value) =>
+        _batteryChargePercentSensor.StateChanges().SubscribeAsync(async (value) =>
         {
-            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, _batteryCapacitySensor);
+            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, _batteryChargePercentSensor);
             await action(valueChange);
         });
     }
@@ -108,7 +118,16 @@ public class SolaxInverter : IHomeBattery
     private const int MaxChargeCurrent = 50;
     public void SetMaxChargeCurrentHeadroom(int headroom)
     {
-        _batteryChargeMaxCurrent.SetValue((50 - headroom).ToString());
+        _batteryChargeMaxCurrent.SetValue((MaxChargeCurrent - headroom).ToString());
+    }
 
+    public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalBatteryPowerChargeHistoryEntriesAsync(DateTime from, DateTime to)
+    {
+        return await _historyService.GetEntityHistory(_totalBatteryPowerCharge.EntityId, from, to);
+    }
+
+    public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalSolarPanelPowerHistoryEntriesAsync(DateTime from, DateTime to)
+    {
+        return await _historyService.GetEntityHistory(_totalPvPowerSensor.EntityId, from, to);
     }
 }

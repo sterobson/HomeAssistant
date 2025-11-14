@@ -199,14 +199,6 @@ public class Astro
     [JsonConverter(typeof(StringToTimeOnlyConverter))]
     public TimeOnly? SunsetLocal { get; set; }
 
-    [JsonPropertyName("moonrise")]
-    [JsonConverter(typeof(StringToTimeOnlyConverter))]
-    public TimeOnly? MoonriseLocal { get; set; }
-
-    [JsonPropertyName("moonset")]
-    [JsonConverter(typeof(StringToTimeOnlyConverter))]
-    public TimeOnly? MoonsetLocal { get; set; }
-
     [JsonPropertyName("moon_phase")]
     public string? MoonPhase { get; set; }
 

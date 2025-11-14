@@ -2,7 +2,6 @@
 using HomeAssistant.Services;
 using HomeAssistantGenerated;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.CarChargers;
@@ -33,7 +32,6 @@ internal class HypervoltPro3 : ICarCharger
 
     public async Task<IReadOnlyList<HistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to)
     {
-        IEnumerable<HistoryEntry> results = (await _historyService.GetEntityHistory(_chargerCurrentSensor.EntityId, from)).Where(h => h.LastChanged >= from && h.LastChanged <= to);
-        return [.. results];
+        return await _historyService.GetEntityHistory(_chargerCurrentSensor.EntityId, from, to);
     }
 }

@@ -4,15 +4,15 @@ namespace HomeAssistant.Services;
 
 internal class HistoryIntegrator
 {
-    public static double Integrate(IEnumerable<HistoryEntry> historyEntries, DateTime startDate, DateTime endDate)
+    public static double Integrate(IEnumerable<NumericHistoryEntry> historyEntries, DateTime startDate, DateTime endDate)
     {
         double lastValue = 0;
         DateTime lastTime = DateTime.MinValue;
         double totalArea = 0;
-        foreach (HistoryEntry historyItem in historyEntries)
+        foreach (NumericHistoryEntry historyItem in historyEntries)
         {
-            double w = double.Parse(historyItem.State ?? "0");
             double t = historyItem.LastChanged.Subtract(lastTime).TotalSeconds;
+            double w = historyItem.State;
 
             if (historyItem.LastChanged < startDate)
             {
@@ -20,6 +20,11 @@ internal class HistoryIntegrator
             }
 
             if (lastTime > endDate)
+            {
+                continue;
+            }
+
+            if (historyItem.LastChanged > endDate && lastTime == DateTime.MinValue)
             {
                 continue;
             }
