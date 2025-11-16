@@ -51,6 +51,12 @@ public class MyDevices
 
     // Dining room
     public SonoffButton DiningRoomDeskButton => new(_ha, "d4:48:67:ff:fe:0b:f6:0b");
+    public InputNumberEntity DiningRoomDehumidierLowerThreshold => _entities.InputNumber.DiningroomDehumidifierLowerThreshold;
+    public InputNumberEntity DiningRoomDehumidierUpperThreshold => _entities.InputNumber.DiningroomDehumidifierUpperThreshold;
+    public InputNumberEntity DiningRoomDehumidierLookAheadMinutes => _entities.InputNumber.DiningroomDehumidifierProjectionLookAheadMinutes;
+    public SwitchEntity DiningRoomDehumidierSmartPlugOnOff => _entities.Switch.SonoffS60zbtpg;
+    public NumericSensorEntity DiningRoomDehumidifierSmartPlugPower => _entities.Sensor.SonoffS60zbtpgPower;
+    public NumericSensorEntity DiningRoomClimateHumidity => _entities.Sensor.DiningroomHumidity;
 
     // Kitchen
 

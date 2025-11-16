@@ -12,20 +12,24 @@ public class HistoryService
 {
     private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly HomeAssistantConfiguration _settings;
+    private readonly ILogger<HistoryService> _logger;
 
-    public HistoryService(HomeAssistantConfiguration settings)
+    public HistoryService(HomeAssistantConfiguration settings, ILogger<HistoryService> logger)
     {
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri($"http://{settings.Host}:{settings.Port}")
         };
-        _httpClient.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", settings.Token);
+
+        _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", settings.Token);
 
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
         };
+        _settings = settings;
+        _logger = logger;
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityHistory(string entityId, DateTime from, DateTime to)
@@ -38,19 +42,28 @@ public class HistoryService
         string fromStr = fromUtc.ToString("yyyy-MM-ddTHH:mm:ssZ");
         string toStr = toUtc.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
-        string url = $"/api/history/period/{fromStr}?end_time={toStr}&filter_entity_id={entityId}";
-        string response = await _httpClient.GetStringAsync(url);
+        string url = $"http://{_settings.Host}:{_settings.Port}/api/history/period/{fromStr}?end_time={toStr}&filter_entity_id={entityId}";
 
-        // Home Assistant returns a nested array: [[ {state1}, {state2}, ... ]]
-        List<List<HistoryEntry>>? outer = JsonSerializer.Deserialize<List<List<HistoryEntry>>>(response, _jsonOptions);
-
-        List<HistoryEntry> states = outer?.FirstOrDefault() ?? [];
-
-        return [.. states.Select(s => new NumericHistoryEntry
+        try
         {
-            LastChanged = s.LastChanged,
-            State = double.TryParse(s.State, out double value) ? value : 0
-        })];
+            string response = await _httpClient.GetStringAsync(url);
+
+            // Home Assistant returns a nested array: [[ {state1}, {state2}, ... ]]
+            List<List<HistoryEntry>>? outer = JsonSerializer.Deserialize<List<List<HistoryEntry>>>(response, _jsonOptions);
+
+            List<HistoryEntry> states = outer?.FirstOrDefault() ?? [];
+
+            return [.. states.Select(s => new NumericHistoryEntry
+            {
+                LastChanged = s.LastChanged,
+                State = double.TryParse(s.State, out double value) ? value : 0
+            })];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching history for entity {EntityId} - {Url}", entityId, url);
+            throw;
+        }
     }
 }
 

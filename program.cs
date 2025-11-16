@@ -15,6 +15,7 @@ using NetDaemon.Extensions.Logging;
 using NetDaemon.Extensions.Scheduler;
 using NetDaemon.Extensions.Tts;
 using NetDaemon.Runtime;
+using System.IO;
 using System.Reflection;
 
 #pragma warning disable CA1812
@@ -26,6 +27,17 @@ try
         .UseNetDaemonDefaultLogging()
         .UseNetDaemonRuntime()
         .UseNetDaemonTextToSpeech()
+        .ConfigureAppConfiguration((context, config) =>
+        {
+            if (File.Exists("appsettings.development.json"))
+            {
+                config.AddJsonFile("appsettings.development.json", optional: true, reloadOnChange: true);
+            }
+            else
+            {
+                config.AddJsonFile("appsettings.production.json", optional: true, reloadOnChange: true);
+            }
+        })
         .ConfigureServices((context, services) =>
         {
             services
@@ -45,7 +57,7 @@ try
                 .AddConfiguration<WeatherApiConfiguration>(context, "WeatherApi")
                 .AddSingleton<IWeatherProvider, WeatherApiProvider>()
                 .AddSingleton<LocationProvider>()
-                .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistant")
+                .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistantApiEndpoints")
                 .AddSingleton<HistoryService>();
         })
         .Build()

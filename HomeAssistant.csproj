@@ -15,6 +15,10 @@
         </None>        
         <None Update="$(MSBuildProjectDir)appsettings.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>        
+        <None Update="appsettings.production.json">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+          <CopyToPublishDirectory>Never</CopyToPublishDirectory>
         </None>
         <None Update="$(MSBuildProjectDir)**\*.yaml">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>

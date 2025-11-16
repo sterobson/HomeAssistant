@@ -52,16 +52,19 @@ internal class WeatherApiProvider : IWeatherProvider
     private readonly HttpClient _httpClient;
     private readonly LocationProvider _locationProvider;
     private readonly WeatherApiConfiguration _weatherApiConfiguration;
+    private readonly ILogger<WeatherApiProvider> _logger;
     private readonly JsonSerializerOptions _jsonSerializerOptions = new() { PropertyNameCaseInsensitive = true };
     private WeatherForecast _weatherForecast = new();
     private string? _forecastLocation = null;
-    private DateTime _lastUpdated = default(DateTime);
+    private DateTime _lastUpdated = default;
 
-    public WeatherApiProvider(HttpClient httpClient, LocationProvider locationProvider, WeatherApiConfiguration weatherApiConfiguration)
+    public WeatherApiProvider(HttpClient httpClient, LocationProvider locationProvider, WeatherApiConfiguration weatherApiConfiguration,
+        ILogger<WeatherApiProvider> logger)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _locationProvider = locationProvider;
         _weatherApiConfiguration = weatherApiConfiguration;
+        _logger = logger;
     }
 
     public async Task<WeatherForecast> GetWeatherAsync()
@@ -123,20 +126,41 @@ internal class WeatherApiProvider : IWeatherProvider
         return await QueryApi(_httpClient, url, _jsonSerializerOptions);
     }
 
-    private static async Task<WeatherForecast> QueryApi(HttpClient client, string url, JsonSerializerOptions jsonSerializerOptions)
+    private async Task<WeatherForecast> QueryApi(HttpClient client, string url, JsonSerializerOptions jsonSerializerOptions)
     {
-        // Call WeatherAPI
-        using HttpResponseMessage response = await client.GetAsync(url);
-        response.EnsureSuccessStatusCode();
+        int i = 0;
+        while (i++ <= 2)
+        {
+            try
+            {
+                // Call WeatherAPI
+                using HttpResponseMessage response = await client.GetAsync(url);
+                response.EnsureSuccessStatusCode();
 
-        string json = await response.Content.ReadAsStringAsync();
+                string json = await response.Content.ReadAsStringAsync();
 
-        // Deserialize into provider-specific DTOs
-        WeatherApiResponse? providerResponse = JsonSerializer.Deserialize<WeatherApiResponse>(json, jsonSerializerOptions);
+                // Deserialize into provider-specific DTOs
+                WeatherApiResponse? providerResponse = JsonSerializer.Deserialize<WeatherApiResponse>(json, jsonSerializerOptions);
 
-        WeatherForecast forecast = ConvertToWeatherForecast(providerResponse);
+                WeatherForecast forecast = ConvertToWeatherForecast(providerResponse);
 
-        return forecast;
+                return forecast;
+            }
+            catch (HttpRequestException ex) when ((int?)ex.StatusCode >= 500)
+            {
+                if (i >= 2)
+                {
+                    _logger.LogError(ex, "Error calling WeatherAPI after {Attempt} attempts: {Message}", i, ex.Message);
+                    break;
+                }
+
+                _logger.LogWarning("Error calling WeatherAPI after {Attempt} attempts: {Message} Trying again in {Seconds} seconds", i, ex.Message, i);
+
+                await Task.Delay(i * 1000);
+            }
+        }
+
+        return new();
     }
 
     private static WeatherForecast ConvertToWeatherForecast(WeatherApiResponse? providerResponse)

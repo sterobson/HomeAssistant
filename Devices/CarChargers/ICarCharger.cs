@@ -10,7 +10,7 @@ public interface ICarCharger
 {
     double? ChargerCurrent { get; }
 
-    Task<IReadOnlyList<HistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to);
+    Task<IReadOnlyList<NumericHistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to);
 
     void OnChargerCurrentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action);
 }

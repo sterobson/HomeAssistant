@@ -30,7 +30,7 @@ internal class HypervoltPro3 : ICarCharger
         });
     }
 
-    public async Task<IReadOnlyList<HistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to)
+    public async Task<IReadOnlyList<NumericHistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to)
     {
         return await _historyService.GetEntityHistory(_chargerCurrentSensor.EntityId, from, to);
     }
