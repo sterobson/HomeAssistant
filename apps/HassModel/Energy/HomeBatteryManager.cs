@@ -6,6 +6,7 @@ using HomeAssistant.Weather;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.apps.HassModel.Energy;
@@ -59,89 +60,116 @@ internal class HomeBatteryManager
         });
     }
 
+    private readonly SemaphoreSlim _setBatteryStateSemaphore = new(1, 1);
+
+    private double? _previousUnitPriceRate = null;
+    private double? _previousHomeBatteryChargePct = null;
+    private bool _previousIsCarCharging = false;
+    private bool _previousIsElectricityCheap = false;
+
     private async Task SetBatteryState()
     {
-        double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
-        double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
-        bool isCarCharging = _carCharger.ChargerCurrent > 1;
-        bool isElectricityCheap = currentUnitPriceRate < 0.1;
-
-        BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
-
-        // Set the battery's max charging current, which is 50A minus whatever the car is drawing (gives us lots of headroom)
-        double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
-        _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
-
-        (double minimumProjectedChargekWh, double maximumProjectedChargekWh) = (0, 0);
-        if (isElectricityCheap)
+        try
         {
-            (minimumProjectedChargekWh, maximumProjectedChargekWh) = await GetPredictedBatteryScores();
+            await _setBatteryStateSemaphore.WaitAsync();
+
+            double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
+            double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
+            bool isCarCharging = _carCharger.ChargerCurrent > 1;
+            bool isElectricityCheap = currentUnitPriceRate < 0.1;
+
+            if (currentUnitPriceRate == _previousUnitPriceRate
+                && homeBatteryChargePct == _previousHomeBatteryChargePct
+                && isCarCharging == _previousIsCarCharging
+                && isElectricityCheap == _previousIsElectricityCheap)
+            {
+                // Nothing we care about has changed, so no need to do anything.
+                return;
+            }
+
+            BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
+
+            // Set the battery's max charging current, which is 50A minus whatever the car is drawing (gives us lots of headroom)
+            double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
+            _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
+
+            (double minimumProjectedChargekWh, double maximumProjectedChargekWh) = await GetPredictedBatteryScores();
+
+            double minimumProjectedPercent = Math.Min(100 * minimumProjectedChargekWh / _homeBattery.BatteryCapacitykWh, homeBatteryChargePct ?? 0);
+            double maximumProjectedPercent = Math.Max(100 * maximumProjectedChargekWh / _homeBattery.BatteryCapacitykWh, homeBatteryChargePct ?? 0);
+
+            const int startChargingIfMaxUnderPercent = 85;
+            const int keepChargingIfMaxUnderPercent = 90;
+
+            const int startChargingIfMinUnderPercent = 20;
+            const int keepChargingIfMinUnderPercent = 25;
+
+            const int batteryConsideredFullIfGtEqToPercent = 99;
+
+            bool isBatteryProjectionInRangeThatNeedsCharging = maximumProjectedPercent < startChargingIfMaxUnderPercent || minimumProjectedPercent < startChargingIfMinUnderPercent
+                    || (currentHomeBatteryState == BatteryState.ForceCharging && (maximumProjectedPercent < keepChargingIfMaxUnderPercent || minimumProjectedPercent < keepChargingIfMinUnderPercent));
+            bool isBatteryFull = homeBatteryChargePct >= batteryConsideredFullIfGtEqToPercent;
+
+            BatteryState desiredHomeBatteryState;
+            if (isElectricityCheap && isBatteryProjectionInRangeThatNeedsCharging && !isBatteryFull)
+            {
+                // We need some more juice in the battery, and it's cheap to do.
+                desiredHomeBatteryState = BatteryState.ForceCharging;
+            }
+            else if (isElectricityCheap && isCarCharging)
+            {
+                // We're charging the car and it's cheap energy, so don't use the battery.
+                desiredHomeBatteryState = BatteryState.Stopped;
+            }
+            else if (!isElectricityCheap && isCarCharging && minimumProjectedPercent > 20)
+            {
+                // Car is charging, and energy is expensive. Use the home battery if we can.
+                // Save some for us to use though.
+                desiredHomeBatteryState = BatteryState.NormalTOU;
+            }
+            else if (isCarCharging)
+            {
+                // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
+                desiredHomeBatteryState = BatteryState.Stopped;
+            }
+            else
+            {
+                // Not charging the car, nor any other special state, so set the battery to 
+                // whatever the default schedule is (probably using it to power the house).
+                desiredHomeBatteryState = BatteryState.NormalTOU;
+            }
+
+            // Charge the home battery too
+            if (desiredHomeBatteryState != currentHomeBatteryState)
+            {
+                _homeBattery.SetHomeBatteryState(desiredHomeBatteryState);
+
+                _logger.LogInformation(
+                    "Battery state changed:\n" +
+                    " * Home battery on {HomeBatteryChargePct}% (was {PreviousHomeBatteryChargePct})\n" +
+                    " * Predicted 24 hour range from {MinimumProjectedPercent}% to {MaximumProjectedPercent}%\n" +
+                    " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
+                    " * Current unit price £{CurrentUnitPriceRate}\n" +
+                    " * Hypervolt current {HypervoltCurrent}A",
+                    homeBatteryChargePct?.ToString("F0"),
+                    _previousHomeBatteryChargePct?.ToString("F0"),
+                    minimumProjectedPercent.ToString("F0"),
+                    maximumProjectedPercent.ToString("F0"),
+                    currentHomeBatteryState,
+                    desiredHomeBatteryState,
+                    currentUnitPriceRate?.ToString("F3"),
+                    hypervoltCurrent.ToString("F0")
+                );
+            }
+
+            _previousHomeBatteryChargePct = homeBatteryChargePct;
+            _previousIsCarCharging = isCarCharging;
+            _previousIsElectricityCheap = isElectricityCheap;
+            _previousUnitPriceRate = currentUnitPriceRate;
         }
-
-        double minimumProjectedPercent = Math.Min(100 * minimumProjectedChargekWh / _homeBattery.BatteryCapacitykWh, homeBatteryChargePct ?? 0);
-        double maximumProjectedPercent = Math.Max(100 * maximumProjectedChargekWh / _homeBattery.BatteryCapacitykWh, homeBatteryChargePct ?? 0);
-
-        const int startChargingIfMaxUnderPercent = 85;
-        const int keepChargingIfMaxUnderPercent = 90;
-
-        const int startChargingIfMinUnderPercent = 20;
-        const int keepChargingIfMinUnderPercent = 25;
-
-        const int batteryConsideredFullIfGtEqToPercent = 99;
-
-        bool isBatteryProjectionInRangeThatNeedsCharging = maximumProjectedPercent < startChargingIfMaxUnderPercent || minimumProjectedPercent < startChargingIfMinUnderPercent
-                || (currentHomeBatteryState == BatteryState.ForceCharging && (maximumProjectedPercent < keepChargingIfMaxUnderPercent || minimumProjectedPercent < keepChargingIfMinUnderPercent));
-        bool isBatteryFull = homeBatteryChargePct >= batteryConsideredFullIfGtEqToPercent;
-
-        BatteryState desiredHomeBatteryState;
-        if (isElectricityCheap && isBatteryProjectionInRangeThatNeedsCharging && !isBatteryFull)
+        finally
         {
-            // We need some more juice in the battery, and it's cheap to do.
-            desiredHomeBatteryState = BatteryState.ForceCharging;
-        }
-        else if (isElectricityCheap && isCarCharging)
-        {
-            // We're charging the car and it's cheap energy, so don't use the battery.
-            desiredHomeBatteryState = BatteryState.Stopped;
-        }
-        else if (!isElectricityCheap && isCarCharging && minimumProjectedPercent > 20)
-        {
-            // Car is charging, and energy is expensive. Use the home battery if we can.
-            // Save some for us to use though.
-            desiredHomeBatteryState = BatteryState.NormalTOU;
-        }
-        else if (isCarCharging)
-        {
-            // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
-            desiredHomeBatteryState = BatteryState.Stopped;
-        }
-        else
-        {
-            // Not charging the car, nor any other special state, so set the battery to 
-            // whatever the default schedule is (probably using it to power the house).
-            desiredHomeBatteryState = BatteryState.NormalTOU;
-        }
-
-        // Charge the home battery too
-        if (desiredHomeBatteryState != currentHomeBatteryState)
-        {
-            _homeBattery.SetHomeBatteryState(desiredHomeBatteryState);
-
-            _logger.LogInformation(
-                "Battery state changed:\n" +
-                " * Home battery on {HomeBatteryChargePct}%\n" +
-                " * Predicted 24 hour range from {MinimumProjectedPercent}% to {MaximumProjectedPercent}%\n" +
-                " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
-                " * Current unit price £{CurrentUnitPriceRate}\n" +
-                " * Hypervolt current {HypervoltCurrent}A",
-                homeBatteryChargePct?.ToString("F0"),
-                minimumProjectedPercent.ToString("F0"),
-                maximumProjectedPercent.ToString("F0"),
-                currentHomeBatteryState,
-                desiredHomeBatteryState,
-                currentUnitPriceRate?.ToString("F3"),
-                hypervoltCurrent.ToString("F0")
-            );
+            _setBatteryStateSemaphore.Release();
         }
     }
 
