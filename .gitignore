@@ -7,3 +7,4 @@ appsettings.Production.json
 .idea
 #appsettings.json
 #HomeAssistantGenerated.cs
+/appsettings.secrets.all.json
