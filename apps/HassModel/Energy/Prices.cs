@@ -11,14 +11,17 @@ namespace HassModel.Energy;
 [NetDaemonApp]
 public class Prices
 {
-    public Prices(IHaContext ha, ITriggerManager triggerManager)
+    private readonly ILogger<Prices> _logger;
+
+    public Prices(IHaContext ha, ITriggerManager triggerManager, ILogger<Prices> logger)
     {
+        _logger = logger;
+
         Entities entities = new(ha);
 
-        entities.Sensor.OctopusEnergyElectricity24j04946911591015382045CurrentRate.StateAllChanges().SubscribeAsync(async e =>
+        entities.Sensor.OctopusEnergyElectricity24j04946911591015382045CurrentRate.StateChanges().SubscribeAsync(async e =>
         {
-            Console.WriteLine($"{DateTime.UtcNow}: From {e.Old?.State} to {e.New?.State}");
+            _logger.LogDebug("Electricity import prices changed from {oldValue} to {newValue} per kWh", e.Old?.State, e.New?.State);
         });
-
     }
 }

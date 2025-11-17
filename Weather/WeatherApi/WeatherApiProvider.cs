@@ -116,7 +116,7 @@ internal class WeatherApiProvider : IWeatherProvider
     private async Task<WeatherForecast> GetCurrentForecast(string apiKey, string location)
     {
         int days = 3;
-        string url = $"http://api.weatherapi.com/v1/forecast.json?key={apiKey}&q={location}&days={days}&aqi=no&alerts=no";
+        string url = $"{_weatherApiConfiguration.Endpoint}/v1/forecast.json?key={apiKey}&q={location}&days={days}&aqi=no&alerts=no";
         return await QueryApi(_httpClient, url, _jsonSerializerOptions);
     }
 

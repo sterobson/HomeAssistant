@@ -5,6 +5,7 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.CarChargers;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
+using HomeAssistant.Services.WasteManagement;
 using HomeAssistant.Weather;
 using HomeAssistant.Weather.WeatherApi;
 using HomeAssistantGenerated;
@@ -29,6 +30,7 @@ try
         .UseNetDaemonTextToSpeech()
         .ConfigureAppConfiguration((context, config) =>
         {
+            config.AddJsonFile("appsettings.secrets.all.json", optional: true, reloadOnChange: true);
             if (File.Exists("appsettings.development.json"))
             {
                 config.AddJsonFile("appsettings.development.json", optional: true, reloadOnChange: true);
@@ -58,7 +60,9 @@ try
                 .AddSingleton<IWeatherProvider, WeatherApiProvider>()
                 .AddSingleton<LocationProvider>()
                 .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistantApiEndpoints")
-                .AddSingleton<HistoryService>();
+                .AddSingleton<HistoryService>()
+                .AddConfiguration<YorkBinServiceConfiguration>(context, "YorkBinService")
+                .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>();
         })
         .Build()
         .RunAsync()

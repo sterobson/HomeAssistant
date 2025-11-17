@@ -127,8 +127,21 @@ internal class HomeBatteryManager
         {
             _homeBattery.SetHomeBatteryState(desiredHomeBatteryState);
 
-            string message = $"Predicted charge range next 20 hours: {minimumProjectedPercent:F0}% to {maximumProjectedChargekWh:F0}%. Battery state changed to {desiredHomeBatteryState}, current unit price £{currentUnitPriceRate:F3}, Hypervolt current {hypervoltCurrent:F0}A, home battery current charge {homeBatteryChargePct:F1}%";
-            _logger.LogInformation(message);
+            _logger.LogInformation(
+                "Battery state changed:\n" +
+                " * Home battery on {HomeBatteryChargePct}%\n" +
+                " * Predicted 24 hour range from {MinimumProjectedPercent}% to {MaximumProjectedPercent}%\n" +
+                " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
+                " * Current unit price £{CurrentUnitPriceRate}\n" +
+                " * Hypervolt current {HypervoltCurrent}A",
+                homeBatteryChargePct?.ToString("F0"),
+                minimumProjectedPercent.ToString("F0"),
+                maximumProjectedPercent.ToString("F0"),
+                currentHomeBatteryState,
+                desiredHomeBatteryState,
+                currentUnitPriceRate?.ToString("F3"),
+                hypervoltCurrent.ToString("F0")
+            );
         }
     }
 
