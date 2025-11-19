@@ -32,7 +32,25 @@ public class HistoryService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityHistory(string entityId, DateTime from, DateTime to)
+    public async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityNumericHistory(string entityId, DateTime from, DateTime to)
+    {
+        IReadOnlyList<HistoryTextEntry> states = await GetEntityTextHistory(entityId, from, to);
+        try
+        {
+            return [.. states.Select(s => new NumericHistoryEntry
+            {
+                LastChanged = s.LastChanged,
+                State = double.TryParse(s.State, out double value) ? value : 0
+            })];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching history for entity {EntityId}", entityId);
+            throw;
+        }
+    }
+
+    public async Task<IReadOnlyList<HistoryTextEntry>> GetEntityTextHistory(string entityId, DateTime from, DateTime to)
     {
         // Normalize to UTC
         DateTime fromUtc = from.ToUniversalTime();
@@ -49,15 +67,9 @@ public class HistoryService
             string response = await _httpClient.GetStringAsync(url);
 
             // Home Assistant returns a nested array: [[ {state1}, {state2}, ... ]]
-            List<List<HistoryEntry>>? outer = JsonSerializer.Deserialize<List<List<HistoryEntry>>>(response, _jsonOptions);
+            List<List<HistoryTextEntry>>? outer = JsonSerializer.Deserialize<List<List<HistoryTextEntry>>>(response, _jsonOptions);
 
-            List<HistoryEntry> states = outer?.FirstOrDefault() ?? [];
-
-            return [.. states.Select(s => new NumericHistoryEntry
-            {
-                LastChanged = s.LastChanged,
-                State = double.TryParse(s.State, out double value) ? value : 0
-            })];
+            return outer?.FirstOrDefault() ?? [];
         }
         catch (Exception ex)
         {
@@ -67,14 +79,17 @@ public class HistoryService
     }
 }
 
-public class HistoryEntry
+public class HistoryEntry<T>
 {
     [JsonPropertyName("last_changed")]
     public DateTime LastChanged { get; set; }
-    public string? State { get; set; }
+    public required T State { get; set; }
 }
 
-public class NumericHistoryEntry : HistoryEntry
+public class HistoryTextEntry : HistoryEntry<string?>
 {
-    public new double State { get; set; }
+}
+
+public class NumericHistoryEntry : HistoryEntry<double>
+{
 }

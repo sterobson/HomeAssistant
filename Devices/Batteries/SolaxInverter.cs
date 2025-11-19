@@ -2,6 +2,7 @@
 using HomeAssistant.Services;
 using HomeAssistantGenerated;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.Batteries;
@@ -46,6 +47,19 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
         });
     }
 
+    public void OnBatteryUseModeChanged(Func<Task> action)
+    {
+        _chargerUseMode.StateChanges().SubscribeAsync(async (value) =>
+        {
+            await action();
+        });
+
+        _chargerManualMode.StateChanges().SubscribeAsync(async (value) =>
+        {
+            await action();
+        });
+    }
+
     public BatteryState GetHomeBatteryState()
     {
         string? chargerUseMode = _chargerUseMode.State;
@@ -63,6 +77,67 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             },
             _ => BatteryState.Unknown,
         };
+    }
+
+    public async Task<IReadOnlyList<HistoryEntry<BatteryState>>> GetBatteryStateHistoryEntriesAsync(DateTime from, DateTime to)
+    {
+        Task<IReadOnlyList<HistoryTextEntry>> useModeHistoryTask = _historyService.GetEntityTextHistory(_chargerUseMode.EntityId, from.AddMonths(-1), to);
+        Task<IReadOnlyList<HistoryTextEntry>> manualModeHistoryTask = _historyService.GetEntityTextHistory(_chargerManualMode.EntityId, from.AddMonths(-1), to);
+
+        await Task.WhenAll(useModeHistoryTask, manualModeHistoryTask);
+
+        IReadOnlyList<HistoryTextEntry> useModeHistory = await useModeHistoryTask;
+        IReadOnlyList<HistoryTextEntry> manualModeHistory = await manualModeHistoryTask;
+
+        List<HistoryEntry<BatteryState>> results = [new HistoryEntry<BatteryState> { LastChanged = from, State = BatteryState.Unknown }];
+
+        List<HistoryTextEntry> allDates = useModeHistory.Union(manualModeHistory).OrderBy(e => e.LastChanged).ToList();
+
+        string currentUseMode = "", currentManualMode = "";
+        DateTime lastDate = DateTime.MinValue;
+        foreach (HistoryTextEntry entry in allDates)
+        {
+            if (useModeHistory.Contains(entry))
+            {
+                currentUseMode = entry.State ?? string.Empty;
+            }
+            else
+            {
+                currentManualMode = entry.State ?? string.Empty;
+            }
+
+            BatteryState currentBatteryState = currentUseMode switch
+            {
+                "Smart Schedule" => BatteryState.NormalTOU,
+                "Manual Mode" => currentManualMode switch
+                {
+                    "Stop Charge and Discharge" => BatteryState.Stopped,
+                    "Force Charge" => BatteryState.ForceCharging,
+                    "Force Discharge" => BatteryState.ForceDischarging,
+                    _ => BatteryState.Unknown,
+                },
+                _ => BatteryState.Unknown,
+            };
+
+            if (entry.LastChanged < from)
+            {
+                results[0].State = currentBatteryState;
+            }
+            else if (entry.LastChanged == lastDate)
+            {
+                results[^1].State = currentBatteryState;
+            }
+            else if (entry.LastChanged < to)
+            {
+                results.Add(new HistoryEntry<BatteryState>
+                {
+                    LastChanged = entry.LastChanged,
+                    State = currentBatteryState
+                });
+            }
+        }
+
+        return results;
     }
 
     public void SetHomeBatteryState(BatteryState desiredHomeBatteryState)
@@ -123,11 +198,11 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalBatteryPowerChargeHistoryEntriesAsync(DateTime from, DateTime to)
     {
-        return await _historyService.GetEntityHistory(_totalBatteryPowerCharge.EntityId, from, to);
+        return await _historyService.GetEntityNumericHistory(_totalBatteryPowerCharge.EntityId, from, to);
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalSolarPanelPowerHistoryEntriesAsync(DateTime from, DateTime to)
     {
-        return await _historyService.GetEntityHistory(_totalPvPowerSensor.EntityId, from, to);
+        return await _historyService.GetEntityNumericHistory(_totalPvPowerSensor.EntityId, from, to);
     }
 }

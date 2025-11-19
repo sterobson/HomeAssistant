@@ -10,11 +10,8 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Threading.Tasks;
 
-namespace HassModel.Energy;
+namespace HassModel.Waste;
 
-/// <summary>
-///     Hello world showcase using the new HassModel API
-/// </summary>
 [NetDaemonApp]
 internal class BinCollections
 {
@@ -30,7 +27,7 @@ internal class BinCollections
         _notificationService = notificationService;
         Entities entities = new(ha);
 
-        scheduler.ScheduleCron("* 18 * * *", async () => await CheckAndNotifyUpcomingCollections());
+        scheduler.ScheduleCron("0 18 * * *", async () => await CheckAndNotifyUpcomingCollections());
     }
 
     private async Task CheckAndNotifyUpcomingCollections()

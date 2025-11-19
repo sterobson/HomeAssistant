@@ -15,6 +15,8 @@ internal class DiningRoomDehumidifier
     private readonly ILogger<DiningRoomDehumidifier> _logger;
     private readonly MyDevices _myDevices;
     private const int _minutesOfNoPowerUseBeforeNotification = 10;
+    private const int _minutesToWaitBeforeNextStateChange = 5;
+    private DateTime _lastStateChangeTime = DateTime.MinValue;
 
     public DiningRoomDehumidifier(IHaContext ha, HistoryService historyService, IScheduler scheduler,
         NotificationService notificationService, ILogger<DiningRoomDehumidifier> logger)
@@ -50,7 +52,13 @@ internal class DiningRoomDehumidifier
     {
         const double trendMinutes = 60;
 
-        IReadOnlyList<NumericHistoryEntry> humidityHistory = await _historyService.GetEntityHistory(_myDevices.DiningRoomClimateHumidity.EntityId, DateTime.Now.AddMinutes(-trendMinutes), DateTime.Now);
+        if (DateTime.Now < _lastStateChangeTime.AddMinutes(_minutesToWaitBeforeNextStateChange))
+        {
+            // Too soon to change state again.
+            return;
+        }
+
+        IReadOnlyList<NumericHistoryEntry> humidityHistory = await _historyService.GetEntityNumericHistory(_myDevices.DiningRoomClimateHumidity.EntityId, DateTime.Now.AddMinutes(-trendMinutes), DateTime.Now);
 
         double trendChange = humidityHistory.Count > 0 ? humidityHistory[^1].State - humidityHistory[0].State : 0;
         double currentHumidity = _myDevices.DiningRoomClimateHumidity.State ?? 0;
@@ -67,13 +75,15 @@ internal class DiningRoomDehumidifier
 
         if (projectedHumidity > upperThreshold && !isOn)
         {
-            _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current hunidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it on");
+            _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current humidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it on");
             _myDevices.DiningRoomDehumidierSmartPlugOnOff.TurnOn();
+            _lastStateChangeTime = DateTime.Now;
         }
-        else if (currentHumidity <= lowerThreshold && isOn)
+        else if (projectedHumidity <= lowerThreshold && isOn)
         {
-            _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current hunidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it off");
+            _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current humidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it off");
             _myDevices.DiningRoomDehumidierSmartPlugOnOff.TurnOff();
+            _lastStateChangeTime = DateTime.Now;
         }
 
         await CheckPowerState();
@@ -103,7 +113,7 @@ internal class DiningRoomDehumidifier
             return;
         }
 
-        IReadOnlyList<NumericHistoryEntry> powerHistory = await _historyService.GetEntityHistory(_myDevices.DiningRoomDehumidifierSmartPlugPower.EntityId, DateTime.Now.AddMinutes(-_minutesOfNoPowerUseBeforeNotification), DateTime.Now);
+        IReadOnlyList<NumericHistoryEntry> powerHistory = await _historyService.GetEntityNumericHistory(_myDevices.DiningRoomDehumidifierSmartPlugPower.EntityId, DateTime.Now.AddMinutes(-_minutesOfNoPowerUseBeforeNotification), DateTime.Now);
         if (powerHistory.Any(h => h.State > _minutesOfNoPowerUseBeforeNotification))
         {
             // The plug has been on for a while and it is delivering power, so reset the time before looking

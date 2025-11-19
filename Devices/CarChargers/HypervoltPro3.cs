@@ -32,6 +32,6 @@ internal class HypervoltPro3 : ICarCharger
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to)
     {
-        return await _historyService.GetEntityHistory(_chargerCurrentSensor.EntityId, from, to);
+        return await _historyService.GetEntityNumericHistory(_chargerCurrentSensor.EntityId, from, to);
     }
 }

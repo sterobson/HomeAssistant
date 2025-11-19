@@ -21,9 +21,11 @@ public interface IHomeBattery
     double BatteryCapacitykWh { get; }
     BatteryState GetHomeBatteryState();
     void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action);
+    void OnBatteryUseModeChanged(Func<Task> action);
     void SetHomeBatteryState(BatteryState desiredHomeBatteryState);
     void SetMaxChargeCurrentHeadroom(int headroom);
     Task<IReadOnlyList<NumericHistoryEntry>> GetTotalBatteryPowerChargeHistoryEntriesAsync(DateTime from, DateTime to);
+    Task<IReadOnlyList<HistoryEntry<BatteryState>>> GetBatteryStateHistoryEntriesAsync(DateTime from, DateTime to);
 }
 
 public interface ISolarPanels

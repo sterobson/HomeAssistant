@@ -8,7 +8,10 @@ namespace HomeAssistant.apps.HassModel.Car;
 [NetDaemonApp]
 internal class CarAutomations
 {
-    public CarAutomations(IHaContext ha, ITriggerManager triggerManager)
+    private readonly IHaContext _ha;
+    private readonly ILogger<CarAutomations> _logger;
+
+    public CarAutomations(IHaContext ha, ITriggerManager triggerManager, ILogger<CarAutomations> logger)
     {
         Entities entities = new(ha);
         MyDevices myDevices = new(entities, ha);
@@ -18,14 +21,18 @@ internal class CarAutomations
             _ = SetCarClimate(entities, myDevices);
         });
 
-        myDevices.Car.IgnitionEntity.StateAllChanges().SubscribeAsync(async e =>
+        myDevices.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
         {
             _ = WarnAboutOpenWindows(entities);
         });
+        _ha = ha;
+        _logger = logger;
     }
 
-    private static async Task SetCarClimate(Entities entities, MyDevices myDevices)
+    private async Task SetCarClimate(Entities entities, MyDevices myDevices)
     {
+        _logger.LogInformation("{Method} called", nameof(SetCarClimate));
+
         // Note: we should avoid toggling the buttons too often, because otherwise the car will get
         // annoyed at us and stop performing the actions. Only toggle if it's a genuine change.
         const double targetTemperature = 20;
@@ -34,7 +41,7 @@ internal class CarAutomations
         int i = 0;
         CancellationTokenSource cts = new();
 
-        myDevices.Car.IgnitionEntity.StateAllChanges().SubscribeAsync(async e =>
+        myDevices.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
         {
             // If the car's on/off status changes at all, then shut this all down.
             await cts.CancelAsync();
