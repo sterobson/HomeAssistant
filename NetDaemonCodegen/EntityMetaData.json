@@ -5,7 +5,7 @@
       "entities": [
         {
           "id": "light.lamperion_bane_of_shadows",
-          "friendlyName": "Lamperion Bane of Shadows",
+          "friendlyName": null,
           "cSharpName": "LamperionBaneOfShadows"
         },
         {
@@ -20,7 +20,7 @@
         },
         {
           "id": "light.wiz_rgbw_tunable_22099a",
-          "friendlyName": null,
+          "friendlyName": "Games Room Desk Lamp",
           "cSharpName": "WizRgbwTunable22099a"
         }
       ],
@@ -328,16 +328,6 @@
       "domain": "automation",
       "entities": [
         {
-          "id": "automation.bedroom_3_dehumidifier_plug_read_state",
-          "friendlyName": "Sync - Dining room - Dehumidifier Plug - Read State",
-          "cSharpName": "Bedroom3DehumidifierPlugReadState"
-        },
-        {
-          "id": "automation.bedroom_3_dehumidifier_plug_write_state",
-          "friendlyName": "Sync - Dining room - Dehumidifier Plug - Write State",
-          "cSharpName": "Bedroom3DehumidifierPlugWriteState"
-        },
-        {
           "id": "automation.dining_room_desk_button_toggles_plug",
           "friendlyName": "Dining Room - Desk - Button Toggles Plug",
           "cSharpName": "DiningRoomDeskButtonTogglesPlug"
@@ -396,16 +386,6 @@
           "id": "automation.sync_kitchen_flood_detector_to_helper",
           "friendlyName": "Sync Kitchen Flood Detector to Helper",
           "cSharpName": "SyncKitchenFloodDetectorToHelper"
-        },
-        {
-          "id": "automation.turn_off_bedroom_3_dehumidifier",
-          "friendlyName": "Turn off dining room dehumidifier",
-          "cSharpName": "TurnOffBedroom3Dehumidifier"
-        },
-        {
-          "id": "automation.turn_on_bedroom_3_dehumidifier",
-          "friendlyName": "Turn on dining room 3 dehumidifier",
-          "cSharpName": "TurnOnBedroom3Dehumidifier"
         },
         {
           "id": "automation.update_washing_drying_score",
@@ -678,7 +658,7 @@
       "entities": [
         {
           "id": "button.bedroom_3_temperature_and_humidity_identify",
-          "friendlyName": "Bedroom 3 temperature and humidity Identify",
+          "friendlyName": "Bathroom - Climate Identify",
           "cSharpName": "Bedroom3TemperatureAndHumidityIdentify"
         },
         {
@@ -844,6 +824,11 @@
           "id": "device_tracker.mg_mg4_electric_gps_location",
           "friendlyName": "MG MG4 Electric GPS Location",
           "cSharpName": "MgMg4ElectricGpsLocation"
+        },
+        {
+          "id": "device_tracker.ruthgalaxya55",
+          "friendlyName": "RuthGalaxyA55",
+          "cSharpName": "Ruthgalaxya55"
         },
         {
           "id": "device_tracker.sm_a546b",
@@ -1040,24 +1025,39 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.diningroom_dehumidifier_plug_state",
-          "friendlyName": "Dining Room - Dehumidifier Plug - State",
-          "cSharpName": "DiningroomDehumidifierPlugState"
-        },
-        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
         },
         {
-          "id": "input_boolean.netdaemon_hass_model_light_on_movement",
-          "friendlyName": "netdaemon_hass_model_light_on_movement",
-          "cSharpName": "NetdaemonHassModelLightOnMovement"
+          "id": "input_boolean.netdaemon_hass_model_energy_prices",
+          "friendlyName": "netdaemon_hass_model_energy_prices",
+          "cSharpName": "NetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "NetdaemonHassModelWasteBinCollections"
         },
         {
           "id": "input_boolean.netdaemon_hass_model_wooooooo",
           "friendlyName": "netdaemon_hass_model_wooooooo",
           "cSharpName": "NetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelCarCarAutomations"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
         }
       ],
       "attributes": [
@@ -1197,7 +1197,7 @@
         },
         {
           "id": "number.lamperion_bane_of_shadows_effect_speed",
-          "friendlyName": "Lamperion Bane of Shadows Effect speed",
+          "friendlyName": "Effect speed",
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
@@ -1477,7 +1477,7 @@
         },
         {
           "id": "number.wiz_rgbw_tunable_22099a_effect_speed",
-          "friendlyName": "Effect speed",
+          "friendlyName": "Games Room Desk Lamp Effect speed",
           "cSharpName": "WizRgbwTunable22099aEffectSpeed"
         }
       ],
@@ -1537,6 +1537,11 @@
     {
       "domain": "person",
       "entities": [
+        {
+          "id": "person.ruth",
+          "friendlyName": "Ruth",
+          "cSharpName": "Ruth"
+        },
         {
           "id": "person.ste",
           "friendlyName": "Ste",
@@ -2057,6 +2062,26 @@
           "cSharpName": "OctopusEnergyA98d9d332WheelOfFortuneSpinsGas"
         },
         {
+          "id": "sensor.power_highest_peak_time_today",
+          "friendlyName": "Solar production forecast Highest power peak time - today",
+          "cSharpName": "PowerHighestPeakTimeToday"
+        },
+        {
+          "id": "sensor.power_highest_peak_time_tomorrow",
+          "friendlyName": "Solar production forecast Highest power peak time - tomorrow",
+          "cSharpName": "PowerHighestPeakTimeTomorrow"
+        },
+        {
+          "id": "sensor.ruthgalaxya55_battery_state",
+          "friendlyName": "RuthGalaxyA55 Battery state",
+          "cSharpName": "Ruthgalaxya55BatteryState"
+        },
+        {
+          "id": "sensor.ruthgalaxya55_charger_type",
+          "friendlyName": "RuthGalaxyA55 Charger type",
+          "cSharpName": "Ruthgalaxya55ChargerType"
+        },
+        {
           "id": "sensor.sm_a546b_battery_state",
           "friendlyName": "SM-A546B Battery state",
           "cSharpName": "SmA546bBatteryState"
@@ -2171,7 +2196,7 @@
         },
         {
           "id": "sensor.bedroom_3_temperature_and_humidity_battery",
-          "friendlyName": "Bedroom 3 temperature and humidity Battery",
+          "friendlyName": "Bathroom - Climate Battery",
           "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
         },
         {
@@ -2205,11 +2230,6 @@
           "cSharpName": "DiningRoomDeskPlugVoltage"
         },
         {
-          "id": "sensor.diningroom_dehumidifier_60_minute_trend",
-          "friendlyName": "Dining room dehumidifier - 60 minute trend",
-          "cSharpName": "DiningroomDehumidifier60MinuteTrend"
-        },
-        {
           "id": "sensor.diningroom_humidity",
           "friendlyName": "Dining room",
           "cSharpName": "DiningroomHumidity"
@@ -2218,6 +2238,31 @@
           "id": "sensor.diningroom_temperature",
           "friendlyName": "Dining room",
           "cSharpName": "DiningroomTemperature"
+        },
+        {
+          "id": "sensor.energy_current_hour",
+          "friendlyName": "Solar production forecast Estimated energy production - this hour",
+          "cSharpName": "EnergyCurrentHour"
+        },
+        {
+          "id": "sensor.energy_next_hour",
+          "friendlyName": "Solar production forecast Estimated energy production - next hour",
+          "cSharpName": "EnergyNextHour"
+        },
+        {
+          "id": "sensor.energy_production_today",
+          "friendlyName": "Solar production forecast Estimated energy production - today",
+          "cSharpName": "EnergyProductionToday"
+        },
+        {
+          "id": "sensor.energy_production_today_remaining",
+          "friendlyName": "Solar production forecast Estimated energy production - remaining today",
+          "cSharpName": "EnergyProductionTodayRemaining"
+        },
+        {
+          "id": "sensor.energy_production_tomorrow",
+          "friendlyName": "Solar production forecast Estimated energy production - tomorrow",
+          "cSharpName": "EnergyProductionTomorrow"
         },
         {
           "id": "sensor.ewelink_snzb_01p_battery",
@@ -2336,7 +2381,7 @@
         },
         {
           "id": "sensor.lamperion_bane_of_shadows_power",
-          "friendlyName": "Lamperion Bane of Shadows Power",
+          "friendlyName": "Power",
           "cSharpName": "LamperionBaneOfShadowsPower"
         },
         {
@@ -2510,6 +2555,11 @@
           "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumption"
         },
         {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption_cost",
+          "friendlyName": "sensor Cost",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumptionCost"
+        },
+        {
           "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_cost",
           "friendlyName": "Current Accumulative Cost Electricity (24J0494691/1591015382045)",
           "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeCost"
@@ -2618,6 +2668,16 @@
           "id": "sensor.porch_light_power",
           "friendlyName": "Porch light Power",
           "cSharpName": "PorchLightPower"
+        },
+        {
+          "id": "sensor.power_production_now",
+          "friendlyName": "Solar production forecast Estimated power production - now",
+          "cSharpName": "PowerProductionNow"
+        },
+        {
+          "id": "sensor.ruthgalaxya55_battery_level",
+          "friendlyName": "RuthGalaxyA55 Battery level",
+          "cSharpName": "Ruthgalaxya55BatteryLevel"
         },
         {
           "id": "sensor.sm_a546b_battery_level",
@@ -2956,7 +3016,7 @@
         },
         {
           "id": "sensor.wiz_rgbw_tunable_22099a_power",
-          "friendlyName": "Power",
+          "friendlyName": "Games Room Desk Lamp Power",
           "cSharpName": "WizRgbwTunable22099aPower"
         }
       ],
@@ -3436,7 +3496,7 @@
         },
         {
           "id": "update.bedroom_3_temperature_and_humidity_firmware",
-          "friendlyName": "Bedroom 3 temperature and humidity Firmware",
+          "friendlyName": "Bathroom - Climate Firmware",
           "cSharpName": "Bedroom3TemperatureAndHumidityFirmware"
         },
         {

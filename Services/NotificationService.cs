@@ -1,4 +1,6 @@
 ﻿using HomeAssistantGenerated;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace HomeAssistant.Services;
 
@@ -27,4 +29,38 @@ internal class NotificationService
     {
         _notifyServices.MobileAppSmA546b(message, title);
     }
+
+    public void SendNotificationToRuthPhone(string title, string message)
+    {
+        _notifyServices.MobileAppRuthgalaxya55(message, title);
+    }
+
+    public const string GroupRuth = "ruth";
+    public const string GroupSte = "ste";
+    public const string GroupRobson = "robson";
+    public const string GroupKevin = "kevin";
+    public const string GroupBlount = "blount";
+    public const string GroupAll = "all";
+
+    public void SendNotificationToGroups(string title, string message, params string[] groups)
+    {
+        List<string> trimmedLower = [.. groups.Select(g => g.Trim().ToLower())];
+
+        if (trimmedLower.Intersect([GroupSte, GroupRobson, GroupAll]).Any())
+        {
+            SendNotificationToStePhone(message, title);
+        }
+
+        if (trimmedLower.Intersect([GroupRuth, GroupRobson, GroupAll]).Any())
+        {
+            SendNotificationToRuthPhone(message, title);
+        }
+
+        if (trimmedLower.Intersect([GroupKevin, GroupBlount, GroupAll]).Any())
+        {
+            // SendNotificationToKevinPhone(message, title);
+        }
+    }
+
+
 }

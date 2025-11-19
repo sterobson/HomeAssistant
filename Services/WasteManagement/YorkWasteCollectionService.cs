@@ -20,11 +20,11 @@ internal class YorkWasteCollectionService : IWasteCollectionService
         _logger = logger;
     }
 
-    public async Task<List<BinServiceDto>> GetBinCollectionsAsync()
+    public async Task<List<BinServiceDto>> GetBinCollectionsAsync(string uprn)
     {
         try
         {
-            string url = $"{_configuration.CollectionDataEndpoint}/{_configuration.Uprn}";
+            string url = $"{_configuration.CollectionDataEndpoint}/{uprn}";
 
             using HttpResponseMessage response = await _httpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();

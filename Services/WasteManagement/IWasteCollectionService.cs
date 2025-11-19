@@ -5,7 +5,7 @@ namespace HomeAssistant.Services.WasteManagement;
 
 public interface IWasteCollectionService
 {
-    Task<List<BinServiceDto>> GetBinCollectionsAsync();
+    Task<List<BinServiceDto>> GetBinCollectionsAsync(string uprn);
 }
 
 public class BinServiceDto

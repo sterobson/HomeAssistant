@@ -18,22 +18,28 @@ internal class BinCollections
     private readonly ILogger<BinCollections> _logger;
     private readonly IWasteCollectionService _wasteCollectionService;
     private readonly NotificationService _notificationService;
+    private readonly YorkBinServiceConfiguration _configuration;
 
-    public BinCollections(IHaContext ha, IScheduler scheduler, ITriggerManager triggerManager, ILogger<BinCollections> logger,
-        IWasteCollectionService wasteCollectionService, NotificationService notificationService)
+    public BinCollections(IHaContext ha, IScheduler scheduler, ILogger<BinCollections> logger,
+        IWasteCollectionService wasteCollectionService, NotificationService notificationService,
+        YorkBinServiceConfiguration configuration)
     {
         _logger = logger;
         _wasteCollectionService = wasteCollectionService;
         _notificationService = notificationService;
+        _configuration = configuration;
         Entities entities = new(ha);
 
-        scheduler.ScheduleCron("0 18 * * *", async () => await CheckAndNotifyUpcomingCollections());
+        foreach (YorkBinServiceProperty property in _configuration.Properties)
+        {
+            scheduler.ScheduleCron(property.Schedule, async () => await CheckAndNotifyUpcomingCollections(property));
+        }
     }
 
-    private async Task CheckAndNotifyUpcomingCollections()
+    private async Task CheckAndNotifyUpcomingCollections(YorkBinServiceProperty property)
     {
         _logger.LogDebug("Running bin checker");
-        IReadOnlyList<BinServiceDto> collections = await _wasteCollectionService.GetBinCollectionsAsync();
+        IReadOnlyList<BinServiceDto> collections = await _wasteCollectionService.GetBinCollectionsAsync(property.Uprn);
         List<BinServiceDto> tomorrowCollections = [.. collections.Where(c => c.NextCollection.HasValue && c.NextCollection.Value.Date > DateTime.Now && c.NextCollection.Value.Date < DateTime.Now.AddDays(1))];
 
         if (tomorrowCollections.Count > 0)
@@ -43,7 +49,7 @@ internal class BinCollections
                 _logger.LogInformation("Upcoming collection: {WasteType} on {NextCollection}", collection.WasteType, collection.NextCollection);
             }
 
-            _notificationService.SendNotificationToStePhone(GetRandomTitle(), string.Join(Environment.NewLine, tomorrowCollections.Select(c => " * " + c.WasteType)));
+            _notificationService.SendNotificationToGroups(GetRandomTitle(), string.Join(Environment.NewLine, tomorrowCollections.Select(c => " * " + c.WasteType)), [.. property.NotificationLabels]);
         }
     }
 
