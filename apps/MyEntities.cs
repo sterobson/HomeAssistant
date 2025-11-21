@@ -59,6 +59,7 @@ public class MyDevices
     public NumericSensorEntity DiningRoomClimateHumidity => _entities.Sensor.DiningroomHumidity;
 
     // Kitchen
+    public NumericSensorEntity KitchenTemperature => _entities.Sensor.KitchenTemperatureAndHumidityTemperature;
 
     // Games room
     public LightEntity GamesRoomDeskLamp => _entities.Light.WizRgbwTunable22099a;
@@ -67,7 +68,7 @@ public class MyDevices
     public MediaPlayerEntity GamesRoomSpeaker => _entities.MediaPlayer.KitchenSpeaker;
 
     // Bedroom 1
-
+    public NumericSensorEntity Bedroom1Temperature => _entities.Sensor.ClockTemperatureAndHumidityTemperature;
 
     // Bedroom 2
     public LightEntity BedroomTwoDeskLamp => _entities.Light.LamperionBaneOfShadows;
