@@ -5,7 +5,7 @@
       "entities": [
         {
           "id": "light.lamperion_bane_of_shadows",
-          "friendlyName": null,
+          "friendlyName": "Lamperion Bane of Shadows",
           "cSharpName": "LamperionBaneOfShadows"
         },
         {
@@ -162,12 +162,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": null,
+          "friendlyName": "Living Room TV",
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": null,
+          "friendlyName": "Main speakers",
           "cSharpName": "MainSpeakers"
         }
       ],
@@ -657,6 +657,11 @@
       "domain": "button",
       "entities": [
         {
+          "id": "button.bedroom_1_plug_heater_identify",
+          "friendlyName": "Bedroom 1 plug - Heater Identify",
+          "cSharpName": "Bedroom1PlugHeaterIdentify"
+        },
+        {
           "id": "button.bedroom_3_temperature_and_humidity_identify",
           "friendlyName": "Bathroom - Climate Identify",
           "cSharpName": "Bedroom3TemperatureAndHumidityIdentify"
@@ -687,6 +692,11 @@
           "cSharpName": "GamesRoomDeskPlugIdentify"
         },
         {
+          "id": "button.games_room_plug_heater_identify",
+          "friendlyName": "Games Room - Plug - Heater Identify",
+          "cSharpName": "GamesRoomPlugHeaterIdentify"
+        },
+        {
           "id": "button.hallway_button_identify",
           "friendlyName": "Hallway - Button Identify",
           "cSharpName": "HallwayButtonIdentify"
@@ -715,6 +725,11 @@
           "id": "button.mg_mg4_electric_update_vehicle_data",
           "friendlyName": "MG MG4 Electric Update Vehicle Data",
           "cSharpName": "MgMg4ElectricUpdateVehicleData"
+        },
+        {
+          "id": "button.plug_identify",
+          "friendlyName": "Kitchen plug - Heater Identify",
+          "cSharpName": "PlugIdentify"
         },
         {
           "id": "button.solax_inverter_battery_awaken",
@@ -1025,6 +1040,41 @@
           "cSharpName": "AutomationTest"
         },
         {
+          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
+          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
+          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelCarCarAutomations"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1197,7 +1247,7 @@
         },
         {
           "id": "number.lamperion_bane_of_shadows_effect_speed",
-          "friendlyName": "Effect speed",
+          "friendlyName": "Lamperion Bane of Shadows Effect speed",
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
@@ -1600,6 +1650,11 @@
       "domain": "select",
       "entities": [
         {
+          "id": "select.bedroom_1_plug_heater_start_up_behaviour",
+          "friendlyName": "Bedroom 1 plug - Heater Start-up behaviour",
+          "cSharpName": "Bedroom1PlugHeaterStartUpBehaviour"
+        },
+        {
           "id": "select.dining_room_desk_plug_start_up_behaviour",
           "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
           "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
@@ -1608,6 +1663,11 @@
           "id": "select.games_room_desk_plug_start_up_behaviour",
           "friendlyName": "Games Room - Desk - Plug Start-up behaviour",
           "cSharpName": "GamesRoomDeskPlugStartUpBehaviour"
+        },
+        {
+          "id": "select.games_room_plug_heater_start_up_behaviour",
+          "friendlyName": "Games Room - Plug - Heater Start-up behaviour",
+          "cSharpName": "GamesRoomPlugHeaterStartUpBehaviour"
         },
         {
           "id": "select.hypervolt_activation_mode",
@@ -1668,6 +1728,11 @@
           "id": "select.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_target_time",
           "friendlyName": "Intelligent Target Time (00000000-0009-4000-8020-00000005f18d)",
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentTargetTime"
+        },
+        {
+          "id": "select.plug_start_up_behaviour",
+          "friendlyName": "Kitchen plug - Heater Start-up behaviour",
+          "cSharpName": "PlugStartUpBehaviour"
         },
         {
           "id": "select.solax_inverter_battery_heating",
@@ -2195,6 +2260,26 @@
           "cSharpName": "BathroomTemperature"
         },
         {
+          "id": "sensor.bedroom_1_plug_heater_current",
+          "friendlyName": "Bedroom 1 plug - Heater Current",
+          "cSharpName": "Bedroom1PlugHeaterCurrent"
+        },
+        {
+          "id": "sensor.bedroom_1_plug_heater_power",
+          "friendlyName": "Bedroom 1 plug - Heater Power",
+          "cSharpName": "Bedroom1PlugHeaterPower"
+        },
+        {
+          "id": "sensor.bedroom_1_plug_heater_summation_delivered",
+          "friendlyName": "Bedroom 1 plug - Heater Summation delivered",
+          "cSharpName": "Bedroom1PlugHeaterSummationDelivered"
+        },
+        {
+          "id": "sensor.bedroom_1_plug_heater_voltage",
+          "friendlyName": "Bedroom 1 plug - Heater Voltage",
+          "cSharpName": "Bedroom1PlugHeaterVoltage"
+        },
+        {
           "id": "sensor.bedroom_3_temperature_and_humidity_battery",
           "friendlyName": "Bathroom - Climate Battery",
           "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
@@ -2300,6 +2385,26 @@
           "cSharpName": "GamesRoomDeskPlugVoltage"
         },
         {
+          "id": "sensor.games_room_plug_heater_current",
+          "friendlyName": "Games Room - Plug - Heater Current",
+          "cSharpName": "GamesRoomPlugHeaterCurrent"
+        },
+        {
+          "id": "sensor.games_room_plug_heater_power",
+          "friendlyName": "Games Room - Plug - Heater Power",
+          "cSharpName": "GamesRoomPlugHeaterPower"
+        },
+        {
+          "id": "sensor.games_room_plug_heater_summation_delivered",
+          "friendlyName": "Games Room - Plug - Heater Summation delivered",
+          "cSharpName": "GamesRoomPlugHeaterSummationDelivered"
+        },
+        {
+          "id": "sensor.games_room_plug_heater_voltage",
+          "friendlyName": "Games Room - Plug - Heater Voltage",
+          "cSharpName": "GamesRoomPlugHeaterVoltage"
+        },
+        {
           "id": "sensor.hallway_button_battery",
           "friendlyName": "Hallway - Button Battery",
           "cSharpName": "HallwayButtonBattery"
@@ -2365,6 +2470,26 @@
           "cSharpName": "HypervoltVoltage"
         },
         {
+          "id": "sensor.kitchen_plug_heater_current",
+          "friendlyName": "Kitchen plug - Heater Current",
+          "cSharpName": "KitchenPlugHeaterCurrent"
+        },
+        {
+          "id": "sensor.kitchen_plug_heater_power",
+          "friendlyName": "Kitchen plug - Heater Power",
+          "cSharpName": "KitchenPlugHeaterPower"
+        },
+        {
+          "id": "sensor.kitchen_plug_heater_summation_delivered",
+          "friendlyName": "Kitchen plug - Heater Summation delivered",
+          "cSharpName": "KitchenPlugHeaterSummationDelivered"
+        },
+        {
+          "id": "sensor.kitchen_plug_heater_voltage",
+          "friendlyName": "Kitchen plug - Heater Voltage",
+          "cSharpName": "KitchenPlugHeaterVoltage"
+        },
+        {
           "id": "sensor.kitchen_temperature_and_humidity_battery",
           "friendlyName": "Kitchen temperature and humidity Battery",
           "cSharpName": "KitchenTemperatureAndHumidityBattery"
@@ -2381,7 +2506,7 @@
         },
         {
           "id": "sensor.lamperion_bane_of_shadows_power",
-          "friendlyName": "Power",
+          "friendlyName": "Lamperion Bane of Shadows Power",
           "cSharpName": "LamperionBaneOfShadowsPower"
         },
         {
@@ -3349,6 +3474,11 @@
       "domain": "switch",
       "entities": [
         {
+          "id": "switch.bedroom_1_plug_heater_switch",
+          "friendlyName": "Bedroom 1 plug - Heater",
+          "cSharpName": "Bedroom1PlugHeaterSwitch"
+        },
+        {
           "id": "switch.dining_room_desk_plug",
           "friendlyName": "Dining Room - Desk - Plug",
           "cSharpName": "DiningRoomDeskPlug"
@@ -3359,6 +3489,11 @@
           "cSharpName": "GamesRoomDeskPlug"
         },
         {
+          "id": "switch.games_room_plug_heater_switch",
+          "friendlyName": "Games Room - Plug - Heater",
+          "cSharpName": "GamesRoomPlugHeaterSwitch"
+        },
+        {
           "id": "switch.hypervolt_charging",
           "friendlyName": "Hypervolt Charging",
           "cSharpName": "HypervoltCharging"
@@ -3367,6 +3502,11 @@
           "id": "switch.hypervolt_lock_state",
           "friendlyName": "Hypervolt Lock State",
           "cSharpName": "HypervoltLockState"
+        },
+        {
+          "id": "switch.kitchen_plug_heater_switch",
+          "friendlyName": "Kitchen plug - Heater",
+          "cSharpName": "KitchenPlugHeaterSwitch"
         },
         {
           "id": "switch.living_room_charging_dock",
@@ -3495,6 +3635,11 @@
           "cSharpName": "AutoEntitiesUpdate"
         },
         {
+          "id": "update.bedroom_1_plug_heater_firmware",
+          "friendlyName": "Bedroom 1 plug - Heater Firmware",
+          "cSharpName": "Bedroom1PlugHeaterFirmware"
+        },
+        {
           "id": "update.bedroom_3_temperature_and_humidity_firmware",
           "friendlyName": "Bathroom - Climate Firmware",
           "cSharpName": "Bedroom3TemperatureAndHumidityFirmware"
@@ -3528,6 +3673,11 @@
           "id": "update.games_room_desk_plug_firmware",
           "friendlyName": "Games Room - Desk - Plug Firmware",
           "cSharpName": "GamesRoomDeskPlugFirmware"
+        },
+        {
+          "id": "update.games_room_plug_heater_firmware",
+          "friendlyName": "Games Room - Plug - Heater Firmware",
+          "cSharpName": "GamesRoomPlugHeaterFirmware"
         },
         {
           "id": "update.ha_floorplan_your_imagination_almost_defines_the_limits_update",
@@ -3588,6 +3738,11 @@
           "id": "update.octopus_energy_update",
           "friendlyName": "Octopus Energy update",
           "cSharpName": "OctopusEnergyUpdate"
+        },
+        {
+          "id": "update.plug_firmware",
+          "friendlyName": "Kitchen plug - Heater Firmware",
+          "cSharpName": "PlugFirmware"
         },
         {
           "id": "update.saic_mqtt_gateway_python_update",

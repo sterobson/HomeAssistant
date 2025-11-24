@@ -1,24 +1,15 @@
-// Use unique namespaces for your apps if you going to share with others to avoid
-// conflicting names
-
 using HomeAssistant.apps;
 using HomeAssistantGenerated;
 using System.Threading.Tasks;
 
 namespace HassModel;
 
-/// <summary>
-///     Hello world showcase using the new HassModel API
-/// </summary>
 [NetDaemonApp]
 public class Wooooooo
 {
-    public Wooooooo(IHaContext ha, ITriggerManager triggerManager, IServiceProvider serviceProvider)
+    public Wooooooo(NamedEntities namedEntities, IServiceProvider serviceProvider)
     {
-        Entities entities = new(ha);
-        MyDevices myDevices = new(entities, ha);
-
-        myDevices.PorchMotionSensor.StateChanges().SubscribeAsync(async e =>
+        namedEntities.PorchMotionSensor.StateChanges().SubscribeAsync(async e =>
         {
             if (e.New?.State == "on")
             {
@@ -26,14 +17,14 @@ public class Wooooooo
                 DateTime now = DateTime.Now;
                 if (now.Month == 10 && now.Day == 31 && now.Hour >= 16 && now.Hour <= 21)
                 {
-                    _ = PlaySounds(myDevices);
-                    _ = FlashLight(myDevices.PorchLight);
+                    _ = PlaySounds(namedEntities);
+                    _ = FlashLight(namedEntities.PorchLight);
                 }
             }
         });
     }
 
-    private static async Task PlaySounds(MyDevices myDevices)
+    private static async Task PlaySounds(NamedEntities myDevices)
     {
         myDevices.GamesRoomSpeaker.PlayMedia(new MediaPlayerPlayMediaParameters
         {

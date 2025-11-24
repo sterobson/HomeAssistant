@@ -5,7 +5,7 @@ namespace HomeAssistant.Devices.Meters;
 
 public record ValueChange<TValue, TEntity>(TValue Old, TValue New, TEntity Entity);
 
-internal interface IElectricityMeter
+public interface IElectricityMeter
 {
     double? CurrentRatePerKwh { get; }
 

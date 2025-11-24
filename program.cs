@@ -1,10 +1,12 @@
 using HomeAssistant;
+using HomeAssistant.apps;
 using HomeAssistant.apps.Energy;
 using HomeAssistant.apps.Energy.Octopus;
 using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.CarChargers;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
+using HomeAssistant.Services.Climate;
 using HomeAssistant.Services.WasteManagement;
 using HomeAssistant.Weather;
 using HomeAssistant.Weather.WeatherApi;
@@ -62,7 +64,12 @@ try
                 .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistantApiEndpoints")
                 .AddSingleton<HistoryService>()
                 .AddConfiguration<YorkBinServiceConfiguration>(context, "YorkBinService")
-                .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>();
+                .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>()
+                .AddScoped<NamedEntities>()
+                .AddScoped<IPresenceService, PresenceService>()
+                .AddScoped<HeatingControlService>()
+                .AddSingleton<TimeProvider>();
+
         })
         .Build()
         .RunAsync()

@@ -8,28 +8,26 @@ namespace HomeAssistant.apps.HassModel.Car;
 [NetDaemonApp]
 internal class CarAutomations
 {
-    private readonly IHaContext _ha;
     private readonly ILogger<CarAutomations> _logger;
 
-    public CarAutomations(IHaContext ha, ITriggerManager triggerManager, ILogger<CarAutomations> logger)
+    public CarAutomations(IHaContext ha, NamedEntities namedEntities, ITriggerManager triggerManager, ILogger<CarAutomations> logger)
     {
         Entities entities = new(ha);
-        MyDevices myDevices = new(entities, ha);
 
-        myDevices.HallwayButton.Pressed().SubscribeAsync(async e =>
+        namedEntities.HallwayButton.Pressed().SubscribeAsync(async e =>
         {
-            _ = SetCarClimate(entities, myDevices);
+            _ = SetCarClimate(entities, namedEntities);
         });
 
-        myDevices.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
+        namedEntities.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
         {
             _ = WarnAboutOpenWindows(entities);
         });
-        _ha = ha;
+
         _logger = logger;
     }
 
-    private async Task SetCarClimate(Entities entities, MyDevices myDevices)
+    private async Task SetCarClimate(Entities entities, NamedEntities namedEntities)
     {
         _logger.LogInformation("{Method} called", nameof(SetCarClimate));
 
@@ -41,7 +39,7 @@ internal class CarAutomations
         int i = 0;
         CancellationTokenSource cts = new();
 
-        myDevices.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
+        namedEntities.Car.IgnitionEntity.StateChanges().SubscribeAsync(async e =>
         {
             // If the car's on/off status changes at all, then shut this all down.
             await cts.CancelAsync();
@@ -67,8 +65,8 @@ internal class CarAutomations
                     isFanOn = true;
                 }
 
-                myDevices.Car.SetFrontDefrost(minTemperature < 4);
-                myDevices.Car.SetRearDefrost(minTemperature < 2);
+                namedEntities.Car.SetFrontDefrost(minTemperature < 4);
+                namedEntities.Car.SetRearDefrost(minTemperature < 2);
             }
             else
             {
@@ -94,8 +92,8 @@ internal class CarAutomations
             entities.Climate.MgMg4ElectricClimate.TurnOff();
         }
 
-        myDevices.Car.SetFrontDefrost(false);
-        myDevices.Car.SetRearDefrost(false);
+        namedEntities.Car.SetFrontDefrost(false);
+        namedEntities.Car.SetRearDefrost(false);
     }
 
     private static async Task WarnAboutOpenWindows(Entities entities)

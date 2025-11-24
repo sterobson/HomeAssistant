@@ -17,11 +17,7 @@ public class HistoryService
 
     public HistoryService(HomeAssistantConfiguration settings, ILogger<HistoryService> logger)
     {
-        _httpClient = new HttpClient
-        {
-            BaseAddress = new Uri($"http://{settings.Host}:{settings.Port}")
-        };
-
+        _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", settings.Token);
 
         _jsonOptions = new JsonSerializerOptions

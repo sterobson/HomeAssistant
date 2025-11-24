@@ -1,5 +1,4 @@
 ﻿using HomeAssistant.Services;
-using HomeAssistantGenerated;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -13,25 +12,24 @@ internal class DiningRoomDehumidifier
     private readonly HistoryService _historyService;
     private readonly NotificationService _notificationService;
     private readonly ILogger<DiningRoomDehumidifier> _logger;
-    private readonly MyDevices _myDevices;
+    private readonly NamedEntities _namedEntities;
     private const int _minutesOfNoPowerUseBeforeNotification = 10;
     private const int _minutesToWaitBeforeNextStateChange = 5;
     private DateTime _lastStateChangeTime = DateTime.MinValue;
 
-    public DiningRoomDehumidifier(IHaContext ha, HistoryService historyService, IScheduler scheduler,
+    public DiningRoomDehumidifier(NamedEntities namedEntities, HistoryService historyService, IScheduler scheduler,
         NotificationService notificationService, ILogger<DiningRoomDehumidifier> logger)
     {
-        Entities entities = new(ha);
-        _myDevices = new(entities, ha);
+        _namedEntities = namedEntities;
         _historyService = historyService;
         _notificationService = notificationService;
         _logger = logger;
-        _myDevices.DiningRoomClimateHumidity.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
-        _myDevices.DiningRoomDehumidierSmartPlugOnOff.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
-        _myDevices.DiningRoomDehumidierLookAheadMinutes.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
-        _myDevices.DiningRoomDehumidierLowerThreshold.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
-        _myDevices.DiningRoomDehumidierUpperThreshold.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
-        _myDevices.DiningRoomDehumidifierSmartPlugPower.StateChanges().SubscribeAsync(async e => _ = CheckPowerState());
+        _namedEntities.DiningRoomClimateHumidity.SubscribeToStateChangesAsync(async e => _ = SetDehumidifierState());
+        _namedEntities.DiningRoomDehumidierSmartPlugOnOff.SubscribeToStateChangesAsync(async e => _ = SetDehumidifierState());
+        _namedEntities.DiningRoomDehumidierLookAheadMinutes.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
+        _namedEntities.DiningRoomDehumidierLowerThreshold.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
+        _namedEntities.DiningRoomDehumidierUpperThreshold.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());
+        _namedEntities.DiningRoomDehumidifierSmartPlugPower.SubscribeToStateChangesAsync(async e => _ = CheckPowerState());
 
         // Every 10 minutes, after a random delay to spread out load, we want to check.
         Task.Delay(TimeSpan.FromSeconds(Random.Shared.Next(30, 250))).ContinueWith(e =>
@@ -58,15 +56,15 @@ internal class DiningRoomDehumidifier
             return;
         }
 
-        IReadOnlyList<NumericHistoryEntry> humidityHistory = await _historyService.GetEntityNumericHistory(_myDevices.DiningRoomClimateHumidity.EntityId, DateTime.Now.AddMinutes(-trendMinutes), DateTime.Now);
+        IReadOnlyList<NumericHistoryEntry> humidityHistory = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomClimateHumidity.EntityId, DateTime.Now.AddMinutes(-trendMinutes), DateTime.Now);
 
         double trendChange = humidityHistory.Count > 0 ? humidityHistory[^1].State - humidityHistory[0].State : 0;
-        double currentHumidity = _myDevices.DiningRoomClimateHumidity.State ?? 0;
+        double currentHumidity = _namedEntities.DiningRoomClimateHumidity.State ?? 0;
         double projectedHumidity = currentHumidity;
-        double upperThreshold = _myDevices.DiningRoomDehumidierUpperThreshold.State ?? 0;
-        double lowerThreshold = _myDevices.DiningRoomDehumidierLowerThreshold.State ?? 0;
+        double upperThreshold = _namedEntities.DiningRoomDehumidierUpperThreshold.State ?? 0;
+        double lowerThreshold = _namedEntities.DiningRoomDehumidierLowerThreshold.State ?? 0;
 
-        bool isOn = _myDevices.DiningRoomDehumidierSmartPlugOnOff.State == "on";
+        bool isOn = _namedEntities.DiningRoomDehumidierSmartPlugOnOff.IsOn();
 
         if (trendChange > 0)
         {
@@ -76,13 +74,13 @@ internal class DiningRoomDehumidifier
         if (projectedHumidity > upperThreshold && !isOn)
         {
             _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current humidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it on");
-            _myDevices.DiningRoomDehumidierSmartPlugOnOff.TurnOn();
+            _namedEntities.DiningRoomDehumidierSmartPlugOnOff.TurnOn();
             _lastStateChangeTime = DateTime.Now;
         }
         else if (projectedHumidity <= lowerThreshold && isOn)
         {
             _logger.LogInformation($"Projected humidity is {projectedHumidity:F1}%, current humidity is {currentHumidity:F1}%, lower threshold is {lowerThreshold}%, upper threshold is {upperThreshold}%, plug current state is {(isOn ? "on" : "off")}, turning it off");
-            _myDevices.DiningRoomDehumidierSmartPlugOnOff.TurnOff();
+            _namedEntities.DiningRoomDehumidierSmartPlugOnOff.TurnOff();
             _lastStateChangeTime = DateTime.Now;
         }
 
@@ -94,13 +92,13 @@ internal class DiningRoomDehumidifier
 
     private async Task CheckPowerState()
     {
-        if (_myDevices.DiningRoomDehumidierSmartPlugOnOff.State == "on" && _beenOnSince == null)
+        if (_namedEntities.DiningRoomDehumidierSmartPlugOnOff.IsOn() && _beenOnSince == null)
         {
             // We're just noticing that the plug is on.
             _beenOnSince = DateTime.Now;
             _notificationSent = false;
         }
-        else if (_myDevices.DiningRoomDehumidierSmartPlugOnOff.State == "off")
+        else if (_namedEntities.DiningRoomDehumidierSmartPlugOnOff.IsOff())
         {
             // Plug is off, may as well reset the checking timer.
             _beenOnSince = null;
@@ -113,7 +111,7 @@ internal class DiningRoomDehumidifier
             return;
         }
 
-        IReadOnlyList<NumericHistoryEntry> powerHistory = await _historyService.GetEntityNumericHistory(_myDevices.DiningRoomDehumidifierSmartPlugPower.EntityId, DateTime.Now.AddMinutes(-_minutesOfNoPowerUseBeforeNotification), DateTime.Now);
+        IReadOnlyList<NumericHistoryEntry> powerHistory = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomDehumidifierSmartPlugPower.EntityId, DateTime.Now.AddMinutes(-_minutesOfNoPowerUseBeforeNotification), DateTime.Now);
         if (powerHistory.Any(h => h.State > _minutesOfNoPowerUseBeforeNotification))
         {
             // The plug has been on for a while and it is delivering power, so reset the time before looking
