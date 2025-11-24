@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.3.11218.70 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant", "HomeAssistant.csproj", "{A3F30546-D836-4529-4A6F-C33C750550E3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant", "App\HomeAssistant.csproj", "{A3F30546-D836-4529-4A6F-C33C750550E3}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant.Tests", "..\HomeAssistant.Tests\HomeAssistant.Tests.csproj", "{2E6DEB76-1217-4E4E-86B3-30600C16A92D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant.Tests", "Tests\HomeAssistant.Tests.csproj", "{2E6DEB76-1217-4E4E-86B3-30600C16A92D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
