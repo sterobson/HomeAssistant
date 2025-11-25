@@ -1,6 +1,5 @@
 ﻿using HomeAssistant.apps;
 using HomeAssistant.Services.Climate;
-using NetDaemon.HassModel.Entities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -36,7 +35,7 @@ internal class PresenceService : IPresenceService
 
         if (room.HasFlag(Room.DiningRoom))
         {
-            if (_namedEntities.DiningRoomDeskSmartPlugOnOff.IsOn())
+            if (_namedEntities.DiningRoomDeskPlugOnOff.IsOn())
             {
                 // Get the power over the last 5 minutes.
                 IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);

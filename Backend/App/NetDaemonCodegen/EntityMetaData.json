@@ -672,6 +672,11 @@
           "cSharpName": "DiningRoomDeskPlugIdentify"
         },
         {
+          "id": "button.dining_room_plug_heater_identify",
+          "friendlyName": "Dining Room - Plug - Heater Identify",
+          "cSharpName": "DiningRoomPlugHeaterIdentify"
+        },
+        {
           "id": "button.ewelink_snzb_01p_identify",
           "friendlyName": "Dining Room - Desk - Button Identify",
           "cSharpName": "EwelinkSnzb01pIdentify"
@@ -1040,41 +1045,6 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
-          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
-          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
-          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
-          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelCarCarAutomations"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
-        },
-        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1103,6 +1073,11 @@
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
           "friendlyName": "netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
           "cSharpName": "NetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelClimateHeating"
         },
         {
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
@@ -1658,6 +1633,11 @@
           "id": "select.dining_room_desk_plug_start_up_behaviour",
           "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
           "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
+        },
+        {
+          "id": "select.dining_room_plug_heater_start_up_behaviour",
+          "friendlyName": "Dining Room - Plug - Heater Start-up behaviour",
+          "cSharpName": "DiningRoomPlugHeaterStartUpBehaviour"
         },
         {
           "id": "select.games_room_desk_plug_start_up_behaviour",
@@ -2313,6 +2293,26 @@
           "id": "sensor.dining_room_desk_plug_voltage",
           "friendlyName": "Dining Room - Desk - Plug Voltage",
           "cSharpName": "DiningRoomDeskPlugVoltage"
+        },
+        {
+          "id": "sensor.dining_room_plug_heater_current",
+          "friendlyName": "Dining Room - Plug - Heater Current",
+          "cSharpName": "DiningRoomPlugHeaterCurrent"
+        },
+        {
+          "id": "sensor.dining_room_plug_heater_power",
+          "friendlyName": "Dining Room - Plug - Heater Power",
+          "cSharpName": "DiningRoomPlugHeaterPower"
+        },
+        {
+          "id": "sensor.dining_room_plug_heater_summation_delivered",
+          "friendlyName": "Dining Room - Plug - Heater Summation delivered",
+          "cSharpName": "DiningRoomPlugHeaterSummationDelivered"
+        },
+        {
+          "id": "sensor.dining_room_plug_heater_voltage",
+          "friendlyName": "Dining Room - Plug - Heater Voltage",
+          "cSharpName": "DiningRoomPlugHeaterVoltage"
         },
         {
           "id": "sensor.diningroom_humidity",
@@ -3484,6 +3484,11 @@
           "cSharpName": "DiningRoomDeskPlug"
         },
         {
+          "id": "switch.dining_room_plug_heater_switch",
+          "friendlyName": "Dining Room - Plug - Heater",
+          "cSharpName": "DiningRoomPlugHeaterSwitch"
+        },
+        {
           "id": "switch.games_room_desk_plug",
           "friendlyName": "Games Room - Desk - Plug",
           "cSharpName": "GamesRoomDeskPlug"
@@ -3648,6 +3653,11 @@
           "id": "update.dining_room_desk_plug_firmware",
           "friendlyName": "Dining Room - Desk - Plug Firmware",
           "cSharpName": "DiningRoomDeskPlugFirmware"
+        },
+        {
+          "id": "update.dining_room_plug_heater_firmware",
+          "friendlyName": "Dining Room - Plug - Heater Firmware",
+          "cSharpName": "DiningRoomPlugHeaterFirmware"
         },
         {
           "id": "update.ewelink_snzb_01p_firmware",

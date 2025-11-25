@@ -27,6 +27,12 @@ internal class FakeNamedEntities : INamedEntities
     public ICustomNumericSensorEntity Bedroom1Temperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(Bedroom1Temperature) };
 
     public ICustomSwitchEntity Bedroom1HeaterSmartPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(Bedroom1HeaterSmartPlugOnOff) };
+
+    public ICustomSwitchEntity DiningRoomDeskPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(DiningRoomDeskPlugOnOff) };
+
+    public ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(DiningRoomHeaterSmartPlugOnOff) };
+
+    public ICustomNumericSensorEntity DiningRoomClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DiningRoomClimateTemperature) };
 }
 
 public class FakeCustomNumericSensorEntity : ICustomNumericSensorEntity

@@ -40,7 +40,10 @@ public interface INamedEntities
     // Dining room
     ICustomNumericSensorEntity DiningRoomDehumidifierSmartPlugPower { get; }
     ICustomNumericSensorEntity DiningRoomClimateHumidity { get; }
+    ICustomNumericSensorEntity DiningRoomClimateTemperature { get; }
+    ICustomSwitchEntity DiningRoomDeskPlugOnOff { get; }
     ICustomNumericSensorEntity DiningRoomDeskPlugPower { get; }
+    ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff { get; }
 
     // Kitchen
     ICustomNumericSensorEntity KitchenTemperature { get; }
@@ -83,8 +86,10 @@ public class NamedEntities : INamedEntities
     public ICustomSwitchEntity DiningRoomDehumidierSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.SonoffS60zbtpg);
     public ICustomNumericSensorEntity DiningRoomDehumidifierSmartPlugPower => new CustomNumericSensorEntity(_entities.Sensor.SonoffS60zbtpgPower);
     public ICustomNumericSensorEntity DiningRoomClimateHumidity => new CustomNumericSensorEntity(_entities.Sensor.DiningroomHumidity);
-    public ICustomSwitchEntity DiningRoomDeskSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.DiningRoomDeskPlug);
+    public ICustomNumericSensorEntity DiningRoomClimateTemperature => new CustomNumericSensorEntity(_entities.Sensor.DiningroomTemperature);
+    public ICustomSwitchEntity DiningRoomDeskPlugOnOff => new CustomSwitchEntity(_entities.Switch.DiningRoomDeskPlug);
     public ICustomNumericSensorEntity DiningRoomDeskPlugPower => new CustomNumericSensorEntity(_entities.Sensor.DiningRoomDeskPlugPower);
+    public ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.DiningRoomPlugHeaterSwitch);
 
     // Kitchen
     public ICustomNumericSensorEntity KitchenTemperature => new CustomNumericSensorEntity(_entities.Sensor.KitchenTemperatureAndHumidityTemperature);

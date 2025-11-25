@@ -4,6 +4,7 @@ using HomeAssistant.Devices.Meters;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
@@ -73,9 +74,9 @@ internal class HeatingControlService
                 Condition = () => true,
                 Room = Room.GamesRoom,
                 ScheduleTracks = [
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14 },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(5,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Days = Days.Weekdays, Conditions = ConditionType.RoomNotInUse }, // Preheat on a weekday morning, anticipating use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
                 ]
@@ -94,7 +95,19 @@ internal class HeatingControlService
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 19 },
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
                 ]
-            }
+            },
+            new()
+            {
+                Condition = () => true,
+                Room = Room.DiningRoom,
+                ScheduleTracks = [
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
+                ]
+            },
+
         ];
     }
 
@@ -126,6 +139,8 @@ internal class HeatingControlService
         _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.GamesRoom)));
         _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Kitchen)));
         _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Bedroom1)));
+        _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.DiningRoom)));
+        _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.DiningRoom)));
 
         // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules(Schedules));
@@ -143,12 +158,12 @@ internal class HeatingControlService
         try
         {
             _logger.LogInformation("Downloading schedules from API for house {HouseId}", _configuration.HouseId);
-            var schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
+            List<RoomSchedule> schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
 
-            if (schedules.Any())
+            if (schedules.Count != 0)
             {
                 // Set up delegates for each schedule
-                foreach (var schedule in schedules)
+                foreach (RoomSchedule schedule in schedules)
                 {
                     schedule.Condition = () => true;
                     schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
@@ -159,7 +174,7 @@ internal class HeatingControlService
                 _logger.LogInformation("Successfully loaded {Count} schedules from API", schedules.Count);
 
                 // Initialize room states
-                foreach (var schedule in Schedules)
+                foreach (RoomSchedule schedule in Schedules)
                 {
                     if (!_roomStates.ContainsKey(schedule.Id))
                     {
@@ -188,7 +203,7 @@ internal class HeatingControlService
 
         try
         {
-            var allStates = _roomStates.Values.ToList();
+            List<RoomState> allStates = _roomStates.Values.ToList();
             await _scheduleApiClient.SetRoomStatesAsync(_configuration.HouseId, allStates);
             _logger.LogDebug("Updated room state for room {RoomId}", roomState.RoomId);
         }
@@ -233,8 +248,10 @@ internal class HeatingControlService
         }
     }
 
-    private async Task EvaluateSchedule(RoomSchedule roomHeatingSchedule)
+    private async Task EvaluateSchedule(RoomSchedule? roomHeatingSchedule)
     {
+        ArgumentNullException.ThrowIfNull(roomHeatingSchedule);
+
         DateTime now = _timeProvider.GetLocalNow().DateTime;
         TimeOnly currentTime = TimeOnly.FromDateTime(now);
 
@@ -474,7 +491,7 @@ internal class HeatingControlService
         {
             Room.Kitchen => _namedEntities.KitchenHeaterSmartPlugOnOff,
             Room.GamesRoom => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
-            Room.DiningRoom => null,
+            Room.DiningRoom => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
             Room.Lounge => null,
             Room.DownstairsBathroom => null,
             Room.Bedroom1 => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
@@ -512,7 +529,7 @@ internal class HeatingControlService
         {
             Room.Kitchen => _namedEntities.KitchenTemperature.State,
             Room.GamesRoom => _namedEntities.GamesRoomDeskTemperature.State,
-            Room.DiningRoom => null,
+            Room.DiningRoom => _namedEntities.DiningRoomClimateTemperature.State,
             Room.Lounge => null,
             Room.DownstairsBathroom => null,
             Room.Bedroom1 => _namedEntities.Bedroom1Temperature.State,
