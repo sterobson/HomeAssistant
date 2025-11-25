@@ -3,11 +3,20 @@ using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
 
-internal class Schedule
+public class Boost
 {
+    public DateTimeOffset? StartTime { get; set; }
+    public DateTimeOffset? EndTime { get; set; }
+    public double? Temperature { get; set; }
+}
+
+public class RoomSchedule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required Func<bool> Condition { get; set; }
     public required List<HeatingScheduleTrack> ScheduleTracks { get; set; }
     public required Room Room { get; set; }
+    public Boost Boost { get; set; } = new();
 
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<Task<double?>>? GetCurrentTemperature { get; set; }
@@ -16,10 +25,20 @@ internal class Schedule
     public Func<bool, Task<bool>>? OnToggleHeating { get; set; }
 }
 
-[Flags]
-internal enum Days
+// Room state - separate from schedule configuration
+public class RoomState
 {
-    Everyday = 0,
+    public Guid RoomId { get; set; }
+    public double? CurrentTemperature { get; set; }
+    public bool HeatingActive { get; set; }
+    public Guid? ActiveScheduleTrackId { get; set; }
+    public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
+}
+
+[Flags]
+public enum Days
+{
+    Unspecified = 0,
     Monday = 1,
     Tuesday = 2,
     Wednesday = 4,
@@ -29,11 +48,12 @@ internal enum Days
     Sunday = 64,
     Weekdays = Monday | Tuesday | Wednesday | Thursday | Friday,
     Weekends = Saturday | Sunday,
-    NotSunday = Weekdays | Saturday
+    NotSunday = Weekdays | Saturday,
+    Everyday = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
 }
 
 [Flags]
-internal enum ConditionType
+public enum ConditionType
 {
     None = 0,
     PlentyOfPowerAvailable = 1,
@@ -43,7 +63,7 @@ internal enum ConditionType
 }
 
 [Flags]
-internal enum Room
+public enum Room
 {
     Kitchen = 0,
     GamesRoom = 1,
@@ -56,18 +76,19 @@ internal enum Room
     UpstairsBathroom = 128
 }
 
-internal enum ConditionOperatorType
+public enum ConditionOperatorType
 {
     And,
     Or
 }
 
-internal class HeatingScheduleTrack
+public class HeatingScheduleTrack
 {
+    public Guid Id { get; set; } = Guid.NewGuid();
     public required double Temperature { get; set; }
     public required TimeOnly TargetTime { get; set; }
     public int RampUpMinutes { get; set; } = 30;
-    public Days Days { get; set; } = Days.Everyday;
+    public Days Days { get; set; } = Days.Unspecified;
     public ConditionType Conditions { get; set; } = ConditionType.None;
     public ConditionOperatorType ConditionOperator { get; set; } = ConditionOperatorType.Or;
 }

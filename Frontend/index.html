@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heating Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      /* Light mode colors */
+      --bg-primary: #f5f5f5;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f8f9fa;
+      --bg-header: #2c3e50;
+      --text-primary: #2c3e50;
+      --text-secondary: #666;
+      --text-tertiary: #999;
+      --text-header: #ffffff;
+      --border-color: #e0e0e0;
+      --border-hover: #3498db;
+      --shadow: rgba(0, 0, 0, 0.1);
+      --shadow-md: rgba(0, 0, 0, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #3498db;
+      --color-primary-hover: #2980b9;
+      --color-success: #27ae60;
+      --color-success-hover: #229954;
+      --color-danger: #e74c3c;
+      --color-danger-hover: #c0392b;
+      --color-warning: #f39c12;
+
+      /* UI colors */
+      --btn-secondary-bg: #e0e0e0;
+      --btn-secondary-hover: #d0d0d0;
+      --hover-bg: #f9f9f9;
+      --icon-color: #666;
+    }
+
+    html.dark {
+      /* Dark mode colors */
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-tertiary: #242424;
+      --bg-header: #1a1a1a;
+      --text-primary: #e0e0e0;
+      --text-secondary: #b0b0b0;
+      --text-tertiary: #808080;
+      --text-header: #ffffff;
+      --border-color: #404040;
+      --border-hover: #3498db;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* UI colors */
+      --btn-secondary-bg: #404040;
+      --btn-secondary-hover: #505050;
+      --hover-bg: #353535;
+      --icon-color: #b0b0b0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      transition: background-color 0.3s, color 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

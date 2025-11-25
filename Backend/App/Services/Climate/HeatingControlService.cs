@@ -18,12 +18,30 @@ internal class HeatingControlService
     private readonly IPresenceService _presenceService;
     private readonly TimeProvider _timeProvider;
     private readonly INamedEntities _namedEntities;
-    private const int _receheckEveryXMinutes = 5;
-    public List<Schedule> Schedules { get; } = [];
+    private readonly IScheduleApiClient? _scheduleApiClient;
+    private readonly HomeAssistantConfiguration _configuration;
+    private const int _recheckEveryXMinutes = 5;
+    private const int _scheduleRefreshEveryXMinutes = 10;
+    private readonly Dictionary<Guid, RoomState> _roomStates = [];
+    private Timer? _scheduleRefreshTimer;
 
-    public HeatingControlService(INamedEntities namedEntities, HistoryService historyService, IScheduler scheduler, ILogger<HeatingControlService> logger,
-        IHomeBattery homeBattery, ISolarPanels solarPanels, IElectricityMeter electricityMeter, IPresenceService presenceService,
-        TimeProvider timeProvider)
+    // TODO: SignalR Connection - Add SignalR hub connection here
+    // private HubConnection? _hubConnection;
+
+    public List<RoomSchedule> Schedules { get; private set; } = [];
+
+    public HeatingControlService(
+        INamedEntities namedEntities,
+        HistoryService historyService,
+        IScheduler scheduler,
+        ILogger<HeatingControlService> logger,
+        IHomeBattery homeBattery,
+        ISolarPanels solarPanels,
+        IElectricityMeter electricityMeter,
+        IPresenceService presenceService,
+        TimeProvider timeProvider,
+        HomeAssistantConfiguration configuration,
+        IScheduleApiClient? scheduleApiClient = null)
     {
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -33,6 +51,10 @@ internal class HeatingControlService
         _electricityMeter = electricityMeter;
         _presenceService = presenceService;
         _timeProvider = timeProvider;
+        _configuration = configuration;
+        _scheduleApiClient = scheduleApiClient;
+
+        // Initialize with default schedules (will be replaced if API client is available)
         Schedules = [
             new()
             {
@@ -52,9 +74,9 @@ internal class HeatingControlService
                 Room = Room.GamesRoom,
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14 },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Days = Days.Weekdays}, // Preheat on a weekday morning, anticipating use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse  }, // Only if the desk has not been in use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(5,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Days = Days.Weekdays, Conditions = ConditionType.RoomNotInUse }, // Preheat on a weekday morning, anticipating use
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
                 ]
             },
@@ -78,28 +100,140 @@ internal class HeatingControlService
 
     public void Start()
     {
-        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_receheckEveryXMinutes), async () => await EvaluateAllSchedules(Schedules));
+        // Download schedules from API if available
+        if (_scheduleApiClient != null && _configuration.HouseId != Guid.Empty)
+        {
+            Task.Run(async () =>
+            {
+                await DownloadSchedulesFromApi();
+                // Set up periodic schedule refresh every 10 minutes
+                _scheduleRefreshTimer = new Timer(
+                    async _ => await DownloadSchedulesFromApi(),
+                    null,
+                    TimeSpan.FromMinutes(_scheduleRefreshEveryXMinutes),
+                    TimeSpan.FromMinutes(_scheduleRefreshEveryXMinutes));
+            });
+        }
 
-        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.First(s => s.Room == Room.GamesRoom)));
-        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.First(s => s.Room == Room.GamesRoom)));
-        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.First(s => s.Room == Room.Kitchen)));
-        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.First(s => s.Room == Room.Bedroom1)));
+        // TODO: SignalR Connection - Connect to SignalR hub for real-time updates
+        // await ConnectToSignalRHub();
 
+        // Schedule periodic evaluation of all schedules
+        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules(Schedules));
+
+        // Subscribe to temperature changes
+        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.GamesRoom)));
+        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.GamesRoom)));
+        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Kitchen)));
+        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Bedroom1)));
+
+        // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules(Schedules));
         _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules(Schedules));
 
+        // Initial evaluation
         Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules(Schedules));
     }
 
-    public async Task EvaluateAllSchedules(List<Schedule> schedules)
+    private async Task DownloadSchedulesFromApi()
     {
-        foreach (Schedule schedule in schedules)
+        if (_scheduleApiClient == null || _configuration.HouseId == Guid.Empty)
+            return;
+
+        try
+        {
+            _logger.LogInformation("Downloading schedules from API for house {HouseId}", _configuration.HouseId);
+            var schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
+
+            if (schedules.Any())
+            {
+                // Set up delegates for each schedule
+                foreach (var schedule in schedules)
+                {
+                    schedule.Condition = () => true;
+                    schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
+                    schedule.OnToggleHeating = GetOnToggleFunc(schedule);
+                }
+
+                Schedules = schedules;
+                _logger.LogInformation("Successfully loaded {Count} schedules from API", schedules.Count);
+
+                // Initialize room states
+                foreach (var schedule in Schedules)
+                {
+                    if (!_roomStates.ContainsKey(schedule.Id))
+                    {
+                        _roomStates[schedule.Id] = new RoomState
+                        {
+                            RoomId = schedule.Id,
+                            CurrentTemperature = GetCurrentTemperatureForRoom(schedule),
+                            HeatingActive = false,
+                            ActiveScheduleTrackId = null,
+                            LastUpdated = DateTimeOffset.UtcNow
+                        };
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error downloading schedules from API for house {HouseId}", _configuration.HouseId);
+        }
+    }
+
+    private async Task UpdateRoomStateToApi(RoomState roomState)
+    {
+        if (_scheduleApiClient == null || _configuration.HouseId == Guid.Empty)
+            return;
+
+        try
+        {
+            var allStates = _roomStates.Values.ToList();
+            await _scheduleApiClient.SetRoomStatesAsync(_configuration.HouseId, allStates);
+            _logger.LogDebug("Updated room state for room {RoomId}", roomState.RoomId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating room state to API for room {RoomId}", roomState.RoomId);
+        }
+    }
+
+    // TODO: SignalR Connection - Methods for SignalR connection
+    // private async Task ConnectToSignalRHub()
+    // {
+    //     if (string.IsNullOrEmpty(_configuration.SignalRHubUrl))
+    //         return;
+    //
+    //     _hubConnection = new HubConnectionBuilder()
+    //         .WithUrl(_configuration.SignalRHubUrl)
+    //         .WithAutomaticReconnect()
+    //         .Build();
+    //
+    //     _hubConnection.On("SchedulesUpdated", async () =>
+    //     {
+    //         _logger.LogInformation("Received SchedulesUpdated notification from SignalR");
+    //         await DownloadSchedulesFromApi();
+    //     });
+    //
+    //     _hubConnection.On("RoomStatesUpdated", async () =>
+    //     {
+    //         _logger.LogInformation("Received RoomStatesUpdated notification from SignalR");
+    //         // Frontend will handle this notification
+    //     });
+    //
+    //     await _hubConnection.StartAsync();
+    //     _logger.LogInformation("Connected to SignalR hub");
+    // }
+
+    public async Task EvaluateAllSchedules(List<RoomSchedule> schedules)
+    {
+        foreach (RoomSchedule schedule in schedules)
         {
             await EvaluateSchedule(schedule);
         }
     }
 
-    private async Task EvaluateSchedule(Schedule roomHeatingSchedule)
+    private async Task EvaluateSchedule(RoomSchedule roomHeatingSchedule)
     {
         DateTime now = _timeProvider.GetLocalNow().DateTime;
         TimeOnly currentTime = TimeOnly.FromDateTime(now);
@@ -130,90 +264,211 @@ internal class HeatingControlService
             return;
         }
 
-        // We want to find the last TargetTemperature schedule track that evaluates to true.
-        bool evaluateYesterdayTimes = false;
-        for (int i = roomHeatingSchedule.ScheduleTracks.Count - 1; i >= 0; i--)
+        // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
+        HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(roomHeatingSchedule, now, currentDay);
+        if (currentActiveTrack == null)
         {
-            HeatingScheduleTrack heatingScheduleTrack = roomHeatingSchedule.ScheduleTracks[i];
-            double desiredTemperature = heatingScheduleTrack.Temperature;
+            return;
+        }
 
-            if (heatingScheduleTrack == null)
+        // Step 2: Check if there's an upcoming schedule we should pre-heat for
+        HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
+
+        // Step 3: Determine which schedule to use
+        HeatingScheduleTrack effectiveTrack = currentActiveTrack;
+        string reason = "current active schedule";
+
+        if (preHeatTrack != null)
+        {
+            // Only use pre-heat if it has a HIGHER target than current (never pre-cool)
+            if (preHeatTrack.Temperature > currentActiveTrack.Temperature)
             {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
+                effectiveTrack = preHeatTrack;
+                reason = "pre-heating for upcoming schedule";
             }
+        }
 
-            // Is this schedule valid for today?
-            if (heatingScheduleTrack.Days != Days.Everyday && (heatingScheduleTrack.Days & currentDay) == 0)
+        // Step 4: Control heating based on effective track
+        double desiredTemperature = effectiveTrack.Temperature;
+
+        // Get or create room state
+        if (!_roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState))
+        {
+            roomState = new RoomState
             {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
-            }
+                RoomId = roomHeatingSchedule.Id,
+                CurrentTemperature = currentTemperature,
+                HeatingActive = false,
+                ActiveScheduleTrackId = effectiveTrack.Id,
+                LastUpdated = DateTimeOffset.UtcNow
+            };
+            _roomStates[roomHeatingSchedule.Id] = roomState;
+        }
 
-            // What time should this track start, including the ramp-up time?
-            TimeSpan targetStartTime = heatingScheduleTrack.TargetTime.ToTimeSpan().Add(TimeSpan.FromMinutes(-heatingScheduleTrack.RampUpMinutes));
+        bool stateChanged = false;
 
-            // If we've rolled over to comparing the previous day's schedule,
-            // then do this by adding 1 day to the current time to make the maths work.
-            TimeSpan effectiveCurrentTime = now.TimeOfDay.Add(TimeSpan.FromDays(evaluateYesterdayTimes ? 1 : 0));
-            if (targetStartTime > effectiveCurrentTime)
+        if (currentTemperature >= desiredTemperature)
+        {
+            // Turn off
+            if (await onToggleHeating(false))
             {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
-            }
+                _logger.LogInformation("Turning off heating in {Room} as current temperature {CurrentTemperature}°C >= target temperature {TargetTemperature}°C ({Reason})",
+                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, reason);
 
-            // Is it time to run this schedule yet (including the ramp-up time)?
-            int minutesUntilTargetTime = MinutesUntil(currentTime, heatingScheduleTrack.TargetTime);
-            if (heatingScheduleTrack.TargetTime < currentTime)
-            {
-                minutesUntilTargetTime = 0;
-            }
-
-            if (minutesUntilTargetTime > heatingScheduleTrack.RampUpMinutes)
-            {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
-            }
-
-            // Within the ramp-up time but already warmer than target temperature, so skip
-            // to previous rule.
-            if (minutesUntilTargetTime > 0 && currentTemperature >= desiredTemperature)
-            {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
-            }
-
-            // If there are special confitions set, then we need to make sure we meet them.
-            if (!await MeetsSpecialConditions(roomHeatingSchedule.Room, heatingScheduleTrack))
-            {
-                RollOverToYesterdayIfNecessary(roomHeatingSchedule, ref evaluateYesterdayTimes, ref i);
-                continue;
-            }
-
-            if (currentTemperature >= desiredTemperature)
-            {
-                // Turn off
-                if (await onToggleHeating(false))
+                if (roomState.HeatingActive)
                 {
-                    _logger.LogInformation("Turning off heating in {Room} as current temperature {CurrentTemperature}°C >= target temperature {TargetTemperature}°C, looked at schedule {i}",
-                         roomHeatingSchedule.Room, currentTemperature, desiredTemperature, i);
+                    roomState.HeatingActive = false;
+                    stateChanged = true;
                 }
             }
-            else
+        }
+        else
+        {
+            // Turn on
+            if (await onToggleHeating(true))
             {
-                // Turn on
-                if (await onToggleHeating(true))
+                _logger.LogInformation("Turning on heating in {Room} as current temperature {CurrentTemperature}°C < target temperature {TargetTemperature}°C ({Reason})",
+                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, reason);
+
+                if (!roomState.HeatingActive)
                 {
-                    _logger.LogInformation("Turning on heating in {Room} as current temperature {CurrentTemperature}°C < target temperature {TargetTemperature}°C, looked at schedule {i}",
-                         roomHeatingSchedule.Room, currentTemperature, desiredTemperature, i);
+                    roomState.HeatingActive = true;
+                    stateChanged = true;
                 }
             }
+        }
 
-            break;
+        // Update temperature and active track if changed
+        if (roomState.CurrentTemperature != currentTemperature)
+        {
+            roomState.CurrentTemperature = currentTemperature;
+            stateChanged = true;
+        }
+
+        if (roomState.ActiveScheduleTrackId != effectiveTrack.Id)
+        {
+            roomState.ActiveScheduleTrackId = effectiveTrack.Id;
+            stateChanged = true;
+        }
+
+        // Update timestamp and send to API if anything changed
+        if (stateChanged)
+        {
+            roomState.LastUpdated = DateTimeOffset.UtcNow;
+            await UpdateRoomStateToApi(roomState);
         }
     }
 
-    private Func<bool, Task<bool>>? GetOnToggleFunc(Schedule roomHeatingSchedule)
+    private async Task<HeatingScheduleTrack?> FindCurrentActiveSchedule(RoomSchedule schedule, DateTime now, Days currentDay)
+    {
+        TimeSpan currentTime = now.TimeOfDay;
+        HeatingScheduleTrack? bestTrack = null;
+
+        // Look through schedules for today where TargetTime has already passed
+        foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
+        {
+            // Check if valid for today
+            if (track.Days != Days.Unspecified && (track.Days & currentDay) == 0)
+                continue;
+
+            // Has this schedule's target time passed?
+            if (track.TargetTime.ToTimeSpan() <= currentTime)
+            {
+                // Check special conditions
+                if (!await MeetsSpecialConditions(schedule.Room, track))
+                    continue;
+
+                // Is this the latest qualifying schedule?
+                if (bestTrack == null || track.TargetTime > bestTrack.TargetTime)
+                {
+                    bestTrack = track;
+                }
+            }
+        }
+
+        // If no schedule found for today, look at yesterday's schedules (they wrap to today)
+        if (bestTrack == null)
+        {
+            Days yesterdayDay = GetPreviousDay(currentDay);
+
+            foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
+            {
+                // Check if valid for yesterday
+                if (track.Days != Days.Unspecified && (track.Days & yesterdayDay) == 0)
+                    continue;
+
+                // Check special conditions
+                if (!await MeetsSpecialConditions(schedule.Room, track))
+                    continue;
+
+                // Find the latest schedule from yesterday
+                if (bestTrack == null || track.TargetTime > bestTrack.TargetTime)
+                {
+                    bestTrack = track;
+                }
+            }
+        }
+
+        return bestTrack;
+    }
+
+    private async Task<HeatingScheduleTrack?> FindPreHeatSchedule(RoomSchedule schedule, DateTime now, Days currentDay, double currentActiveTemperature)
+    {
+        TimeSpan currentTime = now.TimeOfDay;
+        HeatingScheduleTrack? bestTrack = null;
+
+        // Look through today's upcoming schedules
+        foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
+        {
+            // Check if valid for today
+            if (track.Days != Days.Unspecified && (track.Days & currentDay) == 0)
+                continue;
+
+            // Is this schedule upcoming (not yet arrived)?
+            if (track.TargetTime.ToTimeSpan() > currentTime)
+            {
+                // Calculate ramp-up start time
+                TimeSpan rampUpStartTime = track.TargetTime.ToTimeSpan().Add(TimeSpan.FromMinutes(-track.RampUpMinutes));
+
+                // Are we within the ramp-up period?
+                if (currentTime >= rampUpStartTime)
+                {
+                    // Only consider if temperature is higher than current active (never pre-cool)
+                    if (track.Temperature <= currentActiveTemperature)
+                        continue;
+
+                    // Check special conditions
+                    if (!await MeetsSpecialConditions(schedule.Room, track))
+                        continue;
+
+                    // Find the earliest upcoming schedule in ramp-up
+                    if (bestTrack == null || track.TargetTime < bestTrack.TargetTime)
+                    {
+                        bestTrack = track;
+                    }
+                }
+            }
+        }
+
+        return bestTrack;
+    }
+
+    private static Days GetPreviousDay(Days currentDay)
+    {
+        return currentDay switch
+        {
+            Days.Monday => Days.Sunday,
+            Days.Tuesday => Days.Monday,
+            Days.Wednesday => Days.Tuesday,
+            Days.Thursday => Days.Wednesday,
+            Days.Friday => Days.Thursday,
+            Days.Saturday => Days.Friday,
+            Days.Sunday => Days.Saturday,
+            _ => Days.Monday
+        };
+    }
+
+    private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
         ICustomSwitchEntity? plug = roomHeatingSchedule.Room switch
         {
@@ -251,7 +506,7 @@ internal class HeatingControlService
         };
     }
 
-    private double? GetCurrentTemperatureForRoom(Schedule roomHeatingSchedule)
+    private double? GetCurrentTemperatureForRoom(RoomSchedule roomHeatingSchedule)
     {
         return roomHeatingSchedule.Room switch
         {
@@ -266,15 +521,6 @@ internal class HeatingControlService
             Room.UpstairsBathroom => null,
             _ => null
         };
-    }
-
-    private static void RollOverToYesterdayIfNecessary(Schedule roomHeatingSchedule, ref bool evaluateYesterdayTimes, ref int i)
-    {
-        if (i == 0 && !evaluateYesterdayTimes)
-        {
-            i = roomHeatingSchedule.ScheduleTracks.Count;
-            evaluateYesterdayTimes = true;
-        }
     }
 
     private async Task<bool> MeetsSpecialConditions(Room room, HeatingScheduleTrack heatingScheduleTrack)
@@ -360,21 +606,17 @@ internal class HeatingControlService
         return false;
     }
 
-    public static int MinutesUntil(TimeOnly from, TimeOnly to)
+    public static int MinutesUntil(TimeSpan from, TimeSpan to)
     {
-        // Convert both to TimeSpan for easy math
-        TimeSpan fromSpan = from.ToTimeSpan();
-        TimeSpan toSpan = to.ToTimeSpan();
-
         // If 'to' is later in the same day
-        if (toSpan >= fromSpan)
+        if (to >= from)
         {
-            return (int)(toSpan - fromSpan).TotalMinutes;
+            return (int)(to - from).TotalMinutes;
         }
         else
         {
             // Wrap to next day: add 24h
-            return (int)((toSpan - fromSpan + TimeSpan.FromDays(1)).TotalMinutes);
+            return (int)((to - from + TimeSpan.FromDays(1)).TotalMinutes);
         }
     }
 }

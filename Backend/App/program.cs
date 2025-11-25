@@ -66,9 +66,10 @@ try
                 .AddConfiguration<YorkBinServiceConfiguration>(context, "YorkBinService")
                 .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>()
                 .AddScoped<NamedEntities>()
+                .AddScoped<INamedEntities>(provider => provider.GetRequiredService<NamedEntities>())
                 .AddScoped<IPresenceService, PresenceService>()
                 .AddScoped<HeatingControlService>()
-                .AddSingleton<TimeProvider>();
+                .AddSingleton<TimeProvider>(provider => TimeProvider.System);
 
         })
         .Build()

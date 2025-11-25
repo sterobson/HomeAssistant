@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet test:*)",
+      "Bash(func start)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

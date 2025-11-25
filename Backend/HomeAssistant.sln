@@ -1,11 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.3.11218.70 d18.3
+VisualStudioVersion = 18.3.11218.70
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant", "App\HomeAssistant.csproj", "{A3F30546-D836-4529-4A6F-C33C750550E3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant.Tests", "Tests\HomeAssistant.Tests.csproj", "{2E6DEB76-1217-4E4E-86B3-30600C16A92D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeAssistant.Functions", "HomeAssistant.Functions\HomeAssistant.Functions.csproj", "{9D2EF408-2BFD-48E1-9D89-F56266936330}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{2E6DEB76-1217-4E4E-86B3-30600C16A92D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2E6DEB76-1217-4E4E-86B3-30600C16A92D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2E6DEB76-1217-4E4E-86B3-30600C16A92D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D2EF408-2BFD-48E1-9D89-F56266936330}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D2EF408-2BFD-48E1-9D89-F56266936330}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D2EF408-2BFD-48E1-9D89-F56266936330}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D2EF408-2BFD-48E1-9D89-F56266936330}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
