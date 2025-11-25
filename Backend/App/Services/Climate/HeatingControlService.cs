@@ -67,6 +67,7 @@ internal class HeatingControlService
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18.5 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 19, Conditions = ConditionType.PlentyOfPowerAvailable },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
+                    new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
                 ]
             },
@@ -87,13 +88,13 @@ internal class HeatingControlService
                 Condition = () => true,
                 Room = Room.Bedroom1,
                 ScheduleTracks = [
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 19, Days = Days.Weekdays},
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 19 },
+                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
                 ]
             },

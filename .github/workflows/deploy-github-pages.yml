@@ -38,6 +38,13 @@ jobs:
         working-directory: ./Frontend
         env:
           GITHUB_PAGES: 'true'
+          # Use mock API for demo deployment (no backend required)
+          VITE_USE_MOCK_API: 'true'
+          # Set your production API URL here when you have a backend deployed
+          # VITE_API_URL: 'https://your-api-url.azurewebsites.net'
+          # Or use GitHub Secrets (recommended)
+          # VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_HOUSE_ID: '00000000-0000-0000-0000-000000000000'
         run: npm run build
 
       - name: Add .nojekyll file
