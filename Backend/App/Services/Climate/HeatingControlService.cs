@@ -23,6 +23,7 @@ internal class HeatingControlService
     private readonly HomeAssistantConfiguration _configuration;
     private const int _recheckEveryXMinutes = 5;
     private const int _scheduleRefreshEveryXMinutes = 10;
+    internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<Guid, RoomState> _roomStates = [];
     private Timer? _scheduleRefreshTimer;
 
@@ -311,11 +312,32 @@ internal class HeatingControlService
         // Get or create room state
         if (!_roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState))
         {
+            // Determine current heating state by checking if we would turn it on or off
+            // We need to check the actual current state of the heating system
+            bool currentHeatingState = false;
+
+            // Try to determine current state by attempting a no-op toggle
+            // If onToggleHeating(true) returns false, heating is already on
+            // If onToggleHeating(false) returns false, heating is already off
+            bool wouldTurnOff = await onToggleHeating(false);
+            if (!wouldTurnOff)
+            {
+                // Heating was already off, restore to off
+                await onToggleHeating(false);
+                currentHeatingState = false;
+            }
+            else
+            {
+                // Heating was on, restore to on
+                await onToggleHeating(true);
+                currentHeatingState = true;
+            }
+
             roomState = new RoomState
             {
                 RoomId = roomHeatingSchedule.Id,
                 CurrentTemperature = currentTemperature,
-                HeatingActive = false,
+                HeatingActive = currentHeatingState,
                 ActiveScheduleTrackId = effectiveTrack.Id,
                 LastUpdated = DateTimeOffset.UtcNow
             };
@@ -324,34 +346,33 @@ internal class HeatingControlService
 
         bool stateChanged = false;
 
-        if (currentTemperature >= desiredTemperature)
+        // Apply hysteresis to prevent flapping
+        // If heating is ON: turn OFF only when temp >= target + offset
+        // If heating is OFF: turn ON only when temp <= target - offset
+        if (roomState.HeatingActive && currentTemperature >= desiredTemperature + HysteresisOffset)
         {
+            // Heating is currently ON
             // Turn off
             if (await onToggleHeating(false))
             {
-                _logger.LogInformation("Turning off heating in {Room} as current temperature {CurrentTemperature}°C >= target temperature {TargetTemperature}°C ({Reason})",
-                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, reason);
+                _logger.LogInformation("Turning off heating in {Room} as current temperature {CurrentTemperature}°C >= target temperature {TargetTemperature}°C + {HysteresisOffset}°C ({Reason})",
+                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, HysteresisOffset, reason);
 
-                if (roomState.HeatingActive)
-                {
-                    roomState.HeatingActive = false;
-                    stateChanged = true;
-                }
+                roomState.HeatingActive = false;
+                stateChanged = true;
             }
         }
-        else
+        else if (currentTemperature <= desiredTemperature - HysteresisOffset)
         {
+            // Heating is currently OFF
             // Turn on
             if (await onToggleHeating(true))
             {
-                _logger.LogInformation("Turning on heating in {Room} as current temperature {CurrentTemperature}°C < target temperature {TargetTemperature}°C ({Reason})",
-                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, reason);
+                _logger.LogInformation("Turning on heating in {Room} as current temperature {CurrentTemperature}°C <= target temperature {TargetTemperature}°C - {HysteresisOffset}°C ({Reason})",
+                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, HysteresisOffset, reason);
 
-                if (!roomState.HeatingActive)
-                {
-                    roomState.HeatingActive = true;
-                    stateChanged = true;
-                }
+                roomState.HeatingActive = true;
+                stateChanged = true;
             }
         }
 
