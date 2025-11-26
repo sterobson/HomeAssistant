@@ -63,9 +63,8 @@ internal class HeatingControlService
                 Condition = () => true,
                 Room = Room.Kitchen,
                 ScheduleTracks = [
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 19, Conditions = ConditionType.PlentyOfPowerAvailable },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18.5 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 19, Conditions = ConditionType.PlentyOfPowerAvailable },
+                    new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
+                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }

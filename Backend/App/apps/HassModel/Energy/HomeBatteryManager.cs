@@ -104,7 +104,7 @@ internal class HomeBatteryManager
             BatteryPredictionResult batteryPrediction = await GetPredictedBatteryScores();
 
             const int startChargingIfMaxUnderPercent = 85;
-            const int keepChargingIfMaxUnderPercent = 90;
+            const int keepChargingIfMaxUnderPercent = 99;
 
             const int startChargingIfMinUnderPercent = 20;
             const int keepChargingIfMinUnderPercent = 25;
