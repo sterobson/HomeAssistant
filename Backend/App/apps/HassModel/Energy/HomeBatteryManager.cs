@@ -109,6 +109,10 @@ internal class HomeBatteryManager
             const int startChargingIfMinUnderPercent = 20;
             const int keepChargingIfMinUnderPercent = 25;
 
+            const int stopDischargeIfUnderPercent = 25;
+            TimeOnly dischargeAfter = new(21, 00);
+            TimeOnly dischargeUntil = new(23, 00);
+
             const int batteryConsideredFullIfGtEqToPercent = 99;
 
             bool isBatteryProjectionInRangeThatNeedsCharging = batteryPrediction.MaximumChargePct < startChargingIfMaxUnderPercent || batteryPrediction.MinimumChargePct < startChargingIfMinUnderPercent
@@ -136,6 +140,13 @@ internal class HomeBatteryManager
             {
                 // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
                 desiredHomeBatteryState = BatteryState.Stopped;
+            }
+            else if (DateTime.Now.TimeOfDay >= dischargeAfter.ToTimeSpan()
+                    && DateTime.Now.TimeOfDay <= dischargeUntil.ToTimeSpan()
+                    && homeBatteryChargePct > stopDischargeIfUnderPercent)
+            {
+                // Let's discharge whatever is in the battery
+                desiredHomeBatteryState = BatteryState.ForceDischarging;
             }
             else
             {
