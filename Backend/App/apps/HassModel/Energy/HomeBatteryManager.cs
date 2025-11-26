@@ -73,6 +73,7 @@ internal class HomeBatteryManager
     private double? _previousHomeBatteryChargePct = null;
     private bool _previousIsCarCharging = false;
     private bool _previousIsElectricityCheap = false;
+    private bool _previousIsInDischargeTimeRange = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
 
     private async Task SetBatteryState()
@@ -80,18 +81,22 @@ internal class HomeBatteryManager
         try
         {
             await _setBatteryStateSemaphore.WaitAsync();
+            TimeOnly dischargeAfter = new(21, 00);
+            TimeOnly dischargeUntil = new(23, 00);
 
             double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
             double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
             bool isCarCharging = _carCharger.ChargerCurrent > 1;
             bool isElectricityCheap = currentUnitPriceRate < 0.1;
+            bool isInDischargeRange = DateTime.Now.TimeOfDay >= dischargeAfter.ToTimeSpan() && DateTime.Now.TimeOfDay <= dischargeUntil.ToTimeSpan();
             BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
 
             if (currentUnitPriceRate == _previousUnitPriceRate
                 && homeBatteryChargePct == _previousHomeBatteryChargePct
                 && isCarCharging == _previousIsCarCharging
                 && isElectricityCheap == _previousIsElectricityCheap
-                && currentHomeBatteryState == _previousBatteryState)
+                && currentHomeBatteryState == _previousBatteryState
+                && isInDischargeRange == _previousIsInDischargeTimeRange)
             {
                 // Nothing we care about has changed, so no need to do anything.
                 return;
@@ -110,8 +115,6 @@ internal class HomeBatteryManager
             const int keepChargingIfMinUnderPercent = 25;
 
             const int stopDischargeIfUnderPercent = 25;
-            TimeOnly dischargeAfter = new(21, 00);
-            TimeOnly dischargeUntil = new(23, 00);
 
             const int batteryConsideredFullIfGtEqToPercent = 99;
 
@@ -141,9 +144,7 @@ internal class HomeBatteryManager
                 // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
-            else if (DateTime.Now.TimeOfDay >= dischargeAfter.ToTimeSpan()
-                    && DateTime.Now.TimeOfDay <= dischargeUntil.ToTimeSpan()
-                    && homeBatteryChargePct > stopDischargeIfUnderPercent)
+            else if (isInDischargeRange && homeBatteryChargePct > stopDischargeIfUnderPercent)
             {
                 // Let's discharge whatever is in the battery
                 desiredHomeBatteryState = BatteryState.ForceDischarging;
@@ -189,6 +190,7 @@ internal class HomeBatteryManager
             _previousIsElectricityCheap = isElectricityCheap;
             _previousUnitPriceRate = currentUnitPriceRate;
             _previousBatteryState = desiredHomeBatteryState;
+            _previousIsInDischargeTimeRange = isInDischargeRange;
         }
         finally
         {
