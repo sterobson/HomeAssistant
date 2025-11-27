@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - development  # Trigger on pushes to the development branch
+      - testing  # Trigger on pushes to the testing branch
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -36,7 +37,7 @@ jobs:
         working-directory: ./Frontend
         env:
           GITHUB_PAGES: 'true'
-          DEPLOY_PATH: '/dev/'
+          DEPLOY_PATH: '/testing/'
           # Use mock API for demo deployment (no backend required)
           VITE_USE_MOCK_API: 'true'
           # Set your production API URL here when you have a backend deployed
@@ -46,10 +47,10 @@ jobs:
           VITE_HOUSE_ID: '00000000-0000-0000-0000-000000000000'
         run: npm run build
 
-      - name: Deploy to GitHub Pages (dev subdirectory)
+      - name: Deploy to GitHub Pages (testing subdirectory)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./Frontend/dist
-          destination_dir: dev
+          destination_dir: testing
           keep_files: true  # Don't remove other directories (like root for release)
