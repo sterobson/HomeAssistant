@@ -3,7 +3,9 @@
     "allow": [
       "Bash(dotnet test:*)",
       "Bash(func start)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(git fetch:*)",
+      "Bash(git ls-tree:*)"
     ],
     "deny": [],
     "ask": []
