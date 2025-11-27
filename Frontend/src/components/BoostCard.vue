@@ -13,7 +13,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
               <path d="M6 2a2 2 0 012-2 2 2 0 012 2v7.5a3.5 3.5 0 11-4 0V2zm2-1a1 1 0 00-1 1v8a1 1 0 00.5.866 2.5 2.5 0 102.5 0A1 1 0 0010 10V2a1 1 0 00-1-1z"/>
             </svg>
-            <span>{{ boostTemperature }}°C</span>
+            <span>{{ formatTempWithUnit(boostTemperature) }}</span>
           </div>
           <div class="boost-time">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
@@ -33,6 +33,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useFormatting } from '../composables/useFormatting.js'
+
+const { formatTempWithUnit } = useFormatting()
 
 const props = defineProps({
   boostEndTime: {

@@ -20,8 +20,8 @@
               </svg>
             </button>
             <div class="temperature-display">
-              <span class="temp-value">{{ temperature }}</span>
-              <span class="temp-unit">°C</span>
+              <span class="temp-value">{{ temperature.toFixed(1) }}</span>
+              <span class="temp-unit">°{{ currentTempUnit }}</span>
             </div>
             <button type="button" class="temp-btn" @click="increaseTemp">
               <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
@@ -64,7 +64,7 @@
             <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm.93 4.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533l.816-3.833z"/>
             <circle cx="8" cy="2.5" r="1"/>
           </svg>
-          <p>Boost will override your schedule and maintain {{ temperature }}°C for {{ displayDuration }}</p>
+          <p>Boost will override your schedule and maintain {{ temperature.toFixed(1) }}°{{ currentTempUnit }} for {{ displayDuration }}</p>
         </div>
 
         <div class="form-actions">
@@ -85,6 +85,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useFormatting } from '../composables/useFormatting.js'
+
+const { convertToDisplay, convertToInternal, currentTempUnit, getTempStep, roundTemp, getDisplayLimits } = useFormatting()
 
 const props = defineProps({
   roomName: {
@@ -95,7 +98,8 @@ const props = defineProps({
 
 const emit = defineEmits(['boost', 'cancel'])
 
-const temperature = ref(21)
+// Initialize temperature in display unit (convert from default 21°C)
+const temperature = ref(convertToDisplay(21))
 const duration = ref(2)
 const customDuration = ref(null)
 const durationOptions = [1, 2, 3, 4, 6]
@@ -108,14 +112,20 @@ const displayDuration = computed(() => {
 })
 
 const increaseTemp = () => {
-  if (temperature.value < 30) {
-    temperature.value += 0.5
+  const limits = getDisplayLimits()
+  const step = getTempStep()
+  const newTemp = temperature.value + step
+  if (newTemp <= limits.max) {
+    temperature.value = roundTemp(newTemp)
   }
 }
 
 const decreaseTemp = () => {
-  if (temperature.value > 5) {
-    temperature.value -= 0.5
+  const limits = getDisplayLimits()
+  const step = getTempStep()
+  const newTemp = temperature.value - step
+  if (newTemp >= limits.min) {
+    temperature.value = roundTemp(newTemp)
   }
 }
 
@@ -127,7 +137,8 @@ const handleCustomDuration = () => {
 
 const handleSubmit = () => {
   emit('boost', {
-    temperature: temperature.value,
+    // Convert display temperature back to Celsius for storage
+    temperature: convertToInternal(temperature.value),
     duration: duration.value
   })
 }

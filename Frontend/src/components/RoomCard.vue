@@ -1,6 +1,11 @@
 <template>
   <div class="room-card">
-    <div class="room-card-header">
+    <div
+      class="room-card-header"
+      :class="{
+        'collapsed-heating': isCollapsed && room.heatingActive
+      }"
+    >
       <div class="header-left" @click="toggleCollapse">
         <h2 class="room-name">{{ room.name }}</h2>
         <div class="room-status">
@@ -9,7 +14,7 @@
               <path d="M8.5.5a.5.5 0 0 0-1 0v1.518A7 7 0 0 0 2.5 9a7 7 0 0 0 5 6.482V15.5a.5.5 0 0 0 1 0v-.018A7 7 0 0 0 13.5 9a7 7 0 0 0-5-6.482V.5zM8 3.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
             </svg>
           </div>
-          <span class="current-temp">{{ room.currentTemperature }}°C</span>
+          <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
       <div class="header-actions">
@@ -42,6 +47,7 @@
             :key="schedule.id"
             :schedule="schedule"
             :is-active="schedule.id === room.activeScheduleId"
+            :heating-active="room.heatingActive"
             @edit="handleEdit"
             @delete="handleDelete"
           />
@@ -89,17 +95,24 @@ import ScheduleEditor from './ScheduleEditor.vue'
 import BoostModal from './BoostModal.vue'
 import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
+import { useFormatting } from '../composables/useFormatting.js'
+
+const { formatTempWithUnit } = useFormatting()
 
 const props = defineProps({
   room: {
     type: Object,
     required: true
+  },
+  isExpanded: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost'])
+const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost', 'toggle-expand'])
 
-const isCollapsed = ref(false)
+const isCollapsed = computed(() => !props.isExpanded)
 const showEditor = ref(false)
 const editingSchedule = ref(null)
 const showBoost = ref(false)
@@ -114,7 +127,7 @@ const sortedSchedules = computed(() => {
 })
 
 const toggleCollapse = () => {
-  isCollapsed.value = !isCollapsed.value
+  emit('toggle-expand', props.room.id)
 }
 
 const handleAdd = () => {
@@ -194,7 +207,13 @@ const handleCancelBoost = () => {
   padding: 1rem;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+}
+
+.room-card-header.collapsed-heating {
+  background: linear-gradient(135deg, rgba(243, 156, 18, 0.1) 0%, rgba(230, 126, 34, 0.1) 100%);
+  border: 2px solid #f39c12;
+  border-radius: 8px;
 }
 
 .header-left {
@@ -205,16 +224,11 @@ const handleCancelBoost = () => {
   user-select: none;
 }
 
-.header-left:hover .room-name {
-  color: var(--color-primary);
-}
-
 .room-name {
   font-size: 1.25rem;
   font-weight: 600;
   flex: 1;
   color: var(--text-primary);
-  transition: color 0.2s;
 }
 
 .room-status {

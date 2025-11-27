@@ -26,36 +26,15 @@
         v-for="room in rooms"
         :key="room.id"
         :room="room"
+        :is-expanded="expandedRoomId === room.id"
         @update-schedule="handleUpdateSchedule"
         @delete-schedule="handleDeleteSchedule"
         @add-schedule="handleAddSchedule"
         @boost="handleBoost"
         @cancel-boost="handleCancelBoost"
+        @toggle-expand="handleToggleExpand"
       />
-
-      <div class="save-section" v-if="hasChanges">
-        <button class="btn btn-save" @click="saveSchedules" :disabled="saving">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" v-if="!saving">
-            <path d="M2 1a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V2a1 1 0 00-1-1H9.5a1 1 0 00-1 1v7.293l2.646-2.647a.5.5 0 01.708.708l-3.5 3.5a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L7.5 9.293V2a2 2 0 012-2H14a2 2 0 012 2v12a2 2 0 01-2 2H2a2 2 0 01-2-2V2a2 2 0 012-2h5.5a.5.5 0 010 1H2z"/>
-          </svg>
-          <div class="spinner-small" v-else></div>
-          {{ saving ? 'Saving...' : 'Save Changes' }}
-        </button>
-        <button class="btn btn-discard" @click="discardChanges" :disabled="saving">
-          Discard Changes
-        </button>
-      </div>
     </div>
-
-    <ConfirmModal
-      v-if="showDiscardConfirm"
-      title="Discard Changes"
-      message="Are you sure you want to discard all unsaved changes?"
-      confirm-text="Discard"
-      cancel-text="Keep Editing"
-      @confirm="handleDiscardConfirm"
-      @cancel="handleDiscardCancel"
-    />
 
     <Toast
       v-if="toast.visible"
@@ -70,7 +49,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted, reactive } from 'vue'
 import RoomCard from '../components/RoomCard.vue'
-import ConfirmModal from '../components/ConfirmModal.vue'
 import Toast from '../components/Toast.vue'
 import { heatingApi } from '../services/heatingApi.js'
 
@@ -78,17 +56,38 @@ const rooms = ref([])
 const roomStates = ref([])
 const loading = ref(true)
 const error = ref(null)
-const hasChanges = ref(false)
-const saving = ref(false)
-const originalData = ref(null)
-const showDiscardConfirm = ref(false)
 const statePollingInterval = ref(null)
+const expandedRoomId = ref(null)
 const toast = reactive({
   visible: false,
   message: '',
   type: 'success',
   duration: 3000
 })
+
+// Cookie helpers
+const EXPANDED_ROOM_COOKIE = 'heating-app-expanded-room'
+
+const setCookie = (name, value, days = 365) => {
+  const expires = new Date()
+  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000)
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`
+}
+
+const getCookie = (name) => {
+  const nameEQ = name + "="
+  const ca = document.cookie.split(';')
+  for (let i = 0; i < ca.length; i++) {
+    let c = ca[i]
+    while (c.charAt(0) === ' ') c = c.substring(1, c.length)
+    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length))
+  }
+  return null
+}
+
+const deleteCookie = (name) => {
+  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
+}
 
 // TODO: SignalR Connection - Connect to SignalR when component mounts
 // onMounted(async () => {
@@ -100,6 +99,12 @@ const toast = reactive({
 // })
 
 onMounted(() => {
+  // Load previously expanded room from cookie
+  const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
+  if (savedExpandedRoom && savedExpandedRoom !== 'null') {
+    expandedRoomId.value = savedExpandedRoom
+  }
+
   loadSchedules()
   // Poll room states every 30 seconds to update current temperatures and heating status
   // TODO: Replace with SignalR notifications when implemented
@@ -154,8 +159,6 @@ const loadSchedules = async () => {
 
     // Merge schedules with states
     rooms.value = mergeSchedulesWithStates(data.rooms, roomStates.value)
-    originalData.value = JSON.parse(JSON.stringify(data.rooms))
-    hasChanges.value = false
   } catch (err) {
     error.value = 'Failed to load schedules. Please try again.'
     console.error('Error loading schedules:', err)
@@ -185,33 +188,57 @@ const loadRoomStates = async () => {
   }
 }
 
-const handleUpdateSchedule = (roomId, updatedSchedule) => {
+const handleUpdateSchedule = async (roomId, updatedSchedule) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     const scheduleIndex = room.schedules.findIndex(s => s.id === updatedSchedule.id)
     if (scheduleIndex > -1) {
       room.schedules[scheduleIndex] = updatedSchedule
       sortSchedules(room.schedules)
-      hasChanges.value = true
+
+      // Save immediately
+      try {
+        await heatingApi.setSchedules({ rooms: rooms.value })
+        showToast('Schedule updated successfully', 'success')
+      } catch (err) {
+        console.error('Error saving schedule:', err)
+        showToast('Failed to save schedule', 'error')
+      }
     }
   }
 }
 
-const handleDeleteSchedule = (roomId, scheduleId) => {
+const handleDeleteSchedule = async (roomId, scheduleId) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     room.schedules = room.schedules.filter(s => s.id !== scheduleId)
     sortSchedules(room.schedules)
-    hasChanges.value = true
+
+    // Save immediately
+    try {
+      await heatingApi.setSchedules({ rooms: rooms.value })
+      showToast('Schedule deleted successfully', 'success')
+    } catch (err) {
+      console.error('Error saving schedule:', err)
+      showToast('Failed to delete schedule', 'error')
+    }
   }
 }
 
-const handleAddSchedule = (roomId, newSchedule) => {
+const handleAddSchedule = async (roomId, newSchedule) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     room.schedules.push(newSchedule)
     sortSchedules(room.schedules)
-    hasChanges.value = true
+
+    // Save immediately
+    try {
+      await heatingApi.setSchedules({ rooms: rooms.value })
+      showToast('Schedule added successfully', 'success')
+    } catch (err) {
+      console.error('Error saving schedule:', err)
+      showToast('Failed to add schedule', 'error')
+    }
   }
 }
 
@@ -222,7 +249,7 @@ const showToast = (message, type = 'success', duration = 3000) => {
   toast.visible = true
 }
 
-const handleBoost = (roomId, boostData) => {
+const handleBoost = async (roomId, boostData) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     // Calculate start and end times in UTC
@@ -236,55 +263,46 @@ const handleBoost = (roomId, boostData) => {
       temperature: boostData.temperature
     }
 
-    hasChanges.value = true
-
-    const durationText = boostData.duration === 1 ? '1 hour' : `${boostData.duration} hours`
-    showToast(`Boost activated for ${room.name} (${boostData.temperature}°C for ${durationText})`, 'success')
+    // Save immediately
+    try {
+      await heatingApi.setSchedules({ rooms: rooms.value })
+      const durationText = boostData.duration === 1 ? '1 hour' : `${boostData.duration} hours`
+      showToast(`Boost activated for ${room.name} (${boostData.temperature}°C for ${durationText})`, 'success')
+    } catch (err) {
+      console.error('Error saving boost:', err)
+      showToast('Failed to activate boost', 'error')
+    }
   }
 }
 
-const handleCancelBoost = (roomId) => {
+const handleCancelBoost = async (roomId) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     room.boost = null
 
-    hasChanges.value = true
-
-    showToast(`Boost cancelled for ${room.name}`, 'info')
+    // Save immediately
+    try {
+      await heatingApi.setSchedules({ rooms: rooms.value })
+      showToast(`Boost cancelled for ${room.name}`, 'info')
+    } catch (err) {
+      console.error('Error saving boost cancellation:', err)
+      showToast('Failed to cancel boost', 'error')
+    }
   }
 }
 
-const saveSchedules = async () => {
-  saving.value = true
-
-  try {
-    await heatingApi.setSchedules({ rooms: rooms.value })
-    originalData.value = JSON.parse(JSON.stringify(rooms.value))
-    hasChanges.value = false
-
-    // Show success feedback (you could add a toast notification here)
-    console.log('Schedules saved successfully!')
-  } catch (err) {
-    error.value = 'Failed to save schedules. Please try again.'
-    console.error('Error saving schedules:', err)
-  } finally {
-    saving.value = false
+const handleToggleExpand = (roomId) => {
+  // If clicking the already-expanded room, collapse it
+  if (expandedRoomId.value === roomId) {
+    expandedRoomId.value = null
+    deleteCookie(EXPANDED_ROOM_COOKIE)
+  } else {
+    // Otherwise, expand this room and collapse others
+    expandedRoomId.value = roomId
+    setCookie(EXPANDED_ROOM_COOKIE, roomId)
   }
 }
 
-const discardChanges = () => {
-  showDiscardConfirm.value = true
-}
-
-const handleDiscardConfirm = () => {
-  rooms.value = JSON.parse(JSON.stringify(originalData.value))
-  hasChanges.value = false
-  showDiscardConfirm.value = false
-}
-
-const handleDiscardCancel = () => {
-  showDiscardConfirm.value = false
-}
 </script>
 
 <style scoped>
@@ -352,18 +370,6 @@ const handleDiscardCancel = () => {
   gap: 1rem;
 }
 
-.save-section {
-  position: sticky;
-  bottom: 0;
-  background: var(--bg-secondary);
-  padding: 1rem;
-  border-radius: 8px;
-  box-shadow: 0 -2px 10px var(--shadow);
-  display: flex;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
@@ -392,39 +398,7 @@ const handleDiscardCancel = () => {
   background-color: var(--color-primary-hover);
 }
 
-.btn-save {
-  flex: 2;
-  background-color: var(--color-success);
-  color: white;
-}
-
-.btn-save:hover:not(:disabled) {
-  background-color: var(--color-success-hover);
-}
-
-.btn-discard {
-  flex: 1;
-  background-color: var(--color-danger);
-  color: white;
-}
-
-.btn-discard:hover:not(:disabled) {
-  background-color: var(--color-danger-hover);
-}
-
 .btn:active:not(:disabled) {
   transform: scale(0.98);
-}
-
-@media (max-width: 600px) {
-  .save-section {
-    flex-direction: column;
-    padding: 0.75rem;
-  }
-
-  .btn-save,
-  .btn-discard {
-    flex: 1;
-  }
 }
 </style>

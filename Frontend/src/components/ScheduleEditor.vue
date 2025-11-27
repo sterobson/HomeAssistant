@@ -24,16 +24,22 @@
 
         <div class="form-group">
           <label for="temperature">Temperature (°C)</label>
-          <input
-            id="temperature"
-            v-model.number="formData.temperature"
-            type="number"
-            step="0.5"
-            min="5"
-            max="30"
-            required
-            class="form-control"
-          />
+          <div class="temperature-selector">
+            <button type="button" class="temp-btn" @click="decreaseTemp">
+              <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 8a.5.5 0 01.5-.5h15a.5.5 0 010 1H.5A.5.5 0 010 8z"/>
+              </svg>
+            </button>
+            <div class="temperature-display">
+              <span class="temp-value">{{ formData.temperature.toFixed(1) }}</span>
+              <span class="temp-unit">°{{ currentTempUnit }}</span>
+            </div>
+            <button type="button" class="temp-btn" @click="increaseTemp">
+              <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0a.5.5 0 01.5.5v7h7a.5.5 0 010 1h-7v7a.5.5 0 01-1 0v-7h-7a.5.5 0 010-1h7v-7A.5.5 0 018 0z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div class="form-group">
@@ -90,6 +96,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useFormatting } from '../composables/useFormatting.js'
+
+const { convertToDisplay, convertToInternal, currentTempUnit, getTempStep, roundTemp, getDisplayLimits } = useFormatting()
 
 const props = defineProps({
   schedule: {
@@ -112,7 +121,7 @@ const daysOfWeek = [
 
 const formData = ref({
   time: '',
-  temperature: 20
+  temperature: 20  // Will be in display unit
 })
 
 const selectedDays = ref([])
@@ -123,7 +132,8 @@ const isEditing = computed(() => props.schedule !== null)
 onMounted(() => {
   if (props.schedule) {
     formData.value.time = props.schedule.time
-    formData.value.temperature = props.schedule.temperature
+    // Convert internal Celsius to display unit
+    formData.value.temperature = convertToDisplay(props.schedule.temperature)
 
     // Parse conditions
     if (props.schedule.conditions) {
@@ -141,6 +151,9 @@ onMounted(() => {
 
       selectedDays.value = days
     }
+  } else {
+    // New schedule - set default temp in display unit
+    formData.value.temperature = convertToDisplay(20)
   }
 })
 
@@ -162,6 +175,24 @@ const toggleOccupancy = (value) => {
   }
 }
 
+const increaseTemp = () => {
+  const limits = getDisplayLimits()
+  const step = getTempStep()
+  const newTemp = formData.value.temperature + step
+  if (newTemp <= limits.max) {
+    formData.value.temperature = roundTemp(newTemp)
+  }
+}
+
+const decreaseTemp = () => {
+  const limits = getDisplayLimits()
+  const step = getTempStep()
+  const newTemp = formData.value.temperature - step
+  if (newTemp >= limits.min) {
+    formData.value.temperature = roundTemp(newTemp)
+  }
+}
+
 const handleSubmit = () => {
   const conditions = []
 
@@ -174,7 +205,9 @@ const handleSubmit = () => {
   }
 
   const scheduleData = {
-    ...formData.value,
+    time: formData.value.time,
+    // Convert display temperature back to Celsius for storage
+    temperature: convertToInternal(formData.value.temperature),
     conditions: conditions.join(',')
   }
 
@@ -286,6 +319,58 @@ const handleCancel = () => {
   display: block;
   margin-top: 0.25rem;
   font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.temperature-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  padding: 1rem 0;
+}
+
+.temp-btn {
+  background: var(--color-primary);
+  border: none;
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.temp-btn:hover {
+  background: var(--color-primary-hover);
+  transform: scale(1.05);
+}
+
+.temp-btn:active {
+  transform: scale(0.95);
+}
+
+.temperature-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 140px;
+}
+
+.temp-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.temp-unit {
+  font-size: 1.5rem;
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -406,6 +491,18 @@ const handleCancel = () => {
 
   .editor-form {
     padding: 1rem;
+  }
+
+  .temperature-display {
+    min-width: 120px;
+  }
+
+  .temp-value {
+    font-size: 2.5rem;
+  }
+
+  .temp-unit {
+    font-size: 1.25rem;
   }
 
   .days-selector {

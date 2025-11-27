@@ -17,20 +17,18 @@ internal class HomeBatteryManager
     private readonly IElectricityMeter _electricityMeter;
     private readonly IHomeBattery _homeBattery;
     private readonly ICarCharger _carCharger;
-    private readonly NotificationService _notificationService;
     private readonly IWeatherProvider _weatherProvider;
     private readonly ISolarPanels _solarPanels;
     private readonly ILogger<HomeBatteryManager> _logger;
 
     public HomeBatteryManager(IScheduler scheduler, IElectricityMeter electricityMeter,
-                               IHomeBattery homeBattery, ICarCharger carCharger, NotificationService notificationService,
+                               IHomeBattery homeBattery, ICarCharger carCharger,
                                IWeatherProvider weatherProvider, ISolarPanels solarPanels,
                                ILogger<HomeBatteryManager> logger)
     {
         _electricityMeter = electricityMeter;
         _homeBattery = homeBattery;
         _carCharger = carCharger;
-        _notificationService = notificationService;
         _weatherProvider = weatherProvider;
         _solarPanels = solarPanels;
         _logger = logger;
@@ -81,8 +79,12 @@ internal class HomeBatteryManager
         try
         {
             await _setBatteryStateSemaphore.WaitAsync();
+
             TimeOnly dischargeAfter = new(21, 00);
             TimeOnly dischargeUntil = new(23, 00);
+            const int stopDischargeIfUnderPercent = 25;
+            const int batteryConsideredFullIfGtEqToPercent = 99;
+            const int onlyStartChargingBatteryIfBelow = batteryConsideredFullIfGtEqToPercent - 4; // Stop the flapping when charging and battery is nearly full
 
             double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
             double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
@@ -108,24 +110,15 @@ internal class HomeBatteryManager
 
             BatteryPredictionResult batteryPrediction = await GetPredictedBatteryScores();
 
-            const int startChargingIfMaxUnderPercent = 85;
-            const int keepChargingIfMaxUnderPercent = 99;
-
-            const int startChargingIfMinUnderPercent = 20;
-            const int keepChargingIfMinUnderPercent = 25;
-
-            const int stopDischargeIfUnderPercent = 25;
-
-            const int batteryConsideredFullIfGtEqToPercent = 99;
-
-            bool isBatteryProjectionInRangeThatNeedsCharging = batteryPrediction.MaximumChargePct < startChargingIfMaxUnderPercent || batteryPrediction.MinimumChargePct < startChargingIfMinUnderPercent
-                    || (currentHomeBatteryState == BatteryState.ForceCharging && (batteryPrediction.MaximumChargePct < keepChargingIfMaxUnderPercent || batteryPrediction.MinimumChargePct < keepChargingIfMinUnderPercent));
-            bool isBatteryFull = homeBatteryChargePct >= batteryConsideredFullIfGtEqToPercent;
-
             BatteryState desiredHomeBatteryState;
-            if (isElectricityCheap && isBatteryProjectionInRangeThatNeedsCharging && !isBatteryFull)
+            if (isElectricityCheap && homeBatteryChargePct < onlyStartChargingBatteryIfBelow && currentHomeBatteryState != BatteryState.ForceCharging)
             {
-                // We need some more juice in the battery, and it's cheap to do.
+                // We're not currently charging, but the energy is cheap and the battery has < 95%, so start charging.
+                desiredHomeBatteryState = BatteryState.ForceCharging;
+            }
+            else if (isElectricityCheap && homeBatteryChargePct < batteryConsideredFullIfGtEqToPercent && currentHomeBatteryState == BatteryState.ForceCharging)
+            {
+                // We are already charging, energy is cheap, and the battery is not full yet, so keep topping up.
                 desiredHomeBatteryState = BatteryState.ForceCharging;
             }
             else if (isElectricityCheap && isCarCharging)

@@ -1,5 +1,13 @@
 <template>
-  <div class="schedule-item" :class="{ 'is-active': isActive }" @click="handleEdit">
+  <div
+    class="schedule-item"
+    :class="{
+      'is-active': isActive,
+      'is-active-heating': isActive && heatingActive,
+      'is-active-off': isActive && !heatingActive
+    }"
+    @click="handleEdit"
+  >
     <div class="active-indicator" v-if="isActive" title="Currently active schedule">
       <div class="pulse-dot"></div>
     </div>
@@ -10,14 +18,14 @@
             <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z"/>
             <path d="M8 3v5l3.5 2-.75 1.25L6.5 8.5V3H8z"/>
           </svg>
-          <span class="time-value">{{ schedule.time }}</span>
+          <span class="time-value">{{ formatTimeDisplay(schedule.time) }}</span>
         </div>
 
         <div class="schedule-temp">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
             <path d="M6 2a2 2 0 012-2 2 2 0 012 2v7.5a3.5 3.5 0 11-4 0V2zm2-1a1 1 0 00-1 1v8a1 1 0 00.5.866 2.5 2.5 0 102.5 0A1 1 0 0010 10V2a1 1 0 00-1-1z"/>
           </svg>
-          <span class="temp-value">{{ schedule.temperature }}°C</span>
+          <span class="temp-value">{{ formatTempWithUnit(schedule.temperature) }}</span>
         </div>
       </div>
 
@@ -49,12 +57,20 @@
 </template>
 
 <script setup>
+import { useFormatting } from '../composables/useFormatting.js'
+
+const { formatTempWithUnit, formatTimeDisplay } = useFormatting()
+
 const props = defineProps({
   schedule: {
     type: Object,
     required: true
   },
   isActive: {
+    type: Boolean,
+    default: false
+  },
+  heatingActive: {
     type: Boolean,
     default: false
   }
@@ -91,6 +107,16 @@ const handleDelete = () => {
 
 .schedule-item.is-active {
   /* Active indicator is shown via the pulse dot only */
+}
+
+.schedule-item.is-active-heating {
+  background: linear-gradient(135deg, rgba(243, 156, 18, 0.1) 0%, rgba(230, 126, 34, 0.1) 100%);
+  border: 2px solid #f39c12;
+}
+
+.schedule-item.is-active-off {
+  background: linear-gradient(135deg, rgba(39, 174, 96, 0.1) 0%, rgba(46, 204, 113, 0.1) 100%);
+  border: 2px solid #27ae60;
 }
 
 .active-indicator {
