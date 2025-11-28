@@ -19,6 +19,7 @@ public interface IHomeBattery
 {
     double? CurrentChargePercent { get; }
     double BatteryCapacitykWh { get; }
+    double MaximumExportRateW { get; }
     BatteryState GetHomeBatteryState();
     void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action);
     void OnBatteryUseModeChanged(Func<Task> action);

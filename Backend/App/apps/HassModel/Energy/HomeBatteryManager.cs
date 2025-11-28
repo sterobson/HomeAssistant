@@ -20,11 +20,12 @@ internal class HomeBatteryManager
     private readonly IWeatherProvider _weatherProvider;
     private readonly ISolarPanels _solarPanels;
     private readonly ILogger<HomeBatteryManager> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public HomeBatteryManager(IScheduler scheduler, IElectricityMeter electricityMeter,
                                IHomeBattery homeBattery, ICarCharger carCharger,
                                IWeatherProvider weatherProvider, ISolarPanels solarPanels,
-                               ILogger<HomeBatteryManager> logger)
+                               ILogger<HomeBatteryManager> logger, TimeProvider timeProvider)
     {
         _electricityMeter = electricityMeter;
         _homeBattery = homeBattery;
@@ -32,6 +33,7 @@ internal class HomeBatteryManager
         _weatherProvider = weatherProvider;
         _solarPanels = solarPanels;
         _logger = logger;
+        _timeProvider = timeProvider;
 
         // Initially run this very soon after start up
         scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () => await SetBatteryState());
@@ -71,7 +73,7 @@ internal class HomeBatteryManager
     private double? _previousHomeBatteryChargePct = null;
     private bool _previousIsCarCharging = false;
     private bool _previousIsElectricityCheap = false;
-    private bool _previousIsInDischargeTimeRange = false;
+    private bool _previousShouldDischarge = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
 
     private async Task SetBatteryState()
@@ -81,7 +83,7 @@ internal class HomeBatteryManager
             await _setBatteryStateSemaphore.WaitAsync();
 
             TimeOnly dischargeAfter = new(21, 00);
-            TimeOnly dischargeUntil = new(23, 00);
+            TimeOnly dischargeUntil = new(23, 30);
             const int stopDischargeIfUnderPercent = 25;
             const int batteryConsideredFullIfGtEqToPercent = 99;
             const int onlyStartChargingBatteryIfBelow = batteryConsideredFullIfGtEqToPercent - 4; // Stop the flapping when charging and battery is nearly full
@@ -90,15 +92,32 @@ internal class HomeBatteryManager
             double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
             bool isCarCharging = _carCharger.ChargerCurrent > 1;
             bool isElectricityCheap = currentUnitPriceRate < 0.1;
-            bool isInDischargeRange = DateTime.Now.TimeOfDay >= dischargeAfter.ToTimeSpan() && DateTime.Now.TimeOfDay <= dischargeUntil.ToTimeSpan();
+            DateTime now = _timeProvider.GetLocalNow().DateTime;
             BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
+
+            // Hours until we want the battery to be discharged
+            double hoursUntilDischargeTarget = dischargeUntil.ToTimeSpan().Subtract(now.TimeOfDay).TotalHours;
+            double targetFinalCapacity = (_homeBattery.BatteryCapacitykWh * stopDischargeIfUnderPercent) / 100;
+            double maxExportPercentPerHour = 100 * (_homeBattery.MaximumExportRateW / 1000) / _homeBattery.BatteryCapacitykWh;
+            double expectedCapacityPercentToDischargeToNow = stopDischargeIfUnderPercent + maxExportPercentPerHour * hoursUntilDischargeTarget;
+            if (expectedCapacityPercentToDischargeToNow < stopDischargeIfUnderPercent)
+            {
+                expectedCapacityPercentToDischargeToNow = 101;
+            }
+            else if (_homeBattery.CurrentChargePercent > expectedCapacityPercentToDischargeToNow && currentHomeBatteryState != BatteryState.ForceDischarging)
+            {
+                // If the battery is currently not discharging, give a few percent extra before we start discharging. Helps stop flapping.
+                expectedCapacityPercentToDischargeToNow += 1;
+            }
+
+            bool shouldDischarge = _homeBattery.CurrentChargePercent > expectedCapacityPercentToDischargeToNow;
 
             if (currentUnitPriceRate == _previousUnitPriceRate
                 && homeBatteryChargePct == _previousHomeBatteryChargePct
                 && isCarCharging == _previousIsCarCharging
                 && isElectricityCheap == _previousIsElectricityCheap
                 && currentHomeBatteryState == _previousBatteryState
-                && isInDischargeRange == _previousIsInDischargeTimeRange)
+                && shouldDischarge == _previousShouldDischarge)
             {
                 // Nothing we care about has changed, so no need to do anything.
                 return;
@@ -137,7 +156,7 @@ internal class HomeBatteryManager
                 // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
-            else if (isInDischargeRange && homeBatteryChargePct > stopDischargeIfUnderPercent)
+            else if (shouldDischarge)
             {
                 // Let's discharge whatever is in the battery
                 desiredHomeBatteryState = BatteryState.ForceDischarging;
@@ -183,7 +202,7 @@ internal class HomeBatteryManager
             _previousIsElectricityCheap = isElectricityCheap;
             _previousUnitPriceRate = currentUnitPriceRate;
             _previousBatteryState = desiredHomeBatteryState;
-            _previousIsInDischargeTimeRange = isInDischargeRange;
+            _previousShouldDischarge = shouldDischarge;
         }
         finally
         {
@@ -217,7 +236,7 @@ internal class HomeBatteryManager
 
         BatteryPredictionResult result = new();
 
-        DateTime now = DateTime.Now;
+        DateTime now = _timeProvider.GetLocalNow().DateTime;
         DateTime solarHistoryStartDate = now.AddDays(-1);
         DateTime historyStartDate = now.Date.AddDays(-daysPowerHistory);
         DateTime historyEndDate = now;

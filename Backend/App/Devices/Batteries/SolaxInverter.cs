@@ -17,11 +17,14 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
     private readonly NumberEntity _batteryChargeMaxCurrent;
     private readonly NumericSensorEntity _totalBatteryPowerCharge;
     private readonly NumericSensorEntity _totalPvPowerSensor;
+    private readonly NumberEntity _exportLimitW;
     private readonly HomeAssistantGenerated.Services _services;
 
     public double? CurrentChargePercent => _batteryChargePercentSensor?.State;
 
     public double BatteryCapacitykWh => 20.4;
+
+    public double MaximumExportRateW => _exportLimitW.State ?? 0;
 
     public SolaxInverter(IHaContext ha, HistoryService historyService)
     {
@@ -36,6 +39,7 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
         _batteryChargeMaxCurrent = entities.Number.SolaxInverterBatteryChargeMaxCurrent;
         _totalBatteryPowerCharge = entities.Sensor.SolaxInverterTotalBatteryPowerCharge;
         _totalPvPowerSensor = entities.Sensor.SolaxInverterPvPowerTotal;
+        _exportLimitW = entities.Number.SolaxInverterExportControlUserLimit;
     }
 
     public void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action)
