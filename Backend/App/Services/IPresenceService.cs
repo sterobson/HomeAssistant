@@ -1,9 +1,8 @@
-﻿using HomeAssistant.Services.Climate;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 
 namespace HomeAssistant.Services;
 
 internal interface IPresenceService
 {
-    Task<bool> IsRoomInUse(Room room);
+    Task<bool> IsRoomInUse(string roomName);
 }

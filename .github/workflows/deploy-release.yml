@@ -37,14 +37,11 @@ jobs:
         env:
           GITHUB_PAGES: 'true'
           DEPLOY_PATH: '/'
-          # Use mock API for demo deployment (no backend required)
-          VITE_USE_MOCK_API: 'true'
-          # Set your production API URL here when you have a backend deployed
-          # VITE_API_URL: 'https://your-api-url.azurewebsites.net'
-          # Or use GitHub Secrets (recommended)
-          # VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_HOUSE_ID: '00000000-0000-0000-0000-000000000000'
-        run: npm run build
+          # Azure Function Key injected from GitHub Secrets
+          # This will be baked into the build and visible in the browser
+          # But it's rotatable and trackable via Azure
+          VITE_FUNCTION_KEY: ${{ secrets.VITE_PRODUCTION_FUNCTION_KEY }}
+        run: npm run build -- --mode production
 
       - name: Deploy to GitHub Pages (root)
         uses: peaceiris/actions-gh-pages@v4

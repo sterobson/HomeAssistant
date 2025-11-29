@@ -1,7 +1,7 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using HomeAssistant.Functions.Models;
+using HomeAssistant.Shared.Climate;
 using System.Text;
 using System.Text.Json;
 
@@ -20,7 +20,7 @@ public class ScheduleStorageService
         _containerClient = blobServiceClient.GetBlobContainerClient(ContainerName);
     }
 
-    public async Task<SchedulesResponse?> GetSchedulesAsync(Guid houseId)
+    public async Task<RoomSchedulesDto?> GetSchedulesAsync(string houseId)
     {
         BlobClient blobClient = _containerClient.GetBlobClient($"{houseId}.json");
 
@@ -32,10 +32,10 @@ public class ScheduleStorageService
         Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync();
         string json = response.Value.Content.ToString();
 
-        return JsonSerializer.Deserialize<SchedulesResponse>(json, _deserialiserOptions);
+        return JsonSerializer.Deserialize<RoomSchedulesDto>(json, _deserialiserOptions);
     }
 
-    public async Task SaveSchedulesAsync(Guid houseId, SchedulesResponse schedules)
+    public async Task SaveSchedulesAsync(string houseId, RoomSchedulesDto schedules)
     {
         // Ensure container exists
         await _containerClient.CreateIfNotExistsAsync(PublicAccessType.None);

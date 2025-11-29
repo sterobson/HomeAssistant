@@ -3,6 +3,7 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
 using HomeAssistant.Services.Climate;
+using HomeAssistant.Shared.Climate;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
@@ -37,135 +38,135 @@ public sealed class HeatingControlServiceTests
 
     [TestMethod]
     // GamesRoom test cases
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:59", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 15 in 1 minute, but was scheduled 16 a few hours ago and should still be active")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:00", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Schedule 15 in 1 hour, already warm enough")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 16 at 9pm, not yet warm enough")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:45", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 15 in 15 minutes, not already warm enough, should be ramping up")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", Current_Temp_23, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", Current_Temp_23, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:00", Current_Temp_23, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:00", Current_Temp_23, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
+    [DataRow("Games room", "2025-11-23", "00:59", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 15 in 1 minute, but was scheduled 16 a few hours ago and should still be active")]
+    [DataRow("Games room", "2025-11-23", "00:00", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Schedule 15 in 1 hour, already warm enough")]
+    [DataRow("Games room", "2025-11-23", "00:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 16 at 9pm, not yet warm enough")]
+    [DataRow("Games room", "2025-11-23", "00:45", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Schedule 15 in 15 minutes, not already warm enough, should be ramping up")]
+    [DataRow("Games room", "2025-11-23", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
+    [DataRow("Games room", "2025-11-23", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
+    [DataRow("Games room", "2025-11-23", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
+    [DataRow("Games room", "2025-11-23", "07:00", Current_Temp_23, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
+    [DataRow("Games room", "2025-11-23", "07:00", Current_Temp_23, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Sunday")]
+    [DataRow("Games room", "2025-11-22", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
+    [DataRow("Games room", "2025-11-22", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
+    [DataRow("Games room", "2025-11-22", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
+    [DataRow("Games room", "2025-11-22", "07:00", Current_Temp_23, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
+    [DataRow("Games room", "2025-11-22", "07:00", Current_Temp_23, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Target is 22 on Sundays, 18 every other day - this is Saturday")]
     // No pre-cooling tests
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:45", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "At target temp from 21:00 schedule, don't pre-cool for lower upcoming 01:00 schedule")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "20:45", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Don't pre-cool for upcoming 21:00 lower target (16°C), maintain 18:00 target (21°C), heating on to reach 21°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "20:45", Current_Temp_21, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "At 18:00 target (21°C), don't pre-cool for upcoming 21:00 lower target (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "20:45", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Still maintaining 18:00 schedule target of 21°C at 20:45")]
+    [DataRow("Games room", "2025-11-23", "00:45", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "At target temp from 21:00 schedule, don't pre-cool for lower upcoming 01:00 schedule")]
+    [DataRow("Games room", "2025-11-23", "20:45", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Don't pre-cool for upcoming 21:00 lower target (16°C), maintain 18:00 target (21°C), heating on to reach 21°C")]
+    [DataRow("Games room", "2025-11-23", "20:45", Current_Temp_21, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "At 18:00 target (21°C), don't pre-cool for upcoming 21:00 lower target (16°C)")]
+    [DataRow("Games room", "2025-11-23", "20:45", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Still maintaining 18:00 schedule target of 21°C at 20:45")]
     // Exact schedule transition times
-    [DataRow(Room.GamesRoom, "2025-11-23", "01:00", Current_Temp_16, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 01:00, new schedule (15°C) is now active, heating off")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "01:00", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "At exactly 01:00, new schedule (15°C) is now active, need heat")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "10:00", Current_Temp_19, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 10:00, target dropped to 15°C, turn off heating")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "10:00", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "At exactly 10:00, below new target of 15°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "21:00", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 21:00, target dropped to 16°C, turn off heating")]
+    [DataRow("Games room", "2025-11-23", "01:00", Current_Temp_16, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 01:00, new schedule (15°C) is now active, heating off")]
+    [DataRow("Games room", "2025-11-23", "01:00", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "At exactly 01:00, new schedule (15°C) is now active, need heat")]
+    [DataRow("Games room", "2025-11-23", "10:00", Current_Temp_19, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 10:00, target dropped to 15°C, turn off heating")]
+    [DataRow("Games room", "2025-11-23", "10:00", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "At exactly 10:00, below new target of 15°C")]
+    [DataRow("Games room", "2025-11-23", "21:00", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "At exactly 21:00, target dropped to 16°C, turn off heating")]
     // Just before ramp-up starts
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:29", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "1 minute before ramp-up for 01:00, still using 21:00 schedule (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "05:29", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "1 minute before ramp-up for 06:00, current schedule is 01:00 (15°C)")]
+    [DataRow("Games room", "2025-11-23", "00:29", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "1 minute before ramp-up for 01:00, still using 21:00 schedule (16°C)")]
+    [DataRow("Games room", "2025-11-23", "05:29", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "1 minute before ramp-up for 06:00, current schedule is 01:00 (15°C)")]
     // Pre-heating for higher upcoming target
-    [DataRow(Room.GamesRoom, "2025-11-23", "05:45", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Pre-heating for 06:00 schedule (20°C) from current 01:00 schedule (15°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "05:45", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Pre-heating for 06:00, room occupied uses RoomInUse schedule (19°C), at target")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "05:45", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Pre-heating for 06:00 schedule (20°C), already at target")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "17:45", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Pre-heating for 18:00 schedule (21°C) from 10:00 schedule (15°C)")]
+    [DataRow("Games room", "2025-11-23", "05:45", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Pre-heating for 06:00 schedule (20°C) from current 01:00 schedule (15°C)")]
+    [DataRow("Games room", "2025-11-23", "05:45", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Pre-heating for 06:00, room occupied uses RoomInUse schedule (19°C), at target")]
+    [DataRow("Games room", "2025-11-23", "05:45", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Pre-heating for 06:00 schedule (20°C), already at target")]
+    [DataRow("Games room", "2025-11-23", "17:45", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Pre-heating for 18:00 schedule (21°C) from 10:00 schedule (15°C)")]
     // Day boundary tests
-    [DataRow(Room.GamesRoom, "2025-11-23", "00:01", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After midnight, still using previous day's 21:00 schedule (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "00:01", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After midnight on Monday, still using previous day's 21:00 schedule (16°C)")]
+    [DataRow("Games room", "2025-11-23", "00:01", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After midnight, still using previous day's 21:00 schedule (16°C)")]
+    [DataRow("Games room", "2025-11-24", "00:01", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After midnight on Monday, still using previous day's 21:00 schedule (16°C)")]
     // Weekday vs weekend logic
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Monday should use NotSunday schedule (18°C target)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday at target for NotSunday schedule (18°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday should NOT use Sunday schedule (22°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-25", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Tuesday should use NotSunday schedule (18°C target)")]
-    [DataRow(Room.GamesRoom, "2025-11-26", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Wednesday should use NotSunday schedule (18°C target)")]
-    [DataRow(Room.GamesRoom, "2025-11-27", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Thursday should use NotSunday schedule (18°C target)")]
-    [DataRow(Room.GamesRoom, "2025-11-28", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Friday should use NotSunday schedule (18°C target)")]
+    [DataRow("Games room", "2025-11-24", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Monday should use NotSunday schedule (18°C target)")]
+    [DataRow("Games room", "2025-11-24", "07:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday at target for NotSunday schedule (18°C)")]
+    [DataRow("Games room", "2025-11-24", "07:00", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday should NOT use Sunday schedule (22°C)")]
+    [DataRow("Games room", "2025-11-25", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Tuesday should use NotSunday schedule (18°C target)")]
+    [DataRow("Games room", "2025-11-26", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Wednesday should use NotSunday schedule (18°C target)")]
+    [DataRow("Games room", "2025-11-27", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Thursday should use NotSunday schedule (18°C target)")]
+    [DataRow("Games room", "2025-11-28", "07:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Friday should use NotSunday schedule (18°C target)")]
     // After schedule drops
-    [DataRow(Room.GamesRoom, "2025-11-23", "10:01", Current_Temp_19, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "After 10:00, target dropped to 15°C, turn off")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "10:01", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After 10:00, below target of 15°C, turn on")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "21:01", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "After 21:00, target dropped to 16°C from 21°C")]
+    [DataRow("Games room", "2025-11-23", "10:01", Current_Temp_19, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "After 10:00, target dropped to 15°C, turn off")]
+    [DataRow("Games room", "2025-11-23", "10:01", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "After 10:00, below target of 15°C, turn on")]
+    [DataRow("Games room", "2025-11-23", "21:01", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "After 21:00, target dropped to 16°C from 21°C")]
     // Room occupied - RoomInUse condition applies
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Room occupied at 06:30, RoomInUse schedule (19°C at 06:00) applies, needs heating")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Room occupied at 06:30, RoomInUse schedule (19°C) applies, at target")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Room occupied at 06:30, RoomInUse schedule (19°C) applies, above target")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Room occupied at 06:30, RoomInUse schedule (19°C at 06:00) applies, needs heating")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Room occupied at 06:30, RoomInUse schedule (19°C) applies, at target")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Room occupied at 06:30, RoomInUse schedule (19°C) applies, above target")]
     // Room unoccupied - RoomInUse condition does NOT apply, fallback to base 06:00 schedule
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_19, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Room unoccupied at 06:30, RoomInUse doesn't apply, fallback to base 06:00 schedule (20°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_20, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Room unoccupied at 06:30, at base 06:00 target (20°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "06:30", Current_Temp_21, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "Room unoccupied at 06:30, above base 06:00 target (20°C)")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_19, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Room unoccupied at 06:30, RoomInUse doesn't apply, fallback to base 06:00 schedule (20°C)")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_20, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Room unoccupied at 06:30, at base 06:00 target (20°C)")]
+    [DataRow("Games room", "2025-11-24", "06:30", Current_Temp_21, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "Room unoccupied at 06:30, above base 06:00 target (20°C)")]
     // Room unoccupied on weekday morning - RoomNotInUse condition applies
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Monday 07:30, room unoccupied, RoomNotInUse schedule (18°C at 07:00) applies")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:30", Current_Temp_18, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Monday 07:30, room unoccupied, at RoomNotInUse target (18°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-25", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Tuesday 07:30, room unoccupied, RoomNotInUse schedule applies")]
+    [DataRow("Games room", "2025-11-24", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Monday 07:30, room unoccupied, RoomNotInUse schedule (18°C at 07:00) applies")]
+    [DataRow("Games room", "2025-11-24", "07:30", Current_Temp_18, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Monday 07:30, room unoccupied, at RoomNotInUse target (18°C)")]
+    [DataRow("Games room", "2025-11-25", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Tuesday 07:30, room unoccupied, RoomNotInUse schedule applies")]
     // Room occupied on weekday morning - RoomNotInUse does NOT apply, uses base schedule or RoomInUse
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday 07:30, room occupied, using 07:00 NotSunday base schedule (18°C), at target")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "07:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday 07:30, room occupied, above 07:00 NotSunday target (18°C)")]
+    [DataRow("Games room", "2025-11-24", "07:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday 07:30, room occupied, using 07:00 NotSunday base schedule (18°C), at target")]
+    [DataRow("Games room", "2025-11-24", "07:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Monday 07:30, room occupied, above 07:00 NotSunday target (18°C)")]
     // Room unoccupied at 09:00 - RoomNotInUse condition applies
-    [DataRow(Room.GamesRoom, "2025-11-24", "09:30", Current_Temp_15, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "09:30, room unoccupied, RoomNotInUse schedule (16°C at 09:00) applies")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "09:30", Current_Temp_16, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "09:30, room unoccupied, at RoomNotInUse target (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "09:30", Current_Temp_17, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "09:30, room unoccupied, above RoomNotInUse target (16°C)")]
+    [DataRow("Games room", "2025-11-24", "09:30", Current_Temp_15, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "09:30, room unoccupied, RoomNotInUse schedule (16°C at 09:00) applies")]
+    [DataRow("Games room", "2025-11-24", "09:30", Current_Temp_16, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "09:30, room unoccupied, at RoomNotInUse target (16°C)")]
+    [DataRow("Games room", "2025-11-24", "09:30", Current_Temp_17, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "09:30, room unoccupied, above RoomNotInUse target (16°C)")]
     // Room occupied at 09:00 - RoomNotInUse does NOT apply
-    [DataRow(Room.GamesRoom, "2025-11-24", "09:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "09:30, room occupied, RoomNotInUse doesn't apply, using 07:00 base schedule (18°C), at target")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "09:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "09:30, room occupied, above 07:00 base target (18°C)")]
+    [DataRow("Games room", "2025-11-24", "09:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "09:30, room occupied, RoomNotInUse doesn't apply, using 07:00 base schedule (18°C), at target")]
+    [DataRow("Games room", "2025-11-24", "09:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "09:30, room occupied, above 07:00 base target (18°C)")]
     // Evening - room unoccupied, RoomNotInUse 21:30 schedule applies
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_13, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "22:00, room unoccupied, RoomNotInUse schedule (14°C at 21:30) applies")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_14, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "22:00, room unoccupied, at RoomNotInUse target (14°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_15, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "22:00, room unoccupied, above RoomNotInUse target (14°C)")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_13, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "22:00, room unoccupied, RoomNotInUse schedule (14°C at 21:30) applies")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_14, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "22:00, room unoccupied, at RoomNotInUse target (14°C)")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_15, Heating_Is_On, Room_Unoccupied, Heating_Should_Be_Off, "22:00, room unoccupied, above RoomNotInUse target (14°C)")]
     // Evening - room occupied, RoomNotInUse does NOT apply, stays at 21:00 base schedule
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "22:00, room occupied, RoomNotInUse doesn't apply, maintain 21:00 schedule (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "22:00, room occupied, at 21:00 target (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-24", "22:00", Current_Temp_17, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "22:00, room occupied, above 21:00 target (16°C)")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "22:00, room occupied, RoomNotInUse doesn't apply, maintain 21:00 schedule (16°C)")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "22:00, room occupied, at 21:00 target (16°C)")]
+    [DataRow("Games room", "2025-11-24", "22:00", Current_Temp_17, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "22:00, room occupied, above 21:00 target (16°C)")]
     // Weekend - RoomNotInUse weekday schedule does NOT apply on Saturday
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Saturday 07:30, room unoccupied, weekday RoomNotInUse doesn't apply, use Saturday 07:00 (18°C)")]
-    [DataRow(Room.GamesRoom, "2025-11-22", "07:30", Current_Temp_18, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Saturday 07:30, at Saturday target (18°C)")]
+    [DataRow("Games room", "2025-11-22", "07:30", Current_Temp_17, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_On, "Saturday 07:30, room unoccupied, weekday RoomNotInUse doesn't apply, use Saturday 07:00 (18°C)")]
+    [DataRow("Games room", "2025-11-22", "07:30", Current_Temp_18, Heating_Is_Off, Room_Unoccupied, Heating_Should_Be_Off, "Saturday 07:30, at Saturday target (18°C)")]
     // Kitchen test cases
-    [DataRow(Room.Kitchen, "2025-11-24", "06:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen at 06:00 weekday, target 19°C, needs heating")]
-    [DataRow(Room.Kitchen, "2025-11-24", "06:00", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen at 06:00 weekday, at target 19°C")]
-    [DataRow(Room.Kitchen, "2025-11-24", "12:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen midday, target 18.5°C, needs heating")]
-    [DataRow(Room.Kitchen, "2025-11-24", "12:00", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen midday, above target 18.5°C")]
-    [DataRow(Room.Kitchen, "2025-11-24", "19:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen evening 19:00, target 19°C, needs heating")]
-    [DataRow(Room.Kitchen, "2025-11-24", "22:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen late evening, target 16°C, above target")]
+    [DataRow("Kitchen", "2025-11-24", "06:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen at 06:00 weekday, target 19°C, needs heating")]
+    [DataRow("Kitchen", "2025-11-24", "06:00", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen at 06:00 weekday, at target 19°C")]
+    [DataRow("Kitchen", "2025-11-24", "12:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen midday, target 18.5°C, needs heating")]
+    [DataRow("Kitchen", "2025-11-24", "12:00", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen midday, above target 18.5°C")]
+    [DataRow("Kitchen", "2025-11-24", "19:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Kitchen evening 19:00, target 19°C, needs heating")]
+    [DataRow("Kitchen", "2025-11-24", "22:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Kitchen late evening, target 16°C, above target")]
     // Hysteresis/anti-flapping test cases
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 22.0, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at exact target with heating ON, stays ON until 22.2°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 22.1, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at 22.1°C with heating ON, stays ON until 22.2°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 22.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at 22.2°C with heating ON, turns OFF")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 22.0, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at exact target with heating OFF, stays OFF until 21.8°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 21.9, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at 21.9°C with heating OFF, stays OFF until 21.8°C")]
-    [DataRow(Room.GamesRoom, "2025-11-23", "07:00", 21.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at 21.8°C with heating OFF, turns ON")]
-    [DataRow(Room.Kitchen, "2025-11-24", "19:00", 19.0, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Kitchen target 19°C, at exact target with heating ON, stays ON")]
-    [DataRow(Room.Kitchen, "2025-11-24", "19:00", 19.0, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at exact target with heating OFF, stays OFF")]
-    [DataRow(Room.Kitchen, "2025-11-24", "19:00", 19.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at 19.2°C with heating ON, turns OFF")]
-    [DataRow(Room.Kitchen, "2025-11-24", "19:00", 18.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Kitchen target 19°C, at 18.8°C with heating OFF, turns ON")]
+    [DataRow("Games room", "2025-11-23", "07:00", 22.0, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at exact target with heating ON, stays ON until 22.2°C")]
+    [DataRow("Games room", "2025-11-23", "07:00", 22.1, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at 22.1°C with heating ON, stays ON until 22.2°C")]
+    [DataRow("Games room", "2025-11-23", "07:00", 22.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at 22.2°C with heating ON, turns OFF")]
+    [DataRow("Games room", "2025-11-23", "07:00", 22.0, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at exact target with heating OFF, stays OFF until 21.8°C")]
+    [DataRow("Games room", "2025-11-23", "07:00", 21.9, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Target 22°C, at 21.9°C with heating OFF, stays OFF until 21.8°C")]
+    [DataRow("Games room", "2025-11-23", "07:00", 21.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Target 22°C, at 21.8°C with heating OFF, turns ON")]
+    [DataRow("Kitchen", "2025-11-24", "19:00", 19.0, Heating_Is_On, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Kitchen target 19°C, at exact target with heating ON, stays ON")]
+    [DataRow("Kitchen", "2025-11-24", "19:00", 19.0, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at exact target with heating OFF, stays OFF")]
+    [DataRow("Kitchen", "2025-11-24", "19:00", 19.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at 19.2°C with heating ON, turns OFF")]
+    [DataRow("Kitchen", "2025-11-24", "19:00", 18.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Kitchen target 19°C, at 18.8°C with heating OFF, turns ON")]
     // GMT to BST transition tests (Spring forward: 1:00 AM GMT becomes 2:00 AM BST on last Sunday of March)
-    [DataRow(Room.GamesRoom, "2025-03-30", "00:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: 30 mins before clocks go forward, 01:00 schedule (15°C) active, need heating")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "00:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: 30 mins before clocks go forward, above 01:00 target (15°C)")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "02:30", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: After clocks went forward, 01:00 schedule (15°C) should still be active")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "02:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: After clocks went forward, above 01:00 target (15°C)")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "05:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Pre-heating for 06:00 schedule after DST transition")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Sunday 06:30, pre-heating for 07:00 schedule (22°C)")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "06:30", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Sunday 06:30, pre-heating for 07:00 (22°C), needs heating")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "06:30", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Sunday 06:30, at pre-heat target (22°C)")]
-    [DataRow(Room.Kitchen, "2025-03-30", "00:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Kitchen before transition, 21:30 schedule (16°C) from previous day active")]
-    [DataRow(Room.Kitchen, "2025-03-30", "02:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Kitchen after transition, still using 21:30 schedule from previous day")]
+    [DataRow("Games room", "2025-03-30", "00:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: 30 mins before clocks go forward, 01:00 schedule (15°C) active, need heating")]
+    [DataRow("Games room", "2025-03-30", "00:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: 30 mins before clocks go forward, above 01:00 target (15°C)")]
+    [DataRow("Games room", "2025-03-30", "02:30", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: After clocks went forward, 01:00 schedule (15°C) should still be active")]
+    [DataRow("Games room", "2025-03-30", "02:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: After clocks went forward, above 01:00 target (15°C)")]
+    [DataRow("Games room", "2025-03-30", "05:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Pre-heating for 06:00 schedule after DST transition")]
+    [DataRow("Games room", "2025-03-30", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Sunday 06:30, pre-heating for 07:00 schedule (22°C)")]
+    [DataRow("Games room", "2025-03-30", "06:30", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Sunday 06:30, pre-heating for 07:00 (22°C), needs heating")]
+    [DataRow("Games room", "2025-03-30", "06:30", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Sunday 06:30, at pre-heat target (22°C)")]
+    [DataRow("Kitchen", "2025-03-30", "00:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Kitchen before transition, 21:30 schedule (16°C) from previous day active")]
+    [DataRow("Kitchen", "2025-03-30", "02:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Kitchen after transition, still using 21:30 schedule from previous day")]
     // BST to GMT transition tests (Fall back: 2:00 AM BST becomes 1:00 AM GMT on last Sunday of October)
-    [DataRow(Room.GamesRoom, "2025-10-26", "00:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: 30 mins before clocks go back, 01:00 schedule (15°C) not yet active, using 21:00 (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "00:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Before clocks go back, at 21:00 target (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "01:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: During repeated hour, 01:00 schedule (15°C) should be active, at target")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "01:30", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: During repeated hour, below 01:00 target (15°C)")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "02:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: After clocks went back, 01:00 schedule (15°C) active")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Sunday 06:30, pre-heating for 07:00 schedule (22°C)")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "06:30", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Sunday 06:30, pre-heating for 07:00 (22°C), needs heating")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "06:30", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Sunday 06:30, at pre-heat target (22°C)")]
-    [DataRow(Room.Kitchen, "2025-10-26", "01:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Kitchen during repeated hour, still on 21:30 schedule (16°C)")]
-    [DataRow(Room.Kitchen, "2025-10-26", "06:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Kitchen morning after DST transition, 06:00 schedule (19°C) active")]
+    [DataRow("Games room", "2025-10-26", "00:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: 30 mins before clocks go back, 01:00 schedule (15°C) not yet active, using 21:00 (16°C)")]
+    [DataRow("Games room", "2025-10-26", "00:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Before clocks go back, at 21:00 target (16°C)")]
+    [DataRow("Games room", "2025-10-26", "01:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: During repeated hour, 01:00 schedule (15°C) should be active, at target")]
+    [DataRow("Games room", "2025-10-26", "01:30", Current_Temp_14, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: During repeated hour, below 01:00 target (15°C)")]
+    [DataRow("Games room", "2025-10-26", "02:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: After clocks went back, 01:00 schedule (15°C) active")]
+    [DataRow("Games room", "2025-10-26", "06:30", Current_Temp_19, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Sunday 06:30, pre-heating for 07:00 schedule (22°C)")]
+    [DataRow("Games room", "2025-10-26", "06:30", Current_Temp_20, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Sunday 06:30, pre-heating for 07:00 (22°C), needs heating")]
+    [DataRow("Games room", "2025-10-26", "06:30", Current_Temp_22, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Sunday 06:30, at pre-heat target (22°C)")]
+    [DataRow("Kitchen", "2025-10-26", "01:30", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Fall: Kitchen during repeated hour, still on 21:30 schedule (16°C)")]
+    [DataRow("Kitchen", "2025-10-26", "06:30", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: Kitchen morning after DST transition, 06:00 schedule (19°C) active")]
     // Edge case: Schedules that would fall in the missing hour during spring forward
-    [DataRow(Room.GamesRoom, "2025-03-30", "00:15", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Before transition, 21:00 schedule (16°C) active, above target")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "00:15", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Before transition, below 21:00 target (16°C)")]
-    [DataRow(Room.GamesRoom, "2025-03-30", "03:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Well after transition, 01:00 schedule (15°C) still active")]
+    [DataRow("Games room", "2025-03-30", "00:15", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Before transition, 21:00 schedule (16°C) active, above target")]
+    [DataRow("Games room", "2025-03-30", "00:15", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: Before transition, below 21:00 target (16°C)")]
+    [DataRow("Games room", "2025-03-30", "03:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: Well after transition, 01:00 schedule (15°C) still active")]
     // Heating state transitions around DST changes
-    [DataRow(Room.GamesRoom, "2025-03-30", "00:55", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "DST Spring: 5 mins before spring forward, above 21:00 target (16°C), turn off")]
-    [DataRow(Room.GamesRoom, "2025-10-26", "00:55", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: 5 mins before fall back, below 21:00 target (16°C), turn on")]
-    public async Task Test1(Room room, string date, string time, double? currentTemperature, bool currentHeatingState, bool roomOccupied, bool expectedHeatingState, string reason)
+    [DataRow("Games room", "2025-03-30", "00:55", Current_Temp_20, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "DST Spring: 5 mins before spring forward, above 21:00 target (16°C), turn off")]
+    [DataRow("Games room", "2025-10-26", "00:55", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Fall: 5 mins before fall back, below 21:00 target (16°C), turn on")]
+    public async Task Test1(string room, string date, string time, double? currentTemperature, bool currentHeatingState, bool roomOccupied, bool expectedHeatingState, string reason)
     {
         ServiceProvider serviceProvider = GetServiceProvider();
 
@@ -186,10 +187,10 @@ public sealed class HeatingControlServiceTests
         // Set temperature for the room being tested
         ICustomNumericSensorEntity temperatureSensor = room switch
         {
-            Room.GamesRoom => namedEntities.GamesRoomDeskTemperature,
-            Room.Kitchen => namedEntities.KitchenTemperature,
-            Room.Bedroom1 => namedEntities.Bedroom1Temperature,
-            Room.DiningRoom => namedEntities.DiningRoomClimateTemperature,
+            "Games room" => namedEntities.GamesRoomDeskTemperature,
+            "Kitchen" => namedEntities.KitchenTemperature,
+            "Bedroom 1" => namedEntities.Bedroom1Temperature,
+            "Dining room" => namedEntities.DiningRoomClimateTemperature,
             _ => throw new NotSupportedException($"Room {room} not supported in tests")
         };
         ((FakeCustomNumericSensorEntity)temperatureSensor).State = currentTemperature;
@@ -197,10 +198,10 @@ public sealed class HeatingControlServiceTests
         // Set heating state for the room being tested
         ICustomSwitchEntity heaterPlug = room switch
         {
-            Room.GamesRoom => namedEntities.GamesRoomHeaterSmartPlugOnOff,
-            Room.Kitchen => namedEntities.KitchenHeaterSmartPlugOnOff,
-            Room.Bedroom1 => namedEntities.Bedroom1HeaterSmartPlugOnOff,
-            Room.DiningRoom => namedEntities.DiningRoomHeaterSmartPlugOnOff,
+            "Games room" => namedEntities.GamesRoomHeaterSmartPlugOnOff,
+            "Kitchen" => namedEntities.KitchenHeaterSmartPlugOnOff,
+            "Bedroom 1" => namedEntities.Bedroom1HeaterSmartPlugOnOff,
+            "Dining room" => namedEntities.DiningRoomHeaterSmartPlugOnOff,
             _ => throw new NotSupportedException($"Room {room} not supported in tests")
         };
 
@@ -251,7 +252,7 @@ public sealed class HeatingControlServiceTests
     {
         return [
             new RoomSchedule(){
-                 Room = Room.GamesRoom,
+                 Name ="Games room",
                  ScheduleTracks = [
                     new HeatingScheduleTrack(){
                           TargetTime = new TimeOnly(01,00),
@@ -307,7 +308,7 @@ public sealed class HeatingControlServiceTests
                 ]
             },
             new RoomSchedule(){
-                 Room = Room.Kitchen,
+                 Name = "Kitchen",
                  ScheduleTracks = [
                     new HeatingScheduleTrack(){
                           TargetTime = new TimeOnly(06,00),
@@ -333,14 +334,14 @@ public sealed class HeatingControlServiceTests
 
 internal class MockPresenceService : IPresenceService
 {
-    private readonly Dictionary<Room, bool> _presenceValue = [];
+    private readonly Dictionary<string, bool> _presenceValue = [];
 
-    public void SetRoomValue(Room room, bool value)
+    public void SetRoomValue(string room, bool value)
     {
         _presenceValue[room] = value;
     }
 
-    public Task<bool> IsRoomInUse(Room room)
+    public Task<bool> IsRoomInUse(string room)
     {
         if (_presenceValue.TryGetValue(room, out bool result))
         {

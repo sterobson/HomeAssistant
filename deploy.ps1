@@ -49,7 +49,6 @@ $config = @{
     }
 }
 
-$houseId = "00000000-0000-0000-0000-000000000000"
 
 # Banner
 Write-Host ""
@@ -173,13 +172,35 @@ if ($Frontend) {
                 Write-Host ""
                 Write-Info "Building frontend..."
 
+                # Load function key from local secrets file if it exists
+                $secretsFile = Join-Path $PSScriptRoot "deploy.secrets.ps1"
+                $functionKey = $null
+
+                if (Test-Path $secretsFile) {
+                    Write-Gray "Loading function keys from deploy.secrets.ps1..."
+                    . $secretsFile
+
+                    if ($Environment -eq "testing" -and $env:TESTING_FUNCTION_KEY) {
+                        $functionKey = $env:TESTING_FUNCTION_KEY
+                    } elseif ($Environment -eq "live" -and $env:PRODUCTION_FUNCTION_KEY) {
+                        $functionKey = $env:PRODUCTION_FUNCTION_KEY
+                    }
+                }
+
+                if (-not $functionKey) {
+                    Write-Warning "No function key found for $Environment environment"
+                    Write-Gray "Create deploy.secrets.ps1 with your Azure Function keys (this file is gitignored)"
+                }
+
                 $env:GITHUB_PAGES = "true"
                 $env:DEPLOY_PATH = $selectedConfig.Frontend.DeployPath
                 $env:VITE_API_URL = $selectedConfig.Frontend.ApiUrl
                 $env:VITE_USE_MOCK_API = if ($selectedConfig.Frontend.UseMockApi) { "true" } else { "false" }
-                $env:VITE_HOUSE_ID = $houseId
+                if ($functionKey) { $env:VITE_FUNCTION_KEY = $functionKey }
 
-                npm run build
+                # Use appropriate build mode
+                $buildMode = if ($Environment -eq "testing") { "testing" } else { "production" }
+                npm run build -- --mode $buildMode
 
                 if ($LASTEXITCODE -ne 0) {
                     Write-Error "Frontend build failed"
@@ -291,7 +312,9 @@ if ($Frontend) {
             Remove-Item Env:\DEPLOY_PATH -ErrorAction SilentlyContinue
             Remove-Item Env:\VITE_API_URL -ErrorAction SilentlyContinue
             Remove-Item Env:\VITE_USE_MOCK_API -ErrorAction SilentlyContinue
-            Remove-Item Env:\VITE_HOUSE_ID -ErrorAction SilentlyContinue
+            Remove-Item Env:\VITE_FUNCTION_KEY -ErrorAction SilentlyContinue
+            Remove-Item Env:\TESTING_FUNCTION_KEY -ErrorAction SilentlyContinue
+            Remove-Item Env:\PRODUCTION_FUNCTION_KEY -ErrorAction SilentlyContinue
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using HomeAssistant.apps;
 using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
+using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -24,7 +25,7 @@ internal class HeatingControlService
     private const int _recheckEveryXMinutes = 5;
     private const int _scheduleRefreshEveryXMinutes = 10;
     internal const double HysteresisOffset = 0.2;
-    private readonly Dictionary<Guid, RoomState> _roomStates = [];
+    private readonly Dictionary<int, RoomState> _roomStates = [];
     private Timer? _scheduleRefreshTimer;
 
     // TODO: SignalR Connection - Add SignalR hub connection here
@@ -60,7 +61,8 @@ internal class HeatingControlService
         Schedules = [
             new()
             {
-                Room = Room.Kitchen,
+                Id = 1,
+                Name = "Kitcken",
                 ScheduleTracks = [
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18 },
@@ -71,7 +73,8 @@ internal class HeatingControlService
             },
             new()
             {
-                Room = Room.GamesRoom,
+                Id = 2,
+                Name = "Games room",
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
@@ -82,7 +85,8 @@ internal class HeatingControlService
             },
             new()
             {
-                Room = Room.Bedroom1,
+                Id = 3,
+                Name = "Bedroom 1",
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
@@ -96,7 +100,8 @@ internal class HeatingControlService
             },
             new()
             {
-                Room = Room.DiningRoom,
+                Id = 4,
+                Name = "Dining room",
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
@@ -111,7 +116,7 @@ internal class HeatingControlService
     public void Start()
     {
         // Download schedules from API if available
-        if (_scheduleApiClient != null && _configuration.HouseId != Guid.Empty)
+        if (_scheduleApiClient != null && !string.IsNullOrEmpty(_configuration.HouseId))
         {
             Task.Run(async () =>
             {
@@ -149,7 +154,7 @@ internal class HeatingControlService
 
     private async Task DownloadSchedulesFromApi()
     {
-        if (_scheduleApiClient == null || _configuration.HouseId == Guid.Empty)
+        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
             return;
 
         try
@@ -179,7 +184,7 @@ internal class HeatingControlService
                             RoomId = schedule.Id,
                             CurrentTemperature = GetCurrentTemperatureForRoom(schedule),
                             HeatingActive = false,
-                            ActiveScheduleTrackId = null,
+                            ActiveScheduleTrackId = 0,
                             LastUpdated = DateTimeOffset.UtcNow
                         };
                     }
@@ -194,7 +199,7 @@ internal class HeatingControlService
 
     private async Task UpdateRoomStateToApi(RoomState roomState)
     {
-        if (_scheduleApiClient == null || _configuration.HouseId == Guid.Empty)
+        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
             return;
 
         try
@@ -356,7 +361,7 @@ internal class HeatingControlService
                     " * Target temperature {TargetTemperature}°C + {HysteresisOffset}°C\n" +
                     " * {Reason}\n" +
                     " * Triggered by {Trigger}",
-                     roomHeatingSchedule.Room, "off", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
+                     roomHeatingSchedule.Name, "off", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
 
                 roomState.HeatingActive = false;
                 stateChanged = true;
@@ -374,7 +379,7 @@ internal class HeatingControlService
                     " * Target temperature {TargetTemperature}°C - {HysteresisOffset}°C\n" +
                     " * {Reason}\n" +
                     " * Triggered by {Trigger}",
-                     roomHeatingSchedule.Room, "on", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
+                     roomHeatingSchedule.Name, "on", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
 
                 roomState.HeatingActive = true;
                 stateChanged = true;
@@ -418,7 +423,7 @@ internal class HeatingControlService
             if (track.TargetTime.ToTimeSpan() <= currentTime)
             {
                 // Check special conditions
-                if (!await MeetsSpecialConditions(schedule.Room, track))
+                if (!await MeetsSpecialConditions(schedule.Name, track))
                     continue;
 
                 // Is this the latest qualifying schedule?
@@ -441,7 +446,7 @@ internal class HeatingControlService
                     continue;
 
                 // Check special conditions
-                if (!await MeetsSpecialConditions(schedule.Room, track))
+                if (!await MeetsSpecialConditions(schedule.Name, track))
                     continue;
 
                 // Find the latest schedule from yesterday
@@ -481,7 +486,7 @@ internal class HeatingControlService
                         continue;
 
                     // Check special conditions
-                    if (!await MeetsSpecialConditions(schedule.Room, track))
+                    if (!await MeetsSpecialConditions(schedule.Name, track))
                         continue;
 
                     // Find the earliest upcoming schedule in ramp-up
@@ -513,17 +518,17 @@ internal class HeatingControlService
 
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
-        ICustomSwitchEntity? plug = roomHeatingSchedule.Room switch
+        ICustomSwitchEntity? plug = roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            Room.Kitchen => _namedEntities.KitchenHeaterSmartPlugOnOff,
-            Room.GamesRoom => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
-            Room.DiningRoom => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
-            Room.Lounge => null,
-            Room.DownstairsBathroom => null,
-            Room.Bedroom1 => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
-            Room.Bedroom2 => null,
-            Room.Bedroom3 => null,
-            Room.UpstairsBathroom => null,
+            "kitchen" => _namedEntities.KitchenHeaterSmartPlugOnOff,
+            "games room" => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
+            "dining room" => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
+            "lounge" => null,
+            "downstairs bathroom" => null,
+            "bedroom 1" => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
+            "bedroom 2" => null,
+            "bedroom 3" => null,
+            "upstairs bathroom" => null,
             _ => null
         };
 
@@ -551,22 +556,22 @@ internal class HeatingControlService
 
     private double? GetCurrentTemperatureForRoom(RoomSchedule roomHeatingSchedule)
     {
-        return roomHeatingSchedule.Room switch
+        return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            Room.Kitchen => _namedEntities.KitchenTemperature.State,
-            Room.GamesRoom => _namedEntities.GamesRoomDeskTemperature.State,
-            Room.DiningRoom => _namedEntities.DiningRoomClimateTemperature.State,
-            Room.Lounge => null,
-            Room.DownstairsBathroom => null,
-            Room.Bedroom1 => _namedEntities.Bedroom1Temperature.State,
-            Room.Bedroom2 => null,
-            Room.Bedroom3 => null,
-            Room.UpstairsBathroom => null,
+            "kitchen" => _namedEntities.KitchenTemperature.State,
+            "games room" => _namedEntities.GamesRoomDeskTemperature.State,
+            "dining room" => _namedEntities.DiningRoomClimateTemperature.State,
+            "lounge" => null,
+            "downstairs bathroom" => null,
+            "bedroom 1" => _namedEntities.Bedroom1Temperature.State,
+            "bedroom 2" => null,
+            "bedroom 3" => null,
+            "upstairs bathroom" => null,
             _ => null
         };
     }
 
-    private async Task<bool> MeetsSpecialConditions(Room room, HeatingScheduleTrack heatingScheduleTrack)
+    private async Task<bool> MeetsSpecialConditions(string roomName, HeatingScheduleTrack heatingScheduleTrack)
     {
         bool meetsAnyConditions = heatingScheduleTrack.Conditions == ConditionType.None;
         bool meetsAllConditions = true;
@@ -586,14 +591,14 @@ internal class HeatingControlService
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomInUse))
         {
-            bool roomInUse = await _presenceService.IsRoomInUse(room);
+            bool roomInUse = await _presenceService.IsRoomInUse(roomName);
             meetsAnyConditions |= roomInUse;
             meetsAllConditions &= roomInUse;
         }
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomNotInUse))
         {
-            bool roomNotInUse = !await _presenceService.IsRoomInUse(room);
+            bool roomNotInUse = !await _presenceService.IsRoomInUse(roomName);
             meetsAnyConditions |= roomNotInUse;
             meetsAllConditions &= roomNotInUse;
         }

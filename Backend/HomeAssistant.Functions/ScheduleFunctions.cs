@@ -1,7 +1,6 @@
 using HomeAssistant.Functions.JsonConverters;
-using HomeAssistant.Functions.Models;
 using HomeAssistant.Functions.Services;
-using HomeAssistant.Services.Climate;
+using HomeAssistant.Shared.Climate;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -14,13 +13,11 @@ namespace HomeAssistant.Functions;
 public class ScheduleFunctions
 {
     private readonly ILogger<ScheduleFunctions> _logger;
-    private readonly ScheduleMapper _mapper;
     private readonly ScheduleStorageService _storageService;
 
     public ScheduleFunctions(ILogger<ScheduleFunctions> logger)
     {
         _logger = logger;
-        _mapper = new ScheduleMapper();
 
         string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
@@ -34,28 +31,22 @@ public class ScheduleFunctions
     {
         // Get houseId from query parameter
         if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out Guid houseId))
+            string.IsNullOrWhiteSpace(houseIdStr))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
 
+        string houseId = houseIdStr.ToString();
         _logger.LogInformation("Getting heating schedules for house {HouseId}", houseId);
 
         try
         {
-            SchedulesResponse? schedules = await _storageService.GetSchedulesAsync(houseId);
+            RoomSchedulesDto? schedules = await _storageService.GetSchedulesAsync(houseId);
 
             if (schedules == null)
             {
                 // Return default schedules if none exist
-                _logger.LogInformation("No schedules found for house {HouseId}, returning defaults", houseId);
-                List<RoomSchedule> defaultSchedules = GetDefaultSchedules();
-                SchedulesResponse defaultResponse = _mapper.ToDto(defaultSchedules);
-
-                // Save defaults for next time
-                await _storageService.SaveSchedulesAsync(houseId, defaultResponse);
-
-                return new OkObjectResult(defaultResponse);
+                return new NotFoundResult();
             }
 
             return new OkObjectResult(schedules);
@@ -73,11 +64,12 @@ public class ScheduleFunctions
     {
         // Get houseId from query parameter
         if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out Guid houseId))
+            string.IsNullOrWhiteSpace(houseIdStr))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
 
+        string houseId = houseIdStr.ToString();
         _logger.LogInformation("Setting heating schedules for house {HouseId}", houseId);
 
         try
@@ -85,7 +77,7 @@ public class ScheduleFunctions
             using StreamReader reader = new(req.Body);
             string body = await reader.ReadToEndAsync();
 
-            SchedulesResponse? dto = JsonSerializer.Deserialize<SchedulesResponse>(body, new JsonSerializerOptions
+            RoomSchedulesDto? dto = JsonSerializer.Deserialize<RoomSchedulesDto>(body, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
                 Converters = { new FlexibleEnumConverterFactory() }
@@ -112,51 +104,5 @@ public class ScheduleFunctions
             _logger.LogError(ex, "Error setting schedules for house {HouseId}", houseId);
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
-    }
-
-    private static List<RoomSchedule> GetDefaultSchedules()
-    {
-        return
-        [
-            new RoomSchedule
-            {
-                Room = Room.Kitchen,
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(5, 30), Temperature = 19, Conditions = ConditionType.PlentyOfPowerAvailable },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6, 30), Temperature = 18.5 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6, 30), Temperature = 19, Conditions = ConditionType.PlentyOfPowerAvailable },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(18, 00), Temperature = 19 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(21, 30), Temperature = 16 }
-                ]
-            },
-            new RoomSchedule
-            {
-                Room = Room.GamesRoom,
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(0, 00), Temperature = 14 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(7, 00), Temperature = 18, Days = Days.Weekdays },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(7, 00), Temperature = 19, Conditions = ConditionType.RoomInUse },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(9, 00), Temperature = 16, Conditions = ConditionType.RoomNotInUse },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(21, 30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-                ]
-            },
-            new RoomSchedule
-            {
-                Room = Room.Bedroom1,
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(8, 00), Temperature = 19, Days = Days.Weekdays },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(8, 30), Temperature = 16, Days = Days.Weekdays },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(7, 30), Temperature = 19, Days = Days.Saturday },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(8, 00), Temperature = 16, Days = Days.Saturday },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(9, 00), Temperature = 19, Days = Days.Sunday },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(9, 30), Temperature = 16, Days = Days.Sunday },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(21, 30), Temperature = 19 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(21, 31), Temperature = 14 }
-                ]
-            }
-        ];
     }
 }

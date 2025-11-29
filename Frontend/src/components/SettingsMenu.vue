@@ -118,20 +118,61 @@
               </div>
             </transition>
           </div>
+
+          <!-- House ID Setting -->
+          <div class="setting-group">
+            <button class="action-button" @click="changeHouseId">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8.707 1.5a1 1 0 00-1.414 0L.646 8.146a.5.5 0 00.708.708L2 8.207V13.5A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V8.207l.646.647a.5.5 0 00.708-.708L13 5.793V2.5a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1.293L8.707 1.5zM13 7.207V13.5a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5V7.207l5-5 5 5z"/>
+              </svg>
+              <span>Change House ID</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="arrow">
+                <path d="M4.646 1.646a.5.5 0 01.708 0l6 6a.5.5 0 010 .708l-6 6a.5.5 0 01-.708-.708L10.293 8 4.646 2.354a.5.5 0 010-.708z"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Disconnect Setting -->
+          <div class="setting-group">
+            <button class="action-button danger" @click="showDisconnectConfirm = true">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.58 26.58 0 004.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.933.933 0 01-.765.935c-.845.147-2.34.346-4.235.346-1.895 0-3.39-.2-4.235-.346A.933.933 0 013 9.219V8.062zm4.542-.827a.25.25 0 00-.217.068l-.92.9a.25.25 0 00-.073.177V13a.5.5 0 00.5.5h.128a.5.5 0 00.5-.485l.048-2.515h.144l.048 2.515a.5.5 0 00.5.485h.128a.5.5 0 00.5-.5V8.38a.25.25 0 00-.073-.177l-.92-.9a.25.25 0 00-.217-.068h-.048zM6.5 4.5a.5.5 0 01.5.5v.354a12.42 12.42 0 002 0V5a.5.5 0 011 0v.354a1.5 1.5 0 01-.436 1.06c-.318.32-.75.544-1.216.63a12.07 12.07 0 01-3.696 0 2.486 2.486 0 01-1.216-.63A1.5 1.5 0 013 5.354V5a.5.5 0 011 0v.354a12.42 12.42 0 002 0V5a.5.5 0 01.5-.5z"/>
+              </svg>
+              <span>Disconnect from House</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="arrow">
+                <path d="M4.646 1.646a.5.5 0 01.708 0l6 6a.5.5 0 010 .708l-6 6a.5.5 0 01-.708-.708L10.293 8 4.646 2.354a.5.5 0 010-.708z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </transition>
+
+    <!-- Disconnect Confirmation Modal -->
+    <ConfirmModal
+      v-if="showDisconnectConfirm"
+      title="Disconnect from House?"
+      message="Are you sure you want to disconnect from this house? All current data will be cleared and you'll need to enter a House ID again."
+      confirm-text="Disconnect"
+      cancel-text="Cancel"
+      @confirm="handleDisconnectConfirm"
+      @cancel="showDisconnectConfirm = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, h } from 'vue'
 import { useSettings } from '../composables/useSettings.js'
+import ConfirmModal from './ConfirmModal.vue'
 
 const { settings, setTheme, setTemperatureUnit, setTimeFormat, THEMES, TEMP_UNITS, TIME_FORMATS } = useSettings()
 
+const emit = defineEmits(['show-house-id-modal', 'disconnect'])
+
 const isOpen = ref(false)
 const expandedSection = ref(null)
+const showDisconnectConfirm = ref(false)
 
 const toggleMenu = () => {
   isOpen.value = !isOpen.value
@@ -151,6 +192,17 @@ const toggleSection = (section) => {
   } else {
     expandedSection.value = section
   }
+}
+
+const changeHouseId = () => {
+  closeMenu()
+  emit('show-house-id-modal')
+}
+
+const handleDisconnectConfirm = () => {
+  showDisconnectConfirm.value = false
+  closeMenu()
+  emit('disconnect')
 }
 
 // Theme icon components
@@ -384,6 +436,37 @@ if (typeof window !== 'undefined') {
 .time-icon {
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+.action-button {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--text-primary);
+  transition: all 0.2s;
+}
+
+.action-button:hover {
+  color: var(--color-primary);
+}
+
+.action-button .arrow {
+  margin-left: auto;
+  color: var(--icon-color);
+}
+
+.action-button.danger {
+  color: var(--color-danger, #e74c3c);
+}
+
+.action-button.danger:hover {
+  color: var(--color-danger-hover, #c0392b);
 }
 
 /* Transitions */

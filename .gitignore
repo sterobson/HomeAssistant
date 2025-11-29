@@ -9,3 +9,6 @@ appsettings.Production.json
 #HomeAssistantGenerated.cs
 /appsettings.secrets.all.json
 /Backend/TestResults/*
+
+# Deployment secrets (contains Azure Function keys)
+deploy.secrets.ps1

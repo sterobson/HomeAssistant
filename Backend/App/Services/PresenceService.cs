@@ -1,5 +1,4 @@
 ﻿using HomeAssistant.apps;
-using HomeAssistant.Services.Climate;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,33 +16,34 @@ internal class PresenceService : IPresenceService
         _historyService = historyService;
     }
 
-    public async Task<bool> IsRoomInUse(Room room)
+    public async Task<bool> IsRoomInUse(string roomName)
     {
         DateTime now = DateTime.Now;
-        if (room.HasFlag(Room.GamesRoom))
+        switch (roomName.ToLower().Trim())
         {
-            if (_namedEntities.GamesRoomDeskPlugOnOff.IsOn())
-            {
-                // Get the power over the last 5 minutes.
-                IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.GamesRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
-                if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
+            case "games room":
+                if (_namedEntities.GamesRoomDeskPlugOnOff.IsOn())
                 {
-                    return true;
+                    // Get the power over the last 5 minutes.
+                    IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.GamesRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
+                    if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
+                    {
+                        return true;
+                    }
                 }
-            }
-        }
+                break;
 
-        if (room.HasFlag(Room.DiningRoom))
-        {
-            if (_namedEntities.DiningRoomDeskPlugOnOff.IsOn())
-            {
-                // Get the power over the last 5 minutes.
-                IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
-                if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
+            case "dining room":
+                if (_namedEntities.DiningRoomDeskPlugOnOff.IsOn())
                 {
-                    return true;
+                    // Get the power over the last 5 minutes.
+                    IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
+                    if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
+                    {
+                        return true;
+                    }
                 }
-            }
+                break;
         }
 
         return false;

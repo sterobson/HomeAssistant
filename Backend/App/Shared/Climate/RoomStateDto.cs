@@ -1,4 +1,6 @@
-namespace HomeAssistant.Functions.Models;
+using System.Collections.Generic;
+
+namespace HomeAssistant.Shared.Climate;
 
 public class RoomStatesResponse
 {

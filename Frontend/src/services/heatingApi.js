@@ -1,12 +1,49 @@
 // API service for heating schedules and room states
-// Connects to Azure Functions backend or uses mock data
+// Connects to Azure Functions backend
 
-import { mockSchedulesData, mockRoomStatesData } from './mockData.js'
+import { getHouseId } from '../utils/cookies.js'
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
-const HOUSE_ID = import.meta.env.VITE_HOUSE_ID || '00000000-0000-0000-0000-000000000000'
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true'
+const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
+const LOCALHOST_KEY = import.meta.env.VITE_LOCALHOST_KEY || ''
+
+/**
+ * Get the current house ID from cookies
+ * @returns {string} House ID
+ * @throws {Error} If house ID is not set
+ */
+function getCurrentHouseId() {
+  const houseId = getHouseId()
+  if (!houseId) {
+    throw new Error('House ID not set. Please configure your House ID first.')
+  }
+  return houseId
+}
+
+/**
+ * Get appropriate headers for API requests
+ * @returns {Object} Headers object
+ */
+function getApiHeaders() {
+  const headers = {
+    'Content-Type': 'application/json'
+  }
+
+  // If calling localhost, add the localhost key header
+  if (API_BASE_URL.includes('localhost')) {
+    if (LOCALHOST_KEY) {
+      headers['X-Localhost-Key'] = LOCALHOST_KEY
+    }
+  } else {
+    // For deployed environments, use Azure Function key
+    if (FUNCTION_KEY) {
+      headers['x-functions-key'] = FUNCTION_KEY
+    }
+  }
+
+  return headers
+}
 
 // TODO: SignalR Connection - Add SignalR hub connection for real-time updates
 // import * as signalR from '@microsoft/signalr'
@@ -18,14 +55,11 @@ export const heatingApi = {
    * @returns {Promise<Object>} Schedules response with rooms array
    */
   async getSchedules() {
-    // Use mock data if configured
-    if (USE_MOCK_API) {
-      console.log('Using mock data for schedules')
-      return Promise.resolve(JSON.parse(JSON.stringify(mockSchedulesData)))
-    }
-
     try {
-      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${HOUSE_ID}`)
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${houseId}`, {
+        headers: getApiHeaders()
+      })
 
       if (!response.ok) {
         throw new Error(`Failed to fetch schedules: ${response.statusText}`)
@@ -44,20 +78,11 @@ export const heatingApi = {
    * @returns {Promise<Object>} Success response
    */
   async setSchedules(schedules) {
-    // Use mock data if configured
-    if (USE_MOCK_API) {
-      console.log('Mock API: Saving schedules (simulated)', schedules)
-      // Update mock data in memory
-      mockSchedulesData.rooms = JSON.parse(JSON.stringify(schedules.rooms))
-      return Promise.resolve({ success: true })
-    }
-
     try {
-      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${HOUSE_ID}`, {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${houseId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getApiHeaders(),
         body: JSON.stringify(schedules)
       })
 
@@ -79,14 +104,11 @@ export const heatingApi = {
    * @returns {Promise<Object>} Room states response with roomStates array
    */
   async getRoomStates() {
-    // Use mock data if configured
-    if (USE_MOCK_API) {
-      console.log('Using mock data for room states')
-      return Promise.resolve(JSON.parse(JSON.stringify(mockRoomStatesData)))
-    }
-
     try {
-      const response = await fetch(`${API_BASE_URL}/api/room-states?houseId=${HOUSE_ID}`)
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/api/room-states?houseId=${houseId}`, {
+        headers: getApiHeaders()
+      })
 
       if (!response.ok) {
         throw new Error(`Failed to fetch room states: ${response.statusText}`)

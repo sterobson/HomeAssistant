@@ -1,9 +1,10 @@
-using HomeAssistant.Functions.Models;
 using HomeAssistant.Functions.Services;
+using HomeAssistant.Shared.Climate;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using System.Text.Json;
 
 namespace HomeAssistant.Functions;
@@ -17,7 +18,7 @@ public class RoomStateFunctions
     {
         _logger = logger;
 
-        var connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
 
         _storageService = new RoomStateStorageService(connectionString);
@@ -28,17 +29,18 @@ public class RoomStateFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "room-states")] HttpRequest req)
     {
         // Get houseId from query parameter
-        if (!req.Query.TryGetValue("houseId", out var houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out var houseId))
+        if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
+            string.IsNullOrWhiteSpace(houseIdStr))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
 
+        string houseId = houseIdStr.ToString();
         _logger.LogInformation("Getting room states for house {HouseId}", houseId);
 
         try
         {
-            var roomStates = await _storageService.GetRoomStatesAsync(houseId);
+            RoomStatesResponse? roomStates = await _storageService.GetRoomStatesAsync(houseId);
 
             if (roomStates == null)
             {
@@ -61,18 +63,19 @@ public class RoomStateFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "room-states")] HttpRequest req)
     {
         // Get houseId from query parameter
-        if (!req.Query.TryGetValue("houseId", out var houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out var houseId))
+        if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
+            string.IsNullOrWhiteSpace(houseIdStr))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
 
+        string houseId = houseIdStr.ToString();
         _logger.LogInformation("Setting room states for house {HouseId}", houseId);
 
         try
         {
             using StreamReader reader = new(req.Body);
-            var body = await reader.ReadToEndAsync();
+            string body = await reader.ReadToEndAsync();
 
             RoomStatesResponse? dto = JsonSerializer.Deserialize<RoomStatesResponse>(body, new JsonSerializerOptions
             {

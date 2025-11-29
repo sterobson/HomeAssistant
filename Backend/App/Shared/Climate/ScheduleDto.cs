@@ -1,9 +1,8 @@
-using HomeAssistant.Services.Climate;
-using System.Text.Json.Serialization;
+using System.Collections.Generic;
 
-namespace HomeAssistant.Functions.Models;
+namespace HomeAssistant.Shared.Climate;
 
-public class SchedulesResponse
+public class RoomSchedulesDto
 {
     public List<RoomDto> Rooms { get; set; } = [];
 }
@@ -11,10 +10,6 @@ public class SchedulesResponse
 public class RoomDto
 {
     public string Id { get; set; } = string.Empty;
-
-    [JsonPropertyName("room")]
-    public Room Room { get; set; }
-
     public string Name { get; set; } = string.Empty;
     public BoostDto? Boost { get; set; }
     public List<ScheduleTrackDto> Schedules { get; set; } = [];
