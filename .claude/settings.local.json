@@ -5,7 +5,9 @@
       "Bash(func start)",
       "Bash(npm run dev:*)",
       "Bash(git fetch:*)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []
