@@ -221,6 +221,16 @@ if ($Frontend) {
                                     git rm -rf . 2>&1 | Out-Null
                                 }
 
+                                # Clean up source files that shouldn't be in gh-pages
+                                Write-Gray "Cleaning gh-pages branch..."
+                                $itemsToRemove = @('Backend', 'Frontend', '.github', '.claude', 'deploy.ps1', 'DEPLOYMENT.md', '.gitignore')
+                                foreach ($item in $itemsToRemove) {
+                                    $itemPath = Join-Path $PSScriptRoot $item
+                                    if (Test-Path $itemPath) {
+                                        Remove-Item -Path $itemPath -Recurse -Force -ErrorAction SilentlyContinue
+                                    }
+                                }
+
                                 # Determine target directory
                                 $targetDir = if ($selectedConfig.Frontend.DestinationDir) {
                                     Join-Path $PSScriptRoot $selectedConfig.Frontend.DestinationDir
@@ -237,8 +247,18 @@ if ($Frontend) {
                                 Write-Gray "Copying built files..."
                                 Copy-Item -Path "$distPath\*" -Destination $targetDir -Recurse -Force
 
-                                # Commit and push
-                                git add .
+                                # Add .nojekyll file if it doesn't exist
+                                $nojekyll = Join-Path $PSScriptRoot ".nojekyll"
+                                if (-not (Test-Path $nojekyll)) {
+                                    New-Item -ItemType File -Path $nojekyll -Force | Out-Null
+                                }
+
+                                # Commit and push - only add the deployment directory and .nojekyll
+                                if ($selectedConfig.Frontend.DestinationDir) {
+                                    git add $selectedConfig.Frontend.DestinationDir .nojekyll
+                                } else {
+                                    git add .
+                                }
 
                                 $commitMessage = "Deploy $Environment frontend - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
                                 git commit -m $commitMessage
