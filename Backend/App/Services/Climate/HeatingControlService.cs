@@ -133,22 +133,22 @@ internal class HeatingControlService
         // await ConnectToSignalRHub();
 
         // Schedule periodic evaluation of all schedules
-        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules(Schedules));
+        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules(Schedules, $"{_recheckEveryXMinutes} minute period recheck"));
 
         // Subscribe to temperature changes
-        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.GamesRoom)));
-        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.GamesRoom)));
-        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Kitchen)));
-        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.Bedroom1)));
-        _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.DiningRoom)));
-        _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateSchedule(Schedules.FirstOrDefault(s => s.Room == Room.DiningRoom)));
+        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "games room temperature changed"));
+        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "games room desk plug state changed"));
+        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "kitchen temperature changed"));
+        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "bedroom 1 temperature changed"));
+        _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "dining room desk plug state changed"));
+        _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "dining room temperature changed"));
 
         // Subscribe to power changes
-        _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules(Schedules));
-        _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules(Schedules));
+        _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules(Schedules, "home battery charge changed"));
+        _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules(Schedules, "electricity import rate changed"));
 
         // Initial evaluation
-        Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules(Schedules));
+        Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules(Schedules, "app startup"));
     }
 
     private async Task DownloadSchedulesFromApi()
@@ -241,15 +241,15 @@ internal class HeatingControlService
     //     _logger.LogInformation("Connected to SignalR hub");
     // }
 
-    public async Task EvaluateAllSchedules(List<RoomSchedule> schedules)
+    public async Task EvaluateAllSchedules(List<RoomSchedule> schedules, string trigger)
     {
         foreach (RoomSchedule schedule in schedules)
         {
-            await EvaluateSchedule(schedule);
+            await EvaluateSchedule(schedule, trigger);
         }
     }
 
-    private async Task EvaluateSchedule(RoomSchedule? roomHeatingSchedule)
+    private async Task EvaluateSchedule(RoomSchedule? roomHeatingSchedule, string trigger)
     {
         ArgumentNullException.ThrowIfNull(roomHeatingSchedule);
 
@@ -355,8 +355,13 @@ internal class HeatingControlService
             // Turn off
             if (await onToggleHeating(false))
             {
-                _logger.LogInformation("Turning off heating in {Room} as current temperature {CurrentTemperature}°C >= target temperature {TargetTemperature}°C + {HysteresisOffset}°C ({Reason})",
-                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, HysteresisOffset, reason);
+                _logger.LogInformation("\n * Room {Room}\n" +
+                    " * Turning {NewState}\n" +
+                    " * Current temperature {CurrentTemperature}°C\n" +
+                    " * Target temperature {TargetTemperature}°C + {HysteresisOffset}°C\n" +
+                    " * {Reason}\n" +
+                    " * Triggered by {Trigger}",
+                     roomHeatingSchedule.Room, "off", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
 
                 roomState.HeatingActive = false;
                 stateChanged = true;
@@ -368,8 +373,13 @@ internal class HeatingControlService
             // Turn on
             if (await onToggleHeating(true))
             {
-                _logger.LogInformation("Turning on heating in {Room} as current temperature {CurrentTemperature}°C <= target temperature {TargetTemperature}°C - {HysteresisOffset}°C ({Reason})",
-                     roomHeatingSchedule.Room, currentTemperature, desiredTemperature, HysteresisOffset, reason);
+                _logger.LogInformation(" * Room {Room}\n" +
+                    " * Turning {NewState}\n" +
+                    " * Current temperature {CurrentTemperature}°C\n" +
+                    " * Target temperature {TargetTemperature}°C - {HysteresisOffset}°C\n" +
+                    " * {Reason}\n" +
+                    " * Triggered by {Trigger}",
+                     roomHeatingSchedule.Room, "on", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
 
                 roomState.HeatingActive = true;
                 stateChanged = true;

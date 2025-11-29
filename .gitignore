@@ -8,4 +8,4 @@ appsettings.Production.json
 #appsettings.json
 #HomeAssistantGenerated.cs
 /appsettings.secrets.all.json
-/Backend/TestResults/9b479cc1-c9f0-4edf-b884-e0e91d210888/stero_ROBSONZENBOOK24_2025-11-29.14_42_21.coverage
+/Backend/TestResults/*

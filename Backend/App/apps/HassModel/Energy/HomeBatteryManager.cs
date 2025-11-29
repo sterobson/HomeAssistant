@@ -36,34 +36,34 @@ internal class HomeBatteryManager
         _timeProvider = timeProvider;
 
         // Initially run this very soon after start up
-        scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () => await SetBatteryState());
+        scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () => await SetBatteryState("app startup"));
 
         // Run every 10 minutes, in case there's been a state change we somehow missed.
-        scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), async () => await SetBatteryState());
+        scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), async () => await SetBatteryState("periodic check"));
 
         // Car battery has changed current
         _carCharger.OnChargerCurrentChanged(async _ =>
         {
-            await SetBatteryState();
+            await SetBatteryState("car charger current changed");
         });
 
         // Home battery capacity has changed
         _homeBattery.OnBatteryChargePercentChanged(async _ =>
         {
-            await SetBatteryState();
+            await SetBatteryState("battery percent changed");
         });
 
         // The battery use mode has changed, possibly by the battery's own management logic,
         // or entering TOU mode according to a schedule.
         _homeBattery.OnBatteryUseModeChanged(async () =>
         {
-            await SetBatteryState();
+            await SetBatteryState("battery use mode changed");
         });
 
         // Listen for the import unit rate changing
         _electricityMeter.OnCurrentRatePerKwhChanged(async _ =>
         {
-            await SetBatteryState();
+            await SetBatteryState("import rate changed");
         });
     }
 
@@ -76,7 +76,7 @@ internal class HomeBatteryManager
     private bool _previousShouldDischarge = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
 
-    private async Task SetBatteryState()
+    private async Task SetBatteryState(string trigger)
     {
         try
         {
@@ -180,7 +180,8 @@ internal class HomeBatteryManager
                     " * Predicted PV {EstimatedPV}kWh, predicted usage {EstimatedUsage}kWh\n" +
                     " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
                     " * Current unit price £{CurrentUnitPriceRate} (was £{PreviousUnitPriceRate})\n" +
-                    " * Hypervolt current {HypervoltCurrent}A",
+                    " * Hypervolt current {HypervoltCurrent}A" +
+                    " * Triggered by {TriggeredBy}",
                     homeBatteryChargePct?.ToString("F0"),
                     _previousHomeBatteryChargePct?.ToString("F0"),
                     batteryPrediction.MinimumChargePct.ToString("F0"),
@@ -193,7 +194,8 @@ internal class HomeBatteryManager
                     desiredHomeBatteryState,
                     currentUnitPriceRate?.ToString("F3"),
                     _previousUnitPriceRate?.ToString("F3"),
-                    hypervoltCurrent.ToString("F0")
+                    hypervoltCurrent.ToString("F0"),
+                    trigger
                 );
             }
 
