@@ -1,11 +1,11 @@
 meta {
-  name: get-room-states
+  name: get-schedules
   type: http
-  seq: 3
+  seq: 5
 }
 
 get {
-  url: {{function-endpoint}}/api/room-states?houseId={{houseId}}
+  url: {{function-endpoint}}/api/schedules?houseId={{houseId}}
   body: none
   auth: inherit
 }

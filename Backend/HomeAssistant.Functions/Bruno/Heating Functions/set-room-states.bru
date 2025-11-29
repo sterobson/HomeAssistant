@@ -5,13 +5,27 @@ meta {
 }
 
 post {
-  url: http://localhost:7159/api/room-states?houseId={{houseId}}
-  body: none
+  url: {{function-endpoint}}/api/room-states?houseId={{houseId}}
+  body: json
   auth: inherit
 }
 
 params:query {
   houseId: {{houseId}}
+}
+
+body:json {
+  {
+    "roomStates": [
+      {
+        "roomId": "1234",
+        "currentTemperature": 22,
+        "heatingActive": false,
+        "activeScheduleTrackId": "2",
+        "lastUpdated": "2025-11-03T01:50Z"
+      }
+    ]
+  }
 }
 
 settings {

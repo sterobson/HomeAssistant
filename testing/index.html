@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heating Control</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root, html[data-theme="light"] {
+      /* Light mode colors */
+      --bg-primary: #f5f5f5;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f8f9fa;
+      --bg-header: #2c3e50;
+      --text-primary: #2c3e50;
+      --text-secondary: #666;
+      --text-tertiary: #999;
+      --text-header: #ffffff;
+      --border-color: #e0e0e0;
+      --border-hover: #3498db;
+      --shadow: rgba(0, 0, 0, 0.1);
+      --shadow-md: rgba(0, 0, 0, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #3498db;
+      --color-primary-hover: #2980b9;
+      --color-success: #27ae60;
+      --color-success-hover: #229954;
+      --color-danger: #e74c3c;
+      --color-danger-hover: #c0392b;
+      --color-warning: #f39c12;
+
+      /* UI colors */
+      --btn-secondary-bg: #e0e0e0;
+      --btn-secondary-hover: #d0d0d0;
+      --hover-bg: #f9f9f9;
+      --icon-color: #666;
+    }
+
+    html.dark, html[data-theme="dark"] {
+      /* Dark mode colors */
+      --bg-primary: #1a1a1a;
+      --bg-secondary: #2d2d2d;
+      --bg-tertiary: #242424;
+      --bg-header: #1a1a1a;
+      --text-primary: #e0e0e0;
+      --text-secondary: #b0b0b0;
+      --text-tertiary: #808080;
+      --text-header: #ffffff;
+      --border-color: #404040;
+      --border-hover: #3498db;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* UI colors */
+      --btn-secondary-bg: #404040;
+      --btn-secondary-hover: #505050;
+      --hover-bg: #353535;
+      --icon-color: #b0b0b0;
+    }
+
+    html[data-theme="light-green"] {
+      /* Light Green theme */
+      --bg-primary: #e8f5e9;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f1f8f4;
+      --bg-header: #2e7d32;
+      --text-primary: #1b5e20;
+      --text-secondary: #388e3c;
+      --text-tertiary: #66bb6a;
+      --text-header: #ffffff;
+      --border-color: #a5d6a7;
+      --border-hover: #66bb6a;
+      --shadow: rgba(46, 125, 50, 0.1);
+      --shadow-md: rgba(46, 125, 50, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #43a047;
+      --color-primary-hover: #388e3c;
+
+      /* UI colors */
+      --btn-secondary-bg: #c8e6c9;
+      --btn-secondary-hover: #a5d6a7;
+      --hover-bg: #f1f8f4;
+      --icon-color: #66bb6a;
+    }
+
+    html[data-theme="dark-green"] {
+      /* Dark Green theme */
+      --bg-primary: #1b2e1b;
+      --bg-secondary: #2d3f2d;
+      --bg-tertiary: #243324;
+      --bg-header: #1b2e1b;
+      --text-primary: #a5d6a7;
+      --text-secondary: #81c784;
+      --text-tertiary: #66bb6a;
+      --text-header: #ffffff;
+      --border-color: #2e5d2e;
+      --border-hover: #66bb6a;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* Brand colors */
+      --color-primary: #66bb6a;
+      --color-primary-hover: #4caf50;
+
+      /* UI colors */
+      --btn-secondary-bg: #2e5d2e;
+      --btn-secondary-hover: #3d7a3d;
+      --hover-bg: #2a3d2a;
+      --icon-color: #81c784;
+    }
+
+    html[data-theme="light-blue"] {
+      /* Light Blue theme */
+      --bg-primary: #e3f2fd;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f1f8fe;
+      --bg-header: #1565c0;
+      --text-primary: #0d47a1;
+      --text-secondary: #1976d2;
+      --text-tertiary: #42a5f5;
+      --text-header: #ffffff;
+      --border-color: #90caf9;
+      --border-hover: #42a5f5;
+      --shadow: rgba(21, 101, 192, 0.1);
+      --shadow-md: rgba(21, 101, 192, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #1e88e5;
+      --color-primary-hover: #1565c0;
+
+      /* UI colors */
+      --btn-secondary-bg: #bbdefb;
+      --btn-secondary-hover: #90caf9;
+      --hover-bg: #f1f8fe;
+      --icon-color: #42a5f5;
+    }
+
+    html[data-theme="dark-blue"] {
+      /* Dark Blue theme */
+      --bg-primary: #1a2332;
+      --bg-secondary: #2d3848;
+      --bg-tertiary: #242d3e;
+      --bg-header: #1a2332;
+      --text-primary: #90caf9;
+      --text-secondary: #64b5f6;
+      --text-tertiary: #42a5f5;
+      --text-header: #ffffff;
+      --border-color: #2e4a6e;
+      --border-hover: #42a5f5;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* Brand colors */
+      --color-primary: #42a5f5;
+      --color-primary-hover: #1e88e5;
+
+      /* UI colors */
+      --btn-secondary-bg: #2e4a6e;
+      --btn-secondary-hover: #3d5f8d;
+      --hover-bg: #2a3d56;
+      --icon-color: #64b5f6;
+    }
+
+    html[data-theme="light-purple"] {
+      /* Light Purple theme */
+      --bg-primary: #f3e5f5;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f8f4fa;
+      --bg-header: #6a1b9a;
+      --text-primary: #4a148c;
+      --text-secondary: #7b1fa2;
+      --text-tertiary: #ab47bc;
+      --text-header: #ffffff;
+      --border-color: #ce93d8;
+      --border-hover: #ab47bc;
+      --shadow: rgba(106, 27, 154, 0.1);
+      --shadow-md: rgba(106, 27, 154, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #8e24aa;
+      --color-primary-hover: #7b1fa2;
+
+      /* UI colors */
+      --btn-secondary-bg: #e1bee7;
+      --btn-secondary-hover: #ce93d8;
+      --hover-bg: #f8f4fa;
+      --icon-color: #ab47bc;
+    }
+
+    html[data-theme="dark-purple"] {
+      /* Dark Purple theme */
+      --bg-primary: #2a1a33;
+      --bg-secondary: #3d2d48;
+      --bg-tertiary: #33243e;
+      --bg-header: #2a1a33;
+      --text-primary: #ce93d8;
+      --text-secondary: #ba68c8;
+      --text-tertiary: #ab47bc;
+      --text-header: #ffffff;
+      --border-color: #5d3a6e;
+      --border-hover: #ab47bc;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* Brand colors */
+      --color-primary: #ab47bc;
+      --color-primary-hover: #8e24aa;
+
+      /* UI colors */
+      --btn-secondary-bg: #5d3a6e;
+      --btn-secondary-hover: #74508d;
+      --hover-bg: #3d2d56;
+      --icon-color: #ba68c8;
+    }
+
+    html[data-theme="light-pink"] {
+      /* Light Pink theme */
+      --bg-primary: #fce4ec;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #fef0f5;
+      --bg-header: #c2185b;
+      --text-primary: #880e4f;
+      --text-secondary: #ad1457;
+      --text-tertiary: #ec407a;
+      --text-header: #ffffff;
+      --border-color: #f48fb1;
+      --border-hover: #ec407a;
+      --shadow: rgba(194, 24, 91, 0.1);
+      --shadow-md: rgba(194, 24, 91, 0.15);
+      --overlay: rgba(0, 0, 0, 0.5);
+
+      /* Brand colors */
+      --color-primary: #d81b60;
+      --color-primary-hover: #c2185b;
+
+      /* UI colors */
+      --btn-secondary-bg: #f8bbd0;
+      --btn-secondary-hover: #f48fb1;
+      --hover-bg: #fef0f5;
+      --icon-color: #ec407a;
+    }
+
+    html[data-theme="dark-pink"] {
+      /* Dark Pink theme */
+      --bg-primary: #331a25;
+      --bg-secondary: #482d38;
+      --bg-tertiary: #3e2433;
+      --bg-header: #331a25;
+      --text-primary: #f48fb1;
+      --text-secondary: #f06292;
+      --text-tertiary: #ec407a;
+      --text-header: #ffffff;
+      --border-color: #6e3a52;
+      --border-hover: #ec407a;
+      --shadow: rgba(0, 0, 0, 0.3);
+      --shadow-md: rgba(0, 0, 0, 0.5);
+      --overlay: rgba(0, 0, 0, 0.7);
+
+      /* Brand colors */
+      --color-primary: #ec407a;
+      --color-primary-hover: #d81b60;
+
+      /* UI colors */
+      --btn-secondary-bg: #6e3a52;
+      --btn-secondary-hover: #8d5074;
+      --hover-bg: #562d46;
+      --icon-color: #f06292;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      transition: background-color 0.3s, color 0.3s;
+    }
+  </style>
+  <script type="module" crossorigin src="/HomeAssistant/testing/assets/index-C0hFSBJg.js"></script>
+  <link rel="stylesheet" crossorigin href="/HomeAssistant/testing/assets/index-Bfc1rQlC.css">
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>
