@@ -7,21 +7,21 @@ public class ScheduleMapper
 {
     public SchedulesResponse ToDto(List<RoomSchedule> schedules)
     {
-        var rooms = new List<RoomDto>();
+        List<RoomDto> rooms = new List<RoomDto>();
 
         foreach (RoomSchedule schedule in schedules)
         {
-            var boostDto = new BoostDto
+            BoostDto boostDto = new BoostDto
             {
                 StartTime = schedule.Boost.StartTime?.ToString("O"),
                 EndTime = schedule.Boost.EndTime?.ToString("O"),
                 Temperature = schedule.Boost.Temperature
             };
 
-            var roomDto = new RoomDto
+            RoomDto roomDto = new RoomDto
             {
                 Id = schedule.Id.ToString(),
-                RoomType = (int)schedule.Room,
+                Room = schedule.Room,
                 Name = GetRoomName(schedule.Room),
                 Boost = boostDto,
                 Schedules = []
@@ -34,7 +34,10 @@ public class ScheduleMapper
                     Id = track.Id.ToString(),
                     Time = track.TargetTime.ToString("HH:mm"),
                     Temperature = track.Temperature,
-                    Conditions = FormatConditions(track.Days, track.Conditions)
+                    RampUpMinutes = track.RampUpMinutes,
+                    Days = track.Days,
+                    Conditions = track.Conditions,
+                    ConditionOperator = track.ConditionOperator
                 });
             }
 
@@ -46,11 +49,11 @@ public class ScheduleMapper
 
     public List<RoomSchedule> FromDto(SchedulesResponse dto)
     {
-        var schedules = new List<RoomSchedule>();
+        List<RoomSchedule> schedules = new List<RoomSchedule>();
 
         foreach (RoomDto roomDto in dto.Rooms)
         {
-            var boost = new Boost();
+            Boost boost = new Boost();
             if (roomDto.Boost != null)
             {
                 boost.StartTime = !string.IsNullOrEmpty(roomDto.Boost.StartTime)
@@ -62,28 +65,26 @@ public class ScheduleMapper
                 boost.Temperature = roomDto.Boost.Temperature;
             }
 
-            var schedule = new RoomSchedule
+            RoomSchedule schedule = new RoomSchedule
             {
                 Id = Guid.TryParse(roomDto.Id, out var scheduleId) ? scheduleId : Guid.NewGuid(),
-                Room = (Room)roomDto.RoomType,
-                Condition = () => true,
+                Room = roomDto.Room,
                 Boost = boost,
                 ScheduleTracks = []
             };
 
             foreach (ScheduleTrackDto trackDto in roomDto.Schedules)
             {
-                var track = new HeatingScheduleTrack
+                HeatingScheduleTrack track = new HeatingScheduleTrack
                 {
                     Id = Guid.TryParse(trackDto.Id, out var trackId) ? trackId : Guid.NewGuid(),
                     TargetTime = TimeOnly.Parse(trackDto.Time),
-                    Temperature = trackDto.Temperature
+                    Temperature = trackDto.Temperature,
+                    RampUpMinutes = trackDto.RampUpMinutes,
+                    Days = trackDto.Days,
+                    Conditions = trackDto.Conditions,
+                    ConditionOperator = trackDto.ConditionOperator
                 };
-
-                // Parse conditions string
-                ParseConditions(trackDto.Conditions, out Days days, out ConditionType conditionType);
-                track.Days = days;
-                track.Conditions = conditionType;
 
                 schedule.ScheduleTracks.Add(track);
             }
@@ -109,63 +110,5 @@ public class ScheduleMapper
             Room.UpstairsBathroom => "Upstairs Bathroom",
             _ => room.ToString()
         };
-    }
-
-    private static string FormatConditions(Days days, ConditionType conditions)
-    {
-        var parts = new List<string>();
-
-        // Format days
-        if (days != Days.Unspecified && days != Days.Everyday)
-        {
-            if (days.HasFlag(Days.Monday)) parts.Add("Mon");
-            if (days.HasFlag(Days.Tuesday)) parts.Add("Tue");
-            if (days.HasFlag(Days.Wednesday)) parts.Add("Wed");
-            if (days.HasFlag(Days.Thursday)) parts.Add("Thu");
-            if (days.HasFlag(Days.Friday)) parts.Add("Fri");
-            if (days.HasFlag(Days.Saturday)) parts.Add("Sat");
-            if (days.HasFlag(Days.Sunday)) parts.Add("Sun");
-        }
-
-        // Format conditions
-        if (conditions.HasFlag(ConditionType.RoomInUse))
-            parts.Add("Occupied");
-        if (conditions.HasFlag(ConditionType.RoomNotInUse))
-            parts.Add("Unoccupied");
-        if (conditions.HasFlag(ConditionType.PlentyOfPowerAvailable))
-            parts.Add("PlentyOfPower");
-        if (conditions.HasFlag(ConditionType.LowPowerAvailable))
-            parts.Add("LowPower");
-
-        return string.Join(",", parts);
-    }
-
-    private static void ParseConditions(string conditionsStr, out Days days, out ConditionType conditions)
-    {
-        days = Days.Unspecified;
-        conditions = ConditionType.None;
-
-        if (string.IsNullOrWhiteSpace(conditionsStr))
-            return;
-
-        var parts = conditionsStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var part in parts)
-        {
-            switch (part)
-            {
-                case "Mon": days |= Days.Monday; break;
-                case "Tue": days |= Days.Tuesday; break;
-                case "Wed": days |= Days.Wednesday; break;
-                case "Thu": days |= Days.Thursday; break;
-                case "Fri": days |= Days.Friday; break;
-                case "Sat": days |= Days.Saturday; break;
-                case "Sun": days |= Days.Sunday; break;
-                case "Occupied": conditions |= ConditionType.RoomInUse; break;
-                case "Unoccupied": conditions |= ConditionType.RoomNotInUse; break;
-                case "PlentyOfPower": conditions |= ConditionType.PlentyOfPowerAvailable; break;
-                case "LowPower": conditions |= ConditionType.LowPowerAvailable; break;
-            }
-        }
     }
 }

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Heating Functions",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

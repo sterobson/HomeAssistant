@@ -1,0 +1,208 @@
+meta {
+  name: set-schedules
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{function-endpoint}}/api/schedules?houseId={{houseId}}
+  body: json
+  auth: inherit
+}
+
+params:query {
+  houseId: {{houseId}}
+}
+
+body:json {
+  {
+    "rooms": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "name": "Kitchen",
+        "room": 0, // Kitchen enum value
+        "schedules": [
+          {
+            "id": "21111111-1111-1111-1111-111111111111",
+            "time": "06:00",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "21111111-1111-1111-1111-111111111112",
+            "time": "06:30",
+            "temperature": 18.5,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "21111111-1111-1111-1111-111111111113",
+            "time": "18:00",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "21111111-1111-1111-1111-111111111114",
+            "time": "21:30",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          }
+        ]
+      },
+      {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "name": "Games Room",
+        "room": 1, // GamesRoom enum value
+        "schedules": [
+          {
+            "id": "32222222-2222-2222-2222-222222222221",
+            "time": "01:00",
+            "temperature": 15,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222222",
+            "time": "06:00",
+            "temperature": 20,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222223",
+            "time": "07:00",
+            "temperature": 22,
+            "rampUpMinutes": 30,
+            "days": 64, // Sunday
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222224",
+            "time": "07:00",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 62, // NotSunday (Mon-Sat)
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222225",
+            "time": "10:00",
+            "temperature": 15,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222226",
+            "time": "18:00",
+            "temperature": 21,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "32222222-2222-2222-2222-222222222227",
+            "time": "21:00",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          }
+        ]
+      },
+      {
+        "id": "33333333-3333-3333-3333-333333333333",
+        "name": "Bedroom 1",
+        "room": 16, // Bedroom1 enum value
+        "schedules": [
+          {
+            "id": "43333333-3333-3333-3333-333333333331",
+            "time": "08:00",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 30, // Week"days" (Mon-Fri)
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "43333333-3333-3333-3333-333333333332",
+            "time": "08:30",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 30, // Week"days"
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "43333333-3333-3333-3333-333333333333",
+            "time": "21:30",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "43333333-3333-3333-3333-333333333334",
+            "time": "21:31",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          }
+        ]
+      },
+      {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Dining Room",
+        "room": 2, // DiningRoom enum value
+        "schedules": [
+          {
+            "id": "54444444-4444-4444-4444-444444444441",
+            "time": "06:00",
+            "temperature": 17,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": "54444444-4444-4444-4444-444444444442",
+            "time": "21:00",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          }
+        ]
+      }
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

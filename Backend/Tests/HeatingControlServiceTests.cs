@@ -252,7 +252,6 @@ public sealed class HeatingControlServiceTests
         return [
             new RoomSchedule(){
                  Room = Room.GamesRoom,
-                 Condition = () => true,
                  ScheduleTracks = [
                     new HeatingScheduleTrack(){
                           TargetTime = new TimeOnly(01,00),
@@ -309,7 +308,6 @@ public sealed class HeatingControlServiceTests
             },
             new RoomSchedule(){
                  Room = Room.Kitchen,
-                 Condition = () => true,
                  ScheduleTracks = [
                     new HeatingScheduleTrack(){
                           TargetTime = new TimeOnly(06,00),

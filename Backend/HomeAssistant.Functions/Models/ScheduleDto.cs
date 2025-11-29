@@ -1,3 +1,6 @@
+using HomeAssistant.Services.Climate;
+using System.Text.Json.Serialization;
+
 namespace HomeAssistant.Functions.Models;
 
 public class SchedulesResponse
@@ -8,7 +11,10 @@ public class SchedulesResponse
 public class RoomDto
 {
     public string Id { get; set; } = string.Empty;
-    public int RoomType { get; set; }
+
+    [JsonPropertyName("room")]
+    public Room Room { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public BoostDto? Boost { get; set; }
     public List<ScheduleTrackDto> Schedules { get; set; } = [];
@@ -26,5 +32,8 @@ public class ScheduleTrackDto
     public string Id { get; set; } = string.Empty;
     public string Time { get; set; } = string.Empty;
     public double Temperature { get; set; }
-    public string Conditions { get; set; } = string.Empty;
+    public int RampUpMinutes { get; set; }
+    public Days Days { get; set; }
+    public ConditionType Conditions { get; set; }
+    public ConditionOperatorType ConditionOperator { get; set; }
 }

@@ -13,7 +13,6 @@ public class Boost
 public class RoomSchedule
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public required Func<bool> Condition { get; set; }
     public required List<HeatingScheduleTrack> ScheduleTracks { get; set; }
     public required Room Room { get; set; }
     public Boost Boost { get; set; } = new();

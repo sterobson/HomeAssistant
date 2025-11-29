@@ -1,3 +1,4 @@
+using HomeAssistant.Functions.JsonConverters;
 using HomeAssistant.Functions.Models;
 using HomeAssistant.Functions.Services;
 using HomeAssistant.Services.Climate;
@@ -5,6 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using System.Text.Json;
 
 namespace HomeAssistant.Functions;
@@ -20,7 +22,7 @@ public class ScheduleFunctions
         _logger = logger;
         _mapper = new ScheduleMapper();
 
-        var connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
 
         _storageService = new ScheduleStorageService(connectionString);
@@ -31,8 +33,8 @@ public class ScheduleFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "schedules")] HttpRequest req)
     {
         // Get houseId from query parameter
-        if (!req.Query.TryGetValue("houseId", out var houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out var houseId))
+        if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
+            !Guid.TryParse(houseIdStr, out Guid houseId))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
@@ -41,14 +43,14 @@ public class ScheduleFunctions
 
         try
         {
-            var schedules = await _storageService.GetSchedulesAsync(houseId);
+            SchedulesResponse? schedules = await _storageService.GetSchedulesAsync(houseId);
 
             if (schedules == null)
             {
                 // Return default schedules if none exist
                 _logger.LogInformation("No schedules found for house {HouseId}, returning defaults", houseId);
-                var defaultSchedules = GetDefaultSchedules();
-                var defaultResponse = _mapper.ToDto(defaultSchedules);
+                List<RoomSchedule> defaultSchedules = GetDefaultSchedules();
+                SchedulesResponse defaultResponse = _mapper.ToDto(defaultSchedules);
 
                 // Save defaults for next time
                 await _storageService.SaveSchedulesAsync(houseId, defaultResponse);
@@ -70,8 +72,8 @@ public class ScheduleFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "schedules")] HttpRequest req)
     {
         // Get houseId from query parameter
-        if (!req.Query.TryGetValue("houseId", out var houseIdStr) ||
-            !Guid.TryParse(houseIdStr, out var houseId))
+        if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
+            !Guid.TryParse(houseIdStr, out Guid houseId))
         {
             return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
         }
@@ -81,11 +83,12 @@ public class ScheduleFunctions
         try
         {
             using StreamReader reader = new(req.Body);
-            var body = await reader.ReadToEndAsync();
+            string body = await reader.ReadToEndAsync();
 
             SchedulesResponse? dto = JsonSerializer.Deserialize<SchedulesResponse>(body, new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                Converters = { new FlexibleEnumConverterFactory() }
             });
 
             if (dto == null)
@@ -117,7 +120,6 @@ public class ScheduleFunctions
         [
             new RoomSchedule
             {
-                Condition = () => true,
                 Room = Room.Kitchen,
                 ScheduleTracks =
                 [
@@ -130,7 +132,6 @@ public class ScheduleFunctions
             },
             new RoomSchedule
             {
-                Condition = () => true,
                 Room = Room.GamesRoom,
                 ScheduleTracks =
                 [
@@ -143,7 +144,6 @@ public class ScheduleFunctions
             },
             new RoomSchedule
             {
-                Condition = () => true,
                 Room = Room.Bedroom1,
                 ScheduleTracks =
                 [

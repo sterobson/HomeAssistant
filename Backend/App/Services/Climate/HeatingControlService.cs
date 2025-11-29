@@ -60,7 +60,6 @@ internal class HeatingControlService
         Schedules = [
             new()
             {
-                Condition = () => true,
                 Room = Room.Kitchen,
                 ScheduleTracks = [
                     new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
@@ -72,7 +71,6 @@ internal class HeatingControlService
             },
             new()
             {
-                Condition = () => true,
                 Room = Room.GamesRoom,
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
@@ -84,7 +82,6 @@ internal class HeatingControlService
             },
             new()
             {
-                Condition = () => true,
                 Room = Room.Bedroom1,
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
@@ -99,7 +96,6 @@ internal class HeatingControlService
             },
             new()
             {
-                Condition = () => true,
                 Room = Room.DiningRoom,
                 ScheduleTracks = [
                     new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
@@ -166,7 +162,6 @@ internal class HeatingControlService
                 // Set up delegates for each schedule
                 foreach (RoomSchedule schedule in schedules)
                 {
-                    schedule.Condition = () => true;
                     schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
                     schedule.OnToggleHeating = GetOnToggleFunc(schedule);
                 }

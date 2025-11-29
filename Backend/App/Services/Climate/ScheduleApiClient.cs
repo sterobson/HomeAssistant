@@ -1,3 +1,4 @@
+using HomeAssistant.JsonConverters;
 using HomeAssistant.Services.Climate;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services;
@@ -22,6 +24,12 @@ public class ScheduleApiClient : IScheduleApiClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<ScheduleApiClient> _logger;
 
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new FlexibleEnumConverterFactory() }
+    };
+
     public ScheduleApiClient(HttpClient httpClient, ILogger<ScheduleApiClient> logger)
     {
         _httpClient = httpClient;
@@ -32,10 +40,10 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/schedules?houseId={houseId}");
+            HttpResponseMessage response = await _httpClient.GetAsync($"/api/schedules?houseId={houseId}");
             response.EnsureSuccessStatusCode();
 
-            var schedulesResponse = await response.Content.ReadFromJsonAsync<SchedulesResponse>();
+            SchedulesResponse? schedulesResponse = await response.Content.ReadFromJsonAsync<SchedulesResponse>(_jsonOptions);
             if (schedulesResponse == null)
             {
                 _logger.LogWarning("Received null response when getting schedules for house {HouseId}", houseId);
@@ -55,11 +63,11 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         try
         {
-            var dto = MapToDto(schedules);
-            var json = JsonSerializer.Serialize(dto);
+            SchedulesResponse dto = MapToDto(schedules);
+            var json = JsonSerializer.Serialize(dto, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync($"/api/schedules?houseId={houseId}", content);
+            HttpResponseMessage response = await _httpClient.PostAsync($"/api/schedules?houseId={houseId}", content);
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully set schedules for house {HouseId}", houseId);
@@ -75,10 +83,10 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         try
         {
-            var response = await _httpClient.GetAsync($"/api/room-states?houseId={houseId}");
+            HttpResponseMessage response = await _httpClient.GetAsync($"/api/room-states?houseId={houseId}");
             response.EnsureSuccessStatusCode();
 
-            var statesResponse = await response.Content.ReadFromJsonAsync<RoomStatesResponse>();
+            RoomStatesResponse? statesResponse = await response.Content.ReadFromJsonAsync<RoomStatesResponse>(_jsonOptions);
             if (statesResponse == null)
             {
                 _logger.LogWarning("Received null response when getting room states for house {HouseId}", houseId);
@@ -103,10 +111,10 @@ public class ScheduleApiClient : IScheduleApiClient
                 RoomStates = roomStates.Select(MapRoomStateToDto).ToList()
             };
 
-            var json = JsonSerializer.Serialize(dto);
+            var json = JsonSerializer.Serialize(dto, _jsonOptions);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync($"/api/room-states?houseId={houseId}", content);
+            HttpResponseMessage response = await _httpClient.PostAsync($"/api/room-states?houseId={houseId}", content);
             response.EnsureSuccessStatusCode();
 
             _logger.LogInformation("Successfully set room states for house {HouseId}", houseId);
@@ -123,7 +131,7 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         var schedules = new List<RoomSchedule>();
 
-        foreach (var roomDto in dto.Rooms)
+        foreach (RoomDto roomDto in dto.Rooms)
         {
             var boost = new Boost();
             if (roomDto.Boost != null)
@@ -139,26 +147,24 @@ public class ScheduleApiClient : IScheduleApiClient
 
             var schedule = new RoomSchedule
             {
-                Id = Guid.TryParse(roomDto.Id, out var scheduleId) ? scheduleId : Guid.NewGuid(),
-                Room = (Room)roomDto.RoomType,
-                Condition = () => true,
+                Id = Guid.TryParse(roomDto.Id, out Guid scheduleId) ? scheduleId : Guid.NewGuid(),
+                Room = roomDto.Room,
                 Boost = boost,
                 ScheduleTracks = []
             };
 
-            foreach (var trackDto in roomDto.Schedules)
+            foreach (ScheduleTrackDto trackDto in roomDto.Schedules)
             {
                 var track = new HeatingScheduleTrack
                 {
-                    Id = Guid.TryParse(trackDto.Id, out var trackId) ? trackId : Guid.NewGuid(),
+                    Id = Guid.TryParse(trackDto.Id, out Guid trackId) ? trackId : Guid.NewGuid(),
                     TargetTime = TimeOnly.Parse(trackDto.Time),
-                    Temperature = trackDto.Temperature
+                    Temperature = trackDto.Temperature,
+                    RampUpMinutes = trackDto.RampUpMinutes,
+                    Days = trackDto.Days,
+                    Conditions = trackDto.Conditions,
+                    ConditionOperator = trackDto.ConditionOperator
                 };
-
-                // Parse conditions
-                ParseConditions(trackDto.Conditions, out Days days, out ConditionType conditionType);
-                track.Days = days;
-                track.Conditions = conditionType;
 
                 schedule.ScheduleTracks.Add(track);
             }
@@ -173,7 +179,7 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         var rooms = new List<RoomDto>();
 
-        foreach (var schedule in schedules)
+        foreach (RoomSchedule schedule in schedules)
         {
             var boostDto = new BoostDto
             {
@@ -185,20 +191,23 @@ public class ScheduleApiClient : IScheduleApiClient
             var roomDto = new RoomDto
             {
                 Id = schedule.Id.ToString(),
-                RoomType = (int)schedule.Room,
+                Room = schedule.Room,
                 Name = GetRoomName(schedule.Room),
                 Boost = boostDto,
                 Schedules = []
             };
 
-            foreach (var track in schedule.ScheduleTracks)
+            foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
             {
                 roomDto.Schedules.Add(new ScheduleTrackDto
                 {
                     Id = track.Id.ToString(),
                     Time = track.TargetTime.ToString("HH:mm"),
                     Temperature = track.Temperature,
-                    Conditions = FormatConditions(track.Days, track.Conditions)
+                    RampUpMinutes = track.RampUpMinutes,
+                    Days = track.Days,
+                    Conditions = track.Conditions,
+                    ConditionOperator = track.ConditionOperator
                 });
             }
 
@@ -212,10 +221,10 @@ public class ScheduleApiClient : IScheduleApiClient
     {
         return new RoomState
         {
-            RoomId = Guid.TryParse(dto.RoomId, out var roomId) ? roomId : Guid.Empty,
+            RoomId = Guid.TryParse(dto.RoomId, out Guid roomId) ? roomId : Guid.Empty,
             CurrentTemperature = dto.CurrentTemperature,
             HeatingActive = dto.HeatingActive,
-            ActiveScheduleTrackId = Guid.TryParse(dto.ActiveScheduleTrackId, out var trackId) ? trackId : null,
+            ActiveScheduleTrackId = Guid.TryParse(dto.ActiveScheduleTrackId, out Guid trackId) ? trackId : null,
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated)
         };
     }
@@ -248,62 +257,6 @@ public class ScheduleApiClient : IScheduleApiClient
             _ => room.ToString()
         };
     }
-
-    private static string FormatConditions(Days days, ConditionType conditions)
-    {
-        var parts = new List<string>();
-
-        if (days != Days.Unspecified && days != Days.Everyday)
-        {
-            if (days.HasFlag(Days.Monday)) parts.Add("Mon");
-            if (days.HasFlag(Days.Tuesday)) parts.Add("Tue");
-            if (days.HasFlag(Days.Wednesday)) parts.Add("Wed");
-            if (days.HasFlag(Days.Thursday)) parts.Add("Thu");
-            if (days.HasFlag(Days.Friday)) parts.Add("Fri");
-            if (days.HasFlag(Days.Saturday)) parts.Add("Sat");
-            if (days.HasFlag(Days.Sunday)) parts.Add("Sun");
-        }
-
-        if (conditions.HasFlag(ConditionType.RoomInUse))
-            parts.Add("Occupied");
-        if (conditions.HasFlag(ConditionType.RoomNotInUse))
-            parts.Add("Unoccupied");
-        if (conditions.HasFlag(ConditionType.PlentyOfPowerAvailable))
-            parts.Add("PlentyOfPower");
-        if (conditions.HasFlag(ConditionType.LowPowerAvailable))
-            parts.Add("LowPower");
-
-        return string.Join(",", parts);
-    }
-
-    private static void ParseConditions(string conditionsStr, out Days days, out ConditionType conditions)
-    {
-        days = Days.Unspecified;
-        conditions = ConditionType.None;
-
-        if (string.IsNullOrWhiteSpace(conditionsStr))
-            return;
-
-        var parts = conditionsStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var part in parts)
-        {
-            switch (part)
-            {
-                case "Mon": days |= Days.Monday; break;
-                case "Tue": days |= Days.Tuesday; break;
-                case "Wed": days |= Days.Wednesday; break;
-                case "Thu": days |= Days.Thursday; break;
-                case "Fri": days |= Days.Friday; break;
-                case "Sat": days |= Days.Saturday; break;
-                case "Sun": days |= Days.Sunday; break;
-                case "Occupied": conditions |= ConditionType.RoomInUse; break;
-                case "Unoccupied": conditions |= ConditionType.RoomNotInUse; break;
-                case "PlentyOfPower": conditions |= ConditionType.PlentyOfPowerAvailable; break;
-                case "LowPower": conditions |= ConditionType.LowPowerAvailable; break;
-            }
-        }
-    }
 }
 
 // DTOs matching the Azure Functions responses
@@ -315,7 +268,10 @@ public class SchedulesResponse
 public class RoomDto
 {
     public string Id { get; set; } = string.Empty;
-    public int RoomType { get; set; }
+
+    [JsonPropertyName("room")]
+    public Room Room { get; set; }
+
     public string Name { get; set; } = string.Empty;
     public BoostDto? Boost { get; set; }
     public List<ScheduleTrackDto> Schedules { get; set; } = [];
@@ -333,7 +289,10 @@ public class ScheduleTrackDto
     public string Id { get; set; } = string.Empty;
     public string Time { get; set; } = string.Empty;
     public double Temperature { get; set; }
-    public string Conditions { get; set; } = string.Empty;
+    public int RampUpMinutes { get; set; }
+    public Days Days { get; set; }
+    public ConditionType Conditions { get; set; }
+    public ConditionOperatorType ConditionOperator { get; set; }
 }
 
 public class RoomStatesResponse

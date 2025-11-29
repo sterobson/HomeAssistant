@@ -28,7 +28,7 @@ $config = @{
             DeployPath = "/testing/"
             DestinationDir = "testing"
             ApiUrl = "https://sterobson-homeassistant-testing-e9ahagcjb0dyede6.uksouth-01.azurewebsites.net"
-            UseMockApi = $false
+            UseMockApi = $true
         }
         Backend = @{
             AppName = "sterobson-homeassistant-testing"
@@ -246,14 +246,14 @@ if ($Frontend) {
                                 }
 
                                 # Commit and push
-                                git add -A
+                                git add -A 2>&1 | Out-Null
 
                                 $commitMessage = "Deploy $Environment frontend - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
                                 git commit -m $commitMessage 2>&1 | Out-Null
 
                                 if ($LASTEXITCODE -eq 0) {
                                     Write-Gray "Pushing to GitHub..."
-                                    git push origin gh-pages
+                                    git push origin gh-pages 2>&1 | Out-Null
 
                                     if ($LASTEXITCODE -eq 0) {
                                         Write-Success "Frontend deployed to GitHub Pages!"
