@@ -197,51 +197,59 @@ if ($Frontend) {
                         Write-Error "Build output not found at: $distPath"
                         $deploymentSuccess = $false
                     } else {
-                        # Use git to deploy to gh-pages branch
-                        Push-Location $PSScriptRoot
+                        # Use git worktree to deploy to gh-pages branch (SAFE - doesn't touch main working tree)
+                        Write-Gray "Setting up deployment worktree..."
+
+                        # Create temp directory for gh-pages worktree
+                        $worktreePath = Join-Path $env:TEMP "gh-pages-deploy-$(Get-Date -Format 'yyyyMMddHHmmss')"
 
                         try {
-                            # Check if we're in a git repo
-                            git rev-parse --git-dir 2>&1 | Out-Null
+                            # Fetch latest gh-pages
+                            git fetch origin gh-pages:gh-pages 2>&1 | Out-Null
+
+                            # Create worktree for gh-pages branch
+                            git worktree add $worktreePath gh-pages 2>&1 | Out-Null
+
                             if ($LASTEXITCODE -ne 0) {
-                                Write-Error "Not in a git repository"
-                                $deploymentSuccess = $false
-                            } else {
-                                # Fetch gh-pages branch
-                                Write-Gray "Fetching gh-pages branch..."
-                                git fetch origin gh-pages:gh-pages 2>&1 | Out-Null
+                                # gh-pages branch doesn't exist, create orphan branch
+                                Write-Warning "gh-pages branch doesn't exist, creating it..."
+                                git worktree add --detach $worktreePath 2>&1 | Out-Null
+                                Push-Location $worktreePath
+                                git checkout --orphan gh-pages 2>&1 | Out-Null
+                                git rm -rf . 2>&1 | Out-Null
+                                Pop-Location
+                            }
 
-                                # Checkout gh-pages branch
-                                Write-Gray "Checking out gh-pages branch..."
-                                git checkout gh-pages
+                            Push-Location $worktreePath
 
-                                if ($LASTEXITCODE -ne 0) {
-                                    Write-Warning "gh-pages branch doesn't exist, creating it..."
-                                    git checkout --orphan gh-pages
-                                    git rm -rf . 2>&1 | Out-Null
-                                }
+                            try {
+                                # Clean the worktree (remove old files)
+                                Write-Gray "Cleaning deployment directory..."
+                                Get-ChildItem -Path $worktreePath -Exclude ".git" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-                                # Determine target directory
-                                $targetDir = if ($selectedConfig.Frontend.DestinationDir) {
-                                    Join-Path $PSScriptRoot $selectedConfig.Frontend.DestinationDir
-                                } else {
-                                    $PSScriptRoot
-                                }
-
-                                # Create target directory if needed
-                                if (-not (Test-Path $targetDir)) {
+                                # Determine target directory within worktree
+                                if ($selectedConfig.Frontend.DestinationDir) {
+                                    $targetDir = Join-Path $worktreePath $selectedConfig.Frontend.DestinationDir
                                     New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+                                } else {
+                                    $targetDir = $worktreePath
                                 }
 
-                                # Copy built files
-                                Write-Gray "Copying built files..."
+                                # Copy built files to worktree
+                                Write-Gray "Copying built files to deployment directory..."
                                 Copy-Item -Path "$distPath\*" -Destination $targetDir -Recurse -Force
 
+                                # Add .nojekyll file
+                                $nojekyll = Join-Path $worktreePath ".nojekyll"
+                                if (-not (Test-Path $nojekyll)) {
+                                    New-Item -ItemType File -Path $nojekyll -Force | Out-Null
+                                }
+
                                 # Commit and push
-                                git add .
+                                git add -A
 
                                 $commitMessage = "Deploy $Environment frontend - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-                                git commit -m $commitMessage
+                                git commit -m $commitMessage 2>&1 | Out-Null
 
                                 if ($LASTEXITCODE -eq 0) {
                                     Write-Gray "Pushing to GitHub..."
@@ -263,13 +271,14 @@ if ($Frontend) {
                                 } else {
                                     Write-Warning "No changes to commit"
                                 }
-
-                                # Return to original branch
-                                Write-Gray "Returning to original branch..."
-                                git checkout -
+                            } finally {
+                                Pop-Location
                             }
                         } finally {
-                            Pop-Location
+                            # Remove the worktree
+                            if (Test-Path $worktreePath) {
+                                git worktree remove $worktreePath --force 2>&1 | Out-Null
+                            }
                         }
                     }
                 }
