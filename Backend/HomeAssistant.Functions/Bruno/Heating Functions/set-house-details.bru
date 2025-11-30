@@ -1,0 +1,26 @@
+meta {
+  name: set-house-details
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{function-endpoint}}/api/house-details?houseId={{houseId}}
+  body: json
+  auth: inherit
+}
+
+params:query {
+  houseId: {{houseId}}
+}
+
+body:json {
+  {
+    "name": "75 Keble Park South"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

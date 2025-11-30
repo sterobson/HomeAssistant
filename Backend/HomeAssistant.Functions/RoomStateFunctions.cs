@@ -1,3 +1,4 @@
+using HomeAssistant.Functions.JsonConverters;
 using HomeAssistant.Functions.Services;
 using HomeAssistant.Shared.Climate;
 using Microsoft.AspNetCore.Http;
@@ -13,10 +14,12 @@ public class RoomStateFunctions
 {
     private readonly ILogger<RoomStateFunctions> _logger;
     private readonly RoomStateStorageService _storageService;
+    private readonly SignalRService _signalRService;
 
-    public RoomStateFunctions(ILogger<RoomStateFunctions> logger)
+    public RoomStateFunctions(ILogger<RoomStateFunctions> logger, SignalRService signalRService)
     {
         _logger = logger;
+        _signalRService = signalRService;
 
         string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
@@ -77,10 +80,7 @@ public class RoomStateFunctions
             using StreamReader reader = new(req.Body);
             string body = await reader.ReadToEndAsync();
 
-            RoomStatesResponse? dto = JsonSerializer.Deserialize<RoomStatesResponse>(body, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            RoomStatesResponse? dto = JsonSerializer.Deserialize<RoomStatesResponse>(body, JsonConfiguration.CreateOptions());
 
             if (dto == null)
             {
@@ -90,6 +90,19 @@ public class RoomStateFunctions
             await _storageService.SaveRoomStatesAsync(houseId, dto);
             _logger.LogInformation("Successfully saved room states for house {HouseId} with {StateCount} rooms",
                 houseId, dto.RoomStates.Count);
+
+            // Send SignalR message to all clients for this house (fire and forget)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _signalRService.SendMessageToUserAsync(houseId, "room-states-changed", new { houseId });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send SignalR message for room-states-changed");
+                }
+            });
 
             return new OkObjectResult(new { success = true });
         }

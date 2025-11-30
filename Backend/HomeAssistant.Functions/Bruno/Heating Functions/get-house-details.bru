@@ -1,0 +1,20 @@
+meta {
+  name: get-house-details
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{function-endpoint}}/api/house-details?houseId={{houseId}}
+  body: json
+  auth: inherit
+}
+
+params:query {
+  houseId: {{houseId}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

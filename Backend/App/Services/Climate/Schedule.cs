@@ -4,6 +4,11 @@ using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
 
+public class RoomSchedules
+{
+    public List<RoomSchedule> Rooms { get; set; } = [];
+}
+
 public class Boost
 {
     public DateTimeOffset? StartTime { get; set; }

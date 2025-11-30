@@ -119,6 +119,54 @@ export const heatingApi = {
       console.error('Error fetching room states:', error)
       throw error
     }
+  },
+
+  /**
+   * Get house details (name, etc.)
+   * @returns {Promise<Object>} House details response with name property
+   */
+  async getHouseDetails() {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/api/house-details?houseId=${houseId}`, {
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch house details: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching house details:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Save house details (name, etc.)
+   * @param {Object} details - House details object with name property
+   * @returns {Promise<Object>} Success response
+   */
+  async setHouseDetails(details) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/api/house-details?houseId=${houseId}`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(details)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to save house details: ${response.statusText}`)
+      }
+
+      console.log('Successfully saved house details')
+      return { success: true }
+    } catch (error) {
+      console.error('Error saving house details:', error)
+      throw error
+    }
   }
 
   // TODO: SignalR Connection - Methods for SignalR real-time updates

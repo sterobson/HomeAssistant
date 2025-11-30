@@ -1,3 +1,4 @@
+using HomeAssistant.Functions;
 using HomeAssistant.Functions.JsonConverters;
 using HomeAssistant.Functions.Services;
 using Microsoft.Azure.Functions.Worker;
@@ -11,9 +12,13 @@ FunctionsApplicationBuilder builder = FunctionsApplication.CreateBuilder(args);
 builder.ConfigureFunctionsWebApplication();
 
 // Configure JSON serialization options to handle enums as both numbers and strings
-builder.Services.Configure<JsonSerializerOptions>(options =>
+// and use camelCase property naming for JavaScript frontend compatibility
+builder.Services.Configure<JsonSerializerOptions>(JsonConfiguration.ConfigureOptions);
+
+// Also configure ASP.NET Core JSON options for HTTP responses
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
 {
-    options.Converters.Add(new FlexibleEnumConverterFactory());
+    JsonConfiguration.ConfigureOptions(options.SerializerOptions);
 });
 
 builder.Services
@@ -28,6 +33,7 @@ builder.Services
      {
          string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
          return new RoomStateStorageService(connectionString);
-     });
+     })
+    .AddSingleton<SignalRService>();
 
 builder.Build().Run();

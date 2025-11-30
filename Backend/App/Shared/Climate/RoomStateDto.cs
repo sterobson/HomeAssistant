@@ -9,9 +9,9 @@ public class RoomStatesResponse
 
 public class RoomStateDto
 {
-    public string RoomId { get; set; } = string.Empty;
+    public int RoomId { get; set; }
     public double? CurrentTemperature { get; set; }
     public bool HeatingActive { get; set; }
-    public string? ActiveScheduleTrackId { get; set; }
+    public int ActiveScheduleTrackId { get; set; }
     public string LastUpdated { get; set; } = string.Empty;
 }

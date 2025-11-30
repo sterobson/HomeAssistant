@@ -3,7 +3,6 @@
     <header class="app-header">
       <h1>Heating Control</h1>
       <SettingsMenu
-        @show-house-id-modal="showHouseIdModal = true"
         @disconnect="handleDisconnect"
       />
     </header>

@@ -119,30 +119,34 @@
             </transition>
           </div>
 
-          <!-- House ID Setting -->
+          <!-- House Details -->
           <div class="setting-group">
-            <button class="action-button" @click="changeHouseId">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8.707 1.5a1 1 0 00-1.414 0L.646 8.146a.5.5 0 00.708.708L2 8.207V13.5A1.5 1.5 0 003.5 15h9a1.5 1.5 0 001.5-1.5V8.207l.646.647a.5.5 0 00.708-.708L13 5.793V2.5a.5.5 0 00-.5-.5h-1a.5.5 0 00-.5.5v1.293L8.707 1.5zM13 7.207V13.5a.5.5 0 01-.5.5h-9a.5.5 0 01-.5-.5V7.207l5-5 5 5z"/>
-              </svg>
-              <span>Change House ID</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="arrow">
-                <path d="M4.646 1.646a.5.5 0 01.708 0l6 6a.5.5 0 010 .708l-6 6a.5.5 0 01-.708-.708L10.293 8 4.646 2.354a.5.5 0 010-.708z"/>
+            <button class="accordion-header" :class="{ expanded: expandedSection === 'house' }" @click="toggleSection('house')">
+              <span>House Details</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="chevron">
+                <path d="M4 6l4 4 4-4H4z"/>
               </svg>
             </button>
-          </div>
-
-          <!-- Disconnect Setting -->
-          <div class="setting-group">
-            <button class="action-button danger" @click="showDisconnectConfirm = true">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.58 26.58 0 004.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.933.933 0 01-.765.935c-.845.147-2.34.346-4.235.346-1.895 0-3.39-.2-4.235-.346A.933.933 0 013 9.219V8.062zm4.542-.827a.25.25 0 00-.217.068l-.92.9a.25.25 0 00-.073.177V13a.5.5 0 00.5.5h.128a.5.5 0 00.5-.485l.048-2.515h.144l.048 2.515a.5.5 0 00.5.485h.128a.5.5 0 00.5-.5V8.38a.25.25 0 00-.073-.177l-.92-.9a.25.25 0 00-.217-.068h-.048zM6.5 4.5a.5.5 0 01.5.5v.354a12.42 12.42 0 002 0V5a.5.5 0 011 0v.354a1.5 1.5 0 01-.436 1.06c-.318.32-.75.544-1.216.63a12.07 12.07 0 01-3.696 0 2.486 2.486 0 01-1.216-.63A1.5 1.5 0 013 5.354V5a.5.5 0 011 0v.354a12.42 12.42 0 002 0V5a.5.5 0 01.5-.5z"/>
-              </svg>
-              <span>Disconnect from House</span>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="arrow">
-                <path d="M4.646 1.646a.5.5 0 01.708 0l6 6a.5.5 0 010 .708l-6 6a.5.5 0 01-.708-.708L10.293 8 4.646 2.354a.5.5 0 010-.708z"/>
-              </svg>
-            </button>
+            <transition name="accordion">
+              <div v-show="expandedSection === 'house'" class="accordion-content">
+                <div class="house-details">
+                  <div class="detail-row">
+                    <label>House Name</label>
+                    <div class="detail-value">{{ houseName || 'Not set' }}</div>
+                  </div>
+                  <div class="detail-row">
+                    <label>House ID</label>
+                    <div class="detail-value house-id-display">{{ houseId || 'Not set' }}</div>
+                  </div>
+                  <button class="disconnect-button" @click="handleDisconnectClick">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M6 12.5a.5.5 0 01.5-.5h3a.5.5 0 010 1h-3a.5.5 0 01-.5-.5zM3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.58 26.58 0 004.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.933.933 0 01-.765.935c-.845.147-2.34.346-4.235.346-1.895 0-3.39-.2-4.235-.346A.933.933 0 013 9.219V8.062zm4.542-.827a.25.25 0 00-.217.068l-.92.9a.25.25 0 00-.073.177V13a.5.5 0 00.5.5h.128a.5.5 0 00.5-.485l.048-2.515h.144l.048 2.515a.5.5 0 00.5.485h.128a.5.5 0 00.5-.5V8.38a.25.25 0 00-.073-.177l-.92-.9a.25.25 0 00-.217-.068h-.048zM6.5 4.5a.5.5 0 01.5.5v.354a12.42 12.42 0 002 0V5a.5.5 0 011 0v.354a1.5 1.5 0 01-.436 1.06c-.318.32-.75.544-1.216.63a12.07 12.07 0 01-3.696 0 2.486 2.486 0 01-1.216-.63A1.5 1.5 0 013 5.354V5a.5.5 0 011 0v.354a12.42 12.42 0 002 0V5a.5.5 0 01.5-.5z"/>
+                    </svg>
+                    <span>Disconnect from House</span>
+                  </button>
+                </div>
+              </div>
+            </transition>
           </div>
         </div>
       </div>
@@ -162,17 +166,48 @@
 </template>
 
 <script setup>
-import { ref, h } from 'vue'
+import { ref, h, onMounted, watch } from 'vue'
 import { useSettings } from '../composables/useSettings.js'
 import ConfirmModal from './ConfirmModal.vue'
+import { getHouseId } from '../utils/cookies.js'
+import { heatingApi } from '../services/heatingApi.js'
 
 const { settings, setTheme, setTemperatureUnit, setTimeFormat, THEMES, TEMP_UNITS, TIME_FORMATS } = useSettings()
 
-const emit = defineEmits(['show-house-id-modal', 'disconnect'])
+const emit = defineEmits(['disconnect'])
 
 const isOpen = ref(false)
 const expandedSection = ref(null)
 const showDisconnectConfirm = ref(false)
+const houseId = ref('')
+const houseName = ref('')
+
+// Load house details when menu opens
+const loadHouseDetails = async () => {
+  houseId.value = getHouseId() || ''
+
+  if (houseId.value) {
+    try {
+      const details = await heatingApi.getHouseDetails()
+      houseName.value = details.name || ''
+    } catch (error) {
+      console.error('Failed to load house details:', error)
+      houseName.value = ''
+    }
+  }
+}
+
+// Load house details when component mounts
+onMounted(() => {
+  loadHouseDetails()
+})
+
+// Reload house details when menu opens
+watch(isOpen, (newValue) => {
+  if (newValue) {
+    loadHouseDetails()
+  }
+})
 
 const toggleMenu = () => {
   isOpen.value = !isOpen.value
@@ -194,14 +229,13 @@ const toggleSection = (section) => {
   }
 }
 
-const changeHouseId = () => {
+const handleDisconnectClick = () => {
   closeMenu()
-  emit('show-house-id-modal')
+  showDisconnectConfirm.value = true
 }
 
 const handleDisconnectConfirm = () => {
   showDisconnectConfirm.value = false
-  closeMenu()
   emit('disconnect')
 }
 
@@ -467,6 +501,68 @@ if (typeof window !== 'undefined') {
 
 .action-button.danger:hover {
   color: var(--color-danger-hover, #c0392b);
+}
+
+.house-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detail-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-row label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-value {
+  font-size: 1rem;
+  color: var(--text-primary);
+  padding: 0.75rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.house-id-display {
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+}
+
+.disconnect-button {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-danger, #e74c3c);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+}
+
+.disconnect-button:hover {
+  background: var(--color-danger-hover, #c0392b);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+.disconnect-button:active {
+  transform: translateY(0);
 }
 
 /* Transitions */

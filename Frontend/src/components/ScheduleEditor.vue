@@ -50,7 +50,7 @@
               :key="day.value"
               type="button"
               class="day-btn"
-              :class="{ active: selectedDays.includes(day.value) }"
+              :class="{ active: isDaySelected(day.value) }"
               @click="toggleDay(day.value)"
             >
               {{ day.short }}
@@ -64,21 +64,29 @@
             <button
               type="button"
               class="occupancy-btn"
-              :class="{ active: occupancy === 'Occupied' }"
-              @click="toggleOccupancy('Occupied')"
+              :class="{ active: isOccupancySelected(4) }"
+              @click="setOccupancy(4)"
             >
               Occupied
             </button>
             <button
               type="button"
               class="occupancy-btn"
-              :class="{ active: occupancy === 'Unoccupied' }"
-              @click="toggleOccupancy('Unoccupied')"
+              :class="{ active: isOccupancySelected(8) }"
+              @click="setOccupancy(8)"
             >
               Unoccupied
             </button>
+            <button
+              type="button"
+              class="occupancy-btn"
+              :class="{ active: !isOccupancySelected(4) && !isOccupancySelected(8) }"
+              @click="setOccupancy(0)"
+            >
+              Any
+            </button>
           </div>
-          <small class="form-hint">Optional: Select occupancy requirement</small>
+          <small class="form-hint">Schedules marked as "Any" will not appear in schedule list</small>
         </div>
 
         <div class="form-actions">
@@ -109,69 +117,76 @@ const props = defineProps({
 
 const emit = defineEmits(['save', 'cancel'])
 
+// Day bit flag values matching backend enum
 const daysOfWeek = [
-  { value: 'Mon', short: 'M', full: 'Monday' },
-  { value: 'Tue', short: 'T', full: 'Tuesday' },
-  { value: 'Wed', short: 'W', full: 'Wednesday' },
-  { value: 'Thu', short: 'T', full: 'Thursday' },
-  { value: 'Fri', short: 'F', full: 'Friday' },
-  { value: 'Sat', short: 'S', full: 'Saturday' },
-  { value: 'Sun', short: 'S', full: 'Sunday' }
+  { value: 1, short: 'M', full: 'Monday' },
+  { value: 2, short: 'T', full: 'Tuesday' },
+  { value: 4, short: 'W', full: 'Wednesday' },
+  { value: 8, short: 'T', full: 'Thursday' },
+  { value: 16, short: 'F', full: 'Friday' },
+  { value: 32, short: 'S', full: 'Saturday' },
+  { value: 64, short: 'S', full: 'Sunday' }
 ]
 
 const formData = ref({
   time: '',
-  temperature: 20  // Will be in display unit
+  temperature: 20,  // Will be in display unit
+  days: 0,          // Bit flags for days
+  conditions: 0     // Bit flags for conditions
 })
-
-const selectedDays = ref([])
-const occupancy = ref(null)
 
 const isEditing = computed(() => props.schedule !== null)
 
 onMounted(() => {
   if (props.schedule) {
     formData.value.time = props.schedule.time
-    // Convert internal Celsius to display unit
     formData.value.temperature = convertToDisplay(props.schedule.temperature)
-
-    // Parse conditions
-    if (props.schedule.conditions) {
-      const conditions = props.schedule.conditions.split(',')
-      const days = []
-
-      conditions.forEach(condition => {
-        const trimmed = condition.trim()
-        if (daysOfWeek.some(d => d.value === trimmed)) {
-          days.push(trimmed)
-        } else if (trimmed === 'Occupied' || trimmed === 'Unoccupied') {
-          occupancy.value = trimmed
-        }
-      })
-
-      selectedDays.value = days
-    }
+    formData.value.days = props.schedule.days || 0
+    formData.value.conditions = props.schedule.conditions || 0
   } else {
     // New schedule - set default temp in display unit
     formData.value.temperature = convertToDisplay(20)
+    formData.value.days = 0
+    formData.value.conditions = 0
   }
 })
 
-const toggleDay = (day) => {
-  const index = selectedDays.value.indexOf(day)
-  if (index > -1) {
-    selectedDays.value.splice(index, 1)
+const isDaySelected = (dayValue) => {
+  return (formData.value.days & dayValue) !== 0
+}
+
+const toggleDay = (dayValue) => {
+  if (isDaySelected(dayValue)) {
+    // Remove the day
+    formData.value.days = formData.value.days & ~dayValue
   } else {
-    selectedDays.value.push(day)
+    // Add the day
+    formData.value.days = formData.value.days | dayValue
   }
 }
 
-const toggleOccupancy = (value) => {
-  // Toggle off if clicking the same button, otherwise set to new value
-  if (occupancy.value === value) {
-    occupancy.value = null
+const isOccupancySelected = (conditionValue) => {
+  if (conditionValue === 0) {
+    // "Any" is selected if BOTH Occupied and Unoccupied flags are set
+    return (formData.value.conditions & 12) === 12 // 12 = 4 | 8
+  }
+  // For Occupied (4) or Unoccupied (8), check if that specific flag is set
+  // but not both (to distinguish from "Any")
+  const hasBoth = (formData.value.conditions & 12) === 12
+  if (hasBoth) return false
+  return (formData.value.conditions & conditionValue) !== 0
+}
+
+const setOccupancy = (conditionValue) => {
+  // Clear both occupancy flags first (4 = Room in use, 8 = Room not in use)
+  formData.value.conditions = formData.value.conditions & ~12 // 12 = 4 | 8
+
+  if (conditionValue === 0) {
+    // "Any" is represented by having BOTH flags set
+    formData.value.conditions = formData.value.conditions | 12 // Set both flags
   } else {
-    occupancy.value = value
+    // Set the specific occupancy flag (either 4 or 8)
+    formData.value.conditions = formData.value.conditions | conditionValue
   }
 }
 
@@ -194,27 +209,19 @@ const decreaseTemp = () => {
 }
 
 const handleSubmit = () => {
-  const conditions = []
-
-  if (selectedDays.value.length > 0) {
-    conditions.push(...selectedDays.value)
-  }
-
-  if (occupancy.value) {
-    conditions.push(occupancy.value)
-  }
-
   const scheduleData = {
     time: formData.value.time,
-    // Convert display temperature back to Celsius for storage
     temperature: convertToInternal(formData.value.temperature),
-    conditions: conditions.join(',')
+    days: formData.value.days,
+    conditions: formData.value.conditions,
+    rampUpMinutes: 30,
+    conditionOperator: 1
   }
 
   if (props.schedule) {
     scheduleData.id = props.schedule.id
   } else {
-    scheduleData.id = Date.now()
+    scheduleData.id = 0
   }
 
   emit('save', scheduleData)

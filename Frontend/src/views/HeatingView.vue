@@ -51,6 +51,8 @@ import { ref, onMounted, onUnmounted, reactive } from 'vue'
 import RoomCard from '../components/RoomCard.vue'
 import Toast from '../components/Toast.vue'
 import { heatingApi } from '../services/heatingApi.js'
+import { useSignalR } from '../composables/useSignalR.js'
+import { getHouseId } from '../utils/cookies.js'
 
 const rooms = ref([])
 const roomStates = ref([])
@@ -64,6 +66,12 @@ const toast = reactive({
   type: 'success',
   duration: 3000
 })
+
+// Get houseId from cookies (same source as heatingApi)
+const houseId = getHouseId()
+
+// SignalR connection
+const signalR = useSignalR(houseId)
 
 // Cookie helpers
 const EXPANDED_ROOM_COOKIE = 'heating-app-expanded-room'
@@ -89,16 +97,7 @@ const deleteCookie = (name) => {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
 }
 
-// TODO: SignalR Connection - Connect to SignalR when component mounts
-// onMounted(async () => {
-//   await heatingApi.connectToSignalR()
-// })
-//
-// onUnmounted(async () => {
-//   await heatingApi.disconnectFromSignalR()
-// })
-
-onMounted(() => {
+onMounted(async () => {
   // Load previously expanded room from cookie
   const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
   if (savedExpandedRoom && savedExpandedRoom !== 'null') {
@@ -106,17 +105,40 @@ onMounted(() => {
   }
 
   loadSchedules()
-  // Poll room states every 30 seconds to update current temperatures and heating status
-  // TODO: Replace with SignalR notifications when implemented
-  statePollingInterval.value = setInterval(() => {
-    loadRoomStates()
-  }, 30000)
+
+  // Connect to SignalR
+  try {
+    await signalR.connect()
+
+    // Listen for room states changes
+    signalR.on('room-states-changed', (data) => {
+      console.log('Room states changed:', data)
+      loadRoomStates()
+    })
+
+    // Listen for schedules changes
+    signalR.on('schedules-changed', (data) => {
+      console.log('Schedules changed:', data)
+      loadSchedules(true) // Silent update - no loading spinner
+    })
+  } catch (err) {
+    console.error('Failed to connect to SignalR:', err)
+    // Fallback to polling if SignalR fails
+    statePollingInterval.value = setInterval(() => {
+      loadRoomStates()
+    }, 30000)
+  }
 })
 
-onUnmounted(() => {
+onUnmounted(async () => {
   if (statePollingInterval.value) {
     clearInterval(statePollingInterval.value)
   }
+
+  // Disconnect from SignalR
+  signalR.off('room-states-changed')
+  signalR.off('schedules-changed')
+  await signalR.disconnect()
 })
 
 // Helper function to sort schedules by time
@@ -137,9 +159,29 @@ const mergeSchedulesWithStates = (schedules, states) => {
   })
 }
 
-const loadSchedules = async () => {
-  loading.value = true
-  error.value = null
+// Clean room data for API - remove UI-only properties
+const cleanRoomsForApi = (rooms) => {
+  return rooms.map(room => ({
+    id: room.id,
+    name: room.name,
+    boost: room.boost,
+    schedules: room.schedules.map(schedule => ({
+      id: schedule.id,
+      time: schedule.time,
+      temperature: schedule.temperature,
+      rampUpMinutes: schedule.rampUpMinutes || 30,
+      days: schedule.days || 0,
+      conditions: schedule.conditions || 0,
+      conditionOperator: schedule.conditionOperator || 1
+    }))
+  }))
+}
+
+const loadSchedules = async (silent = false) => {
+  if (!silent) {
+    loading.value = true
+    error.value = null
+  }
 
   try {
     const data = await heatingApi.getSchedules()
@@ -160,10 +202,14 @@ const loadSchedules = async () => {
     // Merge schedules with states
     rooms.value = mergeSchedulesWithStates(data.rooms, roomStates.value)
   } catch (err) {
-    error.value = 'Failed to load schedules. Please try again.'
+    if (!silent) {
+      error.value = 'Failed to load schedules. Please try again.'
+    }
     console.error('Error loading schedules:', err)
   } finally {
-    loading.value = false
+    if (!silent) {
+      loading.value = false
+    }
   }
 }
 
@@ -198,7 +244,8 @@ const handleUpdateSchedule = async (roomId, updatedSchedule) => {
 
       // Save immediately
       try {
-        await heatingApi.setSchedules({ rooms: rooms.value })
+        const cleanedRooms = cleanRoomsForApi(rooms.value)
+        await heatingApi.setSchedules({ rooms: cleanedRooms })
         showToast('Schedule updated successfully', 'success')
       } catch (err) {
         console.error('Error saving schedule:', err)
@@ -216,7 +263,8 @@ const handleDeleteSchedule = async (roomId, scheduleId) => {
 
     // Save immediately
     try {
-      await heatingApi.setSchedules({ rooms: rooms.value })
+      const cleanedRooms = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules({ rooms: cleanedRooms })
       showToast('Schedule deleted successfully', 'success')
     } catch (err) {
       console.error('Error saving schedule:', err)
@@ -233,7 +281,8 @@ const handleAddSchedule = async (roomId, newSchedule) => {
 
     // Save immediately
     try {
-      await heatingApi.setSchedules({ rooms: rooms.value })
+      const cleanedRooms = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules({ rooms: cleanedRooms })
       showToast('Schedule added successfully', 'success')
     } catch (err) {
       console.error('Error saving schedule:', err)
@@ -265,7 +314,8 @@ const handleBoost = async (roomId, boostData) => {
 
     // Save immediately
     try {
-      await heatingApi.setSchedules({ rooms: rooms.value })
+      const cleanedRooms = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules({ rooms: cleanedRooms })
       const durationText = boostData.duration === 1 ? '1 hour' : `${boostData.duration} hours`
       showToast(`Boost activated for ${room.name} (${boostData.temperature}°C for ${durationText})`, 'success')
     } catch (err) {
@@ -282,7 +332,8 @@ const handleCancelBoost = async (roomId) => {
 
     // Save immediately
     try {
-      await heatingApi.setSchedules({ rooms: rooms.value })
+      const cleanedRooms = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules({ rooms: cleanedRooms })
       showToast(`Boost cancelled for ${room.name}`, 'info')
     } catch (err) {
       console.error('Error saving boost cancellation:', err)

@@ -67,6 +67,47 @@ export function useFormatting() {
     return isValidTime(time)
   }
 
+  // Condition formatting
+  const formatConditions = (conditionValue) => {
+    if (!conditionValue || conditionValue === 0) {
+      return null
+    }
+
+    const conditions = []
+
+    // Check each flag (these are bit flags)
+    if (conditionValue & 1) conditions.push('Plenty of power available')
+    if (conditionValue & 2) conditions.push('Low power available')
+    if (conditionValue & 4) conditions.push('Room in use')
+    if (conditionValue & 8) conditions.push('Room not in use')
+
+    return conditions.length > 0 ? conditions.join(' & ') : null
+  }
+
+  // Days formatting
+  const formatDays = (daysValue) => {
+    if (!daysValue || daysValue === 0) {
+      return 'Every day'
+    }
+
+    // Check for special combinations first
+    if (daysValue === 127) return 'Every day' // All 7 days
+    if (daysValue === 31) return 'Weekdays' // Mon-Fri
+    if (daysValue === 96) return 'Weekends' // Sat-Sun
+    if (daysValue === 95) return 'Not Sunday' // Mon-Sat
+
+    const days = []
+    if (daysValue & 1) days.push('Mon')
+    if (daysValue & 2) days.push('Tue')
+    if (daysValue & 4) days.push('Wed')
+    if (daysValue & 8) days.push('Thu')
+    if (daysValue & 16) days.push('Fri')
+    if (daysValue & 32) days.push('Sat')
+    if (daysValue & 64) days.push('Sun')
+
+    return days.length > 0 ? days.join(', ') : 'Every day'
+  }
+
   // Current unit and format
   const currentTempUnit = computed(() => temperatureUnit.value)
   const currentTimeFormat = computed(() => timeFormat.value)
@@ -87,6 +128,12 @@ export function useFormatting() {
     formatDateTimeDisplay,
     convertToInternal24H,
     validateTime,
-    currentTimeFormat
+    currentTimeFormat,
+
+    // Conditions
+    formatConditions,
+
+    // Days
+    formatDays
   }
 }

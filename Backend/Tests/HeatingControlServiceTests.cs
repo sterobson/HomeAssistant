@@ -214,7 +214,7 @@ public sealed class HeatingControlServiceTests
             heaterPlug.TurnOff();
         }
 
-        await sut.EvaluateAllSchedules(GetSampleSchedule(), "unit test");
+        await sut.EvaluateAllSchedules(new RoomSchedules { Rooms = GetSampleSchedule() }, "unit test");
 
         if (expectedHeatingState == Heating_Should_Be_On)
         {

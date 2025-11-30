@@ -29,14 +29,19 @@
         </div>
       </div>
 
-      <div class="schedule-conditions" v-if="schedule.conditions">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
-          <path d="M2 3h12v2H2V3zm0 4h12v2H2V7zm0 4h8v2H2v-2z"/>
-        </svg>
-        <span class="conditions-value">{{ schedule.conditions }}</span>
-      </div>
-      <div class="schedule-conditions no-conditions" v-else>
-        <span class="conditions-value">All days</span>
+      <div class="schedule-meta">
+        <div class="schedule-days">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
+            <path d="M3.5 0a.5.5 0 01.5.5V1h8V.5a.5.5 0 011 0V1h1a2 2 0 012 2v11a2 2 0 01-2 2H2a2 2 0 01-2-2V3a2 2 0 012-2h1V.5a.5.5 0 01.5-.5zM2 2a1 1 0 00-1 1v1h14V3a1 1 0 00-1-1H2zm13 3H1v9a1 1 0 001 1h12a1 1 0 001-1V5z"/>
+          </svg>
+          <span class="days-value">{{ daysText }}</span>
+        </div>
+        <div class="schedule-conditions" v-if="conditionsText">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
+            <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM7 4h2v5H7V4zm0 6h2v2H7v-2z"/>
+          </svg>
+          <span class="conditions-value">{{ conditionsText }}</span>
+        </div>
       </div>
     </div>
 
@@ -57,9 +62,10 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
 
-const { formatTempWithUnit, formatTimeDisplay } = useFormatting()
+const { formatTempWithUnit, formatTimeDisplay, formatConditions, formatDays } = useFormatting()
 
 const props = defineProps({
   schedule: {
@@ -74,6 +80,14 @@ const props = defineProps({
     type: Boolean,
     default: false
   }
+})
+
+const conditionsText = computed(() => {
+  return formatConditions(props.schedule.conditions)
+})
+
+const daysText = computed(() => {
+  return formatDays(props.schedule.days)
 })
 
 const emit = defineEmits(['edit', 'delete'])
@@ -181,11 +195,18 @@ const handleDelete = () => {
 
 .schedule-time,
 .schedule-temp,
+.schedule-days,
 .schedule-conditions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+}
+
+.schedule-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .icon {
@@ -203,13 +224,13 @@ const handleDelete = () => {
   color: var(--color-danger);
 }
 
-.conditions-value {
-  color: var(--text-secondary);
+.days-value {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
-.no-conditions .conditions-value {
-  color: var(--text-tertiary);
-  font-style: italic;
+.conditions-value {
+  color: var(--text-secondary);
 }
 
 .schedule-actions {

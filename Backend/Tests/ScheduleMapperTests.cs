@@ -28,7 +28,7 @@ public class ScheduleMapperTests
 
         // Assert
         result.ShouldNotBeNull();
-        result.ShouldBeEmpty();
+        result.Rooms.ShouldBeEmpty();
     }
 
     [TestMethod]
@@ -41,14 +41,14 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Kitchen",
                     Boost = null,
                     Schedules =
                     [
                         new ScheduleTrackDto
                         {
-                            Id = "101",
+                            Id = 101,
                             Time = "07:30",
                             Temperature = 21.5,
                             RampUpMinutes = 45,
@@ -65,8 +65,8 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result.Count.ShouldBe(1);
-        var room = result[0];
+        result.Rooms.Count.ShouldBe(1);
+        var room = result.Rooms[0];
         room.Id.ShouldBe(1);
         room.Name.ShouldBe("Kitchen");
         room.Boost.ShouldNotBeNull();
@@ -97,7 +97,7 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "2",
+                    Id = 2,
                     Name = "Bedroom",
                     Boost = new BoostDto
                     {
@@ -114,7 +114,7 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        var room = result[0];
+        var room = result.Rooms[0];
         room.Boost.ShouldNotBeNull();
         room.Boost.StartTime.ShouldNotBeNull();
         room.Boost.EndTime.ShouldNotBeNull();
@@ -133,7 +133,7 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "3",
+                    Id = 3,
                     Name = "Lounge",
                     Boost = new BoostDto
                     {
@@ -150,7 +150,7 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        var room = result[0];
+        var room = result.Rooms[0];
         room.Boost.ShouldNotBeNull();
         room.Boost.StartTime.ShouldBeNull();
         room.Boost.EndTime.ShouldBeNull();
@@ -160,6 +160,7 @@ public class ScheduleMapperTests
     [TestMethod]
     public void MapFromDto_WithInvalidRoomId_DefaultsToZero()
     {
+        // This test is no longer applicable since Id is now int, not string
         // Arrange
         var dto = new RoomSchedulesDto
         {
@@ -167,7 +168,7 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "invalid-id",
+                    Id = 0,
                     Name = "Test Room",
                     Schedules = []
                 }
@@ -178,12 +179,13 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result[0].Id.ShouldBe(0);
+        result.Rooms[0].Id.ShouldBe(0);
     }
 
     [TestMethod]
     public void MapFromDto_WithInvalidTrackId_DefaultsToZero()
     {
+        // This test is no longer applicable since Id is now int, not string
         // Arrange
         var dto = new RoomSchedulesDto
         {
@@ -191,13 +193,13 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Test Room",
                     Schedules =
                     [
                         new ScheduleTrackDto
                         {
-                            Id = "not-a-number",
+                            Id = 0,
                             Time = "12:00",
                             Temperature = 20.0,
                             Days = Days.Unspecified
@@ -211,7 +213,7 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result[0].ScheduleTracks[0].Id.ShouldBe(0);
+        result.Rooms[0].ScheduleTracks[0].Id.ShouldBe(0);
     }
 
     [TestMethod]
@@ -224,21 +226,21 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Kitchen",
                     Schedules =
                     [
-                        new ScheduleTrackDto { Id = "101", Time = "07:00", Temperature = 21.0, Days = Days.Weekdays },
-                        new ScheduleTrackDto { Id = "102", Time = "22:00", Temperature = 18.0, Days = Days.Weekdays }
+                        new ScheduleTrackDto { Id = 101, Time = "07:00", Temperature = 21.0, Days = Days.Weekdays },
+                        new ScheduleTrackDto { Id = 102, Time = "22:00", Temperature = 18.0, Days = Days.Weekdays }
                     ]
                 },
                 new RoomDto
                 {
-                    Id = "2",
+                    Id = 2,
                     Name = "Bedroom",
                     Schedules =
                     [
-                        new ScheduleTrackDto { Id = "201", Time = "06:30", Temperature = 19.0, Days = Days.Weekends }
+                        new ScheduleTrackDto { Id = 201, Time = "06:30", Temperature = 19.0, Days = Days.Weekends }
                     ]
                 }
             ]
@@ -248,9 +250,9 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result.Count.ShouldBe(2);
-        result[0].ScheduleTracks.Count.ShouldBe(2);
-        result[1].ScheduleTracks.Count.ShouldBe(1);
+        result.Rooms.Count.ShouldBe(2);
+        result.Rooms[0].ScheduleTracks.Count.ShouldBe(2);
+        result.Rooms[1].ScheduleTracks.Count.ShouldBe(1);
     }
 
     [TestMethod]
@@ -263,20 +265,20 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Test Room",
                     Schedules =
                     [
-                        new ScheduleTrackDto { Id = "1", Time = "08:00", Temperature = 20.0, Days = Days.Monday },
-                        new ScheduleTrackDto { Id = "2", Time = "08:00", Temperature = 20.0, Days = Days.Tuesday },
-                        new ScheduleTrackDto { Id = "3", Time = "08:00", Temperature = 20.0, Days = Days.Wednesday },
-                        new ScheduleTrackDto { Id = "4", Time = "08:00", Temperature = 20.0, Days = Days.Thursday },
-                        new ScheduleTrackDto { Id = "5", Time = "08:00", Temperature = 20.0, Days = Days.Friday },
-                        new ScheduleTrackDto { Id = "6", Time = "08:00", Temperature = 20.0, Days = Days.Saturday },
-                        new ScheduleTrackDto { Id = "7", Time = "08:00", Temperature = 20.0, Days = Days.Sunday },
-                        new ScheduleTrackDto { Id = "8", Time = "08:00", Temperature = 20.0, Days = Days.Weekdays },
-                        new ScheduleTrackDto { Id = "9", Time = "08:00", Temperature = 20.0, Days = Days.Weekends },
-                        new ScheduleTrackDto { Id = "10", Time = "08:00", Temperature = 20.0, Days = Days.Everyday }
+                        new ScheduleTrackDto { Id = 1, Time = "08:00", Temperature = 20.0, Days = Days.Monday },
+                        new ScheduleTrackDto { Id = 2, Time = "08:00", Temperature = 20.0, Days = Days.Tuesday },
+                        new ScheduleTrackDto { Id = 3, Time = "08:00", Temperature = 20.0, Days = Days.Wednesday },
+                        new ScheduleTrackDto { Id = 4, Time = "08:00", Temperature = 20.0, Days = Days.Thursday },
+                        new ScheduleTrackDto { Id = 5, Time = "08:00", Temperature = 20.0, Days = Days.Friday },
+                        new ScheduleTrackDto { Id = 6, Time = "08:00", Temperature = 20.0, Days = Days.Saturday },
+                        new ScheduleTrackDto { Id = 7, Time = "08:00", Temperature = 20.0, Days = Days.Sunday },
+                        new ScheduleTrackDto { Id = 8, Time = "08:00", Temperature = 20.0, Days = Days.Weekdays },
+                        new ScheduleTrackDto { Id = 9, Time = "08:00", Temperature = 20.0, Days = Days.Weekends },
+                        new ScheduleTrackDto { Id = 10, Time = "08:00", Temperature = 20.0, Days = Days.Everyday }
                     ]
                 }
             ]
@@ -286,10 +288,10 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result[0].ScheduleTracks.Count.ShouldBe(10);
-        result[0].ScheduleTracks[0].Days.ShouldBe(Days.Monday);
-        result[0].ScheduleTracks[8].Days.ShouldBe(Days.Weekends);
-        result[0].ScheduleTracks[9].Days.ShouldBe(Days.Everyday);
+        result.Rooms[0].ScheduleTracks.Count.ShouldBe(10);
+        result.Rooms[0].ScheduleTracks[0].Days.ShouldBe(Days.Monday);
+        result.Rooms[0].ScheduleTracks[8].Days.ShouldBe(Days.Weekends);
+        result.Rooms[0].ScheduleTracks[9].Days.ShouldBe(Days.Everyday);
     }
 
     [TestMethod]
@@ -302,13 +304,13 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Test Room",
                     Schedules =
                     [
-                        new ScheduleTrackDto { Id = "1", Time = "08:00", Temperature = 20.0, Conditions = ConditionType.None },
-                        new ScheduleTrackDto { Id = "2", Time = "08:00", Temperature = 20.0, Conditions = ConditionType.PlentyOfPowerAvailable },
-                        new ScheduleTrackDto { Id = "3", Time = "08:00", Temperature = 20.0, Conditions = ConditionType.RoomInUse }
+                        new ScheduleTrackDto { Id = 1, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.None },
+                        new ScheduleTrackDto { Id = 2, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.PlentyOfPowerAvailable },
+                        new ScheduleTrackDto { Id = 3, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.RoomInUse }
                     ]
                 }
             ]
@@ -318,9 +320,9 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapFromDto(dto);
 
         // Assert
-        result[0].ScheduleTracks[0].Conditions.ShouldBe(ConditionType.None);
-        result[0].ScheduleTracks[1].Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable);
-        result[0].ScheduleTracks[2].Conditions.ShouldBe(ConditionType.RoomInUse);
+        result.Rooms[0].ScheduleTracks[0].Conditions.ShouldBe(ConditionType.None);
+        result.Rooms[0].ScheduleTracks[1].Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable);
+        result.Rooms[0].ScheduleTracks[2].Conditions.ShouldBe(ConditionType.RoomInUse);
     }
 
     #endregion
@@ -338,7 +340,7 @@ public class ScheduleMapperTests
     public void MapToDto_WithEmptySchedules_ReturnsEmptyRooms()
     {
         // Arrange
-        var schedules = new List<RoomSchedule>();
+        var schedules = new RoomSchedules { Rooms = [] };
 
         // Act
         var result = ScheduleMapper.MapToDto(schedules);
@@ -353,27 +355,30 @@ public class ScheduleMapperTests
     public void MapToDto_WithSingleRoomAndSchedule_MapsCorrectly()
     {
         // Arrange
-        var schedules = new List<RoomSchedule>
+        var schedules = new RoomSchedules
         {
-            new RoomSchedule
-            {
-                Id = 1,
-                Name = "Kitchen",
-                Boost = new Boost(),
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack
-                    {
-                        Id = 101,
-                        TargetTime = new TimeOnly(7, 30),
-                        Temperature = 21.5,
-                        RampUpMinutes = 45,
-                        Days = Days.Weekdays,
-                        Conditions = ConditionType.PlentyOfPowerAvailable,
-                        ConditionOperator = ConditionOperatorType.And
-                    }
-                ]
-            }
+            Rooms =
+            [
+                new RoomSchedule
+                {
+                    Id = 1,
+                    Name = "Kitchen",
+                    Boost = new Boost(),
+                    ScheduleTracks =
+                    [
+                        new HeatingScheduleTrack
+                        {
+                            Id = 101,
+                            TargetTime = new TimeOnly(7, 30),
+                            Temperature = 21.5,
+                            RampUpMinutes = 45,
+                            Days = Days.Weekdays,
+                            Conditions = ConditionType.PlentyOfPowerAvailable,
+                            ConditionOperator = ConditionOperatorType.And
+                        }
+                    ]
+                }
+            ]
         };
 
         // Act
@@ -382,13 +387,13 @@ public class ScheduleMapperTests
         // Assert
         result.Rooms.Count.ShouldBe(1);
         var room = result.Rooms[0];
-        room.Id.ShouldBe("1");
+        room.Id.ShouldBe(1);
         room.Name.ShouldBe("Kitchen");
         room.Boost.ShouldNotBeNull();
 
         room.Schedules.Count.ShouldBe(1);
         var track = room.Schedules[0];
-        track.Id.ShouldBe("101");
+        track.Id.ShouldBe(101);
         track.Time.ShouldBe("07:30");
         track.Temperature.ShouldBe(21.5);
         track.RampUpMinutes.ShouldBe(45);
@@ -403,20 +408,23 @@ public class ScheduleMapperTests
         // Arrange
         var startTime = DateTimeOffset.UtcNow;
         var endTime = startTime.AddHours(2);
-        var schedules = new List<RoomSchedule>
+        var schedules = new RoomSchedules
         {
-            new RoomSchedule
-            {
-                Id = 2,
-                Name = "Bedroom",
-                Boost = new Boost
+            Rooms =
+            [
+                new RoomSchedule
                 {
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    Temperature = 22.0
-                },
-                ScheduleTracks = []
-            }
+                    Id = 2,
+                    Name = "Bedroom",
+                    Boost = new Boost
+                    {
+                        StartTime = startTime,
+                        EndTime = endTime,
+                        Temperature = 22.0
+                    },
+                    ScheduleTracks = []
+                }
+            ]
         };
 
         // Act
@@ -434,20 +442,23 @@ public class ScheduleMapperTests
     public void MapToDto_WithNullBoostTimes_MapsAsNull()
     {
         // Arrange
-        var schedules = new List<RoomSchedule>
+        var schedules = new RoomSchedules
         {
-            new RoomSchedule
-            {
-                Id = 3,
-                Name = "Lounge",
-                Boost = new Boost
+            Rooms =
+            [
+                new RoomSchedule
                 {
-                    StartTime = null,
-                    EndTime = null,
-                    Temperature = 20.0
-                },
-                ScheduleTracks = []
-            }
+                    Id = 3,
+                    Name = "Lounge",
+                    Boost = new Boost
+                    {
+                        StartTime = null,
+                        EndTime = null,
+                        Temperature = 20.0
+                    },
+                    ScheduleTracks = []
+                }
+            ]
         };
 
         // Act
@@ -465,27 +476,30 @@ public class ScheduleMapperTests
     public void MapToDto_WithMultipleRoomsAndSchedules_MapsAllCorrectly()
     {
         // Arrange
-        var schedules = new List<RoomSchedule>
+        var schedules = new RoomSchedules
         {
-            new RoomSchedule
-            {
-                Id = 1,
-                Name = "Kitchen",
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { Id = 101, TargetTime = new TimeOnly(7, 0), Temperature = 21.0, Days = Days.Weekdays },
-                    new HeatingScheduleTrack { Id = 102, TargetTime = new TimeOnly(22, 0), Temperature = 18.0, Days = Days.Weekdays }
-                ]
-            },
-            new RoomSchedule
-            {
-                Id = 2,
-                Name = "Bedroom",
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { Id = 201, TargetTime = new TimeOnly(6, 30), Temperature = 19.0, Days = Days.Weekends }
-                ]
-            }
+            Rooms =
+            [
+                new RoomSchedule
+                {
+                    Id = 1,
+                    Name = "Kitchen",
+                    ScheduleTracks =
+                    [
+                        new HeatingScheduleTrack { Id = 101, TargetTime = new TimeOnly(7, 0), Temperature = 21.0, Days = Days.Weekdays },
+                        new HeatingScheduleTrack { Id = 102, TargetTime = new TimeOnly(22, 0), Temperature = 18.0, Days = Days.Weekdays }
+                    ]
+                },
+                new RoomSchedule
+                {
+                    Id = 2,
+                    Name = "Bedroom",
+                    ScheduleTracks =
+                    [
+                        new HeatingScheduleTrack { Id = 201, TargetTime = new TimeOnly(6, 30), Temperature = 19.0, Days = Days.Weekends }
+                    ]
+                }
+            ]
         };
 
         // Act
@@ -501,19 +515,22 @@ public class ScheduleMapperTests
     public void MapToDto_FormatsTimesCorrectly()
     {
         // Arrange
-        var schedules = new List<RoomSchedule>
+        var schedules = new RoomSchedules
         {
-            new RoomSchedule
-            {
-                Id = 1,
-                Name = "Test",
-                ScheduleTracks =
-                [
-                    new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 20.0 },
-                    new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(9, 5), Temperature = 20.0 },
-                    new HeatingScheduleTrack { Id = 3, TargetTime = new TimeOnly(23, 59), Temperature = 20.0 }
-                ]
-            }
+            Rooms =
+            [
+                new RoomSchedule
+                {
+                    Id = 1,
+                    Name = "Test",
+                    ScheduleTracks =
+                    [
+                        new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 20.0 },
+                        new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(9, 5), Temperature = 20.0 },
+                        new HeatingScheduleTrack { Id = 3, TargetTime = new TimeOnly(23, 59), Temperature = 20.0 }
+                    ]
+                }
+            ]
         };
 
         // Act
@@ -539,13 +556,13 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Kitchen",
                     Schedules =
                     [
                         new ScheduleTrackDto
                         {
-                            Id = "101",
+                            Id = 101,
                             Time = "07:30",
                             Temperature = 21.5,
                             RampUpMinutes = 30,
@@ -584,7 +601,7 @@ public class ScheduleMapperTests
             [
                 new RoomDto
                 {
-                    Id = "1",
+                    Id = 1,
                     Name = "Test",
                     Boost = new BoostDto
                     {
@@ -625,10 +642,10 @@ public class ScheduleMapperTests
         var lastUpdated = DateTimeOffset.UtcNow;
         var dto = new RoomStateDto
         {
-            RoomId = "5",
+            RoomId = 5,
             CurrentTemperature = 19.5,
             HeatingActive = true,
-            ActiveScheduleTrackId = "102",
+            ActiveScheduleTrackId = 102,
             LastUpdated = lastUpdated.ToString("O")
         };
 
@@ -649,7 +666,7 @@ public class ScheduleMapperTests
         // Arrange
         var dto = new RoomStateDto
         {
-            RoomId = "1",
+            RoomId = 1,
             CurrentTemperature = null,
             HeatingActive = false,
             LastUpdated = DateTimeOffset.UtcNow.ToString("O")
@@ -665,10 +682,11 @@ public class ScheduleMapperTests
     [TestMethod]
     public void MapRoomStateFromDto_WithInvalidRoomId_DefaultsToZero()
     {
+        // This test is no longer applicable since RoomId is now int
         // Arrange
         var dto = new RoomStateDto
         {
-            RoomId = "invalid",
+            RoomId = 0,
             HeatingActive = false,
             LastUpdated = DateTimeOffset.UtcNow.ToString("O")
         };
@@ -680,24 +698,6 @@ public class ScheduleMapperTests
         result.RoomId.ShouldBe(0);
     }
 
-    [TestMethod]
-    public void MapRoomStateFromDto_WithInvalidTrackId_DefaultsToZero()
-    {
-        // Arrange
-        var dto = new RoomStateDto
-        {
-            RoomId = "1",
-            ActiveScheduleTrackId = "not-a-number",
-            HeatingActive = false,
-            LastUpdated = DateTimeOffset.UtcNow.ToString("O")
-        };
-
-        // Act
-        var result = ScheduleMapper.MapRoomStateFromDto(dto);
-
-        // Assert
-        result.ActiveScheduleTrackId.ShouldBe(0);
-    }
 
     [TestMethod]
     public void MapRoomStateToDto_WithNullState_ThrowsArgumentNullException()
@@ -724,10 +724,10 @@ public class ScheduleMapperTests
         var result = ScheduleMapper.MapRoomStateToDto(state);
 
         // Assert
-        result.RoomId.ShouldBe("5");
+        result.RoomId.ShouldBe(5);
         result.CurrentTemperature.ShouldBe(19.5);
         result.HeatingActive.ShouldBeTrue();
-        result.ActiveScheduleTrackId.ShouldBe("102");
+        result.ActiveScheduleTrackId.ShouldBe(102);
         result.LastUpdated.ShouldBe(lastUpdated.ToString("O"));
     }
 
@@ -757,10 +757,10 @@ public class ScheduleMapperTests
         var lastUpdated = DateTimeOffset.UtcNow;
         var original = new RoomStateDto
         {
-            RoomId = "3",
+            RoomId = 3,
             CurrentTemperature = 20.5,
             HeatingActive = true,
-            ActiveScheduleTrackId = "201",
+            ActiveScheduleTrackId = 201,
             LastUpdated = lastUpdated.ToString("O")
         };
 

@@ -10,26 +10,24 @@ using System.Text.Json;
 
 namespace HomeAssistant.Functions;
 
-public class ScheduleFunctions
+public class HouseFunctions
 {
-    private readonly ILogger<ScheduleFunctions> _logger;
-    private readonly ScheduleStorageService _storageService;
-    private readonly SignalRService _signalRService;
+    private readonly ILogger<HouseFunctions> _logger;
+    private readonly HouseDetailsStorageService _storageService;
 
-    public ScheduleFunctions(ILogger<ScheduleFunctions> logger, SignalRService signalRService)
+    public HouseFunctions(ILogger<HouseFunctions> logger)
     {
         _logger = logger;
-        _signalRService = signalRService;
 
         string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString")
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
 
-        _storageService = new ScheduleStorageService(connectionString);
+        _storageService = new HouseDetailsStorageService(connectionString);
     }
 
-    [Function("GetSchedules")]
-    public async Task<IActionResult> GetSchedules(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "schedules")] HttpRequest req)
+    [Function("GetHouseDetails")]
+    public async Task<IActionResult> GetHouseDetails(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "house-details")] HttpRequest req)
     {
         // Get houseId from query parameter
         if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
@@ -39,30 +37,31 @@ public class ScheduleFunctions
         }
 
         string houseId = houseIdStr.ToString();
-        _logger.LogInformation("Getting heating schedules for house {HouseId}", houseId);
+        _logger.LogInformation("Getting house details for house {HouseId}", houseId);
 
         try
         {
-            RoomSchedulesDto? schedules = await _storageService.GetSchedulesAsync(houseId);
+            HouseDetailsDto? houseDetails = await _storageService.GetHouseDetailsAsync(houseId);
 
-            if (schedules == null)
+            if (houseDetails == null)
             {
-                // Return default schedules if none exist
-                return new NotFoundResult();
+                // Return empty details if none exist
+                _logger.LogInformation("No house details found for house {HouseId}, returning empty", houseId);
+                return new OkObjectResult(new HouseDetailsDto());
             }
 
-            return new OkObjectResult(schedules);
+            return new OkObjectResult(houseDetails);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting schedules for house {HouseId}", houseId);
+            _logger.LogError(ex, "Error getting house details for house {HouseId}", houseId);
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
     }
 
-    [Function("SetSchedules")]
-    public async Task<IActionResult> SetSchedules(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "schedules")] HttpRequest req)
+    [Function("SetHouseDetails")]
+    public async Task<IActionResult> SetHouseDetails(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "house-details")] HttpRequest req)
     {
         // Get houseId from query parameter
         if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
@@ -72,36 +71,28 @@ public class ScheduleFunctions
         }
 
         string houseId = houseIdStr.ToString();
-        _logger.LogInformation("Setting heating schedules for house {HouseId}", houseId);
+        _logger.LogInformation("Setting house details for house {HouseId}", houseId);
 
         try
         {
             using StreamReader reader = new(req.Body);
             string body = await reader.ReadToEndAsync();
 
-            RoomSchedulesDto? dto = JsonSerializer.Deserialize<RoomSchedulesDto>(body, JsonConfiguration.CreateOptions());
+            HouseDetailsDto? dto = JsonSerializer.Deserialize<HouseDetailsDto>(body, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                Converters = { new FlexibleEnumConverterFactory() }
+            });
 
             if (dto == null)
             {
                 return new BadRequestObjectResult(new { error = "Invalid request body" });
             }
 
-            await _storageService.SaveSchedulesAsync(houseId, dto);
-            _logger.LogInformation("Successfully saved schedules for house {HouseId} with {RoomCount} rooms",
-                houseId, dto.Rooms.Count);
-
-            // Send SignalR message to all clients for this house (fire and forget)
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _signalRService.SendMessageToUserAsync(houseId, "schedules-changed", new { houseId });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send SignalR message for schedules-changed");
-                }
-            });
+            await _storageService.SaveHouseDetailsAsync(houseId, dto);
+            _logger.LogInformation("Successfully saved house details for house {HouseId} with name '{Name}'",
+                houseId, dto.Name);
 
             return new OkObjectResult(new { success = true });
         }
@@ -112,7 +103,7 @@ public class ScheduleFunctions
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error setting schedules for house {HouseId}", houseId);
+            _logger.LogError(ex, "Error setting house details for house {HouseId}", houseId);
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
     }

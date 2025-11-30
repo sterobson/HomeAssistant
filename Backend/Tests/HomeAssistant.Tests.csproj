@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\HomeAssistant.Functions\JsonConverters\FlexibleEnumConverter.cs" Link="JsonConverters\FlexibleEnumConverter.cs" />
+    <Compile Include="..\HomeAssistant.Functions\JsonConfiguration.cs" Link="JsonConfiguration.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 

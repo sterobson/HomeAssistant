@@ -12,7 +12,9 @@
       "Bash(npm run build:*)",
       "Bash(cat:*)",
       "Bash(Select-String -Pattern \"Weekday\")",
-      "Bash(Select-Object -First 3)"
+      "Bash(Select-Object -First 3)",
+      "Bash(dotnet add:*)",
+      "Bash(npm install:*)"
     ],
     "deny": [],
     "ask": []

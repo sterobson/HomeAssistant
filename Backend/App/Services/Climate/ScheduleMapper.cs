@@ -1,6 +1,5 @@
 using HomeAssistant.Services.Climate;
 using HomeAssistant.Shared.Climate;
-using System;
 using System.Collections.Generic;
 
 namespace HomeAssistant.Services;
@@ -13,7 +12,7 @@ public static class ScheduleMapper
     /// <summary>
     /// Maps from DTO to domain model
     /// </summary>
-    public static List<RoomSchedule> MapFromDto(RoomSchedulesDto dto)
+    public static RoomSchedules MapFromDto(RoomSchedulesDto dto)
     {
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
@@ -36,7 +35,7 @@ public static class ScheduleMapper
 
             RoomSchedule schedule = new()
             {
-                Id = int.TryParse(roomDto.Id, out int roomId) ? roomId : 0,
+                Id = roomDto.Id,
                 Name = roomDto.Name,
                 Boost = boost,
                 ScheduleTracks = []
@@ -46,7 +45,7 @@ public static class ScheduleMapper
             {
                 HeatingScheduleTrack track = new()
                 {
-                    Id = int.TryParse(trackDto.Id, out int trackId) ? trackId : 0,
+                    Id = trackDto.Id,
                     TargetTime = TimeOnly.Parse(trackDto.Time),
                     Temperature = trackDto.Temperature,
                     RampUpMinutes = trackDto.RampUpMinutes,
@@ -61,20 +60,20 @@ public static class ScheduleMapper
             schedules.Add(schedule);
         }
 
-        return schedules;
+        return new RoomSchedules() { Rooms = schedules };
     }
 
     /// <summary>
     /// Maps from domain model to DTO
     /// </summary>
-    public static RoomSchedulesDto MapToDto(List<RoomSchedule> schedules)
+    public static RoomSchedulesDto MapToDto(RoomSchedules schedules)
     {
         if (schedules == null)
             throw new ArgumentNullException(nameof(schedules));
 
         List<RoomDto> rooms = [];
 
-        foreach (RoomSchedule schedule in schedules)
+        foreach (RoomSchedule schedule in schedules.Rooms)
         {
             BoostDto boostDto = new BoostDto
             {
@@ -85,7 +84,7 @@ public static class ScheduleMapper
 
             RoomDto roomDto = new RoomDto
             {
-                Id = schedule.Id.ToString(),
+                Id = schedule.Id,
                 Name = schedule.Name,
                 Boost = boostDto,
                 Schedules = []
@@ -95,7 +94,7 @@ public static class ScheduleMapper
             {
                 roomDto.Schedules.Add(new ScheduleTrackDto
                 {
-                    Id = track.Id.ToString(),
+                    Id = track.Id,
                     Time = track.TargetTime.ToString("HH:mm"),
                     Temperature = track.Temperature,
                     RampUpMinutes = track.RampUpMinutes,
@@ -121,10 +120,10 @@ public static class ScheduleMapper
 
         return new RoomState
         {
-            RoomId = int.TryParse(dto.RoomId, out int roomId) ? roomId : 0,
+            RoomId = dto.RoomId,
             CurrentTemperature = dto.CurrentTemperature,
             HeatingActive = dto.HeatingActive,
-            ActiveScheduleTrackId = int.TryParse(dto.ActiveScheduleTrackId, out int trackId) ? trackId : 0,
+            ActiveScheduleTrackId = dto.ActiveScheduleTrackId,
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated)
         };
     }
@@ -139,10 +138,10 @@ public static class ScheduleMapper
 
         return new RoomStateDto
         {
-            RoomId = state.RoomId.ToString(),
+            RoomId = state.RoomId,
             CurrentTemperature = state.CurrentTemperature,
             HeatingActive = state.HeatingActive,
-            ActiveScheduleTrackId = state.ActiveScheduleTrackId.ToString(),
+            ActiveScheduleTrackId = state.ActiveScheduleTrackId,
             LastUpdated = state.LastUpdated.ToString("O")
         };
     }

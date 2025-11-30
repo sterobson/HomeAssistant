@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <Compile Include="..\App\Shared\Climate\HeatingControlTypes.cs" Link="Shared\Climate\HeatingControlTypes.cs" />
+    <Compile Include="..\App\Shared\Climate\HouseDetailsDto.cs" Link="Shared\Climate\HouseDetailsDto.cs" />
     <Compile Include="..\App\Shared\Climate\RoomStateDto.cs" Link="Shared\Climate\RoomStateDto.cs" />
     <Compile Include="..\App\Shared\Climate\ScheduleDto.cs" Link="Shared\Climate\ScheduleDto.cs" />
   </ItemGroup>
@@ -21,7 +22,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.50.0-preview1" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" Version="2.0.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.0.2" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.SignalRService" Version="2.0.1" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" />
+    <PackageReference Include="Microsoft.Azure.SignalR.Management" Version="1.32.0" />
   </ItemGroup>
 
   <ItemGroup>

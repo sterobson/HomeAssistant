@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace HomeAssistant.Shared.Climate;
 
@@ -9,10 +10,19 @@ public class RoomSchedulesDto
 
 public class RoomDto
 {
-    public string Id { get; set; } = string.Empty;
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public BoostDto? Boost { get; set; }
+
     public List<ScheduleTrackDto> Schedules { get; set; } = [];
+
+    // Support alternative property name for backward compatibility
+    [JsonIgnore]
+    public List<ScheduleTrackDto> ScheduleTracks
+    {
+        get => Schedules;
+        set => Schedules = value;
+    }
 }
 
 public class BoostDto
@@ -24,8 +34,18 @@ public class BoostDto
 
 public class ScheduleTrackDto
 {
-    public string Id { get; set; } = string.Empty;
+    public int Id { get; set; }
+
     public string Time { get; set; } = string.Empty;
+
+    // Support alternative property name for backward compatibility
+    [JsonIgnore]
+    public string TargetTime
+    {
+        get => Time;
+        set => Time = value;
+    }
+
     public double Temperature { get; set; }
     public int RampUpMinutes { get; set; }
     public Days Days { get; set; }

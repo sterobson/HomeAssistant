@@ -13,8 +13,8 @@ namespace HomeAssistant.Services;
 
 public interface IScheduleApiClient
 {
-    Task<List<RoomSchedule>> GetSchedulesAsync(string houseId);
-    Task SetSchedulesAsync(string houseId, List<RoomSchedule> schedules);
+    Task<RoomSchedules> GetSchedulesAsync(string houseId);
+    Task SetSchedulesAsync(string houseId, RoomSchedules schedules);
     Task<List<RoomState>> GetRoomStatesAsync(string houseId);
     Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates);
 }
@@ -36,7 +36,7 @@ public class ScheduleApiClient : IScheduleApiClient
         _logger = logger;
     }
 
-    public async Task<List<RoomSchedule>> GetSchedulesAsync(string houseId)
+    public async Task<RoomSchedules> GetSchedulesAsync(string houseId)
     {
         try
         {
@@ -47,7 +47,7 @@ public class ScheduleApiClient : IScheduleApiClient
             if (schedulesResponse == null)
             {
                 _logger.LogWarning("Received null response when getting schedules for house {HouseId}", houseId);
-                return [];
+                return new();
             }
 
             return ScheduleMapper.MapFromDto(schedulesResponse);
@@ -59,7 +59,7 @@ public class ScheduleApiClient : IScheduleApiClient
         }
     }
 
-    public async Task SetSchedulesAsync(string houseId, List<RoomSchedule> schedules)
+    public async Task SetSchedulesAsync(string houseId, RoomSchedules schedules)
     {
         try
         {

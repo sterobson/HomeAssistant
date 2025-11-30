@@ -18,7 +18,7 @@
         </div>
       </div>
       <div class="header-actions">
-        <button v-if="!room.boost" class="boost-btn" @click.stop="handleBoost" title="Boost heating">
+        <button v-if="!isBoostActive" class="boost-btn" @click.stop="handleBoost" title="Boost heating">
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
           </svg>
@@ -34,7 +34,7 @@
 
     <div v-show="!isCollapsed" class="room-card-content">
       <BoostCard
-        v-if="room.boost"
+        v-if="isBoostActive"
         :boost-end-time="room.boost.endTime"
         :boost-temperature="room.boost.temperature"
         @cancel="handleCancelBoost"
@@ -119,11 +119,24 @@ const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 
-// Sort schedules by time
+// Filter and sort schedules
+// Show schedules with Occupied (4), Unoccupied (8), or no occupancy flags (legacy)
+// Hide only schedules marked as "Any" (both flags set = 12)
 const sortedSchedules = computed(() => {
-  return [...props.room.schedules].sort((a, b) => {
-    return a.time.localeCompare(b.time)
-  })
+  return [...props.room.schedules]
+    .filter(schedule => {
+      const conditions = schedule.conditions || 0
+      const hasBothFlags = (conditions & 12) === 12 // "Any" is represented by both flags
+      return !hasBothFlags // Hide only if both flags are set
+    })
+    .sort((a, b) => {
+      return a.time.localeCompare(b.time)
+    })
+})
+
+// Check if boost is actually active (has valid start and end times)
+const isBoostActive = computed(() => {
+  return props.room.boost && props.room.boost.startTime && props.room.boost.endTime
 })
 
 const toggleCollapse = () => {

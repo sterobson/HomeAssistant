@@ -31,7 +31,7 @@ internal class HeatingControlService
     // TODO: SignalR Connection - Add SignalR hub connection here
     // private HubConnection? _hubConnection;
 
-    public List<RoomSchedule> Schedules { get; private set; } = [];
+    public RoomSchedules Schedules { get; private set; } = new();
 
     public HeatingControlService(
         INamedEntities namedEntities,
@@ -58,59 +58,64 @@ internal class HeatingControlService
         _scheduleApiClient = scheduleApiClient;
 
         // Initialize with default schedules (will be replaced if API client is available)
-        Schedules = [
-            new()
-            {
-                Id = 1,
-                Name = "Kitcken",
-                ScheduleTracks = [
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
-                    new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
-                ]
-            },
-            new()
-            {
-                Id = 2,
-                Name = "Games room",
-                ScheduleTracks = [
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-                ]
-            },
-            new()
-            {
-                Id = 3,
-                Name = "Bedroom 1",
-                ScheduleTracks = [
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
-                ]
-            },
-            new()
-            {
-                Id = 4,
-                Name = "Dining room",
-                ScheduleTracks = [
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
-                    new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-                ]
-            },
+        Schedules = new()
+        {
+            Rooms = [
+                new()
+                {
+                    Id = 1,
+                    Name = "Kitcken",
+                    ScheduleTracks = [
+                        new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
+                        new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18, Days = Days.NotSunday },
+                        new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
+                        new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
+                        new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
+                    ]
+                },
+                new()
+                {
+                    Id = 2,
+                    Name = "Games room",
+                    ScheduleTracks = [
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
+                    ]
+                },
+                new()
+                {
+                    Id = 3,
+                    Name = "Bedroom 1",
+                    ScheduleTracks = [
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
+                    ]
+                },
+                new()
+                {
+                    Id = 4,
+                    Name = "Dining room",
+                    ScheduleTracks = [
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
+                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
+                    ]
+                },
 
-        ];
+            ]
+        };
+
+        // string s = System.Text.Json.JsonSerializer.Serialize(ScheduleMapper.MapToDto(Schedules));
     }
 
     public void Start()
@@ -160,22 +165,22 @@ internal class HeatingControlService
         try
         {
             _logger.LogInformation("Downloading schedules from API for house {HouseId}", _configuration.HouseId);
-            List<RoomSchedule> schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
+            RoomSchedules schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
 
-            if (schedules.Count != 0)
+            if (schedules.Rooms.Count != 0)
             {
                 // Set up delegates for each schedule
-                foreach (RoomSchedule schedule in schedules)
+                foreach (RoomSchedule schedule in schedules.Rooms)
                 {
                     schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
                     schedule.OnToggleHeating = GetOnToggleFunc(schedule);
                 }
 
                 Schedules = schedules;
-                _logger.LogInformation("Successfully loaded {Count} schedules from API", schedules.Count);
+                _logger.LogInformation("Successfully loaded {Count} schedules from API", schedules.Rooms.Count);
 
                 // Initialize room states
-                foreach (RoomSchedule schedule in Schedules)
+                foreach (RoomSchedule schedule in Schedules.Rooms)
                 {
                     if (!_roomStates.ContainsKey(schedule.Id))
                     {
@@ -241,9 +246,9 @@ internal class HeatingControlService
     //     _logger.LogInformation("Connected to SignalR hub");
     // }
 
-    public async Task EvaluateAllSchedules(List<RoomSchedule> schedules, string trigger)
+    public async Task EvaluateAllSchedules(RoomSchedules schedules, string trigger)
     {
-        foreach (RoomSchedule schedule in schedules)
+        foreach (RoomSchedule schedule in schedules.Rooms)
         {
             await EvaluateSchedule(schedule, trigger);
         }
