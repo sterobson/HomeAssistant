@@ -78,8 +78,8 @@ export function useFormatting() {
     // Check each flag (these are bit flags)
     if (conditionValue & 1) conditions.push('Plenty of power available')
     if (conditionValue & 2) conditions.push('Low power available')
-    if (conditionValue & 4) conditions.push('Room in use')
-    if (conditionValue & 8) conditions.push('Room not in use')
+    if (conditionValue & 4) conditions.push('Only when occupied')
+    if (conditionValue & 8) conditions.push('Only when unoccupied')
 
     return conditions.length > 0 ? conditions.join(' & ') : null
   }

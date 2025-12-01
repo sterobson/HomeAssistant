@@ -7,7 +7,10 @@ appsettings.Production.json
 .idea
 #appsettings.json
 #HomeAssistantGenerated.cs
-/appsettings.secrets.all.json
+
+# All secret configuration files (any environment)
+**/appsettings.secrets.*.json
+
 /Backend/TestResults/*
 
 # Deployment secrets (contains Azure Function keys)

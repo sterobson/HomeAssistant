@@ -14,6 +14,13 @@ export function useSignalR(houseId) {
       return
     }
 
+    // Don't attempt to connect if there's no house ID
+    if (!houseId) {
+      console.warn('Cannot connect to SignalR: No house ID provided')
+      connectionError.value = new Error('No house ID provided')
+      return
+    }
+
     try {
       // Get the API base URL from environment or use default
       const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:7071/api'

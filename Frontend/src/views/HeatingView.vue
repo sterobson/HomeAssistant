@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, computed, watch } from 'vue'
 import RoomCard from '../components/RoomCard.vue'
 import Toast from '../components/Toast.vue'
 import { heatingApi } from '../services/heatingApi.js'
@@ -67,11 +67,11 @@ const toast = reactive({
   duration: 3000
 })
 
-// Get houseId from cookies (same source as heatingApi)
-const houseId = getHouseId()
+// Get houseId from cookies (reactive so it updates when cookie changes)
+const houseId = computed(() => getHouseId())
 
-// SignalR connection
-const signalR = useSignalR(houseId)
+// SignalR connection - will be recreated when houseId changes
+let signalR = useSignalR(houseId.value)
 
 // Cookie helpers
 const EXPANDED_ROOM_COOKIE = 'heating-app-expanded-room'
@@ -97,14 +97,21 @@ const deleteCookie = (name) => {
   document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
 }
 
-onMounted(async () => {
-  // Load previously expanded room from cookie
-  const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
-  if (savedExpandedRoom && savedExpandedRoom !== 'null') {
-    expandedRoomId.value = savedExpandedRoom
+// Initialize SignalR connection
+const initializeConnection = async () => {
+  if (!houseId.value) {
+    return
   }
 
-  loadSchedules()
+  // Disconnect existing connection if any
+  if (signalR) {
+    signalR.off('room-states-changed')
+    signalR.off('schedules-changed')
+    await signalR.disconnect()
+  }
+
+  // Create new SignalR connection with current houseId
+  signalR = useSignalR(houseId.value)
 
   // Connect to SignalR
   try {
@@ -124,10 +131,58 @@ onMounted(async () => {
   } catch (err) {
     console.error('Failed to connect to SignalR:', err)
     // Fallback to polling if SignalR fails
+    if (statePollingInterval.value) {
+      clearInterval(statePollingInterval.value)
+    }
     statePollingInterval.value = setInterval(() => {
       loadRoomStates()
     }, 30000)
   }
+}
+
+// Watch for houseId changes
+watch(houseId, async (newHouseId, oldHouseId) => {
+  // Clear any existing polling interval
+  if (statePollingInterval.value) {
+    clearInterval(statePollingInterval.value)
+    statePollingInterval.value = null
+  }
+
+  if (!newHouseId) {
+    // House disconnected
+    loading.value = false
+    error.value = 'No house connected. Please select a house from settings.'
+    rooms.value = []
+    return
+  }
+
+  // House connected or changed - clear error and reload
+  error.value = null
+  loading.value = true
+
+  // Load schedules
+  await loadSchedules()
+
+  // Initialize SignalR connection
+  await initializeConnection()
+})
+
+onMounted(async () => {
+  // Load previously expanded room from cookie
+  const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
+  if (savedExpandedRoom && savedExpandedRoom !== 'null') {
+    expandedRoomId.value = savedExpandedRoom
+  }
+
+  // Only load schedules and connect to SignalR if we have a house ID
+  if (!houseId.value) {
+    loading.value = false
+    error.value = 'No house connected. Please select a house from settings.'
+    return
+  }
+
+  loadSchedules()
+  await initializeConnection()
 })
 
 onUnmounted(async () => {
@@ -136,9 +191,11 @@ onUnmounted(async () => {
   }
 
   // Disconnect from SignalR
-  signalR.off('room-states-changed')
-  signalR.off('schedules-changed')
-  await signalR.disconnect()
+  if (signalR) {
+    signalR.off('room-states-changed')
+    signalR.off('schedules-changed')
+    await signalR.disconnect()
+  }
 })
 
 // Helper function to sort schedules by time

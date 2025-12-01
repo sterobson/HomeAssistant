@@ -16,6 +16,10 @@
         <None Update="$(MSBuildProjectDir)appsettings.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>        
+        <None Update="appsettings.secrets.development.json">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+          <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+        </None>        
         <None Update="appsettings.secrets.all.json">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
           <CopyToPublishDirectory>Never</CopyToPublishDirectory>
@@ -34,6 +38,7 @@
     </Target>
         
     <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
         <PackageReference Include="NetDaemon.AppModel" Version="25.42.0" />
         <PackageReference Include="NetDaemon.Runtime" Version="25.42.0" />
         <PackageReference Include="NetDaemon.HassModel" Version="25.42.0" />

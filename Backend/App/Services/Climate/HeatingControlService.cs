@@ -3,9 +3,7 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reactive.Concurrency;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
@@ -20,18 +18,13 @@ internal class HeatingControlService
     private readonly IPresenceService _presenceService;
     private readonly TimeProvider _timeProvider;
     private readonly INamedEntities _namedEntities;
-    private readonly IScheduleApiClient? _scheduleApiClient;
-    private readonly HomeAssistantConfiguration _configuration;
+    private readonly ISchedulePersistenceService _schedulePersistence;
+    private readonly IRoomStatePersistenceService _statePersistence;
     private const int _recheckEveryXMinutes = 5;
-    private const int _scheduleRefreshEveryXMinutes = 10;
     internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<int, RoomState> _roomStates = [];
-    private Timer? _scheduleRefreshTimer;
 
-    // TODO: SignalR Connection - Add SignalR hub connection here
-    // private HubConnection? _hubConnection;
-
-    public RoomSchedules Schedules { get; private set; } = new();
+    // public RoomSchedules Schedules { get; private set; } = new();
 
     public HeatingControlService(
         INamedEntities namedEntities,
@@ -43,8 +36,8 @@ internal class HeatingControlService
         IElectricityMeter electricityMeter,
         IPresenceService presenceService,
         TimeProvider timeProvider,
-        HomeAssistantConfiguration configuration,
-        IScheduleApiClient? scheduleApiClient = null)
+        ISchedulePersistenceService schedulePersistence,
+        IRoomStatePersistenceService statePersistence)
     {
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -54,200 +47,151 @@ internal class HeatingControlService
         _electricityMeter = electricityMeter;
         _presenceService = presenceService;
         _timeProvider = timeProvider;
-        _configuration = configuration;
-        _scheduleApiClient = scheduleApiClient;
+        _schedulePersistence = schedulePersistence;
+        _statePersistence = statePersistence;
 
-        // Initialize with default schedules (will be replaced if API client is available)
-        Schedules = new()
-        {
-            Rooms = [
-                new()
-                {
-                    Id = 1,
-                    Name = "Kitcken",
-                    ScheduleTracks = [
-                        new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
-                        new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18, Days = Days.NotSunday },
-                        new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
-                        new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
-                        new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
-                    ]
-                },
-                new()
-                {
-                    Id = 2,
-                    Name = "Games room",
-                    ScheduleTracks = [
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-                    ]
-                },
-                new()
-                {
-                    Id = 3,
-                    Name = "Bedroom 1",
-                    ScheduleTracks = [
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
-                    ]
-                },
-                new()
-                {
-                    Id = 4,
-                    Name = "Dining room",
-                    ScheduleTracks = [
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
-                        new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-                    ]
-                },
+        //// Initialize with default schedules (will be replaced if API client is available)
+        //Schedules = new()
+        //{
+        //    Rooms = [
+        //        new()
+        //        {
+        //            Id = 1,
+        //            Name = "Kitcken",
+        //            ScheduleTracks = [
+        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
+        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18, Days = Days.NotSunday },
+        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
+        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
+        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
+        //            ]
+        //        },
+        //        new()
+        //        {
+        //            Id = 2,
+        //            Name = "Games room",
+        //            ScheduleTracks = [
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
+        //            ]
+        //        },
+        //        new()
+        //        {
+        //            Id = 3,
+        //            Name = "Bedroom 1",
+        //            ScheduleTracks = [
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
+        //            ]
+        //        },
+        //        new()
+        //        {
+        //            Id = 4,
+        //            Name = "Dining room",
+        //            ScheduleTracks = [
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
+        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
+        //            ]
+        //        },
 
-            ]
-        };
+        //    ]
+        //};
 
         // string s = System.Text.Json.JsonSerializer.Serialize(ScheduleMapper.MapToDto(Schedules));
     }
 
     public void Start()
     {
-        // Download schedules from API if available
-        if (_scheduleApiClient != null && !string.IsNullOrEmpty(_configuration.HouseId))
+        // Start the schedule persistence service (loads from local storage and connects to SignalR)
+        Task.Run(async () =>
         {
-            Task.Run(async () =>
-            {
-                await DownloadSchedulesFromApi();
-                // Set up periodic schedule refresh every 10 minutes
-                _scheduleRefreshTimer = new Timer(
-                    async _ => await DownloadSchedulesFromApi(),
-                    null,
-                    TimeSpan.FromMinutes(_scheduleRefreshEveryXMinutes),
-                    TimeSpan.FromMinutes(_scheduleRefreshEveryXMinutes));
-            });
-        }
-
-        // TODO: SignalR Connection - Connect to SignalR hub for real-time updates
-        // await ConnectToSignalRHub();
+            await _schedulePersistence.StartAsync();
+            await LoadSchedulesAsync();
+        });
 
         // Schedule periodic evaluation of all schedules
-        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules(Schedules, $"{_recheckEveryXMinutes} minute period recheck"));
+        _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules($"{_recheckEveryXMinutes} minute period recheck"));
 
         // Subscribe to temperature changes
-        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "games room temperature changed"));
-        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "games room desk plug state changed"));
-        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "kitchen temperature changed"));
-        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "bedroom 1 temperature changed"));
-        _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "dining room desk plug state changed"));
-        _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules(Schedules, "dining room temperature changed"));
+        _namedEntities.GamesRoomDeskTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("games room temperature changed"));
+        _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("games room desk plug state changed"));
+        _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("kitchen temperature changed"));
+        _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("bedroom 1 temperature changed"));
+        _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room desk plug state changed"));
+        _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room temperature changed"));
 
         // Subscribe to power changes
-        _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules(Schedules, "home battery charge changed"));
-        _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules(Schedules, "electricity import rate changed"));
+        _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
+        _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules("electricity import rate changed"));
 
         // Initial evaluation
-        Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules(Schedules, "app startup"));
+        Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules("app startup"));
     }
 
-    private async Task DownloadSchedulesFromApi()
+    private async Task<RoomSchedules> LoadSchedulesAsync()
     {
-        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
-            return;
+        RoomSchedules? schedules = await _schedulePersistence.GetSchedulesAsync();
 
-        try
+        // If we have schedules, set them up
+        if (schedules != null && schedules.Rooms.Count > 0)
         {
-            _logger.LogInformation("Downloading schedules from API for house {HouseId}", _configuration.HouseId);
-            RoomSchedules schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
-
-            if (schedules.Rooms.Count != 0)
+            // Set up delegates for each schedule
+            foreach (RoomSchedule schedule in schedules.Rooms)
             {
-                // Set up delegates for each schedule
-                foreach (RoomSchedule schedule in schedules.Rooms)
-                {
-                    schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
-                    schedule.OnToggleHeating = GetOnToggleFunc(schedule);
-                }
+                schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
+                schedule.OnToggleHeating = GetOnToggleFunc(schedule);
+            }
 
-                Schedules = schedules;
-                _logger.LogInformation("Successfully loaded {Count} schedules from API", schedules.Rooms.Count);
+            _logger.LogDebug("Loaded {Count} schedules", schedules.Rooms.Count);
 
-                // Initialize room states
-                foreach (RoomSchedule schedule in Schedules.Rooms)
+            // Initialize room states for any new rooms
+            foreach (RoomSchedule schedule in schedules.Rooms)
+            {
+                if (!_roomStates.ContainsKey(schedule.Id))
                 {
-                    if (!_roomStates.ContainsKey(schedule.Id))
+                    _roomStates[schedule.Id] = new RoomState
                     {
-                        _roomStates[schedule.Id] = new RoomState
-                        {
-                            RoomId = schedule.Id,
-                            CurrentTemperature = GetCurrentTemperatureForRoom(schedule),
-                            HeatingActive = false,
-                            ActiveScheduleTrackId = 0,
-                            LastUpdated = DateTimeOffset.UtcNow
-                        };
-                    }
+                        RoomId = schedule.Id,
+                        CurrentTemperature = GetCurrentTemperatureForRoom(schedule),
+                        HeatingActive = false,
+                        ActiveScheduleTrackId = 0,
+                        LastUpdated = DateTimeOffset.UtcNow
+                    };
                 }
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error downloading schedules from API for house {HouseId}", _configuration.HouseId);
-        }
+
+        return schedules ?? new();
     }
 
-    private async Task UpdateRoomStateToApi(RoomState roomState)
+    private async Task UpdateRoomStatesAsync()
     {
-        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
-            return;
-
         try
         {
-            List<RoomState> allStates = _roomStates.Values.ToList();
-            await _scheduleApiClient.SetRoomStatesAsync(_configuration.HouseId, allStates);
-            _logger.LogDebug("Updated room state for room {RoomId}", roomState.RoomId);
+            // Upload to API (SignalR notification will be broadcast automatically)
+            await _statePersistence.SetStatesAsync(_roomStates);
+            _logger.LogDebug("Updated room states");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating room state to API for room {RoomId}", roomState.RoomId);
+            _logger.LogError(ex, "Error updating room states");
         }
     }
 
-    // TODO: SignalR Connection - Methods for SignalR connection
-    // private async Task ConnectToSignalRHub()
-    // {
-    //     if (string.IsNullOrEmpty(_configuration.SignalRHubUrl))
-    //         return;
-    //
-    //     _hubConnection = new HubConnectionBuilder()
-    //         .WithUrl(_configuration.SignalRHubUrl)
-    //         .WithAutomaticReconnect()
-    //         .Build();
-    //
-    //     _hubConnection.On("SchedulesUpdated", async () =>
-    //     {
-    //         _logger.LogInformation("Received SchedulesUpdated notification from SignalR");
-    //         await DownloadSchedulesFromApi();
-    //     });
-    //
-    //     _hubConnection.On("RoomStatesUpdated", async () =>
-    //     {
-    //         _logger.LogInformation("Received RoomStatesUpdated notification from SignalR");
-    //         // Frontend will handle this notification
-    //     });
-    //
-    //     await _hubConnection.StartAsync();
-    //     _logger.LogInformation("Connected to SignalR hub");
-    // }
-
-    public async Task EvaluateAllSchedules(RoomSchedules schedules, string trigger)
+    public async Task EvaluateAllSchedules(string trigger)
     {
+        RoomSchedules schedules = await LoadSchedulesAsync();
         foreach (RoomSchedule schedule in schedules.Rooms)
         {
             await EvaluateSchedule(schedule, trigger);
@@ -404,11 +348,11 @@ internal class HeatingControlService
             stateChanged = true;
         }
 
-        // Update timestamp and send to API if anything changed
+        // Update timestamp and persist if anything changed
         if (stateChanged)
         {
             roomState.LastUpdated = DateTimeOffset.UtcNow;
-            await UpdateRoomStateToApi(roomState);
+            await UpdateRoomStatesAsync();
         }
     }
 

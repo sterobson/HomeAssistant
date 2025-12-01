@@ -86,7 +86,6 @@
               Any
             </button>
           </div>
-          <small class="form-hint">Schedules marked as "Any" will not appear in schedule list</small>
         </div>
 
         <div class="form-actions">
@@ -312,7 +311,8 @@ const handleCancel = () => {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: 1.25rem;
+  text-align: center;
   transition: all 0.2s;
 }
 

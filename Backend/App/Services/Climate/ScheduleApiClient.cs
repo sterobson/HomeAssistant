@@ -17,6 +17,7 @@ public interface IScheduleApiClient
     Task SetSchedulesAsync(string houseId, RoomSchedules schedules);
     Task<List<RoomState>> GetRoomStatesAsync(string houseId);
     Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates);
+    Task<string> GetSignalRConnectionInfoAsync(string houseId);
 }
 
 public class ScheduleApiClient : IScheduleApiClient
@@ -122,6 +123,24 @@ public class ScheduleApiClient : IScheduleApiClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error setting room states to API for house {HouseId}", houseId);
+            throw;
+        }
+    }
+
+    public async Task<string> GetSignalRConnectionInfoAsync(string houseId)
+    {
+        try
+        {
+            HttpResponseMessage response = await _httpClient.PostAsync($"/api/signalr/negotiate?houseId={houseId}", null);
+            response.EnsureSuccessStatusCode();
+
+            string connectionInfo = await response.Content.ReadAsStringAsync();
+            _logger.LogInformation("Successfully retrieved SignalR connection info for house {HouseId}", houseId);
+            return connectionInfo;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting SignalR connection info for house {HouseId}", houseId);
             throw;
         }
     }

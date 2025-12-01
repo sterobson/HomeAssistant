@@ -120,15 +120,8 @@ const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 
 // Filter and sort schedules
-// Show schedules with Occupied (4), Unoccupied (8), or no occupancy flags (legacy)
-// Hide only schedules marked as "Any" (both flags set = 12)
 const sortedSchedules = computed(() => {
   return [...props.room.schedules]
-    .filter(schedule => {
-      const conditions = schedule.conditions || 0
-      const hasBothFlags = (conditions & 12) === 12 // "Any" is represented by both flags
-      return !hasBothFlags // Hide only if both flags are set
-    })
     .sort((a, b) => {
       return a.time.localeCompare(b.time)
     })

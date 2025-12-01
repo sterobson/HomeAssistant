@@ -18,7 +18,6 @@ using NetDaemon.Extensions.Logging;
 using NetDaemon.Extensions.Scheduler;
 using NetDaemon.Extensions.Tts;
 using NetDaemon.Runtime;
-using System.IO;
 using System.Reflection;
 
 #pragma warning disable CA1812
@@ -33,14 +32,10 @@ try
         .ConfigureAppConfiguration((context, config) =>
         {
             config.AddJsonFile("appsettings.secrets.all.json", optional: true, reloadOnChange: true);
-            if (File.Exists("appsettings.development.json"))
-            {
-                config.AddJsonFile("appsettings.development.json", optional: true, reloadOnChange: true);
-            }
-            else
-            {
-                config.AddJsonFile("appsettings.production.json", optional: true, reloadOnChange: true);
-            }
+            config.AddJsonFile("appsettings.development.json", optional: true, reloadOnChange: true);
+            config.AddJsonFile("appsettings.secrets.development.json", optional: true, reloadOnChange: true);
+            config.AddJsonFile("appsettings.production.json", optional: true, reloadOnChange: true);
+            config.AddJsonFile("appsettings.secrets.production.json", optional: true, reloadOnChange: true);
         })
         .ConfigureServices((context, services) =>
         {
@@ -62,12 +57,24 @@ try
                 .AddSingleton<IWeatherProvider, WeatherApiProvider>()
                 .AddSingleton<LocationProvider>()
                 .AddConfiguration<HomeAssistantConfiguration>(context, "HomeAssistantApiEndpoints")
+                .AddConfiguration<WebSynchronisationConfiguration>(context, "WebSynchronisation")
                 .AddSingleton<HistoryService>()
                 .AddConfiguration<YorkBinServiceConfiguration>(context, "YorkBinService")
                 .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>()
                 .AddScoped<NamedEntities>()
                 .AddScoped<INamedEntities>(provider => provider.GetRequiredService<NamedEntities>())
                 .AddScoped<IPresenceService, PresenceService>()
+                .AddHttpClient<IScheduleApiClient, ScheduleApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddScoped<ISchedulePersistenceService, SchedulePersistenceService>()
+                .AddScoped<IRoomStatePersistenceService, RoomStatePersistenceService>()
                 .AddScoped<HeatingControlService>()
                 .AddSingleton<TimeProvider>(provider => TimeProvider.System);
 
