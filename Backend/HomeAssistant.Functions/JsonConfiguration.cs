@@ -10,13 +10,14 @@ public static class JsonConfiguration
 {
     /// <summary>
     /// Creates JsonSerializerOptions configured for the application.
-    /// Uses camelCase naming and flexible enum conversion (strings and numbers).
+    /// Uses camelCase naming, case-insensitive deserialization, and flexible enum conversion (strings and numbers).
     /// </summary>
     public static JsonSerializerOptions CreateOptions()
     {
-        var options = new JsonSerializerOptions
+        JsonSerializerOptions options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
         };
         options.Converters.Add(new FlexibleEnumConverterFactory());
         return options;
@@ -28,6 +29,7 @@ public static class JsonConfiguration
     public static void ConfigureOptions(JsonSerializerOptions options)
     {
         options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.PropertyNameCaseInsensitive = true;
         options.Converters.Add(new FlexibleEnumConverterFactory());
     }
 }

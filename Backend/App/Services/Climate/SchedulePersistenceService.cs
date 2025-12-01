@@ -9,17 +9,18 @@ namespace HomeAssistant.Services.Climate;
 /// <summary>
 /// Handles persistence and caching of heating schedules with SignalR integration
 /// </summary>
-public interface ISchedulePersistenceService
+internal interface ISchedulePersistenceService
 {
+    /// <summary>
+    /// Event fired when schedules have been updated via SignalR notification
+    /// Subscribe to this to react to schedule changes
+    /// </summary>
+    event Func<Task>? SchedulesUpdated;
+
     /// <summary>
     /// Gets schedules from cache or refreshes from API if cache is stale (>10 minutes old)
     /// </summary>
-    Task<RoomSchedules?> GetSchedulesAsync();
-
-    /// <summary>
-    /// Uploads schedules to Azure API
-    /// </summary>
-    Task SetSchedulesAsync(RoomSchedules schedules);
+    Task<RoomSchedules> GetSchedulesAsync();
 
     /// <summary>
     /// Starts the SignalR connection to listen for schedule updates
@@ -27,7 +28,7 @@ public interface ISchedulePersistenceService
     Task StartAsync();
 }
 
-public class SchedulePersistenceService : ISchedulePersistenceService
+internal class SchedulePersistenceService : ISchedulePersistenceService
 {
     private readonly ILogger<SchedulePersistenceService> _logger;
     private readonly IScheduleApiClient? _scheduleApiClient;
@@ -39,6 +40,11 @@ public class SchedulePersistenceService : ISchedulePersistenceService
     private RoomSchedules? _cachedSchedules;
     private DateTimeOffset _lastRefreshTime = DateTimeOffset.MinValue;
     private HubConnection? _hubConnection;
+
+    /// <summary>
+    /// Event fired when schedules have been updated via SignalR notification
+    /// </summary>
+    public event Func<Task>? SchedulesUpdated;
 
     public SchedulePersistenceService(
         ILogger<SchedulePersistenceService> logger,
@@ -65,46 +71,17 @@ public class SchedulePersistenceService : ISchedulePersistenceService
         await ConnectToSignalRAsync();
     }
 
-    public async Task<RoomSchedules?> GetSchedulesAsync()
+    public async Task<RoomSchedules> GetSchedulesAsync()
     {
         // Check if cache is still valid (less than 10 minutes old)
         TimeSpan timeSinceLastRefresh = DateTimeOffset.UtcNow - _lastRefreshTime;
-        if (_cachedSchedules != null && timeSinceLastRefresh.TotalMinutes < _cacheExpirationMinutes)
+        if (_cachedSchedules == null || timeSinceLastRefresh.TotalMinutes >= _cacheExpirationMinutes)
         {
-            _logger.LogDebug("Returning cached schedules (age: {Minutes:F1} minutes)", timeSinceLastRefresh.TotalMinutes);
-            return _cachedSchedules;
+            // Caches is stale or old, so refresh it.
+            await RefreshSchedulesFromApiAsync();
         }
 
-        // Cache is stale or empty, refresh from API
-        await RefreshSchedulesFromApiAsync();
-        return _cachedSchedules;
-    }
-
-    public async Task SetSchedulesAsync(RoomSchedules schedules)
-    {
-        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
-        {
-            _logger.LogWarning("Cannot upload schedules - API client or HouseId not configured");
-            return;
-        }
-
-        try
-        {
-            await _scheduleApiClient.SetSchedulesAsync(_configuration.HouseId, schedules);
-            _logger.LogInformation("Successfully uploaded schedules to API for house {HouseId}", _configuration.HouseId);
-
-            // Update cache
-            _cachedSchedules = schedules;
-            _lastRefreshTime = DateTimeOffset.UtcNow;
-
-            // Save to local storage
-            await SaveToLocalStorageAsync(schedules);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading schedules to API for house {HouseId}", _configuration.HouseId);
-            throw;
-        }
+        return _cachedSchedules ?? new();
     }
 
     private async Task RefreshSchedulesFromApiAsync()
@@ -228,11 +205,29 @@ public class SchedulePersistenceService : ISchedulePersistenceService
                 .WithAutomaticReconnect()
                 .Build();
 
-            _hubConnection.On("SchedulesUpdated", async () =>
+            _hubConnection.On<object>("test-message", (data) =>
             {
-                _logger.LogInformation("Received SchedulesUpdated notification from SignalR - invalidating cache");
+                _logger.LogWarning("✅ RECEIVED 'test-message' from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
+                return Task.CompletedTask;
+            });
+
+            _hubConnection.On<object>("test-message-all", (data) =>
+            {
+                _logger.LogWarning("✅ RECEIVED 'test-message-all' (broadcast to ALL) from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
+                return Task.CompletedTask;
+            });
+
+            _hubConnection.On<object>("schedules-changed", async (data) =>
+            {
+                _logger.LogInformation("✅ RECEIVED 'schedules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
                 _lastRefreshTime = DateTimeOffset.MinValue; // Invalidate cache
                 await RefreshSchedulesFromApiAsync();
+
+                // Notify subscribers that schedules have been updated
+                if (SchedulesUpdated != null)
+                {
+                    await SchedulesUpdated.Invoke();
+                }
             });
 
             _hubConnection.Closed += async (Exception? error) =>
@@ -260,11 +255,47 @@ public class SchedulePersistenceService : ISchedulePersistenceService
             };
 
             await _hubConnection.StartAsync();
-            _logger.LogInformation("Connected to SignalR for schedule updates");
+            _logger.LogInformation("Connected to SignalR for schedule updates (house {HouseId}, ConnectionId: {ConnectionId})",
+                _configuration.HouseId, _hubConnection.ConnectionId);
+
+            // Add this connection to the house group
+            if (_scheduleApiClient != null && !string.IsNullOrEmpty(_hubConnection.ConnectionId))
+            {
+                try
+                {
+                    await AddToGroupAsync(_hubConnection.ConnectionId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to add connection to group - will rely on fallback");
+                }
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error connecting to SignalR for house {HouseId}", _configuration.HouseId);
+        }
+    }
+
+    private async Task AddToGroupAsync(string connectionId)
+    {
+        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
+        {
+            _logger.LogDebug("Cannot add to group - API client or HouseId not configured");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("Adding connection {ConnectionId} to group for house {HouseId}", connectionId, _configuration.HouseId);
+            System.Net.Http.HttpResponseMessage response = await _scheduleApiClient.AddToGroupAsync(_configuration.HouseId, connectionId);
+            response.EnsureSuccessStatusCode();
+            _logger.LogInformation("Successfully added connection to SignalR group for house {HouseId}", _configuration.HouseId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding connection to group for house {HouseId}", _configuration.HouseId);
+            throw;
         }
     }
 }

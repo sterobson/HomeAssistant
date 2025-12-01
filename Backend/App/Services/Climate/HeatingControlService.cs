@@ -23,12 +23,12 @@ internal class HeatingControlService
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<int, RoomState> _roomStates = [];
+    private bool _hasUploadedState = false;
 
     // public RoomSchedules Schedules { get; private set; } = new();
 
     public HeatingControlService(
         INamedEntities namedEntities,
-        HistoryService historyService,
         IScheduler scheduler,
         ILogger<HeatingControlService> logger,
         IHomeBattery homeBattery,
@@ -113,11 +113,19 @@ internal class HeatingControlService
 
     public void Start()
     {
+        // Subscribe to schedule updates from SignalR
+        _schedulePersistence.SchedulesUpdated += async () =>
+        {
+            await EvaluateAllSchedules("SignalR schedules updated notification");
+        };
+
         // Start the schedule persistence service (loads from local storage and connects to SignalR)
         Task.Run(async () =>
         {
             await _schedulePersistence.StartAsync();
-            await LoadSchedulesAsync();
+
+            // Initial evaluation
+            await EvaluateAllSchedules("app startup");
         });
 
         // Schedule periodic evaluation of all schedules
@@ -134,9 +142,6 @@ internal class HeatingControlService
         // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
         _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules("electricity import rate changed"));
-
-        // Initial evaluation
-        Task.Delay(1000).ContinueWith(async (value) => await EvaluateAllSchedules("app startup"));
     }
 
     private async Task<RoomSchedules> LoadSchedulesAsync()
@@ -170,6 +175,12 @@ internal class HeatingControlService
                     };
                 }
             }
+
+            if (!_hasUploadedState)
+            {
+                await _statePersistence.SetStatesAsync(_roomStates);
+                _hasUploadedState = true;
+            }
         }
 
         return schedules ?? new();
@@ -192,13 +203,19 @@ internal class HeatingControlService
     public async Task EvaluateAllSchedules(string trigger)
     {
         RoomSchedules schedules = await LoadSchedulesAsync();
+        bool hasStateChanged = false;
         foreach (RoomSchedule schedule in schedules.Rooms)
         {
-            await EvaluateSchedule(schedule, trigger);
+            hasStateChanged |= await EvaluateSchedule(schedule, trigger);
+        }
+
+        if (hasStateChanged)
+        {
+            await UpdateRoomStatesAsync();
         }
     }
 
-    private async Task EvaluateSchedule(RoomSchedule? roomHeatingSchedule, string trigger)
+    private async Task<bool> EvaluateSchedule(RoomSchedule? roomHeatingSchedule, string trigger)
     {
         ArgumentNullException.ThrowIfNull(roomHeatingSchedule);
 
@@ -221,21 +238,21 @@ internal class HeatingControlService
         double? currentTemperature = roomHeatingSchedule.GetCurrentTemperature != null ? await roomHeatingSchedule.GetCurrentTemperature() : GetCurrentTemperatureForRoom(roomHeatingSchedule);
         if (currentTemperature == null)
         {
-            return;
+            return false;
         }
 
         // Get the toggle action, either from the supplied action, or the service's own function.
         Func<bool, Task<bool>>? onToggleHeating = roomHeatingSchedule.OnToggleHeating ?? GetOnToggleFunc(roomHeatingSchedule);
         if (onToggleHeating == null)
         {
-            return;
+            return false;
         }
 
         // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
         HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(roomHeatingSchedule, now, currentDay);
         if (currentActiveTrack == null)
         {
-            return;
+            return false;
         }
 
         // Step 2: Check if there's an upcoming schedule we should pre-heat for
@@ -352,8 +369,9 @@ internal class HeatingControlService
         if (stateChanged)
         {
             roomState.LastUpdated = DateTimeOffset.UtcNow;
-            await UpdateRoomStatesAsync();
         }
+
+        return stateChanged;
     }
 
     private async Task<HeatingScheduleTrack?> FindCurrentActiveSchedule(RoomSchedule schedule, DateTime now, Days currentDay)

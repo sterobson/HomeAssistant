@@ -91,18 +91,18 @@ public class RoomStateFunctions
             _logger.LogInformation("Successfully saved room states for house {HouseId} with {StateCount} rooms",
                 houseId, dto.RoomStates.Count);
 
-            // Send SignalR message to all clients for this house (fire and forget)
-            _ = Task.Run(async () =>
+            // Send SignalR message to all clients for this house
+            try
             {
-                try
-                {
-                    await _signalRService.SendMessageToUserAsync(houseId, "room-states-changed", new { houseId });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send SignalR message for room-states-changed");
-                }
-            });
+                _logger.LogInformation("About to send room-states-changed message to group house-{HouseId}", houseId);
+                await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "room-states-changed", new { houseId });
+                _logger.LogInformation("Successfully sent room-states-changed message to group house-{HouseId}", houseId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR message for room-states-changed to house {HouseId}", houseId);
+                // Don't fail the request if SignalR fails
+            }
 
             return new OkObjectResult(new { success = true });
         }

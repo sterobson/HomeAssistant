@@ -1,4 +1,3 @@
-using HomeAssistant.Functions.JsonConverters;
 using HomeAssistant.Functions.Services;
 using HomeAssistant.Shared.Climate;
 using Microsoft.AspNetCore.Http;
@@ -86,22 +85,29 @@ public class ScheduleFunctions
                 return new BadRequestObjectResult(new { error = "Invalid request body" });
             }
 
-            await _storageService.SaveSchedulesAsync(houseId, dto);
-            _logger.LogInformation("Successfully saved schedules for house {HouseId} with {RoomCount} rooms",
-                houseId, dto.Rooms.Count);
-
-            // Send SignalR message to all clients for this house (fire and forget)
-            _ = Task.Run(async () =>
+            // Make sure every DTO has an ID
+            EnsureIdsCorrect(dto.Rooms, room => room.Id, (room, newId) => room.Id = newId);
+            foreach (RoomDto r in dto.Rooms)
             {
-                try
-                {
-                    await _signalRService.SendMessageToUserAsync(houseId, "schedules-changed", new { houseId });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send SignalR message for schedules-changed");
-                }
-            });
+                EnsureIdsCorrect(r.Schedules, scheduleTrack => scheduleTrack.Id, (scheduleTrack, newId) => scheduleTrack.Id = newId);
+            }
+
+            await _storageService.SaveSchedulesAsync(houseId, dto);
+
+            _logger.LogInformation("Successfully saved schedules for house {HouseId} with {RoomCount} rooms", houseId, dto.Rooms.Count);
+
+            // Send SignalR message to all clients for this house
+            try
+            {
+                _logger.LogInformation("About to send schedules-changed message to group house-{HouseId}", houseId);
+                await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "schedules-changed", new { houseId });
+                _logger.LogInformation("Successfully sent schedules-changed message to group house-{HouseId}", houseId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR message for schedules-changed to house {HouseId}", houseId);
+                // Don't fail the request if SignalR fails
+            }
 
             return new OkObjectResult(new { success = true });
         }
@@ -114,6 +120,31 @@ public class ScheduleFunctions
         {
             _logger.LogError(ex, "Error setting schedules for house {HouseId}", houseId);
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+        }
+    }
+
+    private static void EnsureIdsCorrect<T>(List<T> source, Func<T, int> getId, Action<T, int> setId) where T : class
+    {
+        // Make sure every item has an ID.
+        T? item;
+        do
+        {
+            item = source.FirstOrDefault(r => getId(r) <= 0);
+            if (item != null)
+            {
+                int newId = Math.Max(1, source.Max(r => getId(r)) + 1);
+                setId(item, newId);
+            }
+        } while (item != null);
+
+        // Make sure every DTO has a unique ID
+        foreach (T r in source)
+        {
+            if (source.Any(d => getId(d) == getId(r) && d != r))
+            {
+                int newId = Math.Max(1, source.Max(r => getId(r)) + 1);
+                setId(r, newId);
+            }
         }
     }
 }

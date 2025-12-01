@@ -15,14 +15,6 @@ public class RoomDto
     public BoostDto? Boost { get; set; }
 
     public List<ScheduleTrackDto> Schedules { get; set; } = [];
-
-    // Support alternative property name for backward compatibility
-    [JsonIgnore]
-    public List<ScheduleTrackDto> ScheduleTracks
-    {
-        get => Schedules;
-        set => Schedules = value;
-    }
 }
 
 public class BoostDto

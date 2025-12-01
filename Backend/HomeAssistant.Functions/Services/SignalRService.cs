@@ -89,21 +89,23 @@ public class SignalRService
 
         try
         {
-            _logger.LogInformation("Sending message {Message} to group {GroupName}", message, groupName);
-            var serviceManager = await GetServiceManagerAsync();
+            _logger.LogInformation("Attempting to send SignalR message '{Message}' to group '{GroupName}' with data: {Data}",
+                message, groupName, System.Text.Json.JsonSerializer.Serialize(data));
+
+            Microsoft.Azure.SignalR.Management.ServiceManager? serviceManager = await GetServiceManagerAsync();
             if (serviceManager == null)
             {
-                _logger.LogWarning("SignalR service manager not available");
+                _logger.LogWarning("SignalR service manager not available - cannot send message");
                 return;
             }
 
-            var hubContext = await serviceManager.CreateHubContextAsync("homeassistant", default);
+            Microsoft.Azure.SignalR.Management.IServiceHubContext hubContext = await serviceManager.CreateHubContextAsync("homeassistant", default);
             await hubContext.Clients.Group(groupName).SendCoreAsync(message, new object[] { data });
-            _logger.LogInformation("Successfully sent message {Message} to group {GroupName}", message, groupName);
+            _logger.LogInformation("Successfully sent SignalR message '{Message}' to group '{GroupName}'", message, groupName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send message {Message} to group {GroupName}", message, groupName);
+            _logger.LogError(ex, "Failed to send SignalR message '{Message}' to group '{GroupName}'", message, groupName);
             // Don't throw - just log the error
         }
     }

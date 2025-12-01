@@ -1,0 +1,270 @@
+meta {
+  name: send-test-message
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{function-endpoint}}/api/signalr/send-test-message?houseId={{houseId}}
+  body: json
+  auth: inherit
+}
+
+params:query {
+  houseId: {{houseId}}
+}
+
+body:json {
+  {
+    "rooms": [
+      {
+        "id": 1,
+        "name": "Kitchen",
+        "boost": null,
+        "schedules": [
+          {
+            "id": 9,
+            "time": "12:15",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 0
+          },
+          {
+            "id": 1,
+            "time": "17:45",
+            "temperature": 21,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 2,
+            "time": "18:01",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 4,
+            "conditionOperator": 1
+          },
+          {
+            "id": 3,
+            "time": "18:01",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 4,
+            "time": "18:30",
+            "temperature": 17.5,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 5,
+            "time": "21:30",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Games room",
+        "boost": null,
+        "schedules": [
+          {
+            "id": 0,
+            "time": "07:00",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 31,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "07:00",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 63,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "07:00",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 31,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "09:00",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "21:30",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 8,
+            "conditionOperator": 1
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Bedroom 1",
+        "boost": {
+          "startTime": null,
+          "endTime": null,
+          "temperature": null
+        },
+        "schedules": [
+          {
+            "id": 0,
+            "time": "07:30",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 32,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "08:00",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 31,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "08:00",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 32,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "08:30",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 31,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "09:00",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 64,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "09:30",
+            "temperature": 16,
+            "rampUpMinutes": 30,
+            "days": 64,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "21:30",
+            "temperature": 18,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "21:31",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 0,
+            "conditionOperator": 1
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "Dining room",
+        "boost": {
+          "startTime": null,
+          "endTime": null,
+          "temperature": null
+        },
+        "schedules": [
+          {
+            "id": 0,
+            "time": "00:00",
+            "temperature": 19,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 4,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "00:00",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "06:00",
+            "temperature": 17,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 8,
+            "conditionOperator": 1
+          },
+          {
+            "id": 0,
+            "time": "21:00",
+            "temperature": 14,
+            "rampUpMinutes": 30,
+            "days": 0,
+            "conditions": 8,
+            "conditionOperator": 1
+          }
+        ]
+      }
+    ]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

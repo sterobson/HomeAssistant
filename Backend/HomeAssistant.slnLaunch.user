@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "App\\HomeAssistant.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "HomeAssistant.Functions\\HomeAssistant.Functions.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
