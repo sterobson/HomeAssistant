@@ -160,7 +160,7 @@ if ($Frontend) {
         try {
             # Install dependencies
             Write-Info "Installing dependencies..."
-            npm ci --silent
+            npm install --silent
 
             if ($LASTEXITCODE -ne 0) {
                 Write-Error "Failed to install dependencies"

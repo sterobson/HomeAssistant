@@ -45,17 +45,25 @@
               {{ hour }}h
             </button>
           </div>
-          <div class="custom-duration">
+          <div class="duration-spinner">
+            <button type="button" class="spinner-btn" @click="decreaseDuration">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 8a.5.5 0 01.5-.5h15a.5.5 0 010 1H.5A.5.5 0 010 8z"/>
+              </svg>
+            </button>
             <input
-              v-model.number="customDuration"
+              v-model.number="duration"
               type="number"
               min="0.5"
               max="24"
               step="0.5"
-              placeholder="Custom"
-              class="form-control"
-              @input="handleCustomDuration"
+              class="duration-input"
             />
+            <button type="button" class="spinner-btn" @click="increaseDuration">
+              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 0a.5.5 0 01.5.5v7h7a.5.5 0 010 1h-7v7a.5.5 0 01-1 0v-7h-7a.5.5 0 010-1h7v-7A.5.5 0 018 0z"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -101,7 +109,6 @@ const emit = defineEmits(['boost', 'cancel'])
 // Initialize temperature in display unit (convert from default 21°C)
 const temperature = ref(convertToDisplay(21))
 const duration = ref(2)
-const customDuration = ref(null)
 const durationOptions = [1, 2, 3, 4, 6]
 
 const displayDuration = computed(() => {
@@ -129,9 +136,17 @@ const decreaseTemp = () => {
   }
 }
 
-const handleCustomDuration = () => {
-  if (customDuration.value && customDuration.value > 0) {
-    duration.value = customDuration.value
+const increaseDuration = () => {
+  const newDuration = duration.value + 0.5
+  if (newDuration <= 24) {
+    duration.value = newDuration
+  }
+}
+
+const decreaseDuration = () => {
+  const newDuration = duration.value - 0.5
+  if (newDuration >= 0.5) {
+    duration.value = newDuration
   }
 }
 
@@ -320,25 +335,69 @@ const handleCancel = () => {
   color: white;
 }
 
-.custom-duration {
-  margin-top: 0.5rem;
+.duration-spinner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
-.form-control {
-  width: 100%;
-  padding: 0.75rem;
+.spinner-btn {
+  background: var(--color-primary);
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.spinner-btn:hover {
+  background: var(--color-primary-hover);
+  transform: scale(1.05);
+}
+
+.spinner-btn:active {
+  transform: scale(0.95);
+}
+
+.duration-input {
+  flex: 1;
+  padding: 0.5rem;
   border: 1px solid var(--border-color);
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-radius: 6px;
-  font-size: 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
   transition: all 0.2s;
 }
 
-.form-control:focus {
+.duration-input:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* Hide default number input spinner arrows */
+.duration-input::-webkit-inner-spin-button,
+.duration-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.duration-input[type=number] {
+  -moz-appearance: textfield;
 }
 
 .boost-info {

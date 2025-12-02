@@ -18,7 +18,8 @@
       "Bash(find:*)",
       "Bash(dotnet list:*)",
       "Bash(Select-String -Pattern \"SignalR\")",
-      "Bash(Select-String -Pattern \"appsettings.secrets\")"
+      "Bash(Select-String -Pattern \"appsettings.secrets\")",
+      "Bash(npm ci)"
     ],
     "deny": [],
     "ask": []

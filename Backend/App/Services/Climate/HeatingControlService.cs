@@ -248,32 +248,46 @@ internal class HeatingControlService
             return false;
         }
 
-        // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
-        HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(roomHeatingSchedule, now, currentDay);
-        if (currentActiveTrack == null)
+        // Step 0: Is there a boost active?
+        bool hasBoost = roomHeatingSchedule.Boost?.EndTime.GetValueOrDefault().DateTime > now && roomHeatingSchedule.Boost.Temperature.HasValue;
+        double desiredTemperature;
+        string reason;
+        HeatingScheduleTrack? effectiveTrack = null;
+
+        if (hasBoost)
         {
-            return false;
+            desiredTemperature = roomHeatingSchedule.Boost?.Temperature ?? 0;
+            reason = "boost is active";
         }
-
-        // Step 2: Check if there's an upcoming schedule we should pre-heat for
-        HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
-
-        // Step 3: Determine which schedule to use
-        HeatingScheduleTrack effectiveTrack = currentActiveTrack;
-        string reason = "current active schedule";
-
-        if (preHeatTrack != null)
+        else
         {
-            // Only use pre-heat if it has a HIGHER target than current (never pre-cool)
-            if (preHeatTrack.Temperature > currentActiveTrack.Temperature)
+            // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
+            HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(roomHeatingSchedule, now, currentDay);
+            if (currentActiveTrack == null)
             {
-                effectiveTrack = preHeatTrack;
-                reason = "pre-heating for upcoming schedule";
+                return false;
             }
-        }
 
-        // Step 4: Control heating based on effective track
-        double desiredTemperature = effectiveTrack.Temperature;
+            // Step 2: Check if there's an upcoming schedule we should pre-heat for
+            HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
+
+            // Step 3: Determine which schedule to use
+            effectiveTrack = currentActiveTrack;
+            reason = "current active schedule";
+
+            if (preHeatTrack != null)
+            {
+                // Only use pre-heat if it has a HIGHER target than current (never pre-cool)
+                if (preHeatTrack.Temperature > currentActiveTrack.Temperature)
+                {
+                    effectiveTrack = preHeatTrack;
+                    reason = "pre-heating for upcoming schedule";
+                }
+            }
+
+            // Step 4: Control heating based on effective track
+            desiredTemperature = effectiveTrack.Temperature;
+        }
 
         // Get or create room state
         if (!_roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState))
@@ -304,7 +318,7 @@ internal class HeatingControlService
                 RoomId = roomHeatingSchedule.Id,
                 CurrentTemperature = currentTemperature,
                 HeatingActive = currentHeatingState,
-                ActiveScheduleTrackId = effectiveTrack.Id,
+                ActiveScheduleTrackId = effectiveTrack?.Id ?? 0,
                 LastUpdated = DateTimeOffset.UtcNow
             };
             _roomStates[roomHeatingSchedule.Id] = roomState;
@@ -359,9 +373,9 @@ internal class HeatingControlService
             stateChanged = true;
         }
 
-        if (roomState.ActiveScheduleTrackId != effectiveTrack.Id)
+        if (roomState.ActiveScheduleTrackId != (effectiveTrack?.Id ?? 0))
         {
-            roomState.ActiveScheduleTrackId = effectiveTrack.Id;
+            roomState.ActiveScheduleTrackId = (effectiveTrack?.Id ?? 0);
             stateChanged = true;
         }
 
@@ -485,19 +499,7 @@ internal class HeatingControlService
 
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
-        ICustomSwitchEntity? plug = roomHeatingSchedule.Name.Trim().ToLower() switch
-        {
-            "kitchen" => _namedEntities.KitchenHeaterSmartPlugOnOff,
-            "games room" => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
-            "dining room" => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
-            "lounge" => null,
-            "downstairs bathroom" => null,
-            "bedroom 1" => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
-            "bedroom 2" => null,
-            "bedroom 3" => null,
-            "upstairs bathroom" => null,
-            _ => null
-        };
+        ICustomSwitchEntity? plug = GetSwitchForRoom(roomHeatingSchedule);
 
         if (plug == null)
         {
@@ -518,6 +520,23 @@ internal class HeatingControlService
             }
 
             return false;
+        };
+    }
+
+    private ICustomSwitchEntity? GetSwitchForRoom(RoomSchedule roomHeatingSchedule)
+    {
+        return roomHeatingSchedule.Name.Trim().ToLower() switch
+        {
+            "kitchen" => _namedEntities.KitchenHeaterSmartPlugOnOff,
+            "games room" => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
+            "dining room" => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
+            "lounge" => null,
+            "downstairs bathroom" => null,
+            "bedroom 1" => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
+            "bedroom 2" => null,
+            "bedroom 3" => null,
+            "upstairs bathroom" => null,
+            _ => null
         };
     }
 
