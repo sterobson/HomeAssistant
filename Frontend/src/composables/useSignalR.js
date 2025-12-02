@@ -62,15 +62,48 @@ export function useSignalR(houseId) {
         console.warn('SignalR reconnecting:', error)
       })
 
-      connection.value.onreconnected((connectionId) => {
+      connection.value.onreconnected(async (connectionId) => {
         isConnected.value = true
         console.log('SignalR reconnected:', connectionId)
+
+        // Re-add to house group after reconnection
+        try {
+          const addToGroupUrl = `${apiBaseUrl}/api/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connectionId)}`
+          const groupResponse = await fetch(addToGroupUrl, {
+            method: 'POST'
+          })
+
+          if (groupResponse.ok) {
+            console.log('Successfully re-added to house group after reconnection:', houseId)
+          } else {
+            console.warn('Failed to re-add to house group after reconnection:', await groupResponse.text())
+          }
+        } catch (groupError) {
+          console.error('Error re-adding to house group after reconnection:', groupError)
+        }
       })
 
       await connection.value.start()
       isConnected.value = true
       connectionError.value = null
       console.log('SignalR connected, connection ID:', connection.value.connectionId)
+
+      // Add connection to the house group so we receive group messages
+      try {
+        const addToGroupUrl = `${apiBaseUrl}/api/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connection.value.connectionId)}`
+        const groupResponse = await fetch(addToGroupUrl, {
+          method: 'POST'
+        })
+
+        if (groupResponse.ok) {
+          console.log('Successfully added to house group:', houseId)
+        } else {
+          console.warn('Failed to add to house group:', await groupResponse.text())
+        }
+      } catch (groupError) {
+        console.error('Error adding to house group:', groupError)
+        // Don't fail the connection if group add fails
+      }
 
       // Re-attach any existing listeners
       listeners.forEach((handler, eventName) => {
