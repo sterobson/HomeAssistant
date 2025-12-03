@@ -88,20 +88,20 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
     {
         if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
         {
-            _logger.LogDebug("Cannot refresh schedules - API client or HouseId not configured");
+            _logger.LogWarning("Cannot refresh schedules - API client or HouseId not configured");
             return;
         }
 
         try
         {
-            _logger.LogInformation("Refreshing schedules from API for house {HouseId}", _configuration.HouseId);
+            _logger.LogDebug("Refreshing schedules from API for house {HouseId}", _configuration.HouseId);
             RoomSchedules schedules = await _scheduleApiClient.GetSchedulesAsync(_configuration.HouseId);
 
             if (schedules.Rooms.Count > 0)
             {
                 _cachedSchedules = schedules;
                 _lastRefreshTime = DateTimeOffset.UtcNow;
-                _logger.LogInformation("Successfully refreshed {Count} schedules from API", schedules.Rooms.Count);
+                _logger.LogDebug("Successfully refreshed {Count} schedules from API", schedules.Rooms.Count);
 
                 // Save to local storage
                 await SaveToLocalStorageAsync(schedules);
@@ -123,11 +123,11 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
         {
             if (!File.Exists(_scheduleStoragePath))
             {
-                _logger.LogInformation("No local schedule storage found at {Path}", _scheduleStoragePath);
+                _logger.LogDebug("No local schedule storage found at {Path}", _scheduleStoragePath);
                 return;
             }
 
-            _logger.LogInformation("Loading schedules from local storage at {Path}", _scheduleStoragePath);
+            _logger.LogDebug("Loading schedules from local storage at {Path}", _scheduleStoragePath);
             string json = await File.ReadAllTextAsync(_scheduleStoragePath);
             RoomSchedulesDto? dto = JsonSerializer.Deserialize<RoomSchedulesDto>(json, new JsonSerializerOptions
             {
@@ -138,7 +138,7 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
             {
                 _cachedSchedules = ScheduleMapper.MapFromDto(dto);
                 _lastRefreshTime = DateTimeOffset.UtcNow; // Treat loaded schedules as fresh
-                _logger.LogInformation("Successfully loaded {Count} schedules from local storage", _cachedSchedules.Rooms.Count);
+                _logger.LogDebug("Successfully loaded {Count} schedules from local storage", _cachedSchedules.Rooms.Count);
             }
         }
         catch (Exception ex)
@@ -169,13 +169,13 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
     {
         if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
         {
-            _logger.LogInformation("SignalR not configured - API client or HouseId missing");
+            _logger.LogWarning("SignalR not configured - API client or HouseId missing");
             return;
         }
 
         try
         {
-            _logger.LogInformation("Connecting to SignalR for schedule updates (house {HouseId})", _configuration.HouseId);
+            _logger.LogDebug("Connecting to SignalR for schedule updates (house {HouseId})", _configuration.HouseId);
             string connectionInfoJson = await _scheduleApiClient.GetSignalRConnectionInfoAsync(_configuration.HouseId);
 
             using JsonDocument doc = JsonDocument.Parse(connectionInfoJson);
@@ -207,19 +207,19 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
 
             _hubConnection.On<object>("test-message", (data) =>
             {
-                _logger.LogWarning("✅ RECEIVED 'test-message' from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
+                _logger.LogDebug("✅ RECEIVED 'test-message' from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
                 return Task.CompletedTask;
             });
 
             _hubConnection.On<object>("test-message-all", (data) =>
             {
-                _logger.LogWarning("✅ RECEIVED 'test-message-all' (broadcast to ALL) from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
+                _logger.LogDebug("✅ RECEIVED 'test-message-all' (broadcast to ALL) from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
                 return Task.CompletedTask;
             });
 
             _hubConnection.On<object>("schedules-changed", async (data) =>
             {
-                _logger.LogInformation("✅ RECEIVED 'schedules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
+                _logger.LogDebug("✅ RECEIVED 'schedules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
                 _lastRefreshTime = DateTimeOffset.MinValue; // Invalidate cache
                 await RefreshSchedulesFromApiAsync();
 
@@ -281,7 +281,7 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
     {
         if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
         {
-            _logger.LogDebug("Cannot add to group - API client or HouseId not configured");
+            _logger.LogWarning("Cannot add to group - API client or HouseId not configured");
             return;
         }
 
@@ -290,7 +290,7 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
             _logger.LogInformation("Adding connection {ConnectionId} to group for house {HouseId}", connectionId, _configuration.HouseId);
             System.Net.Http.HttpResponseMessage response = await _scheduleApiClient.AddToGroupAsync(_configuration.HouseId, connectionId);
             response.EnsureSuccessStatusCode();
-            _logger.LogInformation("Successfully added connection to SignalR group for house {HouseId}", _configuration.HouseId);
+            _logger.LogDebug("Successfully added connection to SignalR group for house {HouseId}", _configuration.HouseId);
         }
         catch (Exception ex)
         {

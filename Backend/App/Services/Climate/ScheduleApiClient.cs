@@ -72,7 +72,7 @@ public class ScheduleApiClient : IScheduleApiClient
             HttpResponseMessage response = await _httpClient.PostAsync($"/api/schedules?houseId={houseId}", content);
             response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("Successfully set schedules for house {HouseId}", houseId);
+            _logger.LogDebug("Successfully set schedules for house {HouseId}", houseId);
         }
         catch (Exception ex)
         {
@@ -119,7 +119,7 @@ public class ScheduleApiClient : IScheduleApiClient
             HttpResponseMessage response = await _httpClient.PostAsync($"/api/room-states?houseId={houseId}", content);
             response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("Successfully set room states for house {HouseId}", houseId);
+            _logger.LogDebug("Successfully set room states for house {HouseId}", houseId);
         }
         catch (Exception ex)
         {
@@ -136,7 +136,7 @@ public class ScheduleApiClient : IScheduleApiClient
             response.EnsureSuccessStatusCode();
 
             string connectionInfo = await response.Content.ReadAsStringAsync();
-            _logger.LogInformation("Successfully retrieved SignalR connection info for house {HouseId}", houseId);
+            _logger.LogDebug("Successfully retrieved SignalR connection info for house {HouseId}", houseId);
             return connectionInfo;
         }
         catch (Exception ex)
@@ -153,7 +153,7 @@ public class ScheduleApiClient : IScheduleApiClient
             HttpResponseMessage response = await _httpClient.PostAsync($"/api/signalr/add-to-group?houseId={houseId}&connectionId={connectionId}", null);
             response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("Successfully added connection to group for house {HouseId}", houseId);
+            _logger.LogDebug("Successfully added connection to group for house {HouseId}", houseId);
             return response;
         }
         catch (Exception ex)

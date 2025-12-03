@@ -4,6 +4,11 @@
       "domain": "light",
       "entities": [
         {
+          "id": "light.bookcase_light_strip",
+          "friendlyName": "Bookcase Light Strip",
+          "cSharpName": "BookcaseLightStrip"
+        },
+        {
           "id": "light.lamperion_bane_of_shadows",
           "friendlyName": "Lamperion Bane of Shadows",
           "cSharpName": "LamperionBaneOfShadows"
@@ -530,6 +535,16 @@
           "cSharpName": "MgMg4ElectricWindowRearRight"
         },
         {
+          "id": "binary_sensor.motion_sensor_02",
+          "friendlyName": "Motion-Sensor-02",
+          "cSharpName": "MotionSensor02"
+        },
+        {
+          "id": "binary_sensor.motion_sensor_02_occupancy",
+          "friendlyName": "Motion-Sensor-02 Occupancy",
+          "cSharpName": "MotionSensor02Occupancy"
+        },
+        {
           "id": "binary_sensor.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_dispatching",
           "friendlyName": "Intelligent Dispatching (00000000-0009-4000-8020-00000005f18d)",
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentDispatching"
@@ -662,9 +677,24 @@
           "cSharpName": "Bedroom1PlugHeaterIdentify"
         },
         {
+          "id": "button.bedroom_2_climate_identify",
+          "friendlyName": "Bedroom 2 - Climate Identify",
+          "cSharpName": "Bedroom2ClimateIdentify"
+        },
+        {
+          "id": "button.bedroom_3_climate_identify",
+          "friendlyName": "Bedroom 3 - Climate  Identify",
+          "cSharpName": "Bedroom3ClimateIdentify"
+        },
+        {
           "id": "button.bedroom_3_temperature_and_humidity_identify",
           "friendlyName": "Bathroom - Climate Identify",
           "cSharpName": "Bedroom3TemperatureAndHumidityIdentify"
+        },
+        {
+          "id": "button.bookcase_light_strip_identify",
+          "friendlyName": "Bookcase Light Strip Identify",
+          "cSharpName": "BookcaseLightStripIdentify"
         },
         {
           "id": "button.dining_room_desk_plug_identify",
@@ -703,7 +733,7 @@
         },
         {
           "id": "button.hallway_button_identify",
-          "friendlyName": "Hallway - Button Identify",
+          "friendlyName": "Dining Room - Bookshelf - Button Identify",
           "cSharpName": "HallwayButtonIdentify"
         },
         {
@@ -732,9 +762,19 @@
           "cSharpName": "MgMg4ElectricUpdateVehicleData"
         },
         {
+          "id": "button.motion_sensor_02_identify",
+          "friendlyName": "Motion-Sensor-02 Identify",
+          "cSharpName": "MotionSensor02Identify"
+        },
+        {
           "id": "button.plug_identify",
           "friendlyName": "Kitchen plug - Heater Identify",
           "cSharpName": "PlugIdentify"
+        },
+        {
+          "id": "button.smartplug01_identify",
+          "friendlyName": "SmartPlug01 Identify",
+          "cSharpName": "Smartplug01Identify"
         },
         {
           "id": "button.solax_inverter_battery_awaken",
@@ -1045,6 +1085,41 @@
           "cSharpName": "AutomationTest"
         },
         {
+          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
+          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
+          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelCarCarAutomations"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1180,6 +1255,66 @@
       "domain": "number",
       "isNumeric": true,
       "entities": [
+        {
+          "id": "number.bedroom_2_climate_comfort_humidity_max",
+          "friendlyName": "Bedroom 2 - Climate Comfort humidity max",
+          "cSharpName": "Bedroom2ClimateComfortHumidityMax"
+        },
+        {
+          "id": "number.bedroom_2_climate_comfort_humidity_min",
+          "friendlyName": "Bedroom 2 - Climate Comfort humidity min",
+          "cSharpName": "Bedroom2ClimateComfortHumidityMin"
+        },
+        {
+          "id": "number.bedroom_2_climate_comfort_temperature_max",
+          "friendlyName": "Bedroom 2 - Climate Comfort temperature max",
+          "cSharpName": "Bedroom2ClimateComfortTemperatureMax"
+        },
+        {
+          "id": "number.bedroom_2_climate_comfort_temperature_min",
+          "friendlyName": "Bedroom 2 - Climate Comfort temperature min",
+          "cSharpName": "Bedroom2ClimateComfortTemperatureMin"
+        },
+        {
+          "id": "number.bedroom_2_climate_humidity_offset",
+          "friendlyName": "Bedroom 2 - Climate Humidity offset",
+          "cSharpName": "Bedroom2ClimateHumidityOffset"
+        },
+        {
+          "id": "number.bedroom_2_climate_temperature_offset",
+          "friendlyName": "Bedroom 2 - Climate Temperature offset",
+          "cSharpName": "Bedroom2ClimateTemperatureOffset"
+        },
+        {
+          "id": "number.bedroom_3_climate_comfort_humidity_max",
+          "friendlyName": "Bedroom 3 - Climate  Comfort humidity max",
+          "cSharpName": "Bedroom3ClimateComfortHumidityMax"
+        },
+        {
+          "id": "number.bedroom_3_climate_comfort_humidity_min",
+          "friendlyName": "Bedroom 3 - Climate  Comfort humidity min",
+          "cSharpName": "Bedroom3ClimateComfortHumidityMin"
+        },
+        {
+          "id": "number.bedroom_3_climate_comfort_temperature_max",
+          "friendlyName": "Bedroom 3 - Climate  Comfort temperature max",
+          "cSharpName": "Bedroom3ClimateComfortTemperatureMax"
+        },
+        {
+          "id": "number.bedroom_3_climate_comfort_temperature_min",
+          "friendlyName": "Bedroom 3 - Climate  Comfort temperature min",
+          "cSharpName": "Bedroom3ClimateComfortTemperatureMin"
+        },
+        {
+          "id": "number.bedroom_3_climate_humidity_offset",
+          "friendlyName": "Bedroom 3 - Climate  Humidity offset",
+          "cSharpName": "Bedroom3ClimateHumidityOffset"
+        },
+        {
+          "id": "number.bedroom_3_climate_temperature_offset",
+          "friendlyName": "Bedroom 3 - Climate  Temperature offset",
+          "cSharpName": "Bedroom3ClimateTemperatureOffset"
+        },
         {
           "id": "number.hypervolt_led_brightness",
           "friendlyName": "Hypervolt LED Brightness",
@@ -1630,6 +1765,16 @@
           "cSharpName": "Bedroom1PlugHeaterStartUpBehaviour"
         },
         {
+          "id": "select.bedroom_2_climate_display_unit",
+          "friendlyName": "Bedroom 2 - Climate Display unit",
+          "cSharpName": "Bedroom2ClimateDisplayUnit"
+        },
+        {
+          "id": "select.bedroom_3_climate_display_unit",
+          "friendlyName": "Bedroom 3 - Climate  Display unit",
+          "cSharpName": "Bedroom3ClimateDisplayUnit"
+        },
+        {
           "id": "select.dining_room_desk_plug_start_up_behaviour",
           "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
           "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
@@ -1713,6 +1858,11 @@
           "id": "select.plug_start_up_behaviour",
           "friendlyName": "Kitchen plug - Heater Start-up behaviour",
           "cSharpName": "PlugStartUpBehaviour"
+        },
+        {
+          "id": "select.smartplug01_start_up_behaviour",
+          "friendlyName": "SmartPlug01 Start-up behaviour",
+          "cSharpName": "Smartplug01StartUpBehaviour"
         },
         {
           "id": "select.solax_inverter_battery_heating",
@@ -2260,6 +2410,36 @@
           "cSharpName": "Bedroom1PlugHeaterVoltage"
         },
         {
+          "id": "sensor.bedroom_2_climate_battery",
+          "friendlyName": "Bedroom 2 - Climate Battery",
+          "cSharpName": "Bedroom2ClimateBattery"
+        },
+        {
+          "id": "sensor.bedroom_2_climate_humidity",
+          "friendlyName": "Bedroom 2 - Climate Humidity",
+          "cSharpName": "Bedroom2ClimateHumidity"
+        },
+        {
+          "id": "sensor.bedroom_2_climate_temperature",
+          "friendlyName": "Bedroom 2 - Climate Temperature",
+          "cSharpName": "Bedroom2ClimateTemperature"
+        },
+        {
+          "id": "sensor.bedroom_3_climate_battery",
+          "friendlyName": "Bedroom 3 - Climate  Battery",
+          "cSharpName": "Bedroom3ClimateBattery"
+        },
+        {
+          "id": "sensor.bedroom_3_climate_humidity",
+          "friendlyName": "Bedroom 3 - Climate  Humidity",
+          "cSharpName": "Bedroom3ClimateHumidity"
+        },
+        {
+          "id": "sensor.bedroom_3_climate_temperature",
+          "friendlyName": "Bedroom 3 - Climate  Temperature",
+          "cSharpName": "Bedroom3ClimateTemperature"
+        },
+        {
           "id": "sensor.bedroom_3_temperature_and_humidity_battery",
           "friendlyName": "Bathroom - Climate Battery",
           "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
@@ -2406,7 +2586,7 @@
         },
         {
           "id": "sensor.hallway_button_battery",
-          "friendlyName": "Hallway - Button Battery",
+          "friendlyName": "Dining Room - Bookshelf - Button Battery",
           "cSharpName": "HallwayButtonBattery"
         },
         {
@@ -2645,6 +2825,11 @@
           "cSharpName": "MgMg4ElectricTyrePressureRearRight"
         },
         {
+          "id": "sensor.motion_sensor_02_battery",
+          "friendlyName": "Motion-Sensor-02 Battery",
+          "cSharpName": "MotionSensor02Battery"
+        },
+        {
           "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini",
           "friendlyName": "Octopus Energy Cost Tracker octopus_home_mini",
           "cSharpName": "OctopusEnergyCostTrackerOctopusHomeMini"
@@ -2808,6 +2993,26 @@
           "id": "sensor.sm_a546b_battery_level",
           "friendlyName": "SM-A546B Battery level",
           "cSharpName": "SmA546bBatteryLevel"
+        },
+        {
+          "id": "sensor.smartplug01_current",
+          "friendlyName": "SmartPlug01 Current",
+          "cSharpName": "Smartplug01Current"
+        },
+        {
+          "id": "sensor.smartplug01_power",
+          "friendlyName": "SmartPlug01 Power",
+          "cSharpName": "Smartplug01Power"
+        },
+        {
+          "id": "sensor.smartplug01_summation_delivered",
+          "friendlyName": "SmartPlug01 Summation delivered",
+          "cSharpName": "Smartplug01SummationDelivered"
+        },
+        {
+          "id": "sensor.smartplug01_voltage",
+          "friendlyName": "SmartPlug01 Voltage",
+          "cSharpName": "Smartplug01Voltage"
         },
         {
           "id": "sensor.solax_inverter_active_power_lower",
@@ -3564,6 +3769,11 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentSmartCharge"
         },
         {
+          "id": "switch.smartplug01_switch",
+          "friendlyName": "SmartPlug01",
+          "cSharpName": "Smartplug01Switch"
+        },
+        {
           "id": "switch.sonoff_s60zbtpg",
           "friendlyName": "Dining room plug - dehumidifier",
           "cSharpName": "SonoffS60zbtpg"
@@ -3645,9 +3855,24 @@
           "cSharpName": "Bedroom1PlugHeaterFirmware"
         },
         {
+          "id": "update.bedroom_2_climate_firmware",
+          "friendlyName": "Bedroom 2 - Climate Firmware",
+          "cSharpName": "Bedroom2ClimateFirmware"
+        },
+        {
+          "id": "update.bedroom_3_climate_firmware",
+          "friendlyName": "Bedroom 3 - Climate  Firmware",
+          "cSharpName": "Bedroom3ClimateFirmware"
+        },
+        {
           "id": "update.bedroom_3_temperature_and_humidity_firmware",
           "friendlyName": "Bathroom - Climate Firmware",
           "cSharpName": "Bedroom3TemperatureAndHumidityFirmware"
+        },
+        {
+          "id": "update.bookcase_light_strip_firmware",
+          "friendlyName": "Bookcase Light Strip Firmware",
+          "cSharpName": "BookcaseLightStripFirmware"
         },
         {
           "id": "update.dining_room_desk_plug_firmware",
@@ -3701,7 +3926,7 @@
         },
         {
           "id": "update.hallway_button_firmware",
-          "friendlyName": "Hallway - Button Firmware",
+          "friendlyName": "Dining Room - Bookshelf - Button Firmware",
           "cSharpName": "HallwayButtonFirmware"
         },
         {
@@ -3740,6 +3965,11 @@
           "cSharpName": "MgSaicUpdate"
         },
         {
+          "id": "update.motion_sensor_02_firmware",
+          "friendlyName": "Motion-Sensor-02 Firmware",
+          "cSharpName": "MotionSensor02Firmware"
+        },
+        {
           "id": "update.netdaemon_v5_net_9_update",
           "friendlyName": "NetDaemon V5 (.NET 9) Update",
           "cSharpName": "NetdaemonV5Net9Update"
@@ -3763,6 +3993,11 @@
           "id": "update.samba_share_update",
           "friendlyName": "Samba share Update",
           "cSharpName": "SambaShareUpdate"
+        },
+        {
+          "id": "update.smartplug01_firmware",
+          "friendlyName": "SmartPlug01 Firmware",
+          "cSharpName": "Smartplug01Firmware"
         },
         {
           "id": "update.solax_inverter_modbus_update",

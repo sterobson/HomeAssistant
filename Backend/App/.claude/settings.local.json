@@ -5,7 +5,9 @@
       "Bash(dotnet nd-codegen:*)",
       "Bash(dotnet tool restore:*)",
       "Bash(dotnet build:*)",
-      "Bash(dotnet test:*)"
+      "Bash(dotnet test:*)",
+      "Bash(nd-codegen:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

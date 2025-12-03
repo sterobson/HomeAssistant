@@ -29,9 +29,19 @@ public class SonoffButton
         _deviceIeee = deviceIeee;
     }
 
-    public IObservable<Event<ZhaEventData>> Pressed()
+    public IObservable<Event<ZhaEventData>> SinglePressed()
     {
         return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "toggle");
+    }
+
+    public IObservable<Event<ZhaEventData>> DoublePressed()
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "on");
+    }
+
+    public IObservable<Event<ZhaEventData>> LongPressed()
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "off");
     }
 }
 
@@ -90,6 +100,9 @@ public class NamedEntities : INamedEntities
     public ICustomSwitchEntity DiningRoomDeskPlugOnOff => new CustomSwitchEntity(_entities.Switch.DiningRoomDeskPlug);
     public ICustomNumericSensorEntity DiningRoomDeskPlugPower => new CustomNumericSensorEntity(_entities.Sensor.DiningRoomDeskPlugPower);
     public ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.DiningRoomPlugHeaterSwitch);
+    public SonoffButton DiningRoomBookshelfButton => new(_ha, "d4:48:67:ff:fe:08:1a:bc");
+    public LightEntity DiningBookshelfLightStrip => _entities.Light.BookcaseLightStrip;
+    public ICustomSwitchEntity DiningBookshelfLightStripPlugOnOff => new CustomSwitchEntity(_entities.Switch.Smartplug01Switch);
 
     // Kitchen
     public ICustomNumericSensorEntity KitchenTemperature => new CustomNumericSensorEntity(_entities.Sensor.KitchenTemperatureAndHumidityTemperature);
@@ -112,9 +125,6 @@ public class NamedEntities : INamedEntities
     public LightEntity BedroomTwoDeskLamp => _entities.Light.LamperionBaneOfShadows;
 
     // Bedroom 3
-
-    // Hallway
-    public SonoffButton HallwayButton => new(_ha, "d4:48:67:ff:fe:08:1a:bc");
 
     // Porch
     public LightEntity PorchLight => _entities.Light.PorchLight;
@@ -150,6 +160,52 @@ public class NamedEntities : INamedEntities
 
 public static class LightEntityExtensions
 {
+    public enum FavouriteColour
+    {
+        None = -1,
+        Blue = 0,
+        Purple = 1,
+        Pink = 2,
+        Red = 3,
+        Orange = 4,
+        Peach = 5,
+        Cream = 6,
+        White = 7
+    }
+
+    public static FavouriteColour GetFavouriteColour(this LightEntity lightEntity)
+    {
+        if (lightEntity?.Attributes?.RgbColor == null)
+        {
+            return FavouriteColour.None;
+        }
+
+        for (int i = 0; i <= 255; i++)
+        {
+            (int r, int g, int b) = GetRgb((FavouriteColour)i);
+            if (r + g + b == 0)
+            {
+                break;
+            }
+
+            if ((lightEntity.Attributes.RgbColor[0] >= r - 5 && lightEntity.Attributes.RgbColor[0] <= r + 5)
+                && (lightEntity.Attributes.RgbColor[1] >= g - 5 && lightEntity.Attributes.RgbColor[1] <= g + 5)
+                && (lightEntity.Attributes.RgbColor[2] >= b - 5 && lightEntity.Attributes.RgbColor[2] <= b + 5))
+            {
+                return (FavouriteColour)i;
+            }
+        }
+
+        return FavouriteColour.None;
+    }
+
+    public static LightEntity SetColour(this LightEntity lightEntity, FavouriteColour colour)
+    {
+        (int r, int g, int b) = GetRgb(colour);
+        lightEntity.TurnOn(rgbColor: [r, g, b]);
+        return lightEntity;
+    }
+
     public static LightEntity SetRgb(this LightEntity lightEntity, int r, int g, int b)
     {
         lightEntity.TurnOn(rgbColor: [r, g, b]);
@@ -168,6 +224,21 @@ public static class LightEntityExtensions
         return lightEntity;
     }
 
+    private static (int r, int g, int b) GetRgb(FavouriteColour colour)
+    {
+        return colour switch
+        {
+            FavouriteColour.Blue => (129, 173, 255),
+            FavouriteColour.Purple => (215, 151, 255),
+            FavouriteColour.Pink => (255, 159, 242),
+            FavouriteColour.Red => (255, 112, 86),
+            FavouriteColour.Orange => (255, 137, 14),
+            FavouriteColour.Peach => (255, 193, 142),
+            FavouriteColour.Cream => (255, 229, 207),
+            FavouriteColour.White => (255, 255, 251),
+            _ => (0, 0, 0)
+        };
+    }
 }
 
 public static class SwitchEntityExtensions
