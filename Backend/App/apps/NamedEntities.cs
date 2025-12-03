@@ -31,17 +31,17 @@ public class SonoffButton
 
     public IObservable<Event<ZhaEventData>> SinglePressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "toggle");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "toggle");
     }
 
     public IObservable<Event<ZhaEventData>> DoublePressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "on");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "on");
     }
 
     public IObservable<Event<ZhaEventData>> LongPressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => e.Data?.DeviceIeee == _deviceIeee && e.Data?.Command == "off");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "off");
     }
 }
 
@@ -116,6 +116,7 @@ public class NamedEntities : INamedEntities
     public ICustomSwitchEntity GamesRoomHeaterSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.GamesRoomPlugHeaterSwitch);
     public ICustomSwitchEntity GamesRoomDeskPlugOnOff => new CustomSwitchEntity(_entities.Switch.GamesRoomDeskPlug);
     public ICustomNumericSensorEntity GamesRoomDeskPlugPower => new CustomNumericSensorEntity(_entities.Sensor.GamesRoomDeskPlugPower);
+    public SonoffButton GamesRoomDeskButton => new(_ha, "D4:48:67:FF:FE:0C:12:00");
 
     // Bedroom 1
     public ICustomNumericSensorEntity Bedroom1Temperature => new CustomNumericSensorEntity(_entities.Sensor.ClockTemperatureAndHumidityTemperature);

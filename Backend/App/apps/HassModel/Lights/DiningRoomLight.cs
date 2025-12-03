@@ -33,15 +33,17 @@ internal class DiningRoomLight
             }
 
             // Get the named colour
-            LightEntityExtensions.FavouriteColour namedColour = namedEntities.DiningBookshelfLightStrip.GetFavouriteColour();
+            LightEntityExtensions.FavouriteColour currentColour = namedEntities.DiningBookshelfLightStrip.GetFavouriteColour();
 
-            namedColour += 1;
-            if (namedColour > LightEntityExtensions.FavouriteColour.White)
+            LightEntityExtensions.FavouriteColour newColour = currentColour switch
             {
-                namedColour = 0;
-            }
+                LightEntityExtensions.FavouriteColour.Purple => LightEntityExtensions.FavouriteColour.Blue,
+                LightEntityExtensions.FavouriteColour.Blue => LightEntityExtensions.FavouriteColour.Red,
+                LightEntityExtensions.FavouriteColour.Red => LightEntityExtensions.FavouriteColour.White,
+                _ => LightEntityExtensions.FavouriteColour.Purple
+            };
 
-            namedEntities.DiningBookshelfLightStrip.SetColour(namedColour);
+            namedEntities.DiningBookshelfLightStrip.SetColour(newColour);
         });
 
         // Long press to cycle the brightness
@@ -57,13 +59,13 @@ internal class DiningRoomLight
                 namedEntities.DiningBookshelfLightStripPlugOnOff.TurnOn();
             }
 
-            int newBrightness = namedEntities.DiningBookshelfLightStrip.Attributes.Brightness switch
+            int newBrightnessPct = namedEntities.DiningBookshelfLightStrip.Attributes.Brightness switch
             {
-                > 0.6 * 255 => 50,
+                >= 128 => 10,
                 _ => 100
             };
 
-            namedEntities.DiningBookshelfLightStrip.SetBrightnessPercent(newBrightness);
+            namedEntities.DiningBookshelfLightStrip.SetBrightnessPercent(newBrightnessPct);
         });
 
         scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), () =>

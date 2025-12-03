@@ -14,8 +14,6 @@ namespace HomeAssistant.Services;
 public interface IScheduleApiClient
 {
     Task<RoomSchedules> GetSchedulesAsync(string houseId);
-    Task SetSchedulesAsync(string houseId, RoomSchedules schedules);
-    Task<List<RoomState>> GetRoomStatesAsync(string houseId);
     Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates);
     Task<string> GetSignalRConnectionInfoAsync(string houseId);
     Task<HttpResponseMessage> AddToGroupAsync(string houseId, string connectionId);
@@ -57,49 +55,6 @@ public class ScheduleApiClient : IScheduleApiClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting schedules from API for house {HouseId}", houseId);
-            throw;
-        }
-    }
-
-    public async Task SetSchedulesAsync(string houseId, RoomSchedules schedules)
-    {
-        try
-        {
-            RoomSchedulesDto dto = ScheduleMapper.MapToDto(schedules);
-            string json = JsonSerializer.Serialize(dto, _jsonOptions);
-            StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            HttpResponseMessage response = await _httpClient.PostAsync($"/api/schedules?houseId={houseId}", content);
-            response.EnsureSuccessStatusCode();
-
-            _logger.LogDebug("Successfully set schedules for house {HouseId}", houseId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error setting schedules to API for house {HouseId}", houseId);
-            throw;
-        }
-    }
-
-    public async Task<List<RoomState>> GetRoomStatesAsync(string houseId)
-    {
-        try
-        {
-            HttpResponseMessage response = await _httpClient.GetAsync($"/api/room-states?houseId={houseId}");
-            response.EnsureSuccessStatusCode();
-
-            RoomStatesResponse? statesResponse = await response.Content.ReadFromJsonAsync<RoomStatesResponse>(_jsonOptions);
-            if (statesResponse == null)
-            {
-                _logger.LogWarning("Received null response when getting room states for house {HouseId}", houseId);
-                return [];
-            }
-
-            return statesResponse.RoomStates.Select(ScheduleMapper.MapRoomStateFromDto).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting room states from API for house {HouseId}", houseId);
             throw;
         }
     }
