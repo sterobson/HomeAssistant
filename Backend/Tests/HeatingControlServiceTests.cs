@@ -180,6 +180,10 @@ public sealed class HeatingControlServiceTests
         MockPresenceService presenceService = (MockPresenceService)serviceProvider.GetRequiredService<IPresenceService>();
         presenceService.SetRoomValue(room, roomOccupied);
 
+        // Configure the mock schedule persistence service to return test schedules
+        ISchedulePersistenceService schedulePersistence = serviceProvider.GetRequiredService<ISchedulePersistenceService>();
+        schedulePersistence.GetSchedulesAsync().Returns(Task.FromResult(new RoomSchedules { Rooms = GetSampleSchedule() }));
+
         HeatingControlService sut = ActivatorUtilities.CreateInstance<HeatingControlService>(serviceProvider);
 
         FakeNamedEntities namedEntities = serviceProvider.GetRequiredService<FakeNamedEntities>();
@@ -214,7 +218,7 @@ public sealed class HeatingControlServiceTests
             heaterPlug.TurnOff();
         }
 
-        await sut.EvaluateAllSchedules(new RoomSchedules { Rooms = GetSampleSchedule() }, "unit test");
+        await sut.EvaluateAllSchedules("unit test");
 
         if (expectedHeatingState == Heating_Should_Be_On)
         {
@@ -244,6 +248,9 @@ public sealed class HeatingControlServiceTests
         services.AddSingleton<HomeAssistantConfiguration>();
         services.AddSingleton<FakeTimeProvider>();
         services.AddSingleton<TimeProvider>(provider => provider.GetRequiredService<FakeTimeProvider>());
+        services.AddSingleton(Substitute.For<ILogger<ISchedulePersistenceService>>());
+        services.AddSingleton(Substitute.For<ISchedulePersistenceService>());
+        services.AddSingleton(Substitute.For<IRoomStatePersistenceService>());
 
         return services.BuildServiceProvider();
     }

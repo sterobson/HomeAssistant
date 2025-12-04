@@ -11,7 +11,10 @@ param(
     [switch]$Frontend,
 
     [Parameter(Mandatory=$false)]
-    [switch]$Backend
+    [switch]$Backend,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$HardwareApp
 )
 
 # Color functions for better output
@@ -77,11 +80,12 @@ if (-not $Environment) {
 }
 
 # Ask what to deploy if not specified
-if (-not $Frontend -and -not $Backend) {
+if (-not $Frontend -and -not $Backend -and -not $HardwareApp) {
     Write-Host ""
     Write-Warning "What would you like to deploy?"
     Write-Host "  1. Frontend" -ForegroundColor White
     Write-Host "  2. Backend (Azure Functions)" -ForegroundColor White
+    Write-Host "  3. Hardware App (NetDaemon)" -ForegroundColor White
     Write-Host ""
     Write-Gray "You can select multiple options (e.g., '1 2' or '1,2')"
     Write-Host ""
@@ -101,6 +105,7 @@ if (-not $Frontend -and -not $Backend) {
         switch ($choice) {
             "1" { $Frontend = $true }
             "2" { $Backend = $true }
+            "3" { $HardwareApp = $true }
             default {
                 Write-Warning "Ignoring invalid choice: $choice"
             }
@@ -108,7 +113,7 @@ if (-not $Frontend -and -not $Backend) {
     }
 
     # Validate at least one option was selected
-    if (-not $Frontend -and -not $Backend) {
+    if (-not $Frontend -and -not $Backend -and -not $HardwareApp) {
         Write-Error "No valid deployment options selected."
         exit 1
     }
@@ -121,6 +126,7 @@ if ($Environment -eq "live") {
     Write-Gray "Environment: Live"
     if ($Frontend) { Write-Gray "  - Frontend → GitHub Pages (root)" }
     if ($Backend) { Write-Gray "  - Backend → $($config.live.Backend.Url)" }
+    if ($HardwareApp) { Write-Gray "  - Hardware App → NetDaemon deployment" }
     Write-Host ""
 
     $confirmation = Read-Host "Are you sure you want to deploy to LIVE? (yes/no)"
@@ -131,9 +137,14 @@ if ($Environment -eq "live") {
 }
 
 Write-Host ""
-Write-Info "Deploying to: $Environment"
-if ($Frontend) { Write-Gray "  ✓ Frontend" }
-if ($Backend) { Write-Gray "  ✓ Backend (Azure Functions)" }
+if ($HardwareApp) {
+    Write-Info "Building Hardware App"
+    Write-Gray "  - Hardware App (framework-dependent)"
+} else {
+    Write-Info "Deploying to: $Environment"
+}
+if ($Frontend) { Write-Gray "  - Frontend" }
+if ($Backend) { Write-Gray "  - Backend (Azure Functions)" }
 Write-Host ""
 
 $selectedConfig = $config[$Environment]
@@ -414,6 +425,123 @@ if ($Backend) {
 }
 
 # ============================================================================
+# Deploy Hardware App (Self-contained, trimmed executable)
+# ============================================================================
+if ($HardwareApp) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Info "  Building Hardware App"
+    Write-Host "========================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    $appProjectPath = Join-Path $PSScriptRoot "Backend\App\HomeAssistant.csproj"
+
+    if (-not (Test-Path $appProjectPath)) {
+        Write-Error "Backend App project not found at: $appProjectPath"
+        $deploymentSuccess = $false
+    } else {
+        $appPath = Join-Path $PSScriptRoot "Backend\App"
+        Push-Location $appPath
+
+        try {
+            Write-Info "Publishing Hardware App..."
+            Write-Gray "This may take a few minutes..."
+            Write-Host ""
+
+            $outputPath = Join-Path $PSScriptRoot "publish\hardware-app"
+
+            # Publish the application
+            dotnet publish $appProjectPath `
+                -c Release `
+                --self-contained false `
+                -p:DebugType=none `
+                -p:DebugSymbols=false `
+                -o $outputPath
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host ""
+                Write-Success "Hardware App published successfully!"
+                Write-Gray "Output location: $outputPath"
+                Write-Host ""
+
+                # List the published files
+                Write-Info "Published files:"
+                Get-ChildItem -Path $outputPath | Select-Object -First 10 | ForEach-Object {
+                    $sizeInMB = [math]::Round($_.Length / 1MB, 2)
+                    Write-Gray "  $($_.Name) ($sizeInMB MB)"
+                }
+                $totalFiles = (Get-ChildItem -Path $outputPath).Count
+                if ($totalFiles -gt 10) {
+                    Write-Gray "  ... and $($totalFiles - 10) more files"
+                }
+                Write-Host ""
+
+                # Ask if user wants to copy to NetDaemon directory
+                Write-Info "Copy to NetDaemon?"
+                Write-Host "  1. Yes (copy to \\homeassistant.local\config\netdaemon6)" -ForegroundColor White
+                Write-Host "  2. Copy somewhere else" -ForegroundColor White
+                Write-Host "  3. No" -ForegroundColor White
+                Write-Host ""
+
+                $copyChoice = Read-Host "Enter choice (1, 2, or 3)"
+
+                $copyDestination = $null
+                switch ($copyChoice) {
+                    "1" {
+                        $copyDestination = "\\homeassistant.local\config\netdaemon6"
+                    }
+                    "2" {
+                        $copyDestination = Read-Host "Enter destination path"
+                    }
+                    "3" {
+                        Write-Gray "Skipping copy operation"
+                    }
+                    default {
+                        Write-Warning "Invalid choice. Skipping copy operation."
+                    }
+                }
+
+                if ($copyDestination) {
+                    Write-Host ""
+                    Write-Info "Copying files to $copyDestination..."
+
+                    if (-not (Test-Path $copyDestination)) {
+                        Write-Error "Destination path does not exist: $copyDestination"
+                        $deploymentSuccess = $false
+                    } else {
+                        try {
+                            # Copy all files except appsettings.*.json
+                            Get-ChildItem -Path $outputPath | Where-Object {
+                                -not ($_.Name -like "appsettings.*.json")
+                            } | ForEach-Object {
+                                Copy-Item -Path $_.FullName -Destination $copyDestination -Force
+                            }
+
+                            Write-Success "Files copied successfully!"
+                            Write-Host ""
+                            Write-Warning "Note: appsettings.*.json files were NOT copied."
+                            Write-Gray "You will need to update these configuration files manually if needed."
+                            Write-Host ""
+                            Write-Info "Next steps:"
+                            Write-Gray "  1. Update appsettings.*.json files if needed"
+                            Write-Gray "  2. Restart the NetDaemon add-on in Home Assistant"
+                        } catch {
+                            Write-Error "Failed to copy files: $($_.Exception.Message)"
+                            $deploymentSuccess = $false
+                        }
+                    }
+                }
+            } else {
+                Write-Error "Hardware App build failed"
+                $deploymentSuccess = $false
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+}
+
+# ============================================================================
 # Summary
 # ============================================================================
 Write-Host ""
@@ -427,7 +555,12 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 if ($deploymentSuccess) {
-    Write-Host "Deployed to: $Environment" -ForegroundColor White
+    if ($HardwareApp) {
+        Write-Host "Built Hardware App" -ForegroundColor White
+        Write-Host "  [OK] Hardware App -> publish\hardware-app" -ForegroundColor Green
+    } else {
+        Write-Host "Deployed to: $Environment" -ForegroundColor White
+    }
     if ($Frontend) {
         Write-Host "  [OK] Frontend -> GitHub Pages" -ForegroundColor Green
     }

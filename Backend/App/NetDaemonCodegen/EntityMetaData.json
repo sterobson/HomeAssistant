@@ -343,11 +343,6 @@
           "cSharpName": "DiningRoomDeskNightTimeNotifiesIfPlugIsOn"
         },
         {
-          "id": "automation.games_room_desk_button_toggles_plug",
-          "friendlyName": "Games Room - Desk - Button Toggles Plug",
-          "cSharpName": "GamesRoomDeskButtonTogglesPlug"
-        },
-        {
           "id": "automation.kitchen_washing_machine_notify_when_done",
           "friendlyName": "Kitchen - Washing Machine - Notify when done",
           "cSharpName": "KitchenWashingMachineNotifyWhenDone"
@@ -773,7 +768,7 @@
         },
         {
           "id": "button.smartplug01_identify",
-          "friendlyName": "SmartPlug01 Identify",
+          "friendlyName": "Dining Room - Plug - Bookshelf Identify",
           "cSharpName": "Smartplug01Identify"
         },
         {
@@ -1085,41 +1080,6 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
-          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
-          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
-          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
-          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelCarCarAutomations"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
-        },
-        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1130,6 +1090,11 @@
           "cSharpName": "NetdaemonHassModelEnergyPrices"
         },
         {
+          "id": "input_boolean.netdaemon_hass_model_reminders_milk_bottles",
+          "friendlyName": "netdaemon_hass_model_reminders_milk_bottles",
+          "cSharpName": "NetdaemonHassModelRemindersMilkBottles"
+        },
+        {
           "id": "input_boolean.netdaemon_hass_model_waste_bin_collections",
           "friendlyName": "netdaemon_hass_model_waste_bin_collections",
           "cSharpName": "NetdaemonHassModelWasteBinCollections"
@@ -1138,11 +1103,6 @@
           "id": "input_boolean.netdaemon_hass_model_wooooooo",
           "friendlyName": "netdaemon_hass_model_wooooooo",
           "cSharpName": "NetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "friendlyName": "netdaemon_home_assistant_apps_hass_model_car_car_automations",
-          "cSharpName": "NetdaemonHomeAssistantAppsHassModelCarCarAutomations"
         },
         {
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
@@ -1158,6 +1118,16 @@
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
           "friendlyName": "netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
           "cSharpName": "NetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
         }
       ],
       "attributes": [
@@ -1861,7 +1831,7 @@
         },
         {
           "id": "select.smartplug01_start_up_behaviour",
-          "friendlyName": "SmartPlug01 Start-up behaviour",
+          "friendlyName": "Dining Room - Plug - Bookshelf Start-up behaviour",
           "cSharpName": "Smartplug01StartUpBehaviour"
         },
         {
@@ -2421,7 +2391,7 @@
         },
         {
           "id": "sensor.bedroom_2_climate_temperature",
-          "friendlyName": "Bedroom 2 - Climate Temperature",
+          "friendlyName": "Bedroom 2",
           "cSharpName": "Bedroom2ClimateTemperature"
         },
         {
@@ -2436,7 +2406,7 @@
         },
         {
           "id": "sensor.bedroom_3_climate_temperature",
-          "friendlyName": "Bedroom 3 - Climate  Temperature",
+          "friendlyName": "Bedroom 3",
           "cSharpName": "Bedroom3ClimateTemperature"
         },
         {
@@ -2996,22 +2966,22 @@
         },
         {
           "id": "sensor.smartplug01_current",
-          "friendlyName": "SmartPlug01 Current",
+          "friendlyName": "Dining Room - Plug - Bookshelf Current",
           "cSharpName": "Smartplug01Current"
         },
         {
           "id": "sensor.smartplug01_power",
-          "friendlyName": "SmartPlug01 Power",
+          "friendlyName": "Dining Room - Plug - Bookshelf Power",
           "cSharpName": "Smartplug01Power"
         },
         {
           "id": "sensor.smartplug01_summation_delivered",
-          "friendlyName": "SmartPlug01 Summation delivered",
+          "friendlyName": "Dining Room - Plug - Bookshelf Summation delivered",
           "cSharpName": "Smartplug01SummationDelivered"
         },
         {
           "id": "sensor.smartplug01_voltage",
-          "friendlyName": "SmartPlug01 Voltage",
+          "friendlyName": "Dining Room - Plug - Bookshelf Voltage",
           "cSharpName": "Smartplug01Voltage"
         },
         {
@@ -3770,7 +3740,7 @@
         },
         {
           "id": "switch.smartplug01_switch",
-          "friendlyName": "SmartPlug01",
+          "friendlyName": "Dining Room - Plug - Bookshelf",
           "cSharpName": "Smartplug01Switch"
         },
         {
@@ -3975,6 +3945,11 @@
           "cSharpName": "NetdaemonV5Net9Update"
         },
         {
+          "id": "update.netdaemon_v6_net_10_update",
+          "friendlyName": "NetDaemon V6 (.NET 10) Update",
+          "cSharpName": "NetdaemonV6Net10Update"
+        },
+        {
           "id": "update.octopus_energy_update",
           "friendlyName": "Octopus Energy update",
           "cSharpName": "OctopusEnergyUpdate"
@@ -3996,7 +3971,7 @@
         },
         {
           "id": "update.smartplug01_firmware",
-          "friendlyName": "SmartPlug01 Firmware",
+          "friendlyName": "Dining Room - Plug - Bookshelf Firmware",
           "cSharpName": "Smartplug01Firmware"
         },
         {

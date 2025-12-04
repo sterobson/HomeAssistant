@@ -289,40 +289,23 @@ internal class HeatingControlService
             desiredTemperature = effectiveTrack.Temperature;
         }
 
-        // Get or create room state
-        if (!_roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState))
-        {
-            // Determine current heating state by checking if we would turn it on or off
-            // We need to check the actual current state of the heating system
-            bool currentHeatingState = false;
+        // Figure out the actual current state of the room.
+        ICustomSwitchEntity? plug = GetSwitchForRoom(roomHeatingSchedule);
+        bool? currentHeatingState = null;
+        if (plug?.IsOn() == true) currentHeatingState = true;
+        if (plug?.IsOff() == true) currentHeatingState = false;
 
-            // Try to determine current state by attempting a no-op toggle
-            // If onToggleHeating(true) returns false, heating is already on
-            // If onToggleHeating(false) returns false, heating is already off
-            bool wouldTurnOff = await onToggleHeating(false);
-            if (!wouldTurnOff)
-            {
-                // Heating was already off, restore to off
-                await onToggleHeating(false);
-                currentHeatingState = false;
-            }
-            else
-            {
-                // Heating was on, restore to on
-                await onToggleHeating(true);
-                currentHeatingState = true;
-            }
+        // Ensure that our cached state is updated.
+        _roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState);
+        bool? previousHeatingActive = roomState?.HeatingActive;
 
-            roomState = new RoomState
-            {
-                RoomId = roomHeatingSchedule.Id,
-                CurrentTemperature = currentTemperature,
-                HeatingActive = currentHeatingState,
-                ActiveScheduleTrackId = effectiveTrack?.Id ?? 0,
-                LastUpdated = DateTimeOffset.UtcNow
-            };
-            _roomStates[roomHeatingSchedule.Id] = roomState;
-        }
+        roomState ??= new RoomState();
+        roomState.RoomId = roomHeatingSchedule.Id;
+        roomState.CurrentTemperature = currentTemperature;
+        roomState.HeatingActive = currentHeatingState ?? false;
+        roomState.ActiveScheduleTrackId = effectiveTrack?.Id ?? 0;
+        roomState.LastUpdated = DateTimeOffset.UtcNow;
+        _roomStates[roomHeatingSchedule.Id] = roomState;
 
         bool stateChanged = false;
 
@@ -376,6 +359,11 @@ internal class HeatingControlService
         if (roomState.ActiveScheduleTrackId != (effectiveTrack?.Id ?? 0))
         {
             roomState.ActiveScheduleTrackId = (effectiveTrack?.Id ?? 0);
+            stateChanged = true;
+        }
+
+        if (previousHeatingActive == null || roomState.HeatingActive != previousHeatingActive)
+        {
             stateChanged = true;
         }
 

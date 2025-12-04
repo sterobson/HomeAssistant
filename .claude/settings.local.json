@@ -19,7 +19,13 @@
       "Bash(dotnet list:*)",
       "Bash(Select-String -Pattern \"SignalR\")",
       "Bash(Select-String -Pattern \"appsettings.secrets\")",
-      "Bash(npm ci)"
+      "Bash(npm ci)",
+      "Bash(Select-String -Pattern \"Gray\" -Context 1,1)",
+      "Bash(pwsh -Command \"Get-Command -Syntax -Name ''.\\deploy.ps1''\")",
+      "Bash(pwsh -Command \"$null = [System.Management.Automation.PSParser]::Tokenize((Get-Content ''.\\deploy.ps1'' -Raw), [ref]$null); Write-Host ''Syntax OK''\")",
+      "Bash(Get-ChildItem \"C:\\Users\\stero\\source\\repos\\HomeAssistant\\publish\\hardware-app\\temp\\win-x64\")",
+      "Bash(Select-Object -First 20 Name)",
+      "Bash(pwsh -Command:*)"
     ],
     "deny": [],
     "ask": []
