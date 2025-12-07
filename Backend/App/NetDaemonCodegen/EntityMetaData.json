@@ -129,6 +129,16 @@
           "jsonName": "restored",
           "cSharpName": "Restored",
           "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "off_with_transition",
+          "cSharpName": "OffWithTransition",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "off_brightness",
+          "cSharpName": "OffBrightness",
+          "clrType": null
         }
       ]
     },
@@ -425,6 +435,11 @@
       "domain": "binary_sensor",
       "entities": [
         {
+          "id": "binary_sensor.christmas_tree_cloud_connection",
+          "friendlyName": "Christmas Tree Cloud connection",
+          "cSharpName": "ChristmasTreeCloudConnection"
+        },
+        {
           "id": "binary_sensor.ewelink_snzb_03p",
           "friendlyName": "Porch motion detector",
           "cSharpName": "EwelinkSnzb03p"
@@ -438,6 +453,11 @@
           "id": "binary_sensor.hypervolt_car_plugged",
           "friendlyName": "Hypervolt Car Plugged",
           "cSharpName": "HypervoltCarPlugged"
+        },
+        {
+          "id": "binary_sensor.lego_village_cloud_connection",
+          "friendlyName": "Lego village Cloud connection",
+          "cSharpName": "LegoVillageCloudConnection"
         },
         {
           "id": "binary_sensor.mg_mg4_electric_bonnet_status",
@@ -740,6 +760,16 @@
           "id": "button.kitchen_temperature_and_humidity_identify",
           "friendlyName": "Kitchen temperature and humidity Identify",
           "cSharpName": "KitchenTemperatureAndHumidityIdentify"
+        },
+        {
+          "id": "button.living_room_christmas_tree_button_identify",
+          "friendlyName": "Living Room - Christmas Tree - Button Identify",
+          "cSharpName": "LivingRoomChristmasTreeButtonIdentify"
+        },
+        {
+          "id": "button.living_room_radiator_identify",
+          "friendlyName": "Living Room - Radiator Identify",
+          "cSharpName": "LivingRoomRadiatorIdentify"
         },
         {
           "id": "button.loving_room_charging_dock_identify",
@@ -1080,6 +1110,51 @@
           "cSharpName": "AutomationTest"
         },
         {
+          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
+          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
+          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
+          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
+          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
+        },
+        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1329,6 +1404,36 @@
           "id": "number.lamperion_bane_of_shadows_effect_speed",
           "friendlyName": "Lamperion Bane of Shadows Effect speed",
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
+        },
+        {
+          "id": "number.living_room_radiator_external_temperature_sensor_value",
+          "friendlyName": "Living Room - Radiator External temperature sensor value",
+          "cSharpName": "LivingRoomRadiatorExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.living_room_radiator_frost_protection_temperature",
+          "friendlyName": "Living Room - Radiator Frost protection temperature",
+          "cSharpName": "LivingRoomRadiatorFrostProtectionTemperature"
+        },
+        {
+          "id": "number.living_room_radiator_local_temperature_offset",
+          "friendlyName": "Living Room - Radiator Local temperature offset",
+          "cSharpName": "LivingRoomRadiatorLocalTemperatureOffset"
+        },
+        {
+          "id": "number.living_room_radiator_max_heat_setpoint_limit",
+          "friendlyName": "Living Room - Radiator Max heat setpoint limit",
+          "cSharpName": "LivingRoomRadiatorMaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.living_room_radiator_min_heat_setpoint_limit",
+          "friendlyName": "Living Room - Radiator Min heat setpoint limit",
+          "cSharpName": "LivingRoomRadiatorMinHeatSetpointLimit"
+        },
+        {
+          "id": "number.living_room_radiator_temperature_control_accuracy",
+          "friendlyName": "Living Room - Radiator Temperature control accuracy",
+          "cSharpName": "LivingRoomRadiatorTemperatureControlAccuracy"
         },
         {
           "id": "number.mg_mg4_electric_target_soc",
@@ -2132,6 +2237,16 @@
           "cSharpName": "HypervoltSessionId"
         },
         {
+          "id": "sensor.living_room_radiator_hvac_action",
+          "friendlyName": "Living Room - Radiator HVAC action",
+          "cSharpName": "LivingRoomRadiatorHvacAction"
+        },
+        {
+          "id": "sensor.living_room_radiator_timestamp",
+          "friendlyName": "Living Room - Radiator Timestamp",
+          "cSharpName": "LivingRoomRadiatorTimestamp"
+        },
+        {
           "id": "sensor.mg_mg4_electric_battery_heating_status",
           "friendlyName": "MG MG4 Electric Battery Heating Status",
           "cSharpName": "MgMg4ElectricBatteryHeatingStatus"
@@ -2386,7 +2501,7 @@
         },
         {
           "id": "sensor.bedroom_2_climate_humidity",
-          "friendlyName": "Bedroom 2 - Climate Humidity",
+          "friendlyName": "Bedroom 2",
           "cSharpName": "Bedroom2ClimateHumidity"
         },
         {
@@ -2401,7 +2516,7 @@
         },
         {
           "id": "sensor.bedroom_3_climate_humidity",
-          "friendlyName": "Bedroom 3 - Climate  Humidity",
+          "friendlyName": "Bedroom 3",
           "cSharpName": "Bedroom3ClimateHumidity"
         },
         {
@@ -2658,6 +2773,56 @@
           "id": "sensor.lamperion_bane_of_shadows_power",
           "friendlyName": "Lamperion Bane of Shadows Power",
           "cSharpName": "LamperionBaneOfShadowsPower"
+        },
+        {
+          "id": "sensor.lego_village_current",
+          "friendlyName": "Lego village Current",
+          "cSharpName": "LegoVillageCurrent"
+        },
+        {
+          "id": "sensor.lego_village_current_consumption",
+          "friendlyName": "Lego village Current consumption",
+          "cSharpName": "LegoVillageCurrentConsumption"
+        },
+        {
+          "id": "sensor.lego_village_this_month_s_consumption",
+          "friendlyName": "Lego village This month\u0027s consumption",
+          "cSharpName": "LegoVillageThisMonthSConsumption"
+        },
+        {
+          "id": "sensor.lego_village_today_s_consumption",
+          "friendlyName": "Lego village Today\u0027s consumption",
+          "cSharpName": "LegoVillageTodaySConsumption"
+        },
+        {
+          "id": "sensor.lego_village_total_consumption",
+          "friendlyName": "Lego village Total consumption",
+          "cSharpName": "LegoVillageTotalConsumption"
+        },
+        {
+          "id": "sensor.lego_village_voltage",
+          "friendlyName": "Lego village Voltage",
+          "cSharpName": "LegoVillageVoltage"
+        },
+        {
+          "id": "sensor.living_room_christmas_tree_button_battery",
+          "friendlyName": "Living Room - Christmas Tree - Button Battery",
+          "cSharpName": "LivingRoomChristmasTreeButtonBattery"
+        },
+        {
+          "id": "sensor.living_room_radiator_battery",
+          "friendlyName": "Living Room - Radiator Battery",
+          "cSharpName": "LivingRoomRadiatorBattery"
+        },
+        {
+          "id": "sensor.livingroom_climate_humidity",
+          "friendlyName": "Living Room Humidity",
+          "cSharpName": "LivingroomClimateHumidity"
+        },
+        {
+          "id": "sensor.livingroom_climate_temperature",
+          "friendlyName": "Living Room Temperature",
+          "cSharpName": "LivingroomClimateTemperature"
         },
         {
           "id": "sensor.loving_room_charging_dock_current",
@@ -3290,19 +3455,9 @@
           "cSharpName": "SonoffSnzb02dHumidity"
         },
         {
-          "id": "sensor.sonoff_snzb_02d_humidity_2",
-          "friendlyName": "Living Room",
-          "cSharpName": "SonoffSnzb02dHumidity2"
-        },
-        {
           "id": "sensor.sonoff_snzb_02d_temperature",
           "friendlyName": "Games Room",
           "cSharpName": "SonoffSnzb02dTemperature"
-        },
-        {
-          "id": "sensor.sonoff_snzb_02d_temperature_2",
-          "friendlyName": "Living Room",
-          "cSharpName": "SonoffSnzb02dTemperature2"
         },
         {
           "id": "sensor.sonoff_snzb_05p_battery",
@@ -3654,6 +3809,16 @@
           "cSharpName": "Bedroom1PlugHeaterSwitch"
         },
         {
+          "id": "switch.christmas_tree",
+          "friendlyName": "Christmas Tree",
+          "cSharpName": "ChristmasTree"
+        },
+        {
+          "id": "switch.christmas_tree_led",
+          "friendlyName": "Christmas Tree LED",
+          "cSharpName": "ChristmasTreeLed"
+        },
+        {
           "id": "switch.dining_room_desk_plug",
           "friendlyName": "Dining Room - Desk - Plug",
           "cSharpName": "DiningRoomDeskPlug"
@@ -3689,9 +3854,39 @@
           "cSharpName": "KitchenPlugHeaterSwitch"
         },
         {
+          "id": "switch.lego_village",
+          "friendlyName": "Lego village",
+          "cSharpName": "LegoVillage"
+        },
+        {
+          "id": "switch.lego_village_led",
+          "friendlyName": "Lego village LED",
+          "cSharpName": "LegoVillageLed"
+        },
+        {
           "id": "switch.living_room_charging_dock",
           "friendlyName": "Living room plug - charging dock",
           "cSharpName": "LivingRoomChargingDock"
+        },
+        {
+          "id": "switch.living_room_radiator_child_lock",
+          "friendlyName": "Living Room - Radiator Child lock",
+          "cSharpName": "LivingRoomRadiatorChildLock"
+        },
+        {
+          "id": "switch.living_room_radiator_external_temperature_sensor",
+          "friendlyName": "Living Room - Radiator External temperature sensor",
+          "cSharpName": "LivingRoomRadiatorExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.living_room_radiator_open_window",
+          "friendlyName": "Living Room - Radiator Open window",
+          "cSharpName": "LivingRoomRadiatorOpenWindow"
+        },
+        {
+          "id": "switch.living_room_radiator_switch",
+          "friendlyName": "Living Room - Radiator Switch",
+          "cSharpName": "LivingRoomRadiatorSwitch"
         },
         {
           "id": "switch.mg_mg4_electric_battery_heating",
@@ -3925,6 +4120,16 @@
           "cSharpName": "KitchenTemperatureAndHumidityFirmware"
         },
         {
+          "id": "update.living_room_christmas_tree_button_firmware",
+          "friendlyName": "Living Room - Christmas Tree - Button Firmware",
+          "cSharpName": "LivingRoomChristmasTreeButtonFirmware"
+        },
+        {
+          "id": "update.living_room_radiator_firmware",
+          "friendlyName": "Living Room - Radiator Firmware",
+          "cSharpName": "LivingRoomRadiatorFirmware"
+        },
+        {
           "id": "update.loving_room_charging_dock_firmware",
           "friendlyName": "Living room plug - charging dock Firmware",
           "cSharpName": "LovingRoomChargingDockFirmware"
@@ -3938,11 +4143,6 @@
           "id": "update.motion_sensor_02_firmware",
           "friendlyName": "Motion-Sensor-02 Firmware",
           "cSharpName": "MotionSensor02Firmware"
-        },
-        {
-          "id": "update.netdaemon_v5_net_9_update",
-          "friendlyName": "NetDaemon V5 (.NET 9) Update",
-          "cSharpName": "NetdaemonV5Net9Update"
         },
         {
           "id": "update.netdaemon_v6_net_10_update",
@@ -4402,6 +4602,11 @@
       "domain": "climate",
       "entities": [
         {
+          "id": "climate.living_room_radiator_thermostat",
+          "friendlyName": "Living Room - Radiator Thermostat",
+          "cSharpName": "LivingRoomRadiatorThermostat"
+        },
+        {
           "id": "climate.mg_mg4_electric_climate",
           "friendlyName": "MG MG4 Electric Climate",
           "cSharpName": "MgMg4ElectricClimate"
@@ -4457,6 +4662,26 @@
           "jsonName": "supported_features",
           "cSharpName": "SupportedFeatures",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "hvac_action",
+          "cSharpName": "HvacAction",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "occupancy",
+          "cSharpName": "Occupancy",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "occupied_heating_setpoint",
+          "cSharpName": "OccupiedHeatingSetpoint",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "system_mode",
+          "cSharpName": "SystemMode",
+          "clrType": "System.String"
         }
       ]
     },

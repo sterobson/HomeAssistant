@@ -21,10 +21,16 @@ public enum Days
 public enum ConditionType
 {
     None = 0,
-    PlentyOfPowerAvailable = 1,
-    LowPowerAvailable = 2,
+    Schedule1 = 1,
+    Schedule2 = 2,
     RoomInUse = 4,
     RoomNotInUse = 8
+}
+
+public enum HouseOccupancyState
+{
+    Home = 0,
+    Away = 1
 }
 
 [Flags]
@@ -39,10 +45,4 @@ public enum Room
     Bedroom2 = 32,
     Bedroom3 = 64,
     UpstairsBathroom = 128
-}
-
-public enum ConditionOperatorType
-{
-    And,
-    Or
 }

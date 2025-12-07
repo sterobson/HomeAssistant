@@ -127,9 +127,15 @@ const sortedSchedules = computed(() => {
     })
 })
 
-// Check if boost is actually active (has valid start and end times)
+// Check if boost is actually active (has valid start and end times, and hasn't expired)
 const isBoostActive = computed(() => {
-  return props.room.boost && props.room.boost.startTime && props.room.boost.endTime
+  if (!props.room.boost || !props.room.boost.startTime || !props.room.boost.endTime) {
+    return false
+  }
+
+  const endTime = new Date(props.room.boost.endTime)
+  const now = new Date()
+  return endTime > now
 })
 
 const toggleCollapse = () => {

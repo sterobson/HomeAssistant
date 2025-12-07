@@ -60,6 +60,7 @@ const loading = ref(true)
 const error = ref(null)
 const statePollingInterval = ref(null)
 const expandedRoomId = ref(null)
+const lastHiddenTime = ref(null)
 const toast = reactive({
   visible: false,
   message: '',
@@ -167,6 +168,46 @@ watch(houseId, async (newHouseId, oldHouseId) => {
   await initializeConnection()
 })
 
+// Page Visibility API handler - called when tab is hidden/shown
+const handleVisibilityChange = async () => {
+  if (document.hidden) {
+    // Tab became hidden - record the time
+    lastHiddenTime.value = Date.now()
+    console.log('Tab hidden at:', new Date(lastHiddenTime.value))
+  } else {
+    // Tab became visible - check if we need to refresh
+    console.log('Tab visible')
+
+    if (lastHiddenTime.value) {
+      const hiddenDuration = (Date.now() - lastHiddenTime.value) / 1000 // seconds
+      console.log(`Tab was hidden for ${hiddenDuration.toFixed(0)} seconds`)
+
+      // If hidden for more than 30 seconds, refresh everything
+      if (hiddenDuration > 30) {
+        console.log('Tab was hidden for a while, refreshing connection and data...')
+
+        // Ensure SignalR is connected
+        if (signalR && houseId.value) {
+          try {
+            const reconnected = await signalR.ensureConnected()
+            if (reconnected) {
+              console.log('SignalR reconnected after tab became visible')
+            }
+          } catch (err) {
+            console.error('Failed to ensure SignalR connection:', err)
+          }
+        }
+
+        // Refresh schedules and states
+        await loadSchedules()
+        showToast('Data refreshed', 'info', 2000)
+      }
+    }
+
+    lastHiddenTime.value = null
+  }
+}
+
 onMounted(async () => {
   // Load previously expanded room from cookie
   const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
@@ -183,12 +224,18 @@ onMounted(async () => {
 
   loadSchedules()
   await initializeConnection()
+
+  // Set up Page Visibility API to handle tab backgrounding/foregrounding
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(async () => {
   if (statePollingInterval.value) {
     clearInterval(statePollingInterval.value)
   }
+
+  // Remove visibility change listener
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 
   // Disconnect from SignalR
   if (signalR) {
@@ -360,8 +407,7 @@ const handleBoost = async (roomId, boostData) => {
   if (room) {
     // Calculate start and end times in UTC
     const startTime = new Date()
-    const endTime = new Date()
-    endTime.setHours(endTime.getHours() + boostData.duration)
+    const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
 
     room.boost = {
       startTime: startTime.toISOString(),

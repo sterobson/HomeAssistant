@@ -25,7 +25,9 @@
       "Bash(pwsh -Command \"$null = [System.Management.Automation.PSParser]::Tokenize((Get-Content ''.\\deploy.ps1'' -Raw), [ref]$null); Write-Host ''Syntax OK''\")",
       "Bash(Get-ChildItem \"C:\\Users\\stero\\source\\repos\\HomeAssistant\\publish\\hardware-app\\temp\\win-x64\")",
       "Bash(Select-Object -First 20 Name)",
-      "Bash(pwsh -Command:*)"
+      "Bash(pwsh -Command:*)",
+      "Bash(Select-String -Pattern \"NetDaemon\")",
+      "Bash(Get-ChildItem -Directory -Filter \"*Function*\" -Recurse -Depth 2)"
     ],
     "deny": [],
     "ask": []

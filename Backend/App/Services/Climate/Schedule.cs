@@ -6,6 +6,7 @@ namespace HomeAssistant.Services.Climate;
 
 public class RoomSchedules
 {
+    public HouseOccupancyState HouseOccupancyState { get; set; } = HouseOccupancyState.Home;
     public List<RoomSchedule> Rooms { get; set; } = [];
 }
 
@@ -48,5 +49,4 @@ public class HeatingScheduleTrack
     public int RampUpMinutes { get; set; } = 30;
     public Days Days { get; set; } = Days.Unspecified;
     public ConditionType Conditions { get; set; } = ConditionType.None;
-    public ConditionOperatorType ConditionOperator { get; set; } = ConditionOperatorType.Or;
 }

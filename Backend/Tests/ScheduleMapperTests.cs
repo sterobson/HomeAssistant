@@ -53,8 +53,7 @@ public class ScheduleMapperTests
                             Temperature = 21.5,
                             RampUpMinutes = 45,
                             Days = Days.Weekdays,
-                            Conditions = ConditionType.PlentyOfPowerAvailable,
-                            ConditionOperator = ConditionOperatorType.And
+                            Conditions = ConditionType.Schedule1,
                         }
                     ]
                 }
@@ -81,8 +80,7 @@ public class ScheduleMapperTests
         track.Temperature.ShouldBe(21.5);
         track.RampUpMinutes.ShouldBe(45);
         track.Days.ShouldBe(Days.Weekdays);
-        track.Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable);
-        track.ConditionOperator.ShouldBe(ConditionOperatorType.And);
+        track.Conditions.ShouldBe(ConditionType.Schedule1);
     }
 
     [TestMethod]
@@ -309,7 +307,7 @@ public class ScheduleMapperTests
                     Schedules =
                     [
                         new ScheduleTrackDto { Id = 1, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.None },
-                        new ScheduleTrackDto { Id = 2, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.PlentyOfPowerAvailable },
+                        new ScheduleTrackDto { Id = 2, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.Schedule1 },
                         new ScheduleTrackDto { Id = 3, Time = "08:00", Temperature = 20.0, Conditions = ConditionType.RoomInUse }
                     ]
                 }
@@ -321,7 +319,7 @@ public class ScheduleMapperTests
 
         // Assert
         result.Rooms[0].ScheduleTracks[0].Conditions.ShouldBe(ConditionType.None);
-        result.Rooms[0].ScheduleTracks[1].Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable);
+        result.Rooms[0].ScheduleTracks[1].Conditions.ShouldBe(ConditionType.Schedule1);
         result.Rooms[0].ScheduleTracks[2].Conditions.ShouldBe(ConditionType.RoomInUse);
     }
 
@@ -373,8 +371,7 @@ public class ScheduleMapperTests
                             Temperature = 21.5,
                             RampUpMinutes = 45,
                             Days = Days.Weekdays,
-                            Conditions = ConditionType.PlentyOfPowerAvailable,
-                            ConditionOperator = ConditionOperatorType.And
+                            Conditions = ConditionType.Schedule1,
                         }
                     ]
                 }
@@ -398,8 +395,7 @@ public class ScheduleMapperTests
         track.Temperature.ShouldBe(21.5);
         track.RampUpMinutes.ShouldBe(45);
         track.Days.ShouldBe(Days.Weekdays);
-        track.Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable);
-        track.ConditionOperator.ShouldBe(ConditionOperatorType.And);
+        track.Conditions.ShouldBe(ConditionType.Schedule1);
     }
 
     [TestMethod]
@@ -568,7 +564,6 @@ public class ScheduleMapperTests
                             RampUpMinutes = 30,
                             Days = Days.Weekdays,
                             Conditions = ConditionType.None,
-                            ConditionOperator = ConditionOperatorType.Or
                         }
                     ]
                 }

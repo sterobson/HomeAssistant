@@ -82,16 +82,19 @@ internal class HomeBatteryManager
         {
             await _setBatteryStateSemaphore.WaitAsync();
 
-            TimeOnly dischargeAfter = new(21, 00);
             TimeOnly dischargeUntil = new(23, 30);
-            const int stopDischargeIfUnderPercent = 25;
+            const int stopDischargeIfUnderPercent = 20;
             const int batteryConsideredFullIfGtEqToPercent = 99;
             const int onlyStartChargingBatteryIfBelow = batteryConsideredFullIfGtEqToPercent - 4; // Stop the flapping when charging and battery is nearly full
 
             double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
             double? homeBatteryChargePct = _homeBattery.CurrentChargePercent;
             bool isCarCharging = _carCharger.ChargerCurrent > 1;
+
+            // Todo: electricity is only cheap if the unit rate is in the bottom 25% of prices of the last 24 hours, or
+            // if the car charger is being controlled by Octopus and we're within one of its charging schedules.
             bool isElectricityCheap = currentUnitPriceRate < 0.1;
+
             DateTime now = _timeProvider.GetLocalNow().DateTime;
             BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
 
@@ -180,7 +183,7 @@ internal class HomeBatteryManager
                     " * Predicted PV {EstimatedPV}kWh, predicted usage {EstimatedUsage}kWh\n" +
                     " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
                     " * Current unit price £{CurrentUnitPriceRate} (was £{PreviousUnitPriceRate})\n" +
-                    " * Hypervolt current {HypervoltCurrent}A" +
+                    " * Hypervolt current {HypervoltCurrent}A\n" +
                     " * Triggered by {TriggeredBy}",
                     homeBatteryChargePct?.ToString("F0"),
                     _previousHomeBatteryChargePct?.ToString("F0"),

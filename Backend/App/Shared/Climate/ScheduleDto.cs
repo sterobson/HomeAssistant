@@ -42,5 +42,4 @@ public class ScheduleTrackDto
     public int RampUpMinutes { get; set; }
     public Days Days { get; set; }
     public ConditionType Conditions { get; set; }
-    public ConditionOperatorType ConditionOperator { get; set; }
 }

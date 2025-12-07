@@ -30,8 +30,7 @@ public class JsonSerializationTests
                             ""temperature"": 21.5,
                             ""rampUpMinutes"": 30,
                             ""days"": ""Weekdays"",
-                            ""conditions"": ""RoomInUse"",
-                            ""conditionOperator"": ""And""
+                            ""conditions"": ""RoomInUse""
                         }
                     ]
                 }
@@ -59,7 +58,6 @@ public class JsonSerializationTests
         schedule.RampUpMinutes.ShouldBe(30);
         schedule.Days.ShouldBe(Days.Weekdays);
         schedule.Conditions.ShouldBe(ConditionType.RoomInUse);
-        schedule.ConditionOperator.ShouldBe(ConditionOperatorType.And);
     }
 
     [TestMethod]
@@ -83,8 +81,7 @@ public class JsonSerializationTests
                             ""temperature"": 19.0,
                             ""rampUpMinutes"": 45,
                             ""days"": 31,
-                            ""conditions"": 4,
-                            ""conditionOperator"": 0
+                            ""conditions"": 4
                         }
                     ]
                 }
@@ -113,7 +110,6 @@ public class JsonSerializationTests
         schedule.RampUpMinutes.ShouldBe(45);
         schedule.Days.ShouldBe(Days.Weekdays); // 31 = Weekdays
         schedule.Conditions.ShouldBe(ConditionType.RoomInUse); // 4 = RoomInUse
-        schedule.ConditionOperator.ShouldBe(ConditionOperatorType.And); // 1 = And
     }
 
     [TestMethod]
@@ -132,8 +128,7 @@ public class JsonSerializationTests
                             ""temperature"": 20.0,
                             ""rampUpMinutes"": 30,
                             ""days"": 127,
-                            ""conditions"": 0,
-                            ""conditionOperator"": 0
+                            ""conditions"": 0
                         }
                     ]
                 }
@@ -147,7 +142,6 @@ public class JsonSerializationTests
         var schedule = result.Rooms[0].Schedules[0];
         schedule.Days.ShouldBe(Days.Everyday); // 127 = All 7 days
         schedule.Conditions.ShouldBe(ConditionType.None);
-        schedule.ConditionOperator.ShouldBe(ConditionOperatorType.And); // 0 = And
     }
 
     [TestMethod]
@@ -166,8 +160,7 @@ public class JsonSerializationTests
                             ""temperature"": 21.0,
                             ""rampUpMinutes"": 30,
                             ""days"": 31,
-                            ""conditions"": 5,
-                            ""conditionOperator"": 1
+                            ""conditions"": 5
                         }
                     ]
                 }
@@ -179,8 +172,8 @@ public class JsonSerializationTests
 
         // Assert
         var schedule = result.Rooms[0].Schedules[0];
-        // 5 = PlentyOfPowerAvailable (1) | RoomInUse (4)
-        schedule.Conditions.ShouldBe(ConditionType.PlentyOfPowerAvailable | ConditionType.RoomInUse);
+        // 5 = Schedule1 (1) | RoomInUse (4)
+        schedule.Conditions.ShouldBe(ConditionType.Schedule1 | ConditionType.RoomInUse);
     }
 
     [TestMethod]
@@ -250,8 +243,7 @@ public class JsonSerializationTests
                             Temperature = 21.5,
                             RampUpMinutes = 30,
                             Days = Days.Weekdays,
-                            Conditions = ConditionType.RoomInUse,
-                            ConditionOperator = ConditionOperatorType.And
+                            Conditions = ConditionType.RoomInUse
                         }
                     }
                 }
@@ -270,7 +262,6 @@ public class JsonSerializationTests
         // Enums should be serialized as strings
         json.ShouldContain("\"days\":\"Weekdays\"");
         json.ShouldContain("\"conditions\":\"RoomInUse\"");
-        json.ShouldContain("\"conditionOperator\":\"And\"");
     }
 
     [TestMethod]
@@ -300,8 +291,7 @@ public class JsonSerializationTests
                             Temperature = 20.5,
                             RampUpMinutes = 45,
                             Days = Days.Monday | Days.Wednesday | Days.Friday,
-                            Conditions = ConditionType.PlentyOfPowerAvailable | ConditionType.RoomInUse,
-                            ConditionOperator = ConditionOperatorType.Or
+                            Conditions = ConditionType.Schedule1 | ConditionType.RoomInUse
                         }
                     }
                 }
@@ -335,7 +325,6 @@ public class JsonSerializationTests
         resultSchedule.RampUpMinutes.ShouldBe(originalSchedule.RampUpMinutes);
         resultSchedule.Days.ShouldBe(originalSchedule.Days);
         resultSchedule.Conditions.ShouldBe(originalSchedule.Conditions);
-        resultSchedule.ConditionOperator.ShouldBe(originalSchedule.ConditionOperator);
     }
 
     [TestMethod]

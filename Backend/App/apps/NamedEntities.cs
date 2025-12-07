@@ -1,5 +1,6 @@
 ﻿using HomeAssistantGenerated;
 using NetDaemon.HassModel.Entities;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -17,31 +18,66 @@ public record ZhaEventData
     [JsonPropertyName("args")] public JsonElement? Args { get; init; }
 }
 
+public interface ICustomButton
+{
+    IObservable<Event<ZhaEventData>> SinglePressed();
 
-public class SonoffButton
+    IObservable<Event<ZhaEventData>> DoublePressed();
+
+    IObservable<Event<ZhaEventData>> LongPressed();
+}
+
+public class SonoffButton : ICustomButton
 {
     private readonly IHaContext _ha;
-    private readonly string _deviceIeee;
+    public string DeviceIeee { get; }
 
     public SonoffButton(IHaContext ha, string deviceIeee)
     {
         _ha = ha;
-        _deviceIeee = deviceIeee;
+        DeviceIeee = deviceIeee;
     }
 
     public IObservable<Event<ZhaEventData>> SinglePressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "toggle");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, DeviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "toggle");
     }
 
     public IObservable<Event<ZhaEventData>> DoublePressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "on");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, DeviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "on");
     }
 
     public IObservable<Event<ZhaEventData>> LongPressed()
     {
-        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, _deviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "off");
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => string.Equals(e.Data?.DeviceIeee, DeviceIeee, StringComparison.CurrentCultureIgnoreCase) && e.Data?.Command == "off");
+    }
+}
+
+public class SonoffButtonGroup : ICustomButton
+{
+    private readonly List<SonoffButton> _buttons = [];
+    private readonly IHaContext _ha;
+
+    public SonoffButtonGroup(IHaContext ha, params SonoffButton[] buttons)
+    {
+        _buttons.AddRange([.. buttons]);
+        _ha = ha;
+    }
+
+    public IObservable<Event<ZhaEventData>> SinglePressed()
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => _buttons.Any(b => string.Equals(e.Data?.DeviceIeee, b.DeviceIeee, StringComparison.CurrentCultureIgnoreCase)) && e.Data?.Command == "toggle");
+    }
+
+    public IObservable<Event<ZhaEventData>> DoublePressed()
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => _buttons.Any(b => string.Equals(e.Data?.DeviceIeee, b.DeviceIeee, StringComparison.CurrentCultureIgnoreCase)) && e.Data?.Command == "on");
+    }
+
+    public IObservable<Event<ZhaEventData>> LongPressed()
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e => _buttons.Any(b => string.Equals(e.Data?.DeviceIeee, b.DeviceIeee, StringComparison.CurrentCultureIgnoreCase)) && e.Data?.Command == "off");
     }
 }
 
@@ -58,6 +94,11 @@ public interface INamedEntities
     // Kitchen
     ICustomNumericSensorEntity KitchenTemperature { get; }
     ICustomSwitchEntity KitchenHeaterSmartPlugOnOff { get; }
+
+    // Living Room
+    ICustomClimateControlEntity LivingRoomRadiatorThermostat { get; }
+    ICustomNumericSensorEntity LivingRoomClimateHumidity { get; }
+    ICustomNumericSensorEntity LivingRoomClimateTemperature { get; }
 
     // Games room
     ICustomNumericSensorEntity GamesRoomDeskTemperature { get; }
@@ -87,6 +128,11 @@ public class NamedEntities : INamedEntities
     public InputBooleanEntity AutomationTest => _entities.InputBoolean.AutomationTest;
 
     // Living room
+    public SonoffButton LivingRoomChristmasTreeButton => new(_ha, "C4:D8:C8:FF:FE:49:3E:DF");
+    public ICustomSwitchEntity LivingRoomChristmasTreePlugOnOff => new CustomSwitchEntity(_entities.Switch.ChristmasTree);
+    public ICustomClimateControlEntity LivingRoomRadiatorThermostat => new CustomClimateControlEntity(_entities.Climate.LivingRoomRadiatorThermostat);
+    public ICustomNumericSensorEntity LivingRoomClimateHumidity => new CustomNumericSensorEntity(_entities.Sensor.LivingroomClimateHumidity);
+    public ICustomNumericSensorEntity LivingRoomClimateTemperature => new CustomNumericSensorEntity(_entities.Sensor.LivingroomClimateTemperature);
 
     // Dining room
     public SonoffButton DiningRoomDeskButton => new(_ha, "d4:48:67:ff:fe:0b:f6:0b");
@@ -103,10 +149,12 @@ public class NamedEntities : INamedEntities
     public SonoffButton DiningRoomBookshelfButton => new(_ha, "d4:48:67:ff:fe:08:1a:bc");
     public LightEntity DiningBookshelfLightStrip => _entities.Light.BookcaseLightStrip;
     public ICustomSwitchEntity DiningBookshelfLightStripPlugOnOff => new CustomSwitchEntity(_entities.Switch.Smartplug01Switch);
+    public ICustomSwitchEntity DiningRoomLegoVillage => new CustomSwitchEntity(_entities.Switch.LegoVillage);
 
     // Kitchen
     public ICustomNumericSensorEntity KitchenTemperature => new CustomNumericSensorEntity(_entities.Sensor.KitchenTemperatureAndHumidityTemperature);
     public ICustomSwitchEntity KitchenHeaterSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.KitchenPlugHeaterSwitch);
+    public BinarySensorEntity KitchenMotionSensor => _entities.BinarySensor.MotionSensor02Occupancy;
 
     // Games room
     public LightEntity GamesRoomDeskLamp => _entities.Light.WizRgbwTunable22099a;
@@ -369,5 +417,38 @@ public class CustomSwitchEntity : ICustomSwitchEntity
     public void SubscribeToStateChangesAsync(Func<ICustomSwitchEntity, Task> observer)
     {
         _switchEntity.StateChanges().SubscribeAsync(async value => await observer(this));
+    }
+}
+
+public interface ICustomClimateControlEntity : ICustomEntity<ICustomClimateControlEntity>
+{
+    void SetTargetTemperature(double temperature);
+    double? CurrentTemperature { get; }
+    double? TargetTemperature { get; }
+}
+
+public class CustomClimateControlEntity : ICustomClimateControlEntity
+{
+    private readonly ClimateEntity _climateEntity;
+
+    public string EntityId => _climateEntity.EntityId;
+
+    public double? CurrentTemperature => _climateEntity.Attributes?.CurrentTemperature;
+
+    public double? TargetTemperature => _climateEntity.Attributes?.Temperature;
+
+    public CustomClimateControlEntity(ClimateEntity climateEntity)
+    {
+        _climateEntity = climateEntity;
+    }
+
+    public void SubscribeToStateChangesAsync(Func<ICustomClimateControlEntity, Task> observer)
+    {
+        _climateEntity.StateChanges().SubscribeAsync(async value => await observer(this));
+    }
+
+    public void SetTargetTemperature(double temperature)
+    {
+        _climateEntity.SetTemperature(temperature);
     }
 }

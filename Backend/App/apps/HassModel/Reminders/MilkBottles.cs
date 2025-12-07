@@ -22,40 +22,27 @@ internal class MilkBottles
         _notificationService = notificationService;
         Entities entities = new(ha);
 
-        scheduler.ScheduleCron("15 21 * * *", async () => await CheckAndNotifyUpcomingCollections());
-        scheduler.ScheduleCron("45 17 * * *", async () => await CheckAndNotifyUpcomingCollections());
+        // Bottles out at 21:15 on Sunday and Tuesday nights, before we go to bed.
+        scheduler.ScheduleCron("15 21 * * 0,2", async () => await SendMilkBottlesOutReminder());
+
+        // Bottles out at 17:45 on a Thursday evening (becasue we're often out when the milk comes later than night).
+        scheduler.ScheduleCron("45 17 * * 4", async () => await SendMilkBottlesOutReminder());
+
+        // Bottles in at 6:15 on a Monday, Wednesday and Friday morning.
+        scheduler.ScheduleCron("15 6 * * 1,3,5", async () => await SendMilkBottlesInReminder());
     }
 
-    private async Task CheckAndNotifyUpcomingCollections()
+    private async Task SendMilkBottlesOutReminder()
     {
-        _logger.LogDebug("Running milk checker");
-        switch (DateTime.Now.DayOfWeek)
-        {
-            case DayOfWeek.Sunday:
-            case DayOfWeek.Tuesday:
-                if (DateTime.Now.Hour >= 21)
-                {
-                    _notificationService.SendNotificationToGroups("Milk Bottles 🍶", GetRandomMessaage(), ["Ste", "Ruth"]);
-                }
-
-                break;
-
-            case DayOfWeek.Thursday:
-                // Warn earlier on a Thursday since we're often out.
-                if (DateTime.Now.Hour <= 18)
-                {
-                    _notificationService.SendNotificationToGroups("Milk Bottles 🍶", GetRandomMessaage(), ["Ste", "Ruth"]);
-                }
-
-                break;
-
-            default:
-                // No action
-                break;
-        }
+        _notificationService.SendNotificationToGroups("Milk Bottles 🍶", GetRandomPuttingBottlesOutMessaage(), ["Ste", "Ruth"]);
     }
 
-    private static string GetRandomMessaage()
+    private async Task SendMilkBottlesInReminder()
+    {
+        _notificationService.SendNotificationToGroups("Get the milk in 🐮", "The milk should be outside, so remember to get it in", ["Ste", "Ruth"]);
+    }
+
+    private static string GetRandomPuttingBottlesOutMessaage()
     {
         List<string> messages = [];
 

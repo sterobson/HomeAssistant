@@ -13,7 +13,6 @@ internal class HeatingControlService
     private readonly IScheduler _scheduler;
     private readonly ILogger<HeatingControlService> _logger;
     private readonly IHomeBattery _homeBattery;
-    private readonly ISolarPanels _solarPanels;
     private readonly IElectricityMeter _electricityMeter;
     private readonly IPresenceService _presenceService;
     private readonly TimeProvider _timeProvider;
@@ -25,14 +24,11 @@ internal class HeatingControlService
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
 
-    // public RoomSchedules Schedules { get; private set; } = new();
-
     public HeatingControlService(
         INamedEntities namedEntities,
         IScheduler scheduler,
         ILogger<HeatingControlService> logger,
         IHomeBattery homeBattery,
-        ISolarPanels solarPanels,
         IElectricityMeter electricityMeter,
         IPresenceService presenceService,
         TimeProvider timeProvider,
@@ -43,7 +39,6 @@ internal class HeatingControlService
         _scheduler = scheduler;
         _logger = logger;
         _homeBattery = homeBattery;
-        _solarPanels = solarPanels;
         _electricityMeter = electricityMeter;
         _presenceService = presenceService;
         _timeProvider = timeProvider;
@@ -138,6 +133,7 @@ internal class HeatingControlService
         _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("bedroom 1 temperature changed"));
         _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room desk plug state changed"));
         _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room temperature changed"));
+        _namedEntities.LivingRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room temperature changed"));
 
         // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
@@ -290,16 +286,25 @@ internal class HeatingControlService
         }
 
         // Figure out the actual current state of the room.
-        ICustomSwitchEntity? plug = GetSwitchForRoom(roomHeatingSchedule);
+        object? roomControlDevice = GetSwitchForRoom(roomHeatingSchedule);
         bool? currentHeatingState = null;
-        if (plug?.IsOn() == true) currentHeatingState = true;
-        if (plug?.IsOff() == true) currentHeatingState = false;
+        if (roomControlDevice is ICustomSwitchEntity plug)
+        {
+            if (plug?.IsOn() == true) currentHeatingState = true;
+            if (plug?.IsOff() == true) currentHeatingState = false;
+        }
+        else if (roomControlDevice is ICustomClimateControlEntity climateController)
+        {
+            if (climateController.TargetTemperature > climateController.CurrentTemperature) currentHeatingState = true;
+            if (climateController.TargetTemperature <= climateController.CurrentTemperature) currentHeatingState = false;
+        }
 
         // Ensure that our cached state is updated.
         _roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState);
         bool? previousHeatingActive = roomState?.HeatingActive;
 
         roomState ??= new RoomState();
+        double? previousRoomTemperature = roomState.CurrentTemperature;
         roomState.RoomId = roomHeatingSchedule.Id;
         roomState.CurrentTemperature = currentTemperature;
         roomState.HeatingActive = currentHeatingState ?? false;
@@ -350,7 +355,7 @@ internal class HeatingControlService
         }
 
         // Update temperature and active track if changed
-        if (roomState.CurrentTemperature != currentTemperature)
+        if (roomState.CurrentTemperature != previousRoomTemperature)
         {
             roomState.CurrentTemperature = currentTemperature;
             stateChanged = true;
@@ -487,38 +492,58 @@ internal class HeatingControlService
 
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
-        ICustomSwitchEntity? plug = GetSwitchForRoom(roomHeatingSchedule);
+        object? roomControllDevice = GetSwitchForRoom(roomHeatingSchedule);
 
-        if (plug == null)
+        if (roomControllDevice is ICustomSwitchEntity plug)
+        {
+            return async (value) =>
+            {
+                if (value && !plug.IsOn())
+                {
+                    plug.TurnOn();
+                    return true;
+                }
+                else if (!value && !plug.IsOff())
+                {
+                    plug.TurnOff();
+                    return true;
+                }
+
+                return false;
+            };
+        }
+        else if (roomControllDevice is ICustomClimateControlEntity climateControl)
+        {
+            return async (value) =>
+            {
+                if (value && climateControl.TargetTemperature <= climateControl.CurrentTemperature)
+                {
+                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() + 1);
+                    return true;
+                }
+                else if (!value && climateControl.TargetTemperature > climateControl.CurrentTemperature)
+                {
+                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() - 1);
+                    return true;
+                }
+
+                return false;
+            };
+        }
+        else
         {
             return null;
         }
-
-        return async (value) =>
-        {
-            if (value && !plug.IsOn())
-            {
-                plug.TurnOn();
-                return true;
-            }
-            else if (!value && !plug.IsOff())
-            {
-                plug.TurnOff();
-                return true;
-            }
-
-            return false;
-        };
     }
 
-    private ICustomSwitchEntity? GetSwitchForRoom(RoomSchedule roomHeatingSchedule)
+    private object? GetSwitchForRoom(RoomSchedule roomHeatingSchedule)
     {
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
             "kitchen" => _namedEntities.KitchenHeaterSmartPlugOnOff,
             "games room" => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
             "dining room" => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
-            "lounge" => null,
+            "living room" => _namedEntities.LivingRoomRadiatorThermostat,
             "downstairs bathroom" => null,
             "bedroom 1" => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
             "bedroom 2" => null,
@@ -535,7 +560,7 @@ internal class HeatingControlService
             "kitchen" => _namedEntities.KitchenTemperature.State,
             "games room" => _namedEntities.GamesRoomDeskTemperature.State,
             "dining room" => _namedEntities.DiningRoomClimateTemperature.State,
-            "lounge" => null,
+            "living room" => _namedEntities.LivingRoomClimateTemperature.State,
             "downstairs bathroom" => null,
             "bedroom 1" => _namedEntities.Bedroom1Temperature.State,
             "bedroom 2" => null,
@@ -547,85 +572,26 @@ internal class HeatingControlService
 
     private async Task<bool> MeetsSpecialConditions(string roomName, HeatingScheduleTrack heatingScheduleTrack)
     {
-        bool meetsAnyConditions = heatingScheduleTrack.Conditions == ConditionType.None;
         bool meetsAllConditions = true;
-        if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.PlentyOfPowerAvailable))
-        {
-            bool havePlentyOfPower = await HavePlentyOfPowerAvailable();
-            meetsAnyConditions |= havePlentyOfPower;
-            meetsAllConditions &= havePlentyOfPower;
-        }
-
-        if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.LowPowerAvailable))
-        {
-            bool haveLowPower = !await HavePlentyOfPowerAvailable();
-            meetsAnyConditions |= haveLowPower;
-            meetsAllConditions &= haveLowPower;
-        }
-
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomInUse))
         {
             bool roomInUse = await _presenceService.IsRoomInUse(roomName);
-            meetsAnyConditions |= roomInUse;
             meetsAllConditions &= roomInUse;
         }
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomNotInUse))
         {
             bool roomNotInUse = !await _presenceService.IsRoomInUse(roomName);
-            meetsAnyConditions |= roomNotInUse;
             meetsAllConditions &= roomNotInUse;
         }
 
-        // Check if we meet the conditions
-        if ((heatingScheduleTrack.ConditionOperator == ConditionOperatorType.Or && !meetsAnyConditions)
-            || (heatingScheduleTrack.ConditionOperator == ConditionOperatorType.And && !meetsAllConditions))
+        // All conditions must be met (AND logic)
+        if (!meetsAllConditions)
         {
             return false;
         }
 
         return true;
-    }
-
-    private async Task<bool> HavePlentyOfPowerAvailable()
-    {
-        DateTime now = _timeProvider.GetLocalNow().DateTime;
-        double dischargePercentPerMinute = 0;
-
-        // What's the battery's rate of discharge looking like?
-        IReadOnlyList<NumericHistoryEntry> batteryChargeHistory = await _homeBattery.GetTotalBatteryPowerChargeHistoryEntriesAsync(now.AddHours(-1), now);
-        if (batteryChargeHistory.Count >= 2)
-        {
-            NumericHistoryEntry first = batteryChargeHistory[0];
-            NumericHistoryEntry last = batteryChargeHistory[^1];
-            double totalMinutes = last.LastChanged.Subtract(first.LastChanged).TotalMinutes;
-            dischargePercentPerMinute = (first.State - last.State) / totalMinutes;
-        }
-
-        // We need 20% battery by 11pm. If we're on track for that, then we have no problem.
-        double minutesUntil11pm = (23 - now.Hour) * 60 - now.Minute;
-        double projectedBatteryLevelAt11pm = _homeBattery.CurrentChargePercent.GetValueOrDefault() - (dischargePercentPerMinute * minutesUntil11pm);
-
-        if (projectedBatteryLevelAt11pm > 20)
-        {
-            return true;
-        }
-
-        // Don't have lots of charge, but energy is currently cheap, so we can afford to use some.
-        if (_electricityMeter.CurrentRatePerKwh < 0.1)
-        {
-            return true;
-        }
-
-        // If we've made more than 1kWh of solar power in the last hour, then we have no problem.
-        IReadOnlyList<NumericHistoryEntry> historyOneHour = await _solarPanels.GetTotalSolarPanelPowerHistoryEntriesAsync(now.AddHours(-1), now);
-        double pvkWh = HistoryIntegrator.Integrate(historyOneHour, now.AddHours(-1), now) / 3600_000;
-        if (pvkWh > 1)
-        {
-            return true;
-        }
-
-        return false;
     }
 
     public static int MinutesUntil(TimeSpan from, TimeSpan to)

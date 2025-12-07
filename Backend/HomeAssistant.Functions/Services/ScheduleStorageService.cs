@@ -32,7 +32,23 @@ public class ScheduleStorageService
         Response<BlobDownloadResult> response = await blobClient.DownloadContentAsync();
         string json = response.Value.Content.ToString();
 
-        return JsonSerializer.Deserialize<RoomSchedulesDto>(json, _deserialiserOptions);
+        RoomSchedulesDto? ret = JsonSerializer.Deserialize<RoomSchedulesDto>(json, _deserialiserOptions);
+
+        // If this is a legacy schedule without schedule1 or schedule2, add schedule1 to it.
+        if (ret != null)
+        {
+            foreach (ScheduleTrackDto? scheduleDto in ret.Rooms.SelectMany(r => r.Schedules))
+            {
+                if (scheduleDto != null
+                    && (!scheduleDto.Conditions.HasFlag(ConditionType.Schedule1))
+                    && (!scheduleDto.Conditions.HasFlag(ConditionType.Schedule2)))
+                {
+                    scheduleDto.Conditions = scheduleDto.Conditions | ConditionType.Schedule1;
+                }
+            }
+        }
+
+        return ret;
     }
 
     public async Task SaveSchedulesAsync(string houseId, RoomSchedulesDto schedules)

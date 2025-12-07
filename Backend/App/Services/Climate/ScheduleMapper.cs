@@ -50,8 +50,7 @@ public static class ScheduleMapper
                     Temperature = trackDto.Temperature,
                     RampUpMinutes = trackDto.RampUpMinutes,
                     Days = trackDto.Days,
-                    Conditions = trackDto.Conditions,
-                    ConditionOperator = trackDto.ConditionOperator
+                    Conditions = trackDto.Conditions
                 };
 
                 schedule.ScheduleTracks.Add(track);
@@ -99,8 +98,7 @@ public static class ScheduleMapper
                     Temperature = track.Temperature,
                     RampUpMinutes = track.RampUpMinutes,
                     Days = track.Days,
-                    Conditions = track.Conditions,
-                    ConditionOperator = track.ConditionOperator
+                    Conditions = track.Conditions
                 });
             }
 

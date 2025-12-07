@@ -54,9 +54,9 @@
             <input
               v-model.number="duration"
               type="number"
-              min="0.5"
+              min="0.08"
               max="24"
-              step="0.5"
+              step="0.01"
               class="duration-input"
             />
             <button type="button" class="spinner-btn" @click="increaseDuration">
@@ -137,15 +137,53 @@ const decreaseTemp = () => {
 }
 
 const increaseDuration = () => {
-  const newDuration = duration.value + 0.5
+  let newDuration
+  if (duration.value < 1) {
+    // Sub-hour increments: 5min -> 15min -> 30min -> 45min -> 1hr
+    const minutes = duration.value * 60
+    if (minutes < 5) {
+      newDuration = 5 / 60
+    } else if (minutes < 15) {
+      newDuration = 15 / 60
+    } else if (minutes < 30) {
+      newDuration = 30 / 60
+    } else if (minutes < 45) {
+      newDuration = 45 / 60
+    } else {
+      newDuration = 1
+    }
+  } else {
+    // 1 hour and above: increment by 0.5
+    newDuration = duration.value + 0.5
+  }
+
   if (newDuration <= 24) {
     duration.value = newDuration
   }
 }
 
 const decreaseDuration = () => {
-  const newDuration = duration.value - 0.5
-  if (newDuration >= 0.5) {
+  let newDuration
+  if (duration.value <= 1) {
+    // Sub-hour decrements: 1hr -> 45min -> 30min -> 15min -> 5min
+    const minutes = duration.value * 60
+    if (minutes > 45) {
+      newDuration = 45 / 60
+    } else if (minutes > 30) {
+      newDuration = 30 / 60
+    } else if (minutes > 15) {
+      newDuration = 15 / 60
+    } else if (minutes > 5) {
+      newDuration = 5 / 60
+    } else {
+      return // Don't go below 5 minutes
+    }
+  } else {
+    // 1 hour and above: decrement by 0.5
+    newDuration = duration.value - 0.5
+  }
+
+  if (newDuration >= 5 / 60) {
     duration.value = newDuration
   }
 }

@@ -33,6 +33,12 @@ internal class FakeNamedEntities : INamedEntities
     public ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(DiningRoomHeaterSmartPlugOnOff) };
 
     public ICustomNumericSensorEntity DiningRoomClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DiningRoomClimateTemperature) };
+
+    public ICustomNumericSensorEntity LivingRoomClimateHumidity { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomClimateHumidity) };
+
+    public ICustomNumericSensorEntity LivingRoomClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomClimateTemperature) };
+
+    public ICustomClimateControlEntity LivingRoomRadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(LivingRoomRadiatorThermostat) };
 }
 
 public class FakeCustomNumericSensorEntity : ICustomNumericSensorEntity
@@ -89,5 +95,26 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
             _state = true;
             _stateChangeObserver?.Invoke(this);
         }
+    }
+}
+
+public class FakeCustomClimateControlEntity : ICustomClimateControlEntity
+{
+    private Func<ICustomClimateControlEntity, Task>? _stateChangeObserver;
+
+    public double? CurrentTemperature { get; set; }
+
+    public double? TargetTemperature { get; private set; }
+
+    public required string EntityId { get; init; }
+
+    public void SetTargetTemperature(double temperature)
+    {
+        TargetTemperature = temperature;
+    }
+
+    public void SubscribeToStateChangesAsync(Func<ICustomClimateControlEntity, Task> observer)
+    {
+        _stateChangeObserver = observer;
     }
 }

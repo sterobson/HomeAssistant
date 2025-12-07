@@ -7,6 +7,7 @@ const connectionError = ref(null)
 
 export function useSignalR(houseId) {
   const listeners = new Map()
+  const lastHiddenTime = ref(null)
 
   async function connect() {
     if (connection.value && isConnected.value) {
@@ -141,13 +142,34 @@ export function useSignalR(houseId) {
     }
   }
 
+  // Check if connection is healthy
+  function isConnectionHealthy() {
+    return connection.value &&
+           isConnected.value &&
+           connection.value.state === signalR.HubConnectionState.Connected
+  }
+
+  // Force reconnect (useful when tab becomes visible)
+  async function ensureConnected() {
+    if (!isConnectionHealthy()) {
+      console.log('Connection not healthy, reconnecting...')
+      await disconnect()
+      await connect()
+      return true // Reconnected
+    }
+    return false // Already connected
+  }
+
   return {
     connection,
     isConnected,
     connectionError,
+    lastHiddenTime,
     connect,
     disconnect,
     on,
-    off
+    off,
+    isConnectionHealthy,
+    ensureConnected
   }
 }
