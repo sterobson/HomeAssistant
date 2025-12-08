@@ -624,12 +624,12 @@
         {
           "jsonName": "current_start",
           "cSharpName": "CurrentStart",
-          "clrType": null
+          "clrType": "System.String"
         },
         {
           "jsonName": "current_end",
           "cSharpName": "CurrentEnd",
-          "clrType": null
+          "clrType": "System.String"
         },
         {
           "jsonName": "next_start",
@@ -906,13 +906,18 @@
       "domain": "device_tracker",
       "entities": [
         {
+          "id": "device_tracker.kevins_iphone",
+          "friendlyName": "Kevin\u0027s Phone",
+          "cSharpName": "KevinsIphone"
+        },
+        {
           "id": "device_tracker.mg_mg4_electric_gps_location",
           "friendlyName": "MG MG4 Electric GPS Location",
           "cSharpName": "MgMg4ElectricGpsLocation"
         },
         {
           "id": "device_tracker.ruthgalaxya55",
-          "friendlyName": "RuthGalaxyA55",
+          "friendlyName": "Ruth Phone",
           "cSharpName": "Ruthgalaxya55"
         },
         {
@@ -966,6 +971,11 @@
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "battery_level",
+          "cSharpName": "BatteryLevel",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -1108,51 +1118,6 @@
           "id": "input_boolean.automation_test",
           "friendlyName": "Automation test",
           "cSharpName": "AutomationTest"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
-          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
-          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
-          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
-          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
-          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
-          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
         },
         {
           "id": "input_boolean.kitchen_under_sink_flood",
@@ -1773,6 +1738,11 @@
       "domain": "person",
       "entities": [
         {
+          "id": "person.kevin",
+          "friendlyName": "Kevin",
+          "cSharpName": "Kevin"
+        },
+        {
           "id": "person.ruth",
           "friendlyName": "Ruth",
           "cSharpName": "Ruth"
@@ -2237,6 +2207,61 @@
           "cSharpName": "HypervoltSessionId"
         },
         {
+          "id": "sensor.kevins_iphone_app_version",
+          "friendlyName": "Kevin\u2019s iPhone App Version",
+          "cSharpName": "KevinsIphoneAppVersion"
+        },
+        {
+          "id": "sensor.kevins_iphone_audio_output",
+          "friendlyName": "Kevin\u2019s iPhone Audio Output",
+          "cSharpName": "KevinsIphoneAudioOutput"
+        },
+        {
+          "id": "sensor.kevins_iphone_battery_state",
+          "friendlyName": "Kevin\u2019s iPhone Battery State",
+          "cSharpName": "KevinsIphoneBatteryState"
+        },
+        {
+          "id": "sensor.kevins_iphone_bssid",
+          "friendlyName": "Kevin\u2019s iPhone BSSID",
+          "cSharpName": "KevinsIphoneBssid"
+        },
+        {
+          "id": "sensor.kevins_iphone_connection_type",
+          "friendlyName": "Kevin\u2019s iPhone Connection Type",
+          "cSharpName": "KevinsIphoneConnectionType"
+        },
+        {
+          "id": "sensor.kevins_iphone_geocoded_location",
+          "friendlyName": "Kevin\u2019s iPhone Geocoded Location",
+          "cSharpName": "KevinsIphoneGeocodedLocation"
+        },
+        {
+          "id": "sensor.kevins_iphone_last_update_trigger",
+          "friendlyName": "Kevin\u2019s iPhone Last Update Trigger",
+          "cSharpName": "KevinsIphoneLastUpdateTrigger"
+        },
+        {
+          "id": "sensor.kevins_iphone_location_permission",
+          "friendlyName": "Kevin\u2019s iPhone Location permission",
+          "cSharpName": "KevinsIphoneLocationPermission"
+        },
+        {
+          "id": "sensor.kevins_iphone_sim_1",
+          "friendlyName": "Kevin\u2019s iPhone SIM 1",
+          "cSharpName": "KevinsIphoneSim1"
+        },
+        {
+          "id": "sensor.kevins_iphone_sim_2",
+          "friendlyName": "Kevin\u2019s iPhone SIM 2",
+          "cSharpName": "KevinsIphoneSim2"
+        },
+        {
+          "id": "sensor.kevins_iphone_ssid",
+          "friendlyName": "Kevin\u2019s iPhone SSID",
+          "cSharpName": "KevinsIphoneSsid"
+        },
+        {
           "id": "sensor.living_room_radiator_hvac_action",
           "friendlyName": "Living Room - Radiator HVAC action",
           "cSharpName": "LivingRoomRadiatorHvacAction"
@@ -2457,6 +2482,11 @@
           "jsonName": "redeemable_points",
           "cSharpName": "RedeemablePoints",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "Low Power Mode",
+          "cSharpName": "LowPowerMode",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -2733,6 +2763,16 @@
           "id": "sensor.hypervolt_voltage",
           "friendlyName": "Hypervolt Voltage",
           "cSharpName": "HypervoltVoltage"
+        },
+        {
+          "id": "sensor.kevins_iphone_battery_level",
+          "friendlyName": "Kevin\u2019s iPhone Battery Level",
+          "cSharpName": "KevinsIphoneBatteryLevel"
+        },
+        {
+          "id": "sensor.kevins_iphone_storage",
+          "friendlyName": "Kevin\u2019s iPhone Storage",
+          "cSharpName": "KevinsIphoneStorage"
         },
         {
           "id": "sensor.kitchen_plug_heater_current",

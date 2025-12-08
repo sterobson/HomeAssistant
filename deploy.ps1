@@ -435,6 +435,7 @@ if ($HardwareApp) {
     Write-Host ""
 
     $appProjectPath = Join-Path $PSScriptRoot "Backend\App\HomeAssistant.csproj"
+    $testProjectPath = Join-Path $PSScriptRoot "Backend\Tests\HomeAssistant.Tests.csproj"
 
     if (-not (Test-Path $appProjectPath)) {
         Write-Error "Backend App project not found at: $appProjectPath"
@@ -444,96 +445,133 @@ if ($HardwareApp) {
         Push-Location $appPath
 
         try {
-            Write-Info "Publishing Hardware App..."
-            Write-Gray "This may take a few minutes..."
+            # Step 1: Run nd-codegen
             Write-Host ""
+            Write-Info "Running nd-codegen..."
+            nd-codegen
 
-            $outputPath = Join-Path $PSScriptRoot "publish\hardware-app"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "nd-codegen failed"
+                $deploymentSuccess = $false
+            } else {
+                Write-Success "nd-codegen completed successfully"
 
-            # Publish the application
-            dotnet publish $appProjectPath `
-                -c Release `
-                --self-contained false `
-                -p:DebugType=none `
-                -p:DebugSymbols=false `
-                -o $outputPath
-
-            if ($LASTEXITCODE -eq 0) {
+                # Step 2: Build to verify code compiles
                 Write-Host ""
-                Write-Success "Hardware App published successfully!"
-                Write-Gray "Output location: $outputPath"
-                Write-Host ""
+                Write-Info "Building project to verify compilation..."
+                dotnet build $appProjectPath -c Release --nologo
 
-                # List the published files
-                Write-Info "Published files:"
-                Get-ChildItem -Path $outputPath | Select-Object -First 10 | ForEach-Object {
-                    $sizeInMB = [math]::Round($_.Length / 1MB, 2)
-                    Write-Gray "  $($_.Name) ($sizeInMB MB)"
-                }
-                $totalFiles = (Get-ChildItem -Path $outputPath).Count
-                if ($totalFiles -gt 10) {
-                    Write-Gray "  ... and $($totalFiles - 10) more files"
-                }
-                Write-Host ""
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Build failed after nd-codegen"
+                    $deploymentSuccess = $false
+                } else {
+                    Write-Success "Build completed successfully"
 
-                # Ask if user wants to copy to NetDaemon directory
-                Write-Info "Copy to NetDaemon?"
-                Write-Host "  1. Yes (copy to \\homeassistant.local\config\netdaemon6)" -ForegroundColor White
-                Write-Host "  2. Copy somewhere else" -ForegroundColor White
-                Write-Host "  3. No" -ForegroundColor White
-                Write-Host ""
-
-                $copyChoice = Read-Host "Enter choice (1, 2, or 3)"
-
-                $copyDestination = $null
-                switch ($copyChoice) {
-                    "1" {
-                        $copyDestination = "\\homeassistant.local\config\netdaemon6"
-                    }
-                    "2" {
-                        $copyDestination = Read-Host "Enter destination path"
-                    }
-                    "3" {
-                        Write-Gray "Skipping copy operation"
-                    }
-                    default {
-                        Write-Warning "Invalid choice. Skipping copy operation."
-                    }
-                }
-
-                if ($copyDestination) {
+                    # Step 3: Run unit tests
                     Write-Host ""
-                    Write-Info "Copying files to $copyDestination..."
+                    Write-Info "Running unit tests..."
+                    dotnet test $testProjectPath -c Release --nologo
 
-                    if (-not (Test-Path $copyDestination)) {
-                        Write-Error "Destination path does not exist: $copyDestination"
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Error "Unit tests failed"
                         $deploymentSuccess = $false
                     } else {
-                        try {
-                            # Copy all files except appsettings.*.json
-                            Get-ChildItem -Path $outputPath | Where-Object {
-                                -not ($_.Name -like "appsettings.*.json")
-                            } | ForEach-Object {
-                                Copy-Item -Path $_.FullName -Destination $copyDestination -Force
+                        Write-Success "All unit tests passed"
+
+                        # Step 4: Publish the application
+                        Write-Host ""
+                        Write-Info "Publishing Hardware App..."
+                        Write-Gray "This may take a few minutes..."
+                        Write-Host ""
+
+                        $outputPath = Join-Path $PSScriptRoot "publish\hardware-app"
+
+                        dotnet publish $appProjectPath `
+                            -c Release `
+                            --self-contained false `
+                            -p:DebugType=none `
+                            -p:DebugSymbols=false `
+                            -o $outputPath
+
+                        if ($LASTEXITCODE -eq 0) {
+                            Write-Host ""
+                            Write-Success "Hardware App published successfully!"
+                            Write-Gray "Output location: $outputPath"
+                            Write-Host ""
+
+                            # List the published files
+                            Write-Info "Published files:"
+                            Get-ChildItem -Path $outputPath | Select-Object -First 10 | ForEach-Object {
+                                $sizeInMB = [math]::Round($_.Length / 1MB, 2)
+                                Write-Gray "  $($_.Name) ($sizeInMB MB)"
+                            }
+                            $totalFiles = (Get-ChildItem -Path $outputPath).Count
+                            if ($totalFiles -gt 10) {
+                                Write-Gray "  ... and $($totalFiles - 10) more files"
+                            }
+                            Write-Host ""
+
+                            # Ask if user wants to copy to NetDaemon directory
+                            Write-Info "Copy to NetDaemon?"
+                            Write-Host "  1. Yes (copy to \\homeassistant.local\config\netdaemon6)" -ForegroundColor White
+                            Write-Host "  2. Copy somewhere else" -ForegroundColor White
+                            Write-Host "  3. No" -ForegroundColor White
+                            Write-Host ""
+
+                            $copyChoice = Read-Host "Enter choice (1, 2, or 3)"
+
+                            $copyDestination = $null
+                            switch ($copyChoice) {
+                                "1" {
+                                    $copyDestination = "\\homeassistant.local\config\netdaemon6"
+                                }
+                                "2" {
+                                    $copyDestination = Read-Host "Enter destination path"
+                                }
+                                "3" {
+                                    Write-Gray "Skipping copy operation"
+                                }
+                                default {
+                                    Write-Warning "Invalid choice. Skipping copy operation."
+                                }
                             }
 
-                            Write-Success "Files copied successfully!"
-                            Write-Host ""
-                            Write-Warning "Note: appsettings.*.json files were NOT copied."
-                            Write-Gray "You will need to update these configuration files manually if needed."
-                            Write-Host ""
-                            Write-Info "Next steps:"
-                            Write-Gray "  1. Update appsettings.*.json files if needed"
-                            Write-Gray "  2. Restart the NetDaemon add-on in Home Assistant"
-                        } catch {
-                            Write-Error "Failed to copy files: $($_.Exception.Message)"
+                            if ($copyDestination) {
+                                Write-Host ""
+                                Write-Info "Copying files to $copyDestination..."
+
+                                if (-not (Test-Path $copyDestination)) {
+                                    Write-Error "Destination path does not exist: $copyDestination"
+                                    $deploymentSuccess = $false
+                                } else {
+                                    try {
+                                        # Copy all files except appsettings.*.json
+                                        Get-ChildItem -Path $outputPath | Where-Object {
+                                            -not ($_.Name -like "appsettings.*.json")
+                                        } | ForEach-Object {
+                                            Copy-Item -Path $_.FullName -Destination $copyDestination -Force
+                                        }
+
+                                        Write-Success "Files copied successfully!"
+                                        Write-Host ""
+                                        Write-Warning "Note: appsettings.*.json files were NOT copied."
+                                        Write-Gray "You will need to update these configuration files manually if needed."
+                                        Write-Host ""
+                                        Write-Info "Next steps:"
+                                        Write-Gray "  1. Update appsettings.*.json files if needed"
+                                        Write-Gray "  2. Restart the NetDaemon add-on in Home Assistant"
+                                    } catch {
+                                        Write-Error "Failed to copy files: $($_.Exception.Message)"
+                                        $deploymentSuccess = $false
+                                    }
+                                }
+                            }
+                        } else {
+                            Write-Error "Hardware App publish failed"
                             $deploymentSuccess = $false
                         }
                     }
                 }
-            } else {
-                Write-Error "Hardware App build failed"
-                $deploymentSuccess = $false
             }
         } finally {
             Pop-Location

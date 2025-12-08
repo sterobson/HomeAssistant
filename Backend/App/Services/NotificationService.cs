@@ -35,6 +35,11 @@ internal class NotificationService
         _notifyServices.MobileAppRuthgalaxya55(message, title);
     }
 
+    public void SendNotificationToKevinPhone(string title, string message)
+    {
+        _notifyServices.MobileAppKevinsIphone(message, title);
+    }
+
     public const string GroupRuth = "ruth";
     public const string GroupSte = "ste";
     public const string GroupRobson = "robson";
@@ -58,7 +63,7 @@ internal class NotificationService
 
         if (trimmedLower.Intersect([GroupKevin, GroupBlount, GroupAll]).Any())
         {
-            // SendNotificationToKevinPhone(message, title);
+            SendNotificationToKevinPhone(message, title);
         }
     }
 

@@ -33,7 +33,14 @@ internal class YorkWasteCollectionService : IWasteCollectionService
 
             ResponseObject? responseObject = JsonSerializer.Deserialize<ResponseObject>(json, _jsonSerializerOptions);
 
-            _logger.LogDebug("Fetched {Count} bin collection services", responseObject?.Services?.Count ?? 0);
+            if (responseObject?.Services?.Count > 0)
+            {
+                _logger.LogDebug("Fetched {Count} bin collection services for {Uprn}", responseObject?.Services?.Count ?? 0, uprn);
+            }
+            else
+            {
+                _logger.LogWarning("Fetched {Count} bin collection services for {Uprn}", responseObject?.Services?.Count ?? 0, uprn);
+            }
 
             return responseObject?.Services ?? [];
         }

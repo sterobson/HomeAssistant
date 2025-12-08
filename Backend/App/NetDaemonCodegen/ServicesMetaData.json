@@ -4906,6 +4906,37 @@
           }
         }
       }
+    },
+    "mobile_app_kevins_iphone": {
+      "name": "Send a notification via mobile_app_kevins_iphone",
+      "description": "Sends a notification message using the mobile_app_kevins_iphone integration.",
+      "fields": {
+        "message": {
+          "required": true,
+          "example": "The garage door has been open for 10 minutes.",
+          "selector": {
+            "text": null
+          }
+        },
+        "title": {
+          "example": "Your Garage Door Friend",
+          "selector": {
+            "text": null
+          }
+        },
+        "target": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        },
+        "data": {
+          "example": "platform specific",
+          "selector": {
+            "object": null
+          }
+        }
+      }
     }
   },
   "device_tracker": {
