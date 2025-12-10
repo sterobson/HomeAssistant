@@ -343,19 +343,24 @@ internal class MockPresenceService : IPresenceService
 {
     private readonly Dictionary<string, bool> _presenceValue = [];
 
-    public void SetRoomValue(string room, bool value)
+    public void SetRoomValue(string roomName, bool value)
     {
-        _presenceValue[room] = value;
+        _presenceValue[roomName] = value;
     }
 
-    public Task<bool> IsRoomInUse(string room)
+    public Task<bool> IsRoomInUse(string roomName)
     {
-        if (_presenceValue.TryGetValue(room, out bool result))
+        if (_presenceValue.TryGetValue(roomName, out bool result))
         {
             return Task.FromResult(result);
         }
 
         return Task.FromResult(false);
+    }
+
+    public bool CanDetectIfRoomInUse(string roomName)
+    {
+        return _presenceValue.ContainsKey(roomName);
     }
 }
 

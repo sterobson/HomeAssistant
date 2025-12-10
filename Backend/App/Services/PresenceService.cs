@@ -48,4 +48,15 @@ internal class PresenceService : IPresenceService
 
         return false;
     }
+
+    public bool CanDetectIfRoomInUse(string roomName)
+    {
+        return roomName.ToLower().Trim() switch
+        {
+            "games room" => true,
+            "dining room" => true,
+            _ => false
+        };
+    }
+
 }

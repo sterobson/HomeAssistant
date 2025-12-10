@@ -13,6 +13,7 @@ public class ScheduleFunctions
 {
     private readonly ILogger<ScheduleFunctions> _logger;
     private readonly ScheduleStorageService _storageService;
+    private readonly RoomStateStorageService _roomStateStorageService;
     private readonly SignalRService _signalRService;
 
     public ScheduleFunctions(ILogger<ScheduleFunctions> logger, SignalRService signalRService)
@@ -24,6 +25,7 @@ public class ScheduleFunctions
             ?? throw new InvalidOperationException("ScheduleStorageConnectionString not configured");
 
         _storageService = new ScheduleStorageService(connectionString);
+        _roomStateStorageService = new RoomStateStorageService(connectionString);
     }
 
     [Function("GetSchedules")]
@@ -48,6 +50,39 @@ public class ScheduleFunctions
             {
                 // Return default schedules if none exist
                 return new NotFoundResult();
+            }
+
+            // Load room states to find any rooms that exist in states but not in schedules
+            try
+            {
+                RoomStatesResponse? roomStates = await _roomStateStorageService.GetRoomStatesAsync(houseId);
+
+                if (roomStates != null && roomStates.RoomStates.Count > 0)
+                {
+                    // Find rooms that exist in states but not in schedules
+                    foreach (RoomStateDto roomState in roomStates.RoomStates)
+                    {
+                        if (!schedules.Rooms.Any(r => r.Id == roomState.RoomId))
+                        {
+                            // Add this room to schedules with no schedule tracks and no capabilities
+                            _logger.LogInformation("Adding room {RoomId} from room states to schedules for house {HouseId}",
+                                roomState.RoomId, houseId);
+
+                            schedules.Rooms.Add(new RoomDto
+                            {
+                                Id = roomState.RoomId,
+                                Name = $"Room {roomState.RoomId}", // Default name
+                                Schedules = [],
+                                Boost = null
+                            });
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load room states when getting schedules for house {HouseId}", houseId);
+                // Continue anyway - this is not a critical failure
             }
 
             return new OkObjectResult(schedules);

@@ -27,6 +27,7 @@
         :key="room.id"
         :room="room"
         :is-expanded="expandedRoomId === room.id"
+        :occupancy-filter="occupancyFilter"
         @update-schedule="handleUpdateSchedule"
         @delete-schedule="handleDeleteSchedule"
         @add-schedule="handleAddSchedule"
@@ -54,8 +55,18 @@ import { heatingApi } from '../services/heatingApi.js'
 import { useSignalR } from '../composables/useSignalR.js'
 import { getHouseId } from '../utils/cookies.js'
 
+const props = defineProps({
+  occupancyFilter: {
+    type: String,
+    default: null // 'occupied', 'vacant', or null for all
+  }
+})
+
+const emit = defineEmits(['house-state-changed'])
+
 const rooms = ref([])
 const roomStates = ref([])
+const houseOccupancyState = ref(0) // 0 = Home, 1 = Away
 const loading = ref(true)
 const error = ref(null)
 const statePollingInterval = ref(null)
@@ -70,6 +81,46 @@ const toast = reactive({
 
 // Get houseId from cookies (reactive so it updates when cookie changes)
 const houseId = computed(() => getHouseId())
+
+// Watch for occupancy filter changes and update house state accordingly
+watch(() => props.occupancyFilter, async (newFilter, oldFilter) => {
+  // Only update if filter actually changed and we have rooms loaded
+  if (newFilter === oldFilter || rooms.value.length === 0) {
+    return
+  }
+
+  let newState = houseOccupancyState.value
+
+  // Map filter to house state
+  if (newFilter === 'occupied') {
+    newState = 0 // Home
+  } else if (newFilter === 'vacant') {
+    newState = 1 // Away
+  } else {
+    // No filter - don't change state
+    return
+  }
+
+  // Only update if state actually changed
+  if (newState !== houseOccupancyState.value) {
+    houseOccupancyState.value = newState
+
+    // Emit the change to App.vue
+    emit('house-state-changed', newState)
+
+    // Save the updated state to the backend
+    try {
+      const cleanedData = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules(cleanedData)
+
+      const stateLabel = newState === 0 ? 'Home (Occupied)' : 'Away (Vacant)'
+      showToast(`House state changed to ${stateLabel}`, 'info')
+    } catch (err) {
+      console.error('Error saving house state:', err)
+      showToast('Failed to save house state', 'error')
+    }
+  }
+})
 
 // SignalR connection - will be recreated when houseId changes
 let signalR = useSignalR(houseId.value)
@@ -254,31 +305,42 @@ const sortSchedules = (schedules) => {
 const mergeSchedulesWithStates = (schedules, states) => {
   return schedules.map(room => {
     const state = states.find(s => s.roomId === room.id)
+
+    // Handle capabilities: null/undefined = 3 (full capabilities), 0 = 0 (no capabilities)
+    let capabilities = 3 // Default to both capabilities
+    if (state?.capabilities !== undefined && state?.capabilities !== null) {
+      capabilities = state.capabilities
+    }
+
     return {
       ...room,
       currentTemperature: state?.currentTemperature ?? null,
       heatingActive: state?.heatingActive ?? false,
-      activeScheduleId: state?.activeScheduleTrackId ?? null
+      activeScheduleId: state?.activeScheduleTrackId ?? null,
+      capabilities: capabilities
     }
   })
 }
 
 // Clean room data for API - remove UI-only properties
 const cleanRoomsForApi = (rooms) => {
-  return rooms.map(room => ({
-    id: room.id,
-    name: room.name,
-    boost: room.boost,
-    schedules: room.schedules.map(schedule => ({
-      id: schedule.id,
-      time: schedule.time,
-      temperature: schedule.temperature,
-      rampUpMinutes: schedule.rampUpMinutes || 30,
-      days: schedule.days || 0,
-      conditions: schedule.conditions || 0,
-      conditionOperator: schedule.conditionOperator || 1
+  return {
+    houseOccupancyState: houseOccupancyState.value,
+    rooms: rooms.map(room => ({
+      id: room.id,
+      name: room.name,
+      boost: room.boost,
+      schedules: room.schedules.map(schedule => ({
+        id: schedule.id,
+        time: schedule.time,
+        temperature: schedule.temperature,
+        rampUpMinutes: schedule.rampUpMinutes || 30,
+        days: schedule.days || 0,
+        conditions: schedule.conditions || 0,
+        conditionOperator: schedule.conditionOperator || 1
+      }))
     }))
-  }))
+  }
 }
 
 const loadSchedules = async (silent = false) => {
@@ -289,6 +351,13 @@ const loadSchedules = async (silent = false) => {
 
   try {
     const data = await heatingApi.getSchedules()
+
+    // Store house occupancy state
+    houseOccupancyState.value = data.houseOccupancyState ?? 0
+
+    // Emit initial state to App.vue
+    emit('house-state-changed', houseOccupancyState.value)
+
     // Sort schedules for each room
     data.rooms.forEach(room => {
       sortSchedules(room.schedules)
@@ -348,8 +417,8 @@ const handleUpdateSchedule = async (roomId, updatedSchedule) => {
 
       // Save immediately
       try {
-        const cleanedRooms = cleanRoomsForApi(rooms.value)
-        await heatingApi.setSchedules({ rooms: cleanedRooms })
+        const cleanedData = cleanRoomsForApi(rooms.value)
+        await heatingApi.setSchedules(cleanedData)
         showToast('Schedule updated successfully', 'success')
       } catch (err) {
         console.error('Error saving schedule:', err)
@@ -367,8 +436,8 @@ const handleDeleteSchedule = async (roomId, scheduleId) => {
 
     // Save immediately
     try {
-      const cleanedRooms = cleanRoomsForApi(rooms.value)
-      await heatingApi.setSchedules({ rooms: cleanedRooms })
+      const cleanedData = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules(cleanedData)
       showToast('Schedule deleted successfully', 'success')
     } catch (err) {
       console.error('Error saving schedule:', err)
@@ -385,8 +454,8 @@ const handleAddSchedule = async (roomId, newSchedule) => {
 
     // Save immediately
     try {
-      const cleanedRooms = cleanRoomsForApi(rooms.value)
-      await heatingApi.setSchedules({ rooms: cleanedRooms })
+      const cleanedData = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules(cleanedData)
       showToast('Schedule added successfully', 'success')
     } catch (err) {
       console.error('Error saving schedule:', err)
@@ -417,9 +486,24 @@ const handleBoost = async (roomId, boostData) => {
 
     // Save immediately
     try {
-      const cleanedRooms = cleanRoomsForApi(rooms.value)
-      await heatingApi.setSchedules({ rooms: cleanedRooms })
-      const durationText = boostData.duration === 1 ? '1 hour' : `${boostData.duration} hours`
+      const cleanedData = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules(cleanedData)
+
+      // Format duration text
+      const totalMinutes = Math.round(boostData.duration * 60)
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      let durationText = ''
+
+      if (hours === 0) {
+        durationText = `${minutes} minutes`
+      } else if (minutes === 0) {
+        durationText = hours === 1 ? '1 hour' : `${hours} hours`
+      } else {
+        const hourText = hours === 1 ? '1 hour' : `${hours} hours`
+        durationText = `${hourText} ${minutes} minutes`
+      }
+
       showToast(`Boost activated for ${room.name} (${boostData.temperature}°C for ${durationText})`, 'success')
     } catch (err) {
       console.error('Error saving boost:', err)
@@ -435,8 +519,8 @@ const handleCancelBoost = async (roomId) => {
 
     // Save immediately
     try {
-      const cleanedRooms = cleanRoomsForApi(rooms.value)
-      await heatingApi.setSchedules({ rooms: cleanedRooms })
+      const cleanedData = cleanRoomsForApi(rooms.value)
+      await heatingApi.setSchedules(cleanedData)
       showToast(`Boost cancelled for ${room.name}`, 'info')
     } catch (err) {
       console.error('Error saving boost cancellation:', err)

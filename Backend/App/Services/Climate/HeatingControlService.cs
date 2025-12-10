@@ -167,7 +167,9 @@ internal class HeatingControlService
                         CurrentTemperature = GetCurrentTemperatureForRoom(schedule),
                         HeatingActive = false,
                         ActiveScheduleTrackId = 0,
-                        LastUpdated = DateTimeOffset.UtcNow
+                        LastUpdated = DateTimeOffset.UtcNow,
+                        Capabilities = (GetSwitchForRoom(schedule) != null ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
+                                     | (_presenceService.CanDetectIfRoomInUse(schedule.Name) ? RoomCapabilities.CanDetectRoomOccupancy : RoomCapabilities.None)
                     };
                 }
             }
@@ -518,12 +520,12 @@ internal class HeatingControlService
             {
                 if (value && climateControl.TargetTemperature <= climateControl.CurrentTemperature)
                 {
-                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() + 1);
+                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() + 5);
                     return true;
                 }
                 else if (!value && climateControl.TargetTemperature > climateControl.CurrentTemperature)
                 {
-                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() - 1);
+                    climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() - 5);
                     return true;
                 }
 
@@ -563,9 +565,9 @@ internal class HeatingControlService
             "living room" => _namedEntities.LivingRoomClimateTemperature.State,
             "downstairs bathroom" => null,
             "bedroom 1" => _namedEntities.Bedroom1Temperature.State,
-            "bedroom 2" => null,
-            "bedroom 3" => null,
-            "upstairs bathroom" => null,
+            "bedroom 2" => _namedEntities.Bedroom2Temperature.State,
+            "bedroom 3" => _namedEntities.Bedroom3Temperature.State,
+            "upstairs bathroom" => _namedEntities.UpstairsBathroomTemperature.State,
             _ => null
         };
     }

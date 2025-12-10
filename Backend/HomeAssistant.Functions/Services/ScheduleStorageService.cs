@@ -40,10 +40,10 @@ public class ScheduleStorageService
             foreach (ScheduleTrackDto? scheduleDto in ret.Rooms.SelectMany(r => r.Schedules))
             {
                 if (scheduleDto != null
-                    && (!scheduleDto.Conditions.HasFlag(ConditionType.Schedule1))
-                    && (!scheduleDto.Conditions.HasFlag(ConditionType.Schedule2)))
+                    && (!scheduleDto.Conditions.HasFlag(ConditionType.HouseOccupied))
+                    && (!scheduleDto.Conditions.HasFlag(ConditionType.HouseUnoccupied)))
                 {
-                    scheduleDto.Conditions = scheduleDto.Conditions | ConditionType.Schedule1;
+                    scheduleDto.Conditions = scheduleDto.Conditions | ConditionType.HouseOccupied;
                 }
             }
         }

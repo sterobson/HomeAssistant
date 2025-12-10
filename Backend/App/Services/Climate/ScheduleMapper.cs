@@ -17,6 +17,11 @@ public static class ScheduleMapper
         if (dto == null)
             throw new ArgumentNullException(nameof(dto));
 
+        RoomSchedules roomSchedules = new RoomSchedules
+        {
+            HouseOccupancyState = dto.HouseOccupancyState
+        };
+
         List<RoomSchedule> schedules = [];
 
         foreach (RoomDto roomDto in dto.Rooms)
@@ -59,7 +64,8 @@ public static class ScheduleMapper
             schedules.Add(schedule);
         }
 
-        return new RoomSchedules() { Rooms = schedules };
+        roomSchedules.Rooms = schedules;
+        return roomSchedules;
     }
 
     /// <summary>
@@ -105,7 +111,11 @@ public static class ScheduleMapper
             rooms.Add(roomDto);
         }
 
-        return new RoomSchedulesDto { Rooms = rooms };
+        return new RoomSchedulesDto
+        {
+            HouseOccupancyState = schedules.HouseOccupancyState,
+            Rooms = rooms
+        };
     }
 
     /// <summary>

@@ -32,7 +32,7 @@
         </div>
 
         <div class="form-group">
-          <label for="duration">Duration (hours)</label>
+          <label for="duration">Duration</label>
           <div class="duration-selector">
             <button
               v-for="hour in durationOptions"
@@ -54,9 +54,9 @@
             <input
               v-model.number="duration"
               type="number"
-              min="0.08"
+              min="0.25"
               max="24"
-              step="0.01"
+              step="0.25"
               class="duration-input"
             />
             <button type="button" class="spinner-btn" @click="increaseDuration">
@@ -112,10 +112,18 @@ const duration = ref(2)
 const durationOptions = [1, 2, 3, 4, 6]
 
 const displayDuration = computed(() => {
-  const hours = duration.value
-  if (hours === 1) return '1 hour'
-  if (hours < 1) return `${hours * 60} minutes`
-  return `${hours} hours`
+  const totalMinutes = Math.round(duration.value * 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0) {
+    return `${minutes} minutes`
+  } else if (minutes === 0) {
+    return hours === 1 ? '1 hour' : `${hours} hours`
+  } else {
+    const hourText = hours === 1 ? '1 hour' : `${hours} hours`
+    return `${hourText} ${minutes} minutes`
+  }
 })
 
 const increaseTemp = () => {
@@ -137,54 +145,21 @@ const decreaseTemp = () => {
 }
 
 const increaseDuration = () => {
-  let newDuration
-  if (duration.value < 1) {
-    // Sub-hour increments: 5min -> 15min -> 30min -> 45min -> 1hr
-    const minutes = duration.value * 60
-    if (minutes < 5) {
-      newDuration = 5 / 60
-    } else if (minutes < 15) {
-      newDuration = 15 / 60
-    } else if (minutes < 30) {
-      newDuration = 30 / 60
-    } else if (minutes < 45) {
-      newDuration = 45 / 60
-    } else {
-      newDuration = 1
-    }
-  } else {
-    // 1 hour and above: increment by 0.5
-    newDuration = duration.value + 0.5
-  }
+  // Always increment by 15 minutes (0.25 hours)
+  const newDuration = duration.value + 0.25
 
   if (newDuration <= 24) {
-    duration.value = newDuration
+    duration.value = Math.round(newDuration * 4) / 4 // Round to nearest 0.25
   }
 }
 
 const decreaseDuration = () => {
-  let newDuration
-  if (duration.value <= 1) {
-    // Sub-hour decrements: 1hr -> 45min -> 30min -> 15min -> 5min
-    const minutes = duration.value * 60
-    if (minutes > 45) {
-      newDuration = 45 / 60
-    } else if (minutes > 30) {
-      newDuration = 30 / 60
-    } else if (minutes > 15) {
-      newDuration = 15 / 60
-    } else if (minutes > 5) {
-      newDuration = 5 / 60
-    } else {
-      return // Don't go below 5 minutes
-    }
-  } else {
-    // 1 hour and above: decrement by 0.5
-    newDuration = duration.value - 0.5
-  }
+  // Always decrement by 15 minutes (0.25 hours)
+  const newDuration = duration.value - 0.25
 
-  if (newDuration >= 5 / 60) {
-    duration.value = newDuration
+  // Minimum is 15 minutes (0.25 hours)
+  if (newDuration >= 0.25) {
+    duration.value = Math.round(newDuration * 4) / 4 // Round to nearest 0.25
   }
 }
 

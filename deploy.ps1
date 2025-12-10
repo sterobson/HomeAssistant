@@ -4,7 +4,7 @@
 
 param(
     [Parameter(Mandatory=$false)]
-    [ValidateSet("testing", "live")]
+    [ValidateSet("local", "testing", "live")]
     [string]$Environment,
 
     [Parameter(Mandatory=$false)]
@@ -26,6 +26,18 @@ function Write-Gray($message) { Write-Host $message -ForegroundColor Gray }
 
 # Configuration
 $config = @{
+    local = @{
+        Frontend = @{
+            DeployPath = "/"
+            DestinationDir = $null
+            ApiUrl = "http://localhost:7159"
+            UseMockApi = $false
+        }
+        Backend = @{
+            AppName = $null  # Not deployed to Azure
+            Url = "http://localhost:7159"
+        }
+    }
     testing = @{
         Frontend = @{
             DeployPath = "/testing/"
@@ -63,17 +75,19 @@ Write-Host ""
 # Ask for environment if not provided
 if (-not $Environment) {
     Write-Warning "Select deployment environment:"
-    Write-Host "  1. Testing" -ForegroundColor White
-    Write-Host "  2. Live (Production)" -ForegroundColor White
+    Write-Host "  1. Local (Build for local development)" -ForegroundColor White
+    Write-Host "  2. Testing" -ForegroundColor White
+    Write-Host "  3. Live (Production)" -ForegroundColor White
     Write-Host ""
 
-    $choice = Read-Host "Enter choice (1 or 2)"
+    $choice = Read-Host "Enter choice (1, 2, or 3)"
 
     switch ($choice) {
-        "1" { $Environment = "testing" }
-        "2" { $Environment = "live" }
+        "1" { $Environment = "local" }
+        "2" { $Environment = "testing" }
+        "3" { $Environment = "live" }
         default {
-            Write-Error "Invalid choice. Please select 1 or 2."
+            Write-Error "Invalid choice. Please select 1, 2, or 3."
             exit 1
         }
     }
@@ -136,10 +150,20 @@ if ($Environment -eq "live") {
     }
 }
 
+# Skip backend deployment for local environment (it doesn't make sense)
+if ($Environment -eq "local" -and $Backend) {
+    Write-Host ""
+    Write-Warning "Backend deployment is not supported for local environment."
+    Write-Gray "For local backend, run: func start --csharp in Backend\HomeAssistant.Functions"
+    $Backend = $false
+}
+
 Write-Host ""
 if ($HardwareApp) {
     Write-Info "Building Hardware App"
     Write-Gray "  - Hardware App (framework-dependent)"
+} elseif ($Environment -eq "local") {
+    Write-Info "Building for: Local Development"
 } else {
     Write-Info "Deploying to: $Environment"
 }
@@ -186,31 +210,63 @@ if ($Frontend) {
                 # Load function key from local secrets file if it exists
                 $secretsFile = Join-Path $PSScriptRoot "deploy.secrets.ps1"
                 $functionKey = $null
+                $localhostKey = $null
 
                 if (Test-Path $secretsFile) {
                     Write-Gray "Loading function keys from deploy.secrets.ps1..."
                     . $secretsFile
 
-                    if ($Environment -eq "testing" -and $env:TESTING_FUNCTION_KEY) {
+                    if ($Environment -eq "local" -and $env:LOCALHOST_FUNCTION_KEY) {
+                        $localhostKey = $env:LOCALHOST_FUNCTION_KEY
+                    } elseif ($Environment -eq "testing" -and $env:TESTING_FUNCTION_KEY) {
                         $functionKey = $env:TESTING_FUNCTION_KEY
                     } elseif ($Environment -eq "live" -and $env:PRODUCTION_FUNCTION_KEY) {
                         $functionKey = $env:PRODUCTION_FUNCTION_KEY
                     }
                 }
 
-                if (-not $functionKey) {
+                if ($Environment -ne "local" -and -not $functionKey) {
                     Write-Warning "No function key found for $Environment environment"
                     Write-Gray "Create deploy.secrets.ps1 with your Azure Function keys (this file is gitignored)"
                 }
 
-                $env:GITHUB_PAGES = "true"
-                $env:DEPLOY_PATH = $selectedConfig.Frontend.DeployPath
+                if ($Environment -eq "local" -and -not $localhostKey) {
+                    # Try to load from .env.local
+                    $envLocalFile = Join-Path $frontendPath ".env.local"
+                    if (Test-Path $envLocalFile) {
+                        Write-Gray "Loading localhost key from .env.local..."
+                        $envContent = Get-Content $envLocalFile
+                        foreach ($line in $envContent) {
+                            if ($line -match "VITE_LOCALHOST_KEY=(.+)") {
+                                $localhostKey = $matches[1]
+                                break
+                            }
+                        }
+                    }
+                }
+
                 $env:VITE_API_URL = $selectedConfig.Frontend.ApiUrl
                 $env:VITE_USE_MOCK_API = if ($selectedConfig.Frontend.UseMockApi) { "true" } else { "false" }
-                if ($functionKey) { $env:VITE_FUNCTION_KEY = $functionKey }
+
+                if ($Environment -ne "local") {
+                    $env:GITHUB_PAGES = "true"
+                    $env:DEPLOY_PATH = $selectedConfig.Frontend.DeployPath
+                    if ($functionKey) { $env:VITE_FUNCTION_KEY = $functionKey }
+                } else {
+                    # Local development build
+                    if ($localhostKey) { $env:VITE_LOCALHOST_KEY = $localhostKey }
+                }
 
                 # Use appropriate build mode
-                $buildMode = if ($Environment -eq "testing") { "testing" } else { "production" }
+                if ($Environment -eq "local") {
+                    # For local, don't specify mode - use development defaults
+                    $buildMode = "development"
+                } elseif ($Environment -eq "testing") {
+                    $buildMode = "testing"
+                } else {
+                    $buildMode = "production"
+                }
+
                 npm run build -- --mode $buildMode
 
                 if ($LASTEXITCODE -ne 0) {
@@ -219,16 +275,20 @@ if ($Frontend) {
                 } else {
                     Write-Success "Frontend build completed"
 
-                    # Deploy to GitHub Pages
-                    Write-Host ""
-                    Write-Info "Deploying to GitHub Pages..."
-
                     $distPath = Join-Path $frontendPath "dist"
 
                     if (-not (Test-Path $distPath)) {
                         Write-Error "Build output not found at: $distPath"
                         $deploymentSuccess = $false
+                    } elseif ($Environment -eq "local") {
+                        # Local build - skip GitHub Pages deployment
+                        Write-Host ""
+                        Write-Success "Local build ready!"
+                        Write-Gray "Build output: $distPath"
                     } else {
+                        # Deploy to GitHub Pages
+                        Write-Host ""
+                        Write-Info "Deploying to GitHub Pages..."
                         # Use git worktree to deploy to gh-pages branch (SAFE - doesn't touch main working tree)
                         Write-Gray "Setting up deployment worktree..."
 
@@ -324,8 +384,10 @@ if ($Frontend) {
             Remove-Item Env:\VITE_API_URL -ErrorAction SilentlyContinue
             Remove-Item Env:\VITE_USE_MOCK_API -ErrorAction SilentlyContinue
             Remove-Item Env:\VITE_FUNCTION_KEY -ErrorAction SilentlyContinue
+            Remove-Item Env:\VITE_LOCALHOST_KEY -ErrorAction SilentlyContinue
             Remove-Item Env:\TESTING_FUNCTION_KEY -ErrorAction SilentlyContinue
             Remove-Item Env:\PRODUCTION_FUNCTION_KEY -ErrorAction SilentlyContinue
+            Remove-Item Env:\LOCALHOST_FUNCTION_KEY -ErrorAction SilentlyContinue
         }
     }
 }
@@ -596,11 +658,16 @@ if ($deploymentSuccess) {
     if ($HardwareApp) {
         Write-Host "Built Hardware App" -ForegroundColor White
         Write-Host "  [OK] Hardware App -> publish\hardware-app" -ForegroundColor Green
+    } elseif ($Environment -eq "local") {
+        Write-Host "Built for: Local Development" -ForegroundColor White
+        if ($Frontend) {
+            Write-Host "  [OK] Frontend -> Built" -ForegroundColor Green
+        }
     } else {
         Write-Host "Deployed to: $Environment" -ForegroundColor White
-    }
-    if ($Frontend) {
-        Write-Host "  [OK] Frontend -> GitHub Pages" -ForegroundColor Green
+        if ($Frontend) {
+            Write-Host "  [OK] Frontend -> GitHub Pages" -ForegroundColor Green
+        }
     }
     if ($Backend) {
         Write-Host "  [OK] Backend -> Azure Functions" -ForegroundColor Green
@@ -610,6 +677,42 @@ if ($deploymentSuccess) {
         Write-Gray "      ${apiUrl}/api/room-states?houseId={guid}"
     }
     Write-Host ""
+
+    # Offer to run dev server for local frontend builds
+    if ($Environment -eq "local" -and $Frontend) {
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Info "  Run Development Server?"
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Would you like to start the Vite development server now?" -ForegroundColor White
+        Write-Host "  1. Yes - Start dev server (npm run dev)" -ForegroundColor White
+        Write-Host "  2. No - Exit" -ForegroundColor White
+        Write-Host ""
+
+        $runChoice = Read-Host "Enter choice (1 or 2)"
+
+        if ($runChoice -eq "1") {
+            Write-Host ""
+            Write-Info "Starting Vite development server..."
+            Write-Gray "Press Ctrl+C to stop the server"
+            Write-Host ""
+
+            $frontendPath = Join-Path $PSScriptRoot "Frontend"
+            Push-Location $frontendPath
+            try {
+                npm run dev
+            } finally {
+                Pop-Location
+            }
+        } else {
+            Write-Host ""
+            Write-Gray "To start the dev server later, run:"
+            Write-Gray "  cd Frontend"
+            Write-Gray "  npm run dev"
+            Write-Host ""
+        }
+    }
+
     exit 0
 } else {
     Write-Host "Some deployments failed. Please check the errors above." -ForegroundColor Red

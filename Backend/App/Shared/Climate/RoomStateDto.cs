@@ -14,4 +14,5 @@ public class RoomStateDto
     public bool HeatingActive { get; set; }
     public int ActiveScheduleTrackId { get; set; }
     public string LastUpdated { get; set; } = string.Empty;
+    public RoomCapabilities? Capabilities { get; set; }
 }

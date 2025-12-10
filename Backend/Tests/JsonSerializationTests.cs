@@ -173,7 +173,7 @@ public class JsonSerializationTests
         // Assert
         var schedule = result.Rooms[0].Schedules[0];
         // 5 = Schedule1 (1) | RoomInUse (4)
-        schedule.Conditions.ShouldBe(ConditionType.Schedule1 | ConditionType.RoomInUse);
+        schedule.Conditions.ShouldBe(ConditionType.HouseOccupied | ConditionType.RoomInUse);
     }
 
     [TestMethod]
@@ -291,7 +291,7 @@ public class JsonSerializationTests
                             Temperature = 20.5,
                             RampUpMinutes = 45,
                             Days = Days.Monday | Days.Wednesday | Days.Friday,
-                            Conditions = ConditionType.Schedule1 | ConditionType.RoomInUse
+                            Conditions = ConditionType.HouseOccupied | ConditionType.RoomInUse
                         }
                     }
                 }

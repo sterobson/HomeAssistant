@@ -5,4 +5,5 @@ namespace HomeAssistant.Services;
 internal interface IPresenceService
 {
     Task<bool> IsRoomInUse(string roomName);
+    bool CanDetectIfRoomInUse(string roomName);
 }

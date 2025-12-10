@@ -1120,6 +1120,51 @@
           "cSharpName": "AutomationTest"
         },
         {
+          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
+          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
+          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
+          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
+          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
+        },
+        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"

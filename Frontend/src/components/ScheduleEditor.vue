@@ -58,30 +58,30 @@
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Occupancy</label>
+        <div class="form-group" v-if="canDetectRoomOccupancy">
+          <label>Room Occupancy</label>
           <div class="occupancy-selector">
             <button
               type="button"
               class="occupancy-btn"
-              :class="{ active: isOccupancySelected(4) }"
-              @click="setOccupancy(4)"
+              :class="{ active: isRoomOccupancySelected(4) }"
+              @click="setRoomOccupancy(4)"
             >
               Occupied
             </button>
             <button
               type="button"
               class="occupancy-btn"
-              :class="{ active: isOccupancySelected(8) }"
-              @click="setOccupancy(8)"
+              :class="{ active: isRoomOccupancySelected(8) }"
+              @click="setRoomOccupancy(8)"
             >
               Unoccupied
             </button>
             <button
               type="button"
               class="occupancy-btn"
-              :class="{ active: !isOccupancySelected(4) && !isOccupancySelected(8) }"
-              @click="setOccupancy(0)"
+              :class="{ active: !isRoomOccupancySelected(4) && !isRoomOccupancySelected(8) }"
+              @click="setRoomOccupancy(0)"
             >
               Any
             </button>
@@ -111,10 +111,23 @@ const props = defineProps({
   schedule: {
     type: Object,
     default: null
+  },
+  occupancyFilter: {
+    type: String,
+    default: null // 'occupied', 'vacant', or null for all
+  },
+  roomCapabilities: {
+    type: Number,
+    default: 3 // Default to both capabilities (CanSetTemperature | CanDetectRoomOccupancy)
   }
 })
 
 const emit = defineEmits(['save', 'cancel'])
+
+// Check if room can detect occupancy (flag 2 in RoomCapabilities)
+const canDetectRoomOccupancy = computed(() => {
+  return (props.roomCapabilities & 2) !== 0
+})
 
 // Day bit flag values matching backend enum
 const daysOfWeek = [
@@ -138,15 +151,25 @@ const isEditing = computed(() => props.schedule !== null)
 
 onMounted(() => {
   if (props.schedule) {
+    // Editing existing schedule - load all values
     formData.value.time = props.schedule.time
     formData.value.temperature = convertToDisplay(props.schedule.temperature)
     formData.value.days = props.schedule.days || 0
     formData.value.conditions = props.schedule.conditions || 0
   } else {
-    // New schedule - set default temp in display unit
+    // New schedule - set defaults
     formData.value.temperature = convertToDisplay(20)
     formData.value.days = 0
-    formData.value.conditions = 0
+
+    // Set house occupancy flag based on current filter (flags 1 and 2)
+    // Room occupancy is left at 0 (user can set it if needed)
+    if (props.occupancyFilter === 'occupied') {
+      formData.value.conditions = 1 // HouseOccupied
+    } else if (props.occupancyFilter === 'vacant') {
+      formData.value.conditions = 2 // HouseUnoccupied
+    } else {
+      formData.value.conditions = 0 // No filter
+    }
   }
 })
 
@@ -164,29 +187,28 @@ const toggleDay = (dayValue) => {
   }
 }
 
-const isOccupancySelected = (conditionValue) => {
+// Room occupancy selection (flags 4 and 8)
+const isRoomOccupancySelected = (conditionValue) => {
   if (conditionValue === 0) {
-    // "Any" is selected if BOTH Occupied and Unoccupied flags are set
-    return (formData.value.conditions & 12) === 12 // 12 = 4 | 8
+    // "Any" is selected if NEITHER RoomInUse nor RoomNotInUse flags are set
+    return (formData.value.conditions & 12) === 0 // 12 = 4 | 8
   }
-  // For Occupied (4) or Unoccupied (8), check if that specific flag is set
-  // but not both (to distinguish from "Any")
+  // For RoomInUse (4) or RoomNotInUse (8), check if that specific flag is set
+  // but not both (to distinguish from having both set)
   const hasBoth = (formData.value.conditions & 12) === 12
   if (hasBoth) return false
   return (formData.value.conditions & conditionValue) !== 0
 }
 
-const setOccupancy = (conditionValue) => {
-  // Clear both occupancy flags first (4 = Room in use, 8 = Room not in use)
+const setRoomOccupancy = (conditionValue) => {
+  // Clear both room occupancy flags first (4 = RoomInUse, 8 = RoomNotInUse)
   formData.value.conditions = formData.value.conditions & ~12 // 12 = 4 | 8
 
-  if (conditionValue === 0) {
-    // "Any" is represented by having BOTH flags set
-    formData.value.conditions = formData.value.conditions | 12 // Set both flags
-  } else {
-    // Set the specific occupancy flag (either 4 or 8)
+  if (conditionValue !== 0) {
+    // Set the specific room occupancy flag (either 4 or 8)
     formData.value.conditions = formData.value.conditions | conditionValue
   }
+  // If conditionValue is 0, we just cleared both flags (which means "Any")
 }
 
 const increaseTemp = () => {
@@ -208,11 +230,29 @@ const decreaseTemp = () => {
 }
 
 const handleSubmit = () => {
+  // Get the current conditions value
+  let conditions = formData.value.conditions
+
+  // If creating a new schedule or editing, ensure house occupancy flag is set
+  // based on current filter (preserve existing house flags if editing)
+  if (!props.schedule) {
+    // New schedule - set house occupancy based on filter
+    // Clear any existing house occupancy flags first
+    conditions = conditions & ~3 // Clear flags 1 and 2
+
+    if (props.occupancyFilter === 'occupied') {
+      conditions = conditions | 1 // Set HouseOccupied
+    } else if (props.occupancyFilter === 'vacant') {
+      conditions = conditions | 2 // Set HouseUnoccupied
+    }
+  }
+  // If editing existing schedule, keep the house occupancy flags as they are
+
   const scheduleData = {
     time: formData.value.time,
     temperature: convertToInternal(formData.value.temperature),
     days: formData.value.days,
-    conditions: formData.value.conditions,
+    conditions: conditions,
     rampUpMinutes: 30,
     conditionOperator: 1
   }
@@ -420,14 +460,14 @@ const handleCancel = () => {
 
 .occupancy-btn {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   border: 2px solid var(--border-color);
   background: var(--bg-secondary);
   color: var(--text-primary);
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9rem;
   transition: all 0.2s;
 }
 

@@ -111,6 +111,14 @@ public interface INamedEntities
     ICustomNumericSensorEntity Bedroom1Temperature { get; }
     ICustomSwitchEntity Bedroom1HeaterSmartPlugOnOff { get; }
 
+    // Bedroom 2
+    ICustomNumericSensorEntity Bedroom2Temperature { get; }
+
+    // Bedroom 3
+    ICustomNumericSensorEntity Bedroom3Temperature { get; }
+
+    // Upstairs bathroom
+    ICustomNumericSensorEntity UpstairsBathroomTemperature { get; }
 }
 
 public class NamedEntities : INamedEntities
@@ -172,8 +180,13 @@ public class NamedEntities : INamedEntities
 
     // Bedroom 2
     public LightEntity BedroomTwoDeskLamp => _entities.Light.LamperionBaneOfShadows;
+    public ICustomNumericSensorEntity Bedroom2Temperature => new CustomNumericSensorEntity(_entities.Sensor.Bedroom2ClimateTemperature);
 
     // Bedroom 3
+    public ICustomNumericSensorEntity Bedroom3Temperature => new CustomNumericSensorEntity(_entities.Sensor.Bedroom3ClimateTemperature);
+
+    // Bedroom 3
+    public ICustomNumericSensorEntity UpstairsBathroomTemperature => new CustomNumericSensorEntity(_entities.Sensor.BathroomTemperature);
 
     // Porch
     public LightEntity PorchLight => _entities.Light.PorchLight;

@@ -52,6 +52,16 @@ public class RoomStateFunctions
                 return new OkObjectResult(new RoomStatesResponse { RoomStates = [] });
             }
 
+            // Default missing capabilities (null) to full capabilities (both flags)
+            // If capabilities is explicitly set to 0, keep it as 0
+            foreach (RoomStateDto state in roomStates.RoomStates)
+            {
+                if (state.Capabilities == null)
+                {
+                    state.Capabilities = RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy;
+                }
+            }
+
             return new OkObjectResult(roomStates);
         }
         catch (Exception ex)

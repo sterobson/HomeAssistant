@@ -67,7 +67,8 @@ export function useFormatting() {
     return isValidTime(time)
   }
 
-  // Condition formatting
+  // Condition formatting - only shows ROOM occupancy conditions (flags 4 & 8)
+  // House occupancy (flags 1 & 2) is not displayed in the UI
   const formatConditions = (conditionValue) => {
     if (!conditionValue || conditionValue === 0) {
       return null
@@ -75,11 +76,10 @@ export function useFormatting() {
 
     const conditions = []
 
-    // Check each flag (these are bit flags)
-    if (conditionValue & 1) conditions.push('Plenty of power available')
-    if (conditionValue & 2) conditions.push('Low power available')
-    if (conditionValue & 4) conditions.push('Only when occupied')
-    if (conditionValue & 8) conditions.push('Only when unoccupied')
+    // Only show room occupancy conditions (flags 4 and 8)
+    // House occupancy (flags 1 and 2) is managed via header icons
+    if (conditionValue & 4) conditions.push('When room is occupied')
+    if (conditionValue & 8) conditions.push('When room is unoccupied')
 
     return conditions.length > 0 ? conditions.join(' & ') : null
   }

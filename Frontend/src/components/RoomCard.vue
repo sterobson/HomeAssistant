@@ -18,7 +18,7 @@
         </div>
       </div>
       <div class="header-actions">
-        <button v-if="!isBoostActive" class="boost-btn" @click.stop="handleBoost" title="Boost heating">
+        <button v-if="!isBoostActive && canSetTemperature" class="boost-btn" @click.stop="handleBoost" title="Boost heating">
           <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
             <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
           </svg>
@@ -53,7 +53,7 @@
           />
         </div>
 
-        <button class="btn btn-add" @click="handleAdd">
+        <button v-if="canSetTemperature" class="btn btn-add" @click="handleAdd">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0v16M0 8h16" stroke="currentColor" stroke-width="2"/>
           </svg>
@@ -64,6 +64,8 @@
       <ScheduleEditor
         v-if="showEditor"
         :schedule="editingSchedule"
+        :occupancy-filter="occupancyFilter"
+        :room-capabilities="room.capabilities"
         @save="handleSave"
         @cancel="handleCancel"
       />
@@ -107,6 +109,10 @@ const props = defineProps({
   isExpanded: {
     type: Boolean,
     default: false
+  },
+  occupancyFilter: {
+    type: String,
+    default: null // 'occupied', 'vacant', or null for all
   }
 })
 
@@ -119,12 +125,46 @@ const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 
-// Filter and sort schedules
+// Check if room can set temperature (flag 1 in RoomCapabilities)
+const canSetTemperature = computed(() => {
+  return (props.room.capabilities & 1) !== 0
+})
+
+// Filter and sort schedules based on occupancy filter
 const sortedSchedules = computed(() => {
-  return [...props.room.schedules]
-    .sort((a, b) => {
-      return a.time.localeCompare(b.time)
+  let schedules = [...props.room.schedules]
+
+  // Filter by occupancy if a filter is active
+  if (props.occupancyFilter) {
+    schedules = schedules.filter(schedule => {
+      // Check if schedule has house occupancy conditions
+      const hasHouseOccupied = (schedule.conditions & 1) !== 0 // HouseOccupied flag
+      const hasHouseUnoccupied = (schedule.conditions & 2) !== 0 // HouseUnoccupied flag
+      const hasBothFlags = hasHouseOccupied && hasHouseUnoccupied
+
+      // If both flags are set, schedule applies to both states
+      if (hasBothFlags) {
+        return true
+      }
+
+      // If occupied filter is active, show schedules with HouseOccupied flag
+      if (props.occupancyFilter === 'occupied') {
+        return hasHouseOccupied
+      }
+
+      // If vacant filter is active, show schedules with HouseUnoccupied flag
+      if (props.occupancyFilter === 'vacant') {
+        return hasHouseUnoccupied
+      }
+
+      return true
     })
+  }
+
+  // Sort by time
+  return schedules.sort((a, b) => {
+    return a.time.localeCompare(b.time)
+  })
 })
 
 // Check if boost is actually active (has valid start and end times, and hasn't expired)

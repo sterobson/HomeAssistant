@@ -21,8 +21,8 @@ public enum Days
 public enum ConditionType
 {
     None = 0,
-    Schedule1 = 1,
-    Schedule2 = 2,
+    HouseOccupied = 1,
+    HouseUnoccupied = 2,
     RoomInUse = 4,
     RoomNotInUse = 8
 }
@@ -31,6 +31,14 @@ public enum HouseOccupancyState
 {
     Home = 0,
     Away = 1
+}
+
+[Flags]
+public enum RoomCapabilities
+{
+    None = 0,
+    CanSetTemperature = 1,
+    CanDetectRoomOccupancy = 2
 }
 
 [Flags]

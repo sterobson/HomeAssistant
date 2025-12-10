@@ -39,6 +39,7 @@ public class RoomState
     public bool HeatingActive { get; set; }
     public int ActiveScheduleTrackId { get; set; }
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
+    public RoomCapabilities Capabilities { get; set; }
 }
 
 public class HeatingScheduleTrack

@@ -5,6 +5,7 @@ namespace HomeAssistant.Shared.Climate;
 
 public class RoomSchedulesDto
 {
+    public HouseOccupancyState HouseOccupancyState { get; set; } = HouseOccupancyState.Home;
     public List<RoomDto> Rooms { get; set; } = [];
 }
 
