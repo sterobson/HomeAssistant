@@ -6,10 +6,10 @@
         'collapsed-heating': isCollapsed && room.heatingActive
       }"
     >
-      <div class="header-left" @click="toggleCollapse">
+      <div class="header-left" :class="{ 'not-expandable': !canSetTemperature }" @click="canSetTemperature && toggleCollapse()">
         <h2 class="room-name">{{ room.name }}</h2>
         <div class="room-status">
-          <div class="heating-status" :class="{ active: room.heatingActive }" :title="room.heatingActive ? 'Heating active' : 'Heating off'">
+          <div v-if="room.heatingActive" class="heating-status active" title="Heating active">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8.5.5a.5.5 0 0 0-1 0v1.518A7 7 0 0 0 2.5 9a7 7 0 0 0 5 6.482V15.5a.5.5 0 0 0 1 0v-.018A7 7 0 0 0 13.5 9a7 7 0 0 0-5-6.482V.5zM8 3.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
             </svg>
@@ -24,7 +24,7 @@
           </svg>
           BOOST
         </button>
-        <button class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
+        <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path d="M5 7l5 5 5-5H5z"/>
           </svg>
@@ -274,6 +274,10 @@ const handleCancelBoost = () => {
   flex: 1;
   cursor: pointer;
   user-select: none;
+}
+
+.header-left.not-expandable {
+  cursor: default;
 }
 
 .room-name {

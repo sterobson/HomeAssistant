@@ -1,6 +1,7 @@
 using Azure.Storage.Blobs;
 using HomeAssistant.Shared.Climate;
 using System.Text.Json;
+using HomeAssistant.Functions;
 
 namespace HomeAssistant.Functions.Services;
 
@@ -28,7 +29,7 @@ public class RoomStateStorageService
 
         var response = await blobClient.DownloadContentAsync();
         var json = response.Value.Content.ToString();
-        return JsonSerializer.Deserialize<RoomStatesResponse>(json);
+        return JsonSerializer.Deserialize<RoomStatesResponse>(json, JsonConfiguration.CreateOptions());
     }
 
     public async Task SaveRoomStatesAsync(string houseId, RoomStatesResponse roomStates)
@@ -36,10 +37,10 @@ public class RoomStateStorageService
         var blobName = $"{houseId}/state.json";
         var blobClient = _containerClient.GetBlobClient(blobName);
 
-        var json = JsonSerializer.Serialize(roomStates, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
+        JsonSerializerOptions options = JsonConfiguration.CreateOptions();
+        options.WriteIndented = true;
+
+        var json = JsonSerializer.Serialize(roomStates, options);
 
         await blobClient.UploadAsync(
             BinaryData.FromString(json),

@@ -177,12 +177,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": "Living Room TV",
+          "friendlyName": null,
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": "Main speakers",
+          "friendlyName": null,
           "cSharpName": "MainSpeakers"
         }
       ],
@@ -565,9 +565,24 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentDispatching"
         },
         {
+          "id": "binary_sensor.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_dispatching",
+          "friendlyName": "Intelligent Dispatching (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentDispatching"
+        },
+        {
+          "id": "binary_sensor.octopus_energy_a_98d9d332_greenness_forecast_highlighted",
+          "friendlyName": "Greenness Forecast Highlighted (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332GreennessForecastHighlighted"
+        },
+        {
           "id": "binary_sensor.octopus_energy_a_98d9d332_octoplus_saving_sessions",
           "friendlyName": "Octoplus Saving Sessions (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessions"
+        },
+        {
+          "id": "binary_sensor.octopus_energy_electricity_24j0494691_1574300576548_export_off_peak",
+          "friendlyName": "Off Peak Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportOffPeak"
         },
         {
           "id": "binary_sensor.octopus_energy_electricity_24j0494691_1591015382045_off_peak",
@@ -680,6 +695,21 @@
           "jsonName": "manually_refresh_dispatches",
           "cSharpName": "ManuallyRefreshDispatches",
           "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "current",
+          "cSharpName": "Current",
+          "clrType": null
         }
       ]
     },
@@ -991,6 +1021,21 @@
           "id": "event.octopus_energy_a_98d9d332_octoplus_saving_session_events",
           "friendlyName": "Octoplus Saving Session Events (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessionEvents"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1574300576548_export_current_day_rates",
+          "friendlyName": "Current Day Rates Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportCurrentDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1574300576548_export_next_day_rates",
+          "friendlyName": "Next Day Rates Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportNextDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1574300576548_export_previous_day_rates",
+          "friendlyName": "Previous Day Rates Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousDayRates"
         },
         {
           "id": "event.octopus_energy_electricity_24j0494691_1591015382045_current_day_rates",
@@ -1454,6 +1499,11 @@
           "id": "number.octopus_energy_00000000_0009_4000_8020_00000005f18d_intelligent_charge_target",
           "friendlyName": "Intelligent Charge Target (00000000-0009-4000-8020-00000005f18d)",
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentChargeTarget"
+        },
+        {
+          "id": "number.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_charge_target",
+          "friendlyName": "Intelligent Charge Target (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentChargeTarget"
         },
         {
           "id": "number.porch_light_effect_speed",
@@ -1945,6 +1995,11 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentTargetTime"
         },
         {
+          "id": "select.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_target_time",
+          "friendlyName": "Intelligent Target Time (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentTargetTime"
+        },
+        {
           "id": "select.plug_start_up_behaviour",
           "friendlyName": "Kitchen plug - Heater Start-up behaviour",
           "cSharpName": "PlugStartUpBehaviour"
@@ -2210,6 +2265,16 @@
           "jsonName": "icon",
           "cSharpName": "Icon",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -2397,6 +2462,21 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentState"
         },
         {
+          "id": "sensor.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_state",
+          "friendlyName": "Intelligent State (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentState"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_greenness_forecast_current_index",
+          "friendlyName": "Greenness Forecast Current Index (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332GreennessForecastCurrentIndex"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_greenness_forecast_next_index",
+          "friendlyName": "Greenness Forecast Next Index (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332GreennessForecastNextIndex"
+        },
+        {
           "id": "sensor.octopus_energy_a_98d9d332_octoplus_points",
           "friendlyName": "Octoplus Points (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusPoints"
@@ -2531,6 +2611,56 @@
         {
           "jsonName": "Low Power Mode",
           "cSharpName": "LowPowerMode",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "next_start",
+          "cSharpName": "NextStart",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "next_end",
+          "cSharpName": "NextEnd",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "forecast",
+          "cSharpName": "Forecast",
+          "clrType": "System.Collections.Generic.IReadOnlyList\u00601[System.Object]"
+        },
+        {
+          "jsonName": "start",
+          "cSharpName": "Start",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "end",
+          "cSharpName": "End",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "greenness_index",
+          "cSharpName": "GreennessIndex",
+          "clrType": "System.String"
+        },
+        {
+          "jsonName": "greenness_score",
+          "cSharpName": "GreennessScore",
+          "clrType": "System.Double"
+        },
+        {
+          "jsonName": "is_highlighted",
+          "cSharpName": "IsHighlighted",
           "clrType": "System.Boolean"
         }
       ]
@@ -3078,6 +3208,36 @@
           "id": "sensor.octopus_energy_cost_tracker_octopus_summation_cost_tracker_week",
           "friendlyName": "Octopus Energy Cost Tracker octopus_summation_cost_tracker Week",
           "cSharpName": "OctopusEnergyCostTrackerOctopusSummationCostTrackerWeek"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_current_rate",
+          "friendlyName": "Current Rate Export Electricity (24J0494691 1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportCurrentRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_current_standing_charge",
+          "friendlyName": "Current Standing Charge Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportCurrentStandingCharge"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_next_rate",
+          "friendlyName": "Next Rate Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportNextRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_previous_accumulative_consumption",
+          "friendlyName": "Previous Accumulative Consumption Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousAccumulativeConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_previous_accumulative_cost",
+          "friendlyName": "Previous Accumulative Cost Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1574300576548_export_previous_rate",
+          "friendlyName": "Previous Rate Export Electricity (24J0494691/1574300576548)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousRate"
         },
         {
           "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption",
@@ -4019,6 +4179,16 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentSmartCharge"
         },
         {
+          "id": "switch.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_bump_charge",
+          "friendlyName": "Intelligent Bump Charge (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentBumpCharge"
+        },
+        {
+          "id": "switch.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_smart_charge",
+          "friendlyName": "Intelligent Smart Charge (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentSmartCharge"
+        },
+        {
           "id": "switch.smartplug01_switch",
           "friendlyName": "Dining Room - Plug - Bookshelf",
           "cSharpName": "Smartplug01Switch"
@@ -4044,6 +4214,16 @@
           "jsonName": "friendly_name",
           "cSharpName": "FriendlyName",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     },

@@ -36,20 +36,35 @@
             </button>
             <transition name="accordion">
               <div v-show="expandedSection === 'theme'" class="accordion-content">
-                <div class="theme-grid">
-                  <button
-                    v-for="themeOption in themeOptions"
-                    :key="themeOption.value"
-                    class="setting-btn"
-                    :class="{
-                      active: settings.theme === themeOption.value,
-                      'full-width': themeOption.fullWidth
-                    }"
-                    @click="setTheme(themeOption.value)"
-                  >
-                    <component :is="themeOption.icon" />
-                    <span>{{ themeOption.label }}</span>
-                  </button>
+                <div class="theme-section">
+                  <label class="theme-label">Appearance</label>
+                  <div class="mode-grid">
+                    <button
+                      v-for="mode in modeOptions"
+                      :key="mode.value"
+                      class="setting-btn"
+                      :class="{ active: currentMode === mode.value }"
+                      @click="setMode(mode.value)"
+                    >
+                      <component :is="mode.icon" />
+                      <span>{{ mode.label }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="theme-section">
+                  <label class="theme-label">Color</label>
+                  <div class="color-grid">
+                    <button
+                      v-for="color in colorOptions"
+                      :key="color.value"
+                      class="color-btn"
+                      :class="{ active: currentColor === color.value }"
+                      @click="setColor(color.value)"
+                      :title="color.label"
+                    >
+                      <div class="color-circle" :style="{ backgroundColor: color.color }"></div>
+                    </button>
+                  </div>
                 </div>
               </div>
             </transition>
@@ -166,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, h, onMounted, watch } from 'vue'
+import { ref, h, onMounted, watch, computed } from 'vue'
 import { useSettings } from '../composables/useSettings.js'
 import ConfirmModal from './ConfirmModal.vue'
 import { getHouseId } from '../utils/cookies.js'
@@ -253,21 +268,109 @@ const DarkIcon = () => h('svg', { width: 20, height: 20, viewBox: '0 0 16 16', f
   h('path', { d: 'M6 .278a.768.768 0 01.08.858 7.208 7.208 0 00-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 01.81.316.733.733 0 01-.031.893A8.349 8.349 0 018.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 016 .278z' })
 ])
 
-const ColorThemeIcon = (color) => () => h('div', { class: 'color-circle', style: { backgroundColor: color } })
-
-const themeOptions = [
-  { value: THEMES.SYSTEM, label: 'System', icon: SystemIcon, fullWidth: true },
-  { value: THEMES.LIGHT, label: 'Light', icon: LightIcon },
-  { value: THEMES.DARK, label: 'Dark', icon: DarkIcon },
-  { value: THEMES.LIGHT_GREEN, label: 'Light Green', icon: ColorThemeIcon('#43a047') },
-  { value: THEMES.DARK_GREEN, label: 'Dark Green', icon: ColorThemeIcon('#2e5d2e') },
-  { value: THEMES.LIGHT_BLUE, label: 'Light Blue', icon: ColorThemeIcon('#1e88e5') },
-  { value: THEMES.DARK_BLUE, label: 'Dark Blue', icon: ColorThemeIcon('#2e4a6e') },
-  { value: THEMES.LIGHT_PURPLE, label: 'Light Purple', icon: ColorThemeIcon('#8e24aa') },
-  { value: THEMES.DARK_PURPLE, label: 'Dark Purple', icon: ColorThemeIcon('#5d3a6e') },
-  { value: THEMES.LIGHT_PINK, label: 'Light Pink', icon: ColorThemeIcon('#d81b60') },
-  { value: THEMES.DARK_PINK, label: 'Dark Pink', icon: ColorThemeIcon('#6e3a52') }
+// Mode options
+const modeOptions = [
+  { value: 'system', label: 'System', icon: SystemIcon },
+  { value: 'light', label: 'Light', icon: LightIcon },
+  { value: 'dark', label: 'Dark', icon: DarkIcon }
 ]
+
+// Color options with light and dark variants
+const colorDefinitions = {
+  green: { light: '#43a047', dark: '#2e5d2e' },
+  blue: { light: '#42a5f5', dark: '#42a5f5' },
+  purple: { light: '#8e24aa', dark: '#5d3a6e' },
+  pink: { light: '#d81b60', dark: '#6e3a52' },
+  gray: { light: '#757575', dark: '#424242' },
+  red: { light: '#e53935', dark: '#6e2e2e' },
+  orange: { light: '#fb8c00', dark: '#6e4a2e' },
+  yellow: { light: '#fdd835', dark: '#6e5d2e' },
+  brown: { light: '#8d6e63', dark: '#4e3a33' }
+}
+
+// Parse current theme to extract mode and color
+const currentMode = computed(() => {
+  const theme = settings.value.theme
+  if (theme === THEMES.SYSTEM || theme === THEMES.LIGHT || theme === THEMES.DARK) {
+    return theme
+  }
+  // Extract mode from compound theme (e.g., "light-green" -> "light")
+  if (theme.startsWith('light-')) return 'light'
+  if (theme.startsWith('dark-')) return 'dark'
+  return 'system'
+})
+
+const currentColor = computed(() => {
+  const theme = settings.value.theme
+  // If it's just system/light/dark, no color is selected (null means use base theme)
+  if (theme === THEMES.SYSTEM || theme === THEMES.LIGHT || theme === THEMES.DARK) {
+    return null
+  }
+  // Extract color from compound theme (e.g., "light-green" -> "green")
+  const parts = theme.split('-')
+  if (parts.length > 1) {
+    return parts.slice(1).join('-') // Handle multi-word colors if needed
+  }
+  return null
+})
+
+// Determine which color variant to show based on current mode
+const getColorVariant = computed(() => {
+  const mode = currentMode.value
+  if (mode === 'system') {
+    // Use system preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    return prefersDark ? 'dark' : 'light'
+  }
+  return mode === 'dark' ? 'dark' : 'light'
+})
+
+// Color options to display (with appropriate light/dark variant)
+const colorOptions = computed(() => {
+  const variant = getColorVariant.value
+  return [
+    { value: 'green', label: 'Green', color: colorDefinitions.green[variant] },
+    { value: 'blue', label: 'Blue', color: colorDefinitions.blue[variant] },
+    { value: 'purple', label: 'Purple', color: colorDefinitions.purple[variant] },
+    { value: 'pink', label: 'Pink', color: colorDefinitions.pink[variant] },
+    { value: 'gray', label: 'Gray', color: colorDefinitions.gray[variant] },
+    { value: 'red', label: 'Red', color: colorDefinitions.red[variant] },
+    { value: 'orange', label: 'Orange', color: colorDefinitions.orange[variant] },
+    { value: 'yellow', label: 'Yellow', color: colorDefinitions.yellow[variant] },
+    { value: 'brown', label: 'Brown', color: colorDefinitions.brown[variant] }
+  ]
+})
+
+// Set mode
+const setMode = (mode) => {
+  const color = currentColor.value
+  if (!color) {
+    // No color selected - just set the base mode
+    setTheme(mode)
+  } else {
+    // Combine mode and color
+    if (mode === 'system') {
+      // For system mode, use the system preference to determine which variant
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      setTheme(`${prefersDark ? 'dark' : 'light'}-${color}`)
+    } else {
+      setTheme(`${mode}-${color}`)
+    }
+  }
+}
+
+// Set color
+const setColor = (color) => {
+  const mode = currentMode.value
+  // Always combine mode and color
+  if (mode === 'system') {
+    // For system mode, use the system preference to determine which variant
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    setTheme(`${prefersDark ? 'dark' : 'light'}-${color}`)
+  } else {
+    setTheme(`${mode}-${color}`)
+  }
+}
 
 // Close menu on escape key
 const handleEscape = (event) => {
@@ -418,9 +521,33 @@ if (typeof window !== 'undefined') {
   gap: 0.75rem;
 }
 
-.theme-grid {
+.theme-section {
+  margin-bottom: 1.5rem;
+}
+
+.theme-section:last-child {
+  margin-bottom: 0;
+}
+
+.theme-label {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mode-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.75rem;
 }
 
@@ -459,11 +586,40 @@ if (typeof window !== 'undefined') {
   grid-column: 1 / -1;
 }
 
+.color-btn {
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  min-height: 60px;
+}
+
+.color-btn:hover {
+  border-color: var(--color-primary);
+  background-color: var(--hover-bg);
+}
+
+.color-btn.active {
+  border-color: var(--color-primary);
+  background-color: var(--hover-bg);
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.color-btn:active {
+  transform: scale(0.97);
+}
+
 .color-circle {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .unit-icon,

@@ -10,6 +10,12 @@ public class FlexibleEnumConverter<TEnum> : JsonConverter<TEnum> where TEnum : s
 {
     public override TEnum Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
+        if (reader.TokenType == JsonTokenType.Null)
+        {
+            // Return default value (0) for null - this handles legacy data
+            return (TEnum)Enum.ToObject(typeof(TEnum), 0);
+        }
+
         if (reader.TokenType == JsonTokenType.String)
         {
             string? stringValue = reader.GetString();
@@ -31,7 +37,7 @@ public class FlexibleEnumConverter<TEnum> : JsonConverter<TEnum> where TEnum : s
 
     public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options)
     {
-        writer.WriteStringValue(value.ToString());
+        writer.WriteNumberValue(Convert.ToInt32(value));
     }
 }
 

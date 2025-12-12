@@ -306,18 +306,12 @@ const mergeSchedulesWithStates = (schedules, states) => {
   return schedules.map(room => {
     const state = states.find(s => s.roomId === room.id)
 
-    // Handle capabilities: null/undefined = 3 (full capabilities), 0 = 0 (no capabilities)
-    let capabilities = 3 // Default to both capabilities
-    if (state?.capabilities !== undefined && state?.capabilities !== null) {
-      capabilities = state.capabilities
-    }
-
     return {
       ...room,
       currentTemperature: state?.currentTemperature ?? null,
       heatingActive: state?.heatingActive ?? false,
       activeScheduleId: state?.activeScheduleTrackId ?? null,
-      capabilities: capabilities
+      capabilities: state?.capabilities ?? 3 // Default to both capabilities if state not found
     }
   })
 }

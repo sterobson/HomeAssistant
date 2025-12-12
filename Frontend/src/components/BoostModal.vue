@@ -34,33 +34,17 @@
         <div class="form-group">
           <label for="duration">Duration</label>
           <div class="duration-selector">
-            <button
-              v-for="hour in durationOptions"
-              :key="hour"
-              type="button"
-              class="duration-btn"
-              :class="{ active: duration === hour }"
-              @click="duration = hour"
-            >
-              {{ hour }}h
-            </button>
-          </div>
-          <div class="duration-spinner">
-            <button type="button" class="spinner-btn" @click="decreaseDuration">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <button type="button" class="duration-btn" @click="decreaseDuration">
+              <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M0 8a.5.5 0 01.5-.5h15a.5.5 0 010 1H.5A.5.5 0 010 8z"/>
               </svg>
             </button>
-            <input
-              v-model.number="duration"
-              type="number"
-              min="0.25"
-              max="24"
-              step="0.25"
-              class="duration-input"
-            />
-            <button type="button" class="spinner-btn" @click="increaseDuration">
-              <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <div class="duration-display">
+              <span class="duration-value">{{ durationValue }}</span>
+              <span class="duration-unit">{{ durationUnit }}</span>
+            </div>
+            <button type="button" class="duration-btn" @click="increaseDuration">
+              <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M8 0a.5.5 0 01.5.5v7h7a.5.5 0 010 1h-7v7a.5.5 0 01-1 0v-7h-7a.5.5 0 010-1h7v-7A.5.5 0 018 0z"/>
               </svg>
             </button>
@@ -108,8 +92,10 @@ const emit = defineEmits(['boost', 'cancel'])
 
 // Initialize temperature in display unit (convert from default 21°C)
 const temperature = ref(convertToDisplay(21))
-const duration = ref(2)
-const durationOptions = [1, 2, 3, 4, 6]
+// Duration options in hours: 15min, 30min, 1h, 2h, 3h, 4h, 6h, 9h, 12h, 18h, 24h
+const durationOptions = [0.25, 0.5, 1, 2, 3, 4, 6, 9, 12, 18, 24]
+const durationIndex = ref(3) // Default to 2 hours (index 3)
+const duration = computed(() => durationOptions[durationIndex.value])
 
 const displayDuration = computed(() => {
   const totalMinutes = Math.round(duration.value * 60)
@@ -123,6 +109,34 @@ const displayDuration = computed(() => {
   } else {
     const hourText = hours === 1 ? '1 hour' : `${hours} hours`
     return `${hourText} ${minutes} minutes`
+  }
+})
+
+const durationValue = computed(() => {
+  const totalMinutes = Math.round(duration.value * 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0) {
+    return minutes.toString()
+  } else if (minutes === 0) {
+    return hours.toString()
+  } else {
+    return `${hours}:${minutes.toString().padStart(2, '0')}`
+  }
+})
+
+const durationUnit = computed(() => {
+  const totalMinutes = Math.round(duration.value * 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0) {
+    return 'min'
+  } else if (minutes === 0) {
+    return hours === 1 ? 'hour' : 'hours'
+  } else {
+    return 'hours'
   }
 })
 
@@ -145,21 +159,16 @@ const decreaseTemp = () => {
 }
 
 const increaseDuration = () => {
-  // Always increment by 15 minutes (0.25 hours)
-  const newDuration = duration.value + 0.25
-
-  if (newDuration <= 24) {
-    duration.value = Math.round(newDuration * 4) / 4 // Round to nearest 0.25
+  // Move to next option in the list
+  if (durationIndex.value < durationOptions.length - 1) {
+    durationIndex.value++
   }
 }
 
 const decreaseDuration = () => {
-  // Always decrement by 15 minutes (0.25 hours)
-  const newDuration = duration.value - 0.25
-
-  // Minimum is 15 minutes (0.25 hours)
-  if (newDuration >= 0.25) {
-    duration.value = Math.round(newDuration * 4) / 4 // Round to nearest 0.25
+  // Move to previous option in the list
+  if (durationIndex.value > 0) {
+    durationIndex.value--
   }
 }
 
@@ -320,97 +329,53 @@ const handleCancel = () => {
 
 .duration-selector {
   display: flex;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
 }
 
 .duration-btn {
-  flex: 1;
-  padding: 0.75rem;
-  border: 2px solid var(--border-color);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 1rem;
-  transition: all 0.2s;
-}
-
-.duration-btn:hover {
-  border-color: var(--color-primary);
-  background-color: var(--hover-bg);
-}
-
-.duration-btn.active {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: white;
-}
-
-.duration-spinner {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  padding: 0.5rem;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.spinner-btn {
   background: var(--color-primary);
   border: none;
   color: white;
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
-  flex-shrink: 0;
 }
 
-.spinner-btn:hover {
+.duration-btn:hover {
   background: var(--color-primary-hover);
   transform: scale(1.05);
 }
 
-.spinner-btn:active {
+.duration-btn:active {
   transform: scale(0.95);
 }
 
-.duration-input {
-  flex: 1;
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  border-radius: 6px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  text-align: center;
-  transition: all 0.2s;
+.duration-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 140px;
 }
 
-.duration-input:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+.duration-value {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
 }
 
-/* Hide default number input spinner arrows */
-.duration-input::-webkit-inner-spin-button,
-.duration-input::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.duration-input[type=number] {
-  -moz-appearance: textfield;
+.duration-unit {
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .boost-info {
@@ -504,6 +469,18 @@ const handleCancel = () => {
   }
 
   .temp-unit {
+    font-size: 1.25rem;
+  }
+
+  .duration-display {
+    min-width: 120px;
+  }
+
+  .duration-value {
+    font-size: 2.5rem;
+  }
+
+  .duration-unit {
     font-size: 1.25rem;
   }
 

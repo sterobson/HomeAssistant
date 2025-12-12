@@ -15,7 +15,17 @@ export const THEMES = {
   LIGHT_PURPLE: 'light-purple',
   DARK_PURPLE: 'dark-purple',
   LIGHT_PINK: 'light-pink',
-  DARK_PINK: 'dark-pink'
+  DARK_PINK: 'dark-pink',
+  LIGHT_GRAY: 'light-gray',
+  DARK_GRAY: 'dark-gray',
+  LIGHT_RED: 'light-red',
+  DARK_RED: 'dark-red',
+  LIGHT_ORANGE: 'light-orange',
+  DARK_ORANGE: 'dark-orange',
+  LIGHT_YELLOW: 'light-yellow',
+  DARK_YELLOW: 'dark-yellow',
+  LIGHT_BROWN: 'light-brown',
+  DARK_BROWN: 'dark-brown'
 }
 
 // Temperature units

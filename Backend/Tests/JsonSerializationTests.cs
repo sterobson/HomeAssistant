@@ -1,5 +1,5 @@
-using HomeAssistant.Shared.Climate;
 using HomeAssistant.Functions;
+using HomeAssistant.Shared.Climate;
 using Shouldly;
 using System.Text.Json;
 
@@ -17,7 +17,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomSchedulesDto_FromJson_WithEnumsAsStrings()
     {
         // Arrange - JSON as it would be stored in blob storage
-        var json = @"{
+        string json = @"{
             ""rooms"": [
                 {
                     ""id"": 1,
@@ -64,7 +64,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomSchedulesDto_FromJson_WithEnumsAsNumbers()
     {
         // Arrange - JSON with enum values as numbers
-        var json = @"{
+        string json = @"{
             ""rooms"": [
                 {
                     ""id"": 2,
@@ -116,7 +116,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomSchedulesDto_WithMultipleDaysFlags()
     {
         // Arrange - Testing bit flag combinations
-        var json = @"{
+        string json = @"{
             ""rooms"": [
                 {
                     ""id"": 3,
@@ -148,7 +148,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomSchedulesDto_WithMultipleConditionsFlags()
     {
         // Arrange - Testing multiple conditions (bit flags)
-        var json = @"{
+        string json = @"{
             ""rooms"": [
                 {
                     ""id"": 4,
@@ -180,7 +180,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomStatesResponse_FromJson()
     {
         // Arrange
-        var json = @"{
+        string json = @"{
             ""roomStates"": [
                 {
                     ""roomId"": 1,
@@ -227,15 +227,15 @@ public class JsonSerializationTests
         // Arrange
         var dto = new RoomSchedulesDto
         {
-            Rooms = new List<RoomDto>
-            {
+            Rooms =
+            [
                 new RoomDto
                 {
                     Id = 1,
                     Name = "Test Room",
                     Boost = null,
-                    Schedules = new List<ScheduleTrackDto>
-                    {
+                    Schedules =
+                    [
                         new ScheduleTrackDto
                         {
                             Id = 101,
@@ -245,13 +245,13 @@ public class JsonSerializationTests
                             Days = Days.Weekdays,
                             Conditions = ConditionType.RoomInUse
                         }
-                    }
+                    ]
                 }
-            }
+            ]
         };
 
         // Act
-        var json = JsonSerializer.Serialize(dto, GetJsonOptions());
+        string json = JsonSerializer.Serialize(dto, GetJsonOptions());
 
         // Assert
         json.ShouldNotBeNullOrWhiteSpace();
@@ -260,8 +260,8 @@ public class JsonSerializationTests
         json.ShouldContain("\"time\":\"07:30\"");
         json.ShouldContain("\"temperature\":21.5");
         // Enums should be serialized as strings
-        json.ShouldContain("\"days\":\"Weekdays\"");
-        json.ShouldContain("\"conditions\":\"RoomInUse\"");
+        json.ShouldContain($"\"days\":{(int)Days.Weekdays}");
+        json.ShouldContain($"\"conditions\":{(int)ConditionType.RoomInUse}");
     }
 
     [TestMethod]
@@ -270,8 +270,8 @@ public class JsonSerializationTests
         // Arrange
         var original = new RoomSchedulesDto
         {
-            Rooms = new List<RoomDto>
-            {
+            Rooms =
+            [
                 new RoomDto
                 {
                     Id = 5,
@@ -282,8 +282,8 @@ public class JsonSerializationTests
                         EndTime = "2025-01-15T12:00:00Z",
                         Temperature = 23.0
                     },
-                    Schedules = new List<ScheduleTrackDto>
-                    {
+                    Schedules =
+                    [
                         new ScheduleTrackDto
                         {
                             Id = 501,
@@ -293,13 +293,13 @@ public class JsonSerializationTests
                             Days = Days.Monday | Days.Wednesday | Days.Friday,
                             Conditions = ConditionType.HouseOccupied | ConditionType.RoomInUse
                         }
-                    }
+                    ]
                 }
-            }
+            ]
         };
 
         // Act - Serialize then deserialize
-        var json = JsonSerializer.Serialize(original, GetJsonOptions());
+        string json = JsonSerializer.Serialize(original, GetJsonOptions());
         var result = JsonSerializer.Deserialize<RoomSchedulesDto>(json, GetJsonOptions());
 
         // Assert
@@ -331,7 +331,7 @@ public class JsonSerializationTests
     public void Deserialize_RoomSchedulesDto_WithSpecialDayCombinations()
     {
         // Arrange - Test special day combinations
-        var json = @"{
+        string json = @"{
             ""rooms"": [
                 {
                     ""id"": 1,

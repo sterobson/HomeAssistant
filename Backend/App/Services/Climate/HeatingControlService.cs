@@ -168,15 +168,14 @@ internal class HeatingControlService
                         HeatingActive = false,
                         ActiveScheduleTrackId = 0,
                         LastUpdated = DateTimeOffset.UtcNow,
-                        Capabilities = (GetSwitchForRoom(schedule) != null ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
-                                     | (_presenceService.CanDetectIfRoomInUse(schedule.Name) ? RoomCapabilities.CanDetectRoomOccupancy : RoomCapabilities.None)
+                        Capabilities = GetRoomCapabilities(schedule)
                     };
                 }
             }
 
             if (!_hasUploadedState)
             {
-                await _statePersistence.SetStatesAsync(_roomStates);
+                await UpdateRoomStatesAsync();
                 _hasUploadedState = true;
             }
         }
@@ -188,6 +187,22 @@ internal class HeatingControlService
     {
         try
         {
+            RoomSchedules schedules = await _schedulePersistence.GetSchedulesAsync();
+            if (schedules != null)
+            {
+                foreach (KeyValuePair<int, RoomState> kvp in _roomStates)
+                {
+                    RoomSchedule? schedule = schedules.Rooms.Find(r => r.Id == kvp.Value.RoomId);
+                    if (schedule == null)
+                    {
+                        continue;
+                    }
+
+                    kvp.Value.Capabilities = GetRoomCapabilities(schedule);
+                    kvp.Value.CurrentTemperature = GetCurrentTemperatureForRoom(schedule);
+                }
+            }
+
             // Upload to API (SignalR notification will be broadcast automatically)
             await _statePersistence.SetStatesAsync(_roomStates);
             _logger.LogDebug("Updated room states");
@@ -204,7 +219,7 @@ internal class HeatingControlService
         bool hasStateChanged = false;
         foreach (RoomSchedule schedule in schedules.Rooms)
         {
-            hasStateChanged |= await EvaluateSchedule(schedule, trigger);
+            hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
         }
 
         if (hasStateChanged)
@@ -213,7 +228,7 @@ internal class HeatingControlService
         }
     }
 
-    private async Task<bool> EvaluateSchedule(RoomSchedule? roomHeatingSchedule, string trigger)
+    private async Task<bool> EvaluateSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule? roomHeatingSchedule, string trigger)
     {
         ArgumentNullException.ThrowIfNull(roomHeatingSchedule);
 
@@ -260,14 +275,14 @@ internal class HeatingControlService
         else
         {
             // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
-            HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(roomHeatingSchedule, now, currentDay);
+            HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(houseOccupancyState, roomHeatingSchedule, now, currentDay);
             if (currentActiveTrack == null)
             {
                 return false;
             }
 
             // Step 2: Check if there's an upcoming schedule we should pre-heat for
-            HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
+            HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(houseOccupancyState, roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
 
             // Step 3: Determine which schedule to use
             effectiveTrack = currentActiveTrack;
@@ -304,17 +319,22 @@ internal class HeatingControlService
         // Ensure that our cached state is updated.
         _roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState);
         bool? previousHeatingActive = roomState?.HeatingActive;
+        bool stateChanged = false;
 
-        roomState ??= new RoomState();
+        if (roomState == null)
+        {
+            roomState = new RoomState();
+            stateChanged = true;
+        }
+
         double? previousRoomTemperature = roomState.CurrentTemperature;
         roomState.RoomId = roomHeatingSchedule.Id;
         roomState.CurrentTemperature = currentTemperature;
         roomState.HeatingActive = currentHeatingState ?? false;
         roomState.ActiveScheduleTrackId = effectiveTrack?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;
+        roomState.Capabilities = GetRoomCapabilities(roomHeatingSchedule);
         _roomStates[roomHeatingSchedule.Id] = roomState;
-
-        bool stateChanged = false;
 
         // Apply hysteresis to prevent flapping
         // If heating is ON: turn OFF only when temp >= target + offset
@@ -383,7 +403,7 @@ internal class HeatingControlService
         return stateChanged;
     }
 
-    private async Task<HeatingScheduleTrack?> FindCurrentActiveSchedule(RoomSchedule schedule, DateTime now, Days currentDay)
+    private async Task<HeatingScheduleTrack?> FindCurrentActiveSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule schedule, DateTime now, Days currentDay)
     {
         TimeSpan currentTime = now.TimeOfDay;
         HeatingScheduleTrack? bestTrack = null;
@@ -399,7 +419,7 @@ internal class HeatingControlService
             if (track.TargetTime.ToTimeSpan() <= currentTime)
             {
                 // Check special conditions
-                if (!await MeetsSpecialConditions(schedule.Name, track))
+                if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
                     continue;
 
                 // Is this the latest qualifying schedule?
@@ -422,7 +442,7 @@ internal class HeatingControlService
                     continue;
 
                 // Check special conditions
-                if (!await MeetsSpecialConditions(schedule.Name, track))
+                if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
                     continue;
 
                 // Find the latest schedule from yesterday
@@ -436,7 +456,7 @@ internal class HeatingControlService
         return bestTrack;
     }
 
-    private async Task<HeatingScheduleTrack?> FindPreHeatSchedule(RoomSchedule schedule, DateTime now, Days currentDay, double currentActiveTemperature)
+    private async Task<HeatingScheduleTrack?> FindPreHeatSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule schedule, DateTime now, Days currentDay, double currentActiveTemperature)
     {
         TimeSpan currentTime = now.TimeOfDay;
         HeatingScheduleTrack? bestTrack = null;
@@ -462,7 +482,7 @@ internal class HeatingControlService
                         continue;
 
                     // Check special conditions
-                    if (!await MeetsSpecialConditions(schedule.Name, track))
+                    if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
                         continue;
 
                     // Find the earliest upcoming schedule in ramp-up
@@ -572,18 +592,36 @@ internal class HeatingControlService
         };
     }
 
-    private async Task<bool> MeetsSpecialConditions(string roomName, HeatingScheduleTrack heatingScheduleTrack)
+    private async Task<bool> MeetsSpecialConditions(HouseOccupancyState houseOccupancyState, RoomSchedule roomSchedule, HeatingScheduleTrack heatingScheduleTrack)
     {
         bool meetsAllConditions = true;
+
+        // Legacy tracks may not have either of these set, in which case assume they are for occupied only.
+        bool trackForHouseOccupied = (heatingScheduleTrack.Conditions & ConditionType.HouseOccupied) != 0
+            || ((heatingScheduleTrack.Conditions & ConditionType.HouseOccupied) == 0 && (heatingScheduleTrack.Conditions & ConditionType.HouseUnoccupied) == 0);
+
+        bool trackForHouseUnoccupied = (heatingScheduleTrack.Conditions & ConditionType.HouseUnoccupied) != 0;
+
+        // Don't count the track if it doesn't meet the house occupancy.
+        if (houseOccupancyState == HouseOccupancyState.Home && !trackForHouseOccupied)
+        {
+            return false;
+        }
+
+        if (houseOccupancyState == HouseOccupancyState.Away && !trackForHouseUnoccupied)
+        {
+            return false;
+        }
+
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomInUse))
         {
-            bool roomInUse = await _presenceService.IsRoomInUse(roomName);
+            bool roomInUse = await _presenceService.IsRoomInUse(roomSchedule.Name);
             meetsAllConditions &= roomInUse;
         }
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomNotInUse))
         {
-            bool roomNotInUse = !await _presenceService.IsRoomInUse(roomName);
+            bool roomNotInUse = !await _presenceService.IsRoomInUse(roomSchedule.Name);
             meetsAllConditions &= roomNotInUse;
         }
 
@@ -594,6 +632,12 @@ internal class HeatingControlService
         }
 
         return true;
+    }
+
+    private RoomCapabilities GetRoomCapabilities(RoomSchedule room)
+    {
+        return (GetSwitchForRoom(room) != null ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
+             | (_presenceService.CanDetectIfRoomInUse(room.Name) ? RoomCapabilities.CanDetectRoomOccupancy : RoomCapabilities.None);
     }
 
     public static int MinutesUntil(TimeSpan from, TimeSpan to)

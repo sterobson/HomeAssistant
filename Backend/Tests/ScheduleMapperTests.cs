@@ -641,7 +641,8 @@ public class ScheduleMapperTests
             CurrentTemperature = 19.5,
             HeatingActive = true,
             ActiveScheduleTrackId = 102,
-            LastUpdated = lastUpdated.ToString("O")
+            LastUpdated = lastUpdated.ToString("O"),
+            Capabilities = RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy
         };
 
         // Act
@@ -653,6 +654,7 @@ public class ScheduleMapperTests
         result.HeatingActive.ShouldBeTrue();
         result.ActiveScheduleTrackId.ShouldBe(102);
         result.LastUpdated.ShouldBe(lastUpdated);
+        result.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy);
     }
 
     [TestMethod]
@@ -712,7 +714,8 @@ public class ScheduleMapperTests
             CurrentTemperature = 19.5,
             HeatingActive = true,
             ActiveScheduleTrackId = 102,
-            LastUpdated = lastUpdated
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.CanSetTemperature
         };
 
         // Act
@@ -724,6 +727,7 @@ public class ScheduleMapperTests
         result.HeatingActive.ShouldBeTrue();
         result.ActiveScheduleTrackId.ShouldBe(102);
         result.LastUpdated.ShouldBe(lastUpdated.ToString("O"));
+        result.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature);
     }
 
     [TestMethod]
@@ -756,7 +760,8 @@ public class ScheduleMapperTests
             CurrentTemperature = 20.5,
             HeatingActive = true,
             ActiveScheduleTrackId = 201,
-            LastUpdated = lastUpdated.ToString("O")
+            LastUpdated = lastUpdated.ToString("O"),
+            Capabilities = RoomCapabilities.CanDetectRoomOccupancy
         };
 
         // Act
@@ -769,6 +774,197 @@ public class ScheduleMapperTests
         result.HeatingActive.ShouldBe(original.HeatingActive);
         result.ActiveScheduleTrackId.ShouldBe(original.ActiveScheduleTrackId);
         result.LastUpdated.ShouldBe(original.LastUpdated);
+        result.Capabilities.ShouldBe(original.Capabilities);
+    }
+
+    [TestMethod]
+    public void MapRoomStateFromDto_MapsAllDtoProperties()
+    {
+        // This test ensures that all properties on RoomStateDto are mapped to RoomState
+        // If a new property is added to RoomStateDto but not mapped, this test will fail
+
+        // Arrange
+        var lastUpdated = DateTimeOffset.UtcNow;
+        var dto = new RoomStateDto
+        {
+            RoomId = 10,
+            CurrentTemperature = 22.5,
+            HeatingActive = true,
+            ActiveScheduleTrackId = 999,
+            LastUpdated = lastUpdated.ToString("O"),
+            Capabilities = RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy
+        };
+
+        // Act
+        var result = ScheduleMapper.MapRoomStateFromDto(dto);
+
+        // Assert - Use reflection to verify all DTO properties are mapped
+        var dtoProperties = typeof(RoomStateDto).GetProperties();
+        var resultProperties = typeof(RoomState).GetProperties();
+
+        foreach (var dtoProp in dtoProperties)
+        {
+            var resultProp = resultProperties.FirstOrDefault(p => p.Name == dtoProp.Name);
+
+            // Special handling for LastUpdated since it converts from string to DateTimeOffset
+            if (dtoProp.Name == "LastUpdated")
+            {
+                resultProp.ShouldNotBeNull($"Property '{dtoProp.Name}' should exist on RoomState");
+                DateTimeOffset.Parse(dto.LastUpdated).ShouldBe(result.LastUpdated,
+                    $"Property '{dtoProp.Name}' should be mapped correctly");
+            }
+            else
+            {
+                resultProp.ShouldNotBeNull($"Property '{dtoProp.Name}' should exist on RoomState");
+                var dtoValue = dtoProp.GetValue(dto);
+                var resultValue = resultProp.GetValue(result);
+                resultValue.ShouldBe(dtoValue, $"Property '{dtoProp.Name}' should be mapped correctly");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void MapRoomStateToDto_MapsAllStateProperties()
+    {
+        // This test ensures that all properties on RoomState are mapped to RoomStateDto
+        // If a new property is added to RoomState but not mapped, this test will fail
+
+        // Arrange
+        var lastUpdated = DateTimeOffset.UtcNow;
+        var state = new RoomState
+        {
+            RoomId = 15,
+            CurrentTemperature = 18.0,
+            HeatingActive = false,
+            ActiveScheduleTrackId = 555,
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.None
+        };
+
+        // Act
+        var result = ScheduleMapper.MapRoomStateToDto(state);
+
+        // Assert - Use reflection to verify all State properties are mapped
+        var stateProperties = typeof(RoomState).GetProperties();
+        var dtoProperties = typeof(RoomStateDto).GetProperties();
+
+        foreach (var stateProp in stateProperties)
+        {
+            var dtoProp = dtoProperties.FirstOrDefault(p => p.Name == stateProp.Name);
+
+            // Special handling for LastUpdated since it converts from DateTimeOffset to string
+            if (stateProp.Name == "LastUpdated")
+            {
+                dtoProp.ShouldNotBeNull($"Property '{stateProp.Name}' should exist on RoomStateDto");
+                DateTimeOffset.Parse(result.LastUpdated).ShouldBe(state.LastUpdated,
+                    $"Property '{stateProp.Name}' should be mapped correctly");
+            }
+            else
+            {
+                dtoProp.ShouldNotBeNull($"Property '{stateProp.Name}' should exist on RoomStateDto");
+                var stateValue = stateProp.GetValue(state);
+                var dtoValue = dtoProp.GetValue(result);
+                dtoValue.ShouldBe(stateValue, $"Property '{stateProp.Name}' should be mapped correctly");
+            }
+        }
+    }
+
+    [TestMethod]
+    public void MapRoomStateFromDto_WithAllCapabilityVariations_MapsCorrectly()
+    {
+        // Test None capability
+        var dtoNone = new RoomStateDto
+        {
+            RoomId = 1,
+            HeatingActive = false,
+            LastUpdated = DateTimeOffset.UtcNow.ToString("O"),
+            Capabilities = RoomCapabilities.None
+        };
+        var resultNone = ScheduleMapper.MapRoomStateFromDto(dtoNone);
+        resultNone.Capabilities.ShouldBe(RoomCapabilities.None);
+
+        // Test CanSetTemperature only
+        var dtoTemp = new RoomStateDto
+        {
+            RoomId = 2,
+            HeatingActive = false,
+            LastUpdated = DateTimeOffset.UtcNow.ToString("O"),
+            Capabilities = RoomCapabilities.CanSetTemperature
+        };
+        var resultTemp = ScheduleMapper.MapRoomStateFromDto(dtoTemp);
+        resultTemp.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature);
+
+        // Test CanDetectRoomOccupancy only
+        var dtoOccupancy = new RoomStateDto
+        {
+            RoomId = 3,
+            HeatingActive = false,
+            LastUpdated = DateTimeOffset.UtcNow.ToString("O"),
+            Capabilities = RoomCapabilities.CanDetectRoomOccupancy
+        };
+        var resultOccupancy = ScheduleMapper.MapRoomStateFromDto(dtoOccupancy);
+        resultOccupancy.Capabilities.ShouldBe(RoomCapabilities.CanDetectRoomOccupancy);
+
+        // Test both capabilities
+        var dtoBoth = new RoomStateDto
+        {
+            RoomId = 4,
+            HeatingActive = false,
+            LastUpdated = DateTimeOffset.UtcNow.ToString("O"),
+            Capabilities = RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy
+        };
+        var resultBoth = ScheduleMapper.MapRoomStateFromDto(dtoBoth);
+        resultBoth.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy);
+    }
+
+    [TestMethod]
+    public void MapRoomStateToDto_WithAllCapabilityVariations_MapsCorrectly()
+    {
+        var lastUpdated = DateTimeOffset.UtcNow;
+
+        // Test None capability
+        var stateNone = new RoomState
+        {
+            RoomId = 1,
+            HeatingActive = false,
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.None
+        };
+        var resultNone = ScheduleMapper.MapRoomStateToDto(stateNone);
+        resultNone.Capabilities.ShouldBe(RoomCapabilities.None);
+
+        // Test CanSetTemperature only
+        var stateTemp = new RoomState
+        {
+            RoomId = 2,
+            HeatingActive = false,
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.CanSetTemperature
+        };
+        var resultTemp = ScheduleMapper.MapRoomStateToDto(stateTemp);
+        resultTemp.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature);
+
+        // Test CanDetectRoomOccupancy only
+        var stateOccupancy = new RoomState
+        {
+            RoomId = 3,
+            HeatingActive = false,
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.CanDetectRoomOccupancy
+        };
+        var resultOccupancy = ScheduleMapper.MapRoomStateToDto(stateOccupancy);
+        resultOccupancy.Capabilities.ShouldBe(RoomCapabilities.CanDetectRoomOccupancy);
+
+        // Test both capabilities
+        var stateBoth = new RoomState
+        {
+            RoomId = 4,
+            HeatingActive = false,
+            LastUpdated = lastUpdated,
+            Capabilities = RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy
+        };
+        var resultBoth = ScheduleMapper.MapRoomStateToDto(stateBoth);
+        resultBoth.Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature | RoomCapabilities.CanDetectRoomOccupancy);
     }
 
     #endregion

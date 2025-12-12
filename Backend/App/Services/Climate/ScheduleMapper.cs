@@ -132,7 +132,8 @@ public static class ScheduleMapper
             CurrentTemperature = dto.CurrentTemperature,
             HeatingActive = dto.HeatingActive,
             ActiveScheduleTrackId = dto.ActiveScheduleTrackId,
-            LastUpdated = DateTimeOffset.Parse(dto.LastUpdated)
+            LastUpdated = DateTimeOffset.Parse(dto.LastUpdated),
+            Capabilities = dto.Capabilities
         };
     }
 
@@ -150,7 +151,8 @@ public static class ScheduleMapper
             CurrentTemperature = state.CurrentTemperature,
             HeatingActive = state.HeatingActive,
             ActiveScheduleTrackId = state.ActiveScheduleTrackId,
-            LastUpdated = state.LastUpdated.ToString("O")
+            LastUpdated = state.LastUpdated.ToString("O"),
+            Capabilities = state.Capabilities
         };
     }
 }
