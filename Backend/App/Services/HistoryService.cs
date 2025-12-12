@@ -28,7 +28,7 @@ public class HistoryService
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityNumericHistory(string entityId, DateTime from, DateTime to)
+    public virtual async Task<IReadOnlyList<NumericHistoryEntry>> GetEntityNumericHistory(string entityId, DateTime from, DateTime to)
     {
         IReadOnlyList<HistoryTextEntry> states = await GetEntityTextHistory(entityId, from, to);
         try
@@ -46,7 +46,7 @@ public class HistoryService
         }
     }
 
-    public async Task<IReadOnlyList<HistoryTextEntry>> GetEntityTextHistory(string entityId, DateTime from, DateTime to)
+    public virtual async Task<IReadOnlyList<HistoryTextEntry>> GetEntityTextHistory(string entityId, DateTime from, DateTime to)
     {
         // Normalize to UTC
         DateTime fromUtc = from.ToUniversalTime();

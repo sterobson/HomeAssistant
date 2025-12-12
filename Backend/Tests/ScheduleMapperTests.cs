@@ -639,6 +639,7 @@ public class ScheduleMapperTests
         {
             RoomId = 5,
             CurrentTemperature = 19.5,
+            TargetTemperature = 21.0,
             HeatingActive = true,
             ActiveScheduleTrackId = 102,
             LastUpdated = lastUpdated.ToString("O"),
@@ -651,6 +652,7 @@ public class ScheduleMapperTests
         // Assert
         result.RoomId.ShouldBe(5);
         result.CurrentTemperature.ShouldBe(19.5);
+        result.TargetTemperature.ShouldBe(21.0);
         result.HeatingActive.ShouldBeTrue();
         result.ActiveScheduleTrackId.ShouldBe(102);
         result.LastUpdated.ShouldBe(lastUpdated);
@@ -712,6 +714,7 @@ public class ScheduleMapperTests
         {
             RoomId = 5,
             CurrentTemperature = 19.5,
+            TargetTemperature = 21.0,
             HeatingActive = true,
             ActiveScheduleTrackId = 102,
             LastUpdated = lastUpdated,
@@ -724,6 +727,7 @@ public class ScheduleMapperTests
         // Assert
         result.RoomId.ShouldBe(5);
         result.CurrentTemperature.ShouldBe(19.5);
+        result.TargetTemperature.ShouldBe(21.0);
         result.HeatingActive.ShouldBeTrue();
         result.ActiveScheduleTrackId.ShouldBe(102);
         result.LastUpdated.ShouldBe(lastUpdated.ToString("O"));
@@ -758,6 +762,7 @@ public class ScheduleMapperTests
         {
             RoomId = 3,
             CurrentTemperature = 20.5,
+            TargetTemperature = 22.0,
             HeatingActive = true,
             ActiveScheduleTrackId = 201,
             LastUpdated = lastUpdated.ToString("O"),
@@ -771,6 +776,7 @@ public class ScheduleMapperTests
         // Assert
         result.RoomId.ShouldBe(original.RoomId);
         result.CurrentTemperature.ShouldBe(original.CurrentTemperature);
+        result.TargetTemperature.ShouldBe(original.TargetTemperature);
         result.HeatingActive.ShouldBe(original.HeatingActive);
         result.ActiveScheduleTrackId.ShouldBe(original.ActiveScheduleTrackId);
         result.LastUpdated.ShouldBe(original.LastUpdated);

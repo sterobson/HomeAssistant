@@ -27,7 +27,8 @@
       "Bash(Select-Object -First 20 Name)",
       "Bash(pwsh -Command:*)",
       "Bash(Select-String -Pattern \"NetDaemon\")",
-      "Bash(Get-ChildItem -Directory -Filter \"*Function*\" -Recurse -Depth 2)"
+      "Bash(Get-ChildItem -Directory -Filter \"*Function*\" -Recurse -Depth 2)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []

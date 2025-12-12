@@ -130,6 +130,7 @@ public static class ScheduleMapper
         {
             RoomId = dto.RoomId,
             CurrentTemperature = dto.CurrentTemperature,
+            TargetTemperature = dto.TargetTemperature,
             HeatingActive = dto.HeatingActive,
             ActiveScheduleTrackId = dto.ActiveScheduleTrackId,
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated),
@@ -149,6 +150,7 @@ public static class ScheduleMapper
         {
             RoomId = state.RoomId,
             CurrentTemperature = state.CurrentTemperature,
+            TargetTemperature = state.TargetTemperature,
             HeatingActive = state.HeatingActive,
             ActiveScheduleTrackId = state.ActiveScheduleTrackId,
             LastUpdated = state.LastUpdated.ToString("O"),

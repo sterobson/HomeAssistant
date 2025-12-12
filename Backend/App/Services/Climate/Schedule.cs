@@ -36,6 +36,7 @@ public class RoomState
 {
     public int RoomId { get; set; }
     public double? CurrentTemperature { get; set; }
+    public double? TargetTemperature { get; set; }
     public bool HeatingActive { get; set; }
     public int ActiveScheduleTrackId { get; set; }
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;

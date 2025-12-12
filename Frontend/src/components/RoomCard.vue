@@ -11,24 +11,32 @@
         <div class="room-status">
           <div v-if="room.heatingActive" class="heating-status active" title="Heating active">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8.5.5a.5.5 0 0 0-1 0v1.518A7 7 0 0 0 2.5 9a7 7 0 0 0 5 6.482V15.5a.5.5 0 0 0 1 0v-.018A7 7 0 0 0 13.5 9a7 7 0 0 0-5-6.482V.5zM8 3.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm0 2a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
+              <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
             </svg>
           </div>
           <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
       <div class="header-actions">
-        <button v-if="!isBoostActive && canSetTemperature" class="boost-btn" @click.stop="handleBoost" title="Boost heating">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
+        <div class="icon-btn-placeholder">
+          <button v-if="!isBoostActive && canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" title="Boost heating">
+            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
+            </svg>
+          </button>
+        </div>
+        <button class="icon-btn history-btn" @click.stop="handleHistory" title="View temperature history">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M0 0h1v15h15v1H0V0zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5z"/>
           </svg>
-          BOOST
         </button>
-        <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M5 7l5 5 5-5H5z"/>
-          </svg>
-        </button>
+        <div class="collapse-btn-placeholder">
+          <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 7l5 5 5-5H5z"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -87,6 +95,17 @@
       @confirm="handleDeleteConfirm"
       @cancel="handleDeleteCancel"
     />
+
+    <TemperatureHistoryModal
+      :show="showHistory"
+      :room-name="room.name"
+      :history-data="historyData"
+      :loading="historyLoading"
+      :error="historyError"
+      @close="handleHistoryClose"
+      @retry="handleHistory"
+      @date-change="handleDateChange"
+    />
   </div>
 </template>
 
@@ -97,7 +116,9 @@ import ScheduleEditor from './ScheduleEditor.vue'
 import BoostModal from './BoostModal.vue'
 import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
+import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { heatingApi } from '../services/heatingApi.js'
 
 const { formatTempWithUnit } = useFormatting()
 
@@ -124,6 +145,10 @@ const editingSchedule = ref(null)
 const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
+const showHistory = ref(false)
+const historyData = ref([])
+const historyLoading = ref(false)
+const historyError = ref(null)
 
 // Check if room can set temperature (flag 1 in RoomCapabilities)
 const canSetTemperature = computed(() => {
@@ -241,6 +266,31 @@ const handleBoostCancel = () => {
 const handleCancelBoost = () => {
   emit('cancel-boost', props.room.id)
 }
+
+const handleHistory = async () => {
+  showHistory.value = true
+  // Initial data load will be triggered by the modal's date-change event
+}
+
+const handleDateChange = async (startDate, endDate) => {
+  historyLoading.value = true
+  historyError.value = null
+  historyData.value = []
+
+  try {
+    const response = await heatingApi.getRoomHistory(props.room.id, startDate, endDate)
+    historyData.value = response.points
+  } catch (error) {
+    console.error('Error fetching temperature history:', error)
+    historyError.value = 'Failed to load temperature history. Please try again.'
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const handleHistoryClose = () => {
+  showHistory.value = false
+}
 </script>
 
 <style scoped>
@@ -248,7 +298,7 @@ const handleCancelBoost = () => {
   background: var(--bg-secondary);
   border-radius: 8px;
   box-shadow: 0 2px 4px var(--shadow);
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
 }
 
@@ -326,19 +376,31 @@ const handleCancelBoost = () => {
   gap: 0.5rem;
 }
 
-.boost-btn {
-  background: linear-gradient(135deg, var(--color-warning) 0%, #e67e22 100%);
-  color: white;
-  border: none;
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.85rem;
+.icon-btn-placeholder,
+.collapse-btn-placeholder {
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  justify-content: center;
+}
+
+.icon-btn {
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
+  width: 36px;
+  height: 36px;
+}
+
+.boost-btn {
+  background: linear-gradient(135deg, var(--color-warning) 0%, #e67e22 100%);
   box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
 }
 
@@ -348,6 +410,20 @@ const handleCancelBoost = () => {
 }
 
 .boost-btn:active {
+  transform: translateY(0);
+}
+
+.history-btn {
+  background: linear-gradient(135deg, var(--color-primary) 0%, #1976d2 100%);
+  box-shadow: 0 2px 4px rgba(66, 165, 245, 0.2);
+}
+
+.history-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(66, 165, 245, 0.3);
+}
+
+.history-btn:active {
   transform: translateY(0);
 }
 

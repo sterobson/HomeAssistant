@@ -19,6 +19,7 @@ internal class HeatingControlService
     private readonly INamedEntities _namedEntities;
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
+    private readonly HistoryService _historyService;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<int, RoomState> _roomStates = [];
@@ -330,6 +331,7 @@ internal class HeatingControlService
         double? previousRoomTemperature = roomState.CurrentTemperature;
         roomState.RoomId = roomHeatingSchedule.Id;
         roomState.CurrentTemperature = currentTemperature;
+        roomState.TargetTemperature = desiredTemperature;
         roomState.HeatingActive = currentHeatingState ?? false;
         roomState.ActiveScheduleTrackId = effectiveTrack?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;

@@ -426,16 +426,26 @@ if ($Backend) {
             # Check Azure authentication
             Write-Info "Checking Azure authentication..."
 
-            $azResult = az account show 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "Not authenticated with Azure!"
-                Write-Host ""
-                Write-Warning "Please login to Azure:"
-                Write-Gray "  az login"
-                Write-Host ""
-                $deploymentSuccess = $false
+            $azCommand = Get-Command az -ErrorAction SilentlyContinue
+            if (-not $azCommand) {
+                Write-Warning "Azure CLI (az) not found - skipping authentication check"
+                Write-Gray "  Install from: https://aka.ms/installazurecliwindows"
+                Write-Success "Continuing with deployment (authentication will be checked during func azure functionapp publish)"
             } else {
-                Write-Success "Authenticated with Azure"
+                $azResult = az account show 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Not authenticated with Azure!"
+                    Write-Host ""
+                    Write-Warning "Please login to Azure:"
+                    Write-Gray "  az login"
+                    Write-Host ""
+                    $deploymentSuccess = $false
+                } else {
+                    Write-Success "Authenticated with Azure"
+                }
+            }
+
+            if ($deploymentSuccess) {
 
                 Push-Location $backendPath
 

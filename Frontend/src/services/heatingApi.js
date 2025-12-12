@@ -167,6 +167,36 @@ export const heatingApi = {
       console.error('Error saving house details:', error)
       throw error
     }
+  },
+
+  /**
+   * Get temperature history for a specific room
+   * @param {number} roomId - Room ID to get history for
+   * @param {Date} startDate - Start date for history range
+   * @param {Date} endDate - End date for history range
+   * @returns {Promise<Object>} History response with roomId and points array
+   */
+  async getRoomHistory(roomId, startDate, endDate) {
+    try {
+      const houseId = getCurrentHouseId()
+      const startISO = startDate.toISOString()
+      const endISO = endDate.toISOString()
+      const response = await fetch(
+        `${API_BASE_URL}/api/room-history?houseId=${houseId}&roomId=${roomId}&startDate=${startISO}&endDate=${endISO}`,
+        {
+          headers: getApiHeaders()
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch room history: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching room history:', error)
+      throw error
+    }
   }
 
   // TODO: SignalR Connection - Methods for SignalR real-time updates

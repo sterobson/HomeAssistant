@@ -233,7 +233,10 @@ public sealed class HeatingControlServiceTests
     private static ServiceProvider GetServiceProvider()
     {
         ServiceCollection services = new();
-        services.AddSingleton<HistoryService>();
+
+        // Use mock HistoryService to avoid HTTP calls
+        services.AddSingleton<HistoryService, MockHistoryService>();
+
         services.AddSingleton(Substitute.For<IScheduler>());
         services.AddSingleton(Substitute.For<IHomeBattery>());
         services.AddSingleton(Substitute.For<ISolarPanels>());
@@ -373,4 +376,24 @@ internal class FakeTimeProvider : TimeProvider
     public override DateTimeOffset GetUtcNow() => _specificDateTime;
 
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.FindSystemTimeZoneById("GMT");
+}
+
+internal class MockHistoryService : HistoryService
+{
+    public MockHistoryService(HomeAssistantConfiguration settings, ILogger<HistoryService> logger)
+        : base(settings, logger)
+    {
+    }
+
+    public override Task<IReadOnlyList<NumericHistoryEntry>> GetEntityNumericHistory(string entityId, DateTime from, DateTime to)
+    {
+        // Return empty history for tests - we don't need actual historical data
+        return Task.FromResult<IReadOnlyList<NumericHistoryEntry>>(new List<NumericHistoryEntry>());
+    }
+
+    public override Task<IReadOnlyList<HistoryTextEntry>> GetEntityTextHistory(string entityId, DateTime from, DateTime to)
+    {
+        // Return empty history for tests
+        return Task.FromResult<IReadOnlyList<HistoryTextEntry>>(new List<HistoryTextEntry>());
+    }
 }
