@@ -7,7 +7,14 @@
       }"
     >
       <div class="header-left" :class="{ 'not-expandable': !canSetTemperature }" @click="canSetTemperature && toggleCollapse()">
-        <h2 class="room-name">{{ room.name }}</h2>
+        <div class="room-name-wrapper">
+          <h2 class="room-name">{{ room.name }}</h2>
+          <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M5 7l5 5 5-5H5z"/>
+            </svg>
+          </button>
+        </div>
         <div class="room-status">
           <div v-if="room.heatingActive" class="heating-status active" title="Heating active">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
@@ -30,13 +37,6 @@
             <path d="M0 0h1v15h15v1H0V0zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5z"/>
           </svg>
         </button>
-        <div class="collapse-btn-placeholder">
-          <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M5 7l5 5 5-5H5z"/>
-            </svg>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -330,11 +330,18 @@ const handleHistoryClose = () => {
   cursor: default;
 }
 
+.room-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+}
+
 .room-name {
   font-size: 1.25rem;
   font-weight: 600;
-  flex: 1;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .room-status {
@@ -376,8 +383,7 @@ const handleHistoryClose = () => {
   gap: 0.5rem;
 }
 
-.icon-btn-placeholder,
-.collapse-btn-placeholder {
+.icon-btn-placeholder {
   width: 36px;
   height: 36px;
   display: flex;
