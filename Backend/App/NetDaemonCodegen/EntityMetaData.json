@@ -177,12 +177,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": null,
+          "friendlyName": "Living Room TV",
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": null,
+          "friendlyName": "Main speakers",
           "cSharpName": "MainSpeakers"
         }
       ],

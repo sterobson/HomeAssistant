@@ -1,8 +1,6 @@
 ﻿using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.CarChargers;
 using HomeAssistant.Devices.Meters;
-using HomeAssistant.Services;
-using HomeAssistant.Weather;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -17,21 +15,16 @@ internal class HomeBatteryManager
     private readonly IElectricityMeter _electricityMeter;
     private readonly IHomeBattery _homeBattery;
     private readonly ICarCharger _carCharger;
-    private readonly IWeatherProvider _weatherProvider;
-    private readonly ISolarPanels _solarPanels;
     private readonly ILogger<HomeBatteryManager> _logger;
     private readonly TimeProvider _timeProvider;
 
     public HomeBatteryManager(IScheduler scheduler, IElectricityMeter electricityMeter,
                                IHomeBattery homeBattery, ICarCharger carCharger,
-                               IWeatherProvider weatherProvider, ISolarPanels solarPanels,
                                ILogger<HomeBatteryManager> logger, TimeProvider timeProvider)
     {
         _electricityMeter = electricityMeter;
         _homeBattery = homeBattery;
         _carCharger = carCharger;
-        _weatherProvider = weatherProvider;
-        _solarPanels = solarPanels;
         _logger = logger;
         _timeProvider = timeProvider;
 
@@ -73,7 +66,7 @@ internal class HomeBatteryManager
     private double? _previousHomeBatteryChargePct = null;
     private bool _previousIsCarCharging = false;
     private bool _previousIsElectricityCheap = false;
-    private bool _previousShouldDischarge = false;
+    private bool _previousIsBatteryChargeAboveTarget = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
 
     private async Task SetBatteryState(string trigger)
@@ -98,47 +91,47 @@ internal class HomeBatteryManager
             DateTime now = _timeProvider.GetLocalNow().DateTime;
             BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
 
-            // Hours until we want the battery to be discharged
-            double hoursUntilDischargeTarget = dischargeUntil.ToTimeSpan().Subtract(now.TimeOfDay).TotalHours;
-            double targetFinalCapacity = (_homeBattery.BatteryCapacitykWh * stopDischargeIfUnderPercent) / 100;
-            double maxExportPercentPerHour = 100 * (_homeBattery.MaximumExportRateW / 1000) / _homeBattery.BatteryCapacitykWh;
-            double expectedCapacityPercentToDischargeToNow = stopDischargeIfUnderPercent + maxExportPercentPerHour * hoursUntilDischargeTarget;
-            if (expectedCapacityPercentToDischargeToNow < stopDischargeIfUnderPercent)
-            {
-                expectedCapacityPercentToDischargeToNow = 101;
-            }
-            else if (_homeBattery.CurrentChargePercent > expectedCapacityPercentToDischargeToNow && currentHomeBatteryState != BatteryState.ForceDischarging)
-            {
-                // If the battery is currently not discharging, give a few percent extra before we start discharging. Helps stop flapping.
-                expectedCapacityPercentToDischargeToNow += 1;
-            }
+            bool isBatteryCharging = currentHomeBatteryState == BatteryState.ForceCharging;
+            bool isBatterySelling = currentHomeBatteryState == BatteryState.ForceDischarging;
 
-            bool shouldDischarge = _homeBattery.CurrentChargePercent > expectedCapacityPercentToDischargeToNow;
+            // Set the battery's max charging current, which is 50A minus whatever the car is drawing (gives us lots of headroom)
+            double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
+            _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
+
+            // Target levels: 100% at 8am, 80% at midday, 20% at 11pm
+            Dictionary<TimeOnly, double> targetBatteryLevels = new()
+            {
+                // Expect to be at 100% at midnight - won't happen, but this stops us using the battery at other times.
+                { new TimeOnly(0, 0), 100 },
+                // After breakfast, hopefully a decent amount left.
+                { new TimeOnly(8, 0), 95 },
+                // Midday - target is 90%, at which point we sell back to the grid until down to 80%
+                { new TimeOnly(12, 0), 80 + (!isBatterySelling ? 10 : 0) },
+                // Aim to have drained the battery by 23:30. If got more than 2% above target left, reduce the target by 2% to avoid flapping.
+                { dischargeUntil, stopDischargeIfUnderPercent - ((isBatterySelling && (_homeBattery.CurrentChargePercent > stopDischargeIfUnderPercent + 2)) ? 2 : 0) }
+            };
+
+            double homeBatteryTargetChargePctRightNow = GetTargetBatteryLevel(TimeOnly.FromDateTime(now), targetBatteryLevels);
+            bool isBatteryChargeAboveTarget = _homeBattery.CurrentChargePercent > homeBatteryTargetChargePctRightNow;
 
             if (currentUnitPriceRate == _previousUnitPriceRate
                 && homeBatteryChargePct == _previousHomeBatteryChargePct
                 && isCarCharging == _previousIsCarCharging
                 && isElectricityCheap == _previousIsElectricityCheap
                 && currentHomeBatteryState == _previousBatteryState
-                && shouldDischarge == _previousShouldDischarge)
+                && isBatteryChargeAboveTarget == _previousIsBatteryChargeAboveTarget)
             {
                 // Nothing we care about has changed, so no need to do anything.
                 return;
             }
 
-            // Set the battery's max charging current, which is 50A minus whatever the car is drawing (gives us lots of headroom)
-            double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
-            _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
-
-            BatteryPredictionResult batteryPrediction = await GetPredictedBatteryScores();
-
             BatteryState desiredHomeBatteryState;
-            if (isElectricityCheap && homeBatteryChargePct < onlyStartChargingBatteryIfBelow && currentHomeBatteryState != BatteryState.ForceCharging)
+            if (isElectricityCheap && homeBatteryChargePct < onlyStartChargingBatteryIfBelow && !isBatteryCharging)
             {
                 // We're not currently charging, but the energy is cheap and the battery has < 95%, so start charging.
                 desiredHomeBatteryState = BatteryState.ForceCharging;
             }
-            else if (isElectricityCheap && homeBatteryChargePct < batteryConsideredFullIfGtEqToPercent && currentHomeBatteryState == BatteryState.ForceCharging)
+            else if (isElectricityCheap && homeBatteryChargePct < batteryConsideredFullIfGtEqToPercent && isBatteryCharging)
             {
                 // We are already charging, energy is cheap, and the battery is not full yet, so keep topping up.
                 desiredHomeBatteryState = BatteryState.ForceCharging;
@@ -148,7 +141,7 @@ internal class HomeBatteryManager
                 // We're charging the car and it's cheap energy, so don't use the battery.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
-            else if (!isElectricityCheap && isCarCharging && batteryPrediction.MinimumChargePct > 20)
+            else if (!isElectricityCheap && isCarCharging && isBatteryChargeAboveTarget)
             {
                 // Car is charging, and energy is expensive. Use the home battery if we can.
                 // Save some for us to use though.
@@ -159,7 +152,7 @@ internal class HomeBatteryManager
                 // We're charging the car but it's some scenario where we don't want to use the battery, so pause it.
                 desiredHomeBatteryState = BatteryState.Stopped;
             }
-            else if (shouldDischarge)
+            else if (isBatteryChargeAboveTarget)
             {
                 // Let's discharge whatever is in the battery
                 desiredHomeBatteryState = BatteryState.ForceDischarging;
@@ -179,20 +172,14 @@ internal class HomeBatteryManager
                 _logger.LogInformation(
                     "Battery state changed:\n" +
                     " * Home battery on {HomeBatteryChargePct}% (was {PreviousHomeBatteryChargePct}%)\n" +
-                    " * Predicted 24 hour range from {MinimumProjectedPercent}% at {MinimumPctDate} to {MaximumProjectedPercent}% at {MaximumPctDate}\n" +
-                    " * Predicted PV {EstimatedPV}kWh, predicted usage {EstimatedUsage}kWh\n" +
+                    " * Home battery target level right now {HomeBatteryTargetChargePct}%\n" +
                     " * Battery state changed from {CurrentHomeBatteryState} to {DesiredHomeBatteryState}\n" +
                     " * Current unit price £{CurrentUnitPriceRate} (was £{PreviousUnitPriceRate})\n" +
                     " * Hypervolt current {HypervoltCurrent}A\n" +
                     " * Triggered by {TriggeredBy}",
                     homeBatteryChargePct?.ToString("F0"),
                     _previousHomeBatteryChargePct?.ToString("F0"),
-                    batteryPrediction.MinimumChargePct.ToString("F0"),
-                    batteryPrediction.MinimumChargeDateTime.ToString("yyyy-MM-dd HH:mm"),
-                    batteryPrediction.MaximumChargePct.ToString("F0"),
-                    batteryPrediction.MaximumChargeDateTime.ToString("yyyy-MM-dd HH:mm"),
-                    batteryPrediction.EstimatedSolarProductionkWh.ToString("F1"),
-                    batteryPrediction.EstimatedUsagekWh.ToString("F1"),
+                    homeBatteryTargetChargePctRightNow.ToString("F0"),
                     currentHomeBatteryState,
                     desiredHomeBatteryState,
                     currentUnitPriceRate?.ToString("F3"),
@@ -207,7 +194,7 @@ internal class HomeBatteryManager
             _previousIsElectricityCheap = isElectricityCheap;
             _previousUnitPriceRate = currentUnitPriceRate;
             _previousBatteryState = desiredHomeBatteryState;
-            _previousShouldDischarge = shouldDischarge;
+            _previousIsBatteryChargeAboveTarget = isBatteryChargeAboveTarget;
         }
         finally
         {
@@ -215,200 +202,45 @@ internal class HomeBatteryManager
         }
     }
 
-    private IReadOnlyList<NumericHistoryEntry> _cachedSolarHistory = [];
-    private IReadOnlyList<NumericHistoryEntry> _cachedTotalBatteryPowerChargeHistory = [];
-    private IReadOnlyList<NumericHistoryEntry> _cachedCarChargerCurrentHistory = [];
-
-    private class BatteryPredictionResult
+    private static double GetTargetBatteryLevel(TimeOnly time, Dictionary<TimeOnly, double> targetBatteryLevels)
     {
-        public double MinimumChargekWh { get; set; }
-        public double MaximumChargekWh { get; set; }
-        public double MinimumChargePct { get; set; }
-        public double MaximumChargePct { get; set; }
-        public DateTime MinimumChargeDateTime { get; set; }
-        public DateTime MaximumChargeDateTime { get; set; }
-        public double Last24HoursSolarProductionkWh { get; set; }
-        public double EstimatedSolarProductionkWh { get; set; }
-        public double EstimatedSolarProductionPct { get; set; }
-        public double Last24HoursUsagekWh { get; set; }
-        public double EstimatedUsagekWh { get; set; }
-        public double EstimatedUsagePct { get; set; }
-    }
+        // Sort the dictionary by time
+        List<KeyValuePair<TimeOnly, double>> sortedTargets = [.. targetBatteryLevels.OrderBy(kvp => kvp.Key)];
 
-    private async Task<BatteryPredictionResult> GetPredictedBatteryScores()
-    {
-        const int daysPowerHistory = 3;
-
-        BatteryPredictionResult result = new();
-
-        DateTime now = _timeProvider.GetLocalNow().DateTime;
-        DateTime solarHistoryStartDate = now.AddDays(-1);
-        DateTime historyStartDate = now.Date.AddDays(-daysPowerHistory);
-        DateTime historyEndDate = now;
-
-        DateTime lastSolarHistoryDate = _cachedSolarHistory.LastOrDefault()?.LastChanged ?? solarHistoryStartDate;
-        DateTime lastTotalBatteryPowerDate = _cachedTotalBatteryPowerChargeHistory.LastOrDefault()?.LastChanged ?? historyStartDate;
-        DateTime lastCarChargerCurrentDate = _cachedCarChargerCurrentHistory.LastOrDefault()?.LastChanged ?? historyStartDate;
-
-        // Get new data that we might now have available
-        // Run all of the long running tasks in parallel.
-        Task<WeatherForecast> getWeatherForecastTask = _weatherProvider.GetWeatherAsync();
-        Task<IReadOnlyList<NumericHistoryEntry>> getSolarHistoryTask = _solarPanels.GetTotalSolarPanelPowerHistoryEntriesAsync(lastSolarHistoryDate, historyEndDate);
-
-        // We need to know how much power was used by the battery in total yesterday, minus whatever we might have used to charge the car.
-        // The naive way is to just go through the battery history, but where the car was charging then insert a battery history record
-        // for that time of 0W, and delete all other history records up until the charger current dropped back to 0, at which point insert
-        // another battery record of 0W.
-        Task<IReadOnlyList<NumericHistoryEntry>> getTotalBatteryPowerChargeHistoryTask = _homeBattery.GetTotalBatteryPowerChargeHistoryEntriesAsync(lastTotalBatteryPowerDate, historyEndDate);
-
-        // Get the car charger current history, sio we know which date ranges to exclude from the battery history.
-        Task<IReadOnlyList<NumericHistoryEntry>> getCarChargerCurrentHistoryTask = _carCharger.GetChargerCurrentHistoryEntriesAsync(lastCarChargerCurrentDate, historyEndDate);
-
-        // Get the home battery state history, so we can exclude times when it was charging or stopped.
-        Task<IReadOnlyList<HistoryEntry<BatteryState>>> batteryStateHistoryTask = _homeBattery.GetBatteryStateHistoryEntriesAsync(lastTotalBatteryPowerDate, historyEndDate);
-
-        await Task.WhenAll(getWeatherForecastTask, getSolarHistoryTask, getTotalBatteryPowerChargeHistoryTask, getCarChargerCurrentHistoryTask, batteryStateHistoryTask);
-
-        WeatherForecast forecast = await getWeatherForecastTask;
-
-        // Update the caches of the history data. We remove old stuff no longer needed, and add new stuff we don't already have.
-        _cachedSolarHistory = [
-            .. _cachedSolarHistory.Where(h => h.LastChanged > solarHistoryStartDate),
-            .. (await getSolarHistoryTask).Where(h => h.LastChanged > lastSolarHistoryDate)
-        ];
-
-        _cachedTotalBatteryPowerChargeHistory = [
-            .. _cachedTotalBatteryPowerChargeHistory.Where(h => h.LastChanged > historyStartDate),
-            .. (await getTotalBatteryPowerChargeHistoryTask).Where(h => h.LastChanged > lastTotalBatteryPowerDate)
-        ];
-
-        _cachedCarChargerCurrentHistory = [
-            .. _cachedCarChargerCurrentHistory.Where(h => h.LastChanged > historyStartDate),
-            .. (await getCarChargerCurrentHistoryTask).Where(h => h.LastChanged > lastCarChargerCurrentDate)
-        ];
-
-        IReadOnlyList<HistoryEntry<BatteryState>> batteryStateHistory = await batteryStateHistoryTask;
-
-        double totalWattSeconds = HistoryIntegrator.Integrate(_cachedSolarHistory, historyStartDate, historyEndDate);
-        double totalkWh = (totalWattSeconds / 1000) / 3600;
-
-        List<NumericHistoryEntry> nonCarChargingBatteryHistory = GetBatteryHistoryWithoutChargingAndCar(_cachedTotalBatteryPowerChargeHistory, _cachedCarChargerCurrentHistory, batteryStateHistory);
-
-        double batteryCharge = (_homeBattery.CurrentChargePercent ?? 0) * _homeBattery.BatteryCapacitykWh / 100;
-        Dictionary<DateTime, double> predictedBatteryChargeGraph = [];
-        predictedBatteryChargeGraph[now] = batteryCharge;
-
-        // Let's look at the weather for each of the next 24 hours, and see how much it'll compare to what we already know.
-        for (int i = 0; i < 24; i++)
+        // If the time is before or at the first entry, return the first value
+        if (time <= sortedTargets[0].Key)
         {
-            DateTime forecastTime = now.AddHours(i);
-            DateTime historyTime = forecastTime.AddDays(-1);
-            WeatherHour? weatherForecastEntry = forecast.Days.Where(f => f.DateLocal.ToDateTime(TimeOnly.MinValue) == forecastTime.Date)
-                    .SelectMany(d => d.Hours?.Where(h => h.TimeLocal <= forecastTime && h.TimeLocal.AddHours(1) >= forecastTime) ?? [])
-                    .FirstOrDefault();
-
-            WeatherHour? weatherHistoryEntry = forecast.Days.Where(f => f.DateLocal.ToDateTime(TimeOnly.MinValue) == historyTime.Date)
-                    .SelectMany(d => d.Hours?.Where(h => h.TimeLocal <= historyTime && h.TimeLocal.AddHours(1) >= historyTime) ?? [])
-                    .FirstOrDefault();
-
-            double pvForThisHourYesterday = HistoryIntegrator.Integrate(_cachedSolarHistory, historyTime, historyTime.AddHours(1)) / 3600000;
-            double cloudYesterday = (weatherHistoryEntry?.CloudCover ?? 0) / 100d;
-            double expectedCloudToday = (weatherForecastEntry?.CloudCover ?? 0) / 100d;
-            double k = 1;
-            double expectedPvForThisHourToday = pvForThisHourYesterday * Math.Pow(Math.E, -k * (expectedCloudToday - cloudYesterday));
-
-            // Note: the figures come out as negative for discharge, but we care about amount discharged so flip it.
-            IEnumerable<double> batteryDischargeHistoricValuesForThisHour = Enumerable.Range(0, daysPowerHistory).Select(i => HistoryIntegrator.Integrate(nonCarChargingBatteryHistory, historyTime.AddDays(-i), historyTime.AddDays(-i).AddHours(1)) / 3600000);
-            double batteryDischargeAverageForThisHour = -batteryDischargeHistoricValuesForThisHour.Average();
-
-            // The actual usage is what the battery discharged yesterday, plus whatever PV we had yesterday.
-            double estimatedUsageHistoryForThisHour = batteryDischargeAverageForThisHour + pvForThisHourYesterday;
-
-            batteryCharge += expectedPvForThisHourToday - estimatedUsageHistoryForThisHour;
-            predictedBatteryChargeGraph[forecastTime.AddHours(1)] = batteryCharge;
-
-            result.EstimatedSolarProductionkWh += expectedPvForThisHourToday;
-            result.EstimatedUsagekWh += estimatedUsageHistoryForThisHour;
-            result.Last24HoursSolarProductionkWh += pvForThisHourYesterday;
-            result.Last24HoursUsagekWh += estimatedUsageHistoryForThisHour;
+            return sortedTargets[0].Value;
         }
 
-        result.EstimatedSolarProductionPct = 100 * result.EstimatedSolarProductionkWh / _homeBattery.BatteryCapacitykWh;
-        result.EstimatedUsagePct = 100 * result.EstimatedUsagekWh / _homeBattery.BatteryCapacitykWh;
-
-        if (predictedBatteryChargeGraph.Count > 0)
+        // If the time is after or at the last entry, return the last value
+        if (time >= sortedTargets[^1].Key)
         {
-            KeyValuePair<DateTime, double> min = predictedBatteryChargeGraph.OrderBy(kv => kv.Value).First();
-            result.MinimumChargekWh = min.Value;
-            result.MinimumChargePct = 100 * min.Value / _homeBattery.BatteryCapacitykWh;
-            result.MinimumChargeDateTime = min.Key;
-
-            KeyValuePair<DateTime, double> max = predictedBatteryChargeGraph.OrderByDescending(kv => kv.Value).First();
-            result.MaximumChargekWh = max.Value;
-            result.MaximumChargePct = 100 * max.Value / _homeBattery.BatteryCapacitykWh;
-            result.MaximumChargeDateTime = max.Key;
+            return sortedTargets[^1].Value;
         }
 
-        return result;
-    }
-
-    private static List<NumericHistoryEntry> GetBatteryHistoryWithoutChargingAndCar(
-        IReadOnlyList<NumericHistoryEntry> batteryPowerHistory,
-        IReadOnlyList<NumericHistoryEntry> carChargerHistory,
-        IReadOnlyList<HistoryEntry<BatteryState>> batteryStateHistory)
-    {
-        // We only care about readings where it's negative, so the battery is discharging.
-        List<NumericHistoryEntry> nonCarChargingBatteryHistory = [.. batteryPowerHistory.Select(h => new NumericHistoryEntry { LastChanged = h.LastChanged, State = Math.Min(h.State, 0) })];
-
-        DateTime start = DateTime.MinValue, end = DateTime.MinValue;
-        bool hasCurrent = false;
-        for (int i = 0; i < carChargerHistory.Count; i++)
+        // Find the two surrounding time points
+        for (int i = 0; i < sortedTargets.Count - 1; i++)
         {
-            NumericHistoryEntry entry = carChargerHistory[i];
-            double current = entry.State;
-            if (current > 1 && !hasCurrent)
+            TimeOnly t1 = sortedTargets[i].Key;
+            TimeOnly t2 = sortedTargets[i + 1].Key;
+
+            if (time >= t1 && time <= t2)
             {
-                hasCurrent = true;
-                start = entry.LastChanged;
-            }
-            else if (current <= 1 && hasCurrent)
-            {
-                hasCurrent = false;
-                end = entry.LastChanged;
-                nonCarChargingBatteryHistory = [
-                    .. nonCarChargingBatteryHistory.Where(h => h.LastChanged < start || h.LastChanged > end),
-                    new NumericHistoryEntry{ LastChanged = start, State = 0},
-                    new NumericHistoryEntry{LastChanged = end, State = 0}
-                ];
+                double v1 = sortedTargets[i].Value;
+                double v2 = sortedTargets[i + 1].Value;
+
+                // Calculate the interpolation factor
+                double totalMinutes = (t2.ToTimeSpan() - t1.ToTimeSpan()).TotalMinutes;
+                double elapsedMinutes = (time.ToTimeSpan() - t1.ToTimeSpan()).TotalMinutes;
+                double factor = elapsedMinutes / totalMinutes;
+
+                // Linear interpolation
+                return v1 + (v2 - v1) * factor;
             }
         }
 
-        // Remove where the battery was not in TOU mode.
-        start = DateTime.MinValue;
-        end = DateTime.MinValue;
-        bool exclude = false;
-        for (int i = 0; i < batteryStateHistory.Count; i++)
-        {
-            HistoryEntry<BatteryState> entry = batteryStateHistory[i];
-            BatteryState state = entry.State;
-            if (state != BatteryState.NormalTOU && !exclude)
-            {
-                exclude = true;
-                start = entry.LastChanged;
-            }
-            else if (state == BatteryState.NormalTOU && exclude)
-            {
-                exclude = false;
-                end = entry.LastChanged;
-                nonCarChargingBatteryHistory = [
-                    .. nonCarChargingBatteryHistory.Where(h => h.LastChanged < start || h.LastChanged > end),
-                    new NumericHistoryEntry{ LastChanged = start, State = 0},
-                    new NumericHistoryEntry{LastChanged = end, State = 0}
-                ];
-            }
-        }
-
-        nonCarChargingBatteryHistory = [.. nonCarChargingBatteryHistory.OrderBy(h => h.LastChanged)];
-        return nonCarChargingBatteryHistory;
+        // Should not reach here, but return a default value just in case
+        return sortedTargets[^1].Value;
     }
 }
