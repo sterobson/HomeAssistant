@@ -137,6 +137,14 @@ public sealed class HeatingControlServiceTests
     [DataRow("Kitchen", "2025-11-24", "19:00", 19.0, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at exact target with heating OFF, stays OFF")]
     [DataRow("Kitchen", "2025-11-24", "19:00", 19.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Hysteresis: Kitchen target 19°C, at 19.2°C with heating ON, turns OFF")]
     [DataRow("Kitchen", "2025-11-24", "19:00", 18.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Hysteresis: Kitchen target 19°C, at 18.8°C with heating OFF, turns ON")]
+    // Bedroom 1 - Two device tests (smart plug + climate control)
+    [DataRow("Bedroom 1", "2025-11-24", "08:00", Current_Temp_17, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Bedroom 1 with two devices: Both off, temp below target, both should turn on")]
+    [DataRow("Bedroom 1", "2025-11-24", "08:00", Current_Temp_18, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Bedroom 1 with two devices: Both off, at target, both should stay off")]
+    [DataRow("Bedroom 1", "2025-11-24", "08:00", Current_Temp_19, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Bedroom 1 with two devices: Both on, above target + hysteresis, both should turn off")]
+    [DataRow("Bedroom 1", "2025-11-24", "08:00", 18.2, Heating_Is_On, Room_Occupied, Heating_Should_Be_Off, "Bedroom 1 with two devices: Exactly at target + hysteresis (18.2°C), turn off")]
+    [DataRow("Bedroom 1", "2025-11-24", "08:00", 17.8, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Bedroom 1 with two devices: Exactly at target - hysteresis (17.8°C), turn on")]
+    [DataRow("Bedroom 1", "2025-11-24", "23:00", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "Bedroom 1 evening schedule: 22:00 target is 16°C, needs heating")]
+    [DataRow("Bedroom 1", "2025-11-24", "23:00", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "Bedroom 1 evening schedule: At 16°C target")]
     // GMT to BST transition tests (Spring forward: 1:00 AM GMT becomes 2:00 AM BST on last Sunday of March)
     [DataRow("Games room", "2025-03-30", "00:30", Current_Temp_15, Heating_Is_Off, Room_Occupied, Heating_Should_Be_On, "DST Spring: 30 mins before clocks go forward, 01:00 schedule (15°C) active, need heating")]
     [DataRow("Games room", "2025-03-30", "00:30", Current_Temp_16, Heating_Is_Off, Room_Occupied, Heating_Should_Be_Off, "DST Spring: 30 mins before clocks go forward, above 01:00 target (15°C)")]
@@ -200,7 +208,7 @@ public sealed class HeatingControlServiceTests
         ((FakeCustomNumericSensorEntity)temperatureSensor).State = currentTemperature;
 
         // Set heating state for the room being tested
-        ICustomSwitchEntity heaterPlug = room switch
+        ICustomSwitchEntity? heaterPlug = room switch
         {
             "Games room" => namedEntities.GamesRoomHeaterSmartPlugOnOff,
             "Kitchen" => namedEntities.KitchenHeaterSmartPlugOnOff,
@@ -209,13 +217,32 @@ public sealed class HeatingControlServiceTests
             _ => throw new NotSupportedException($"Room {room} not supported in tests")
         };
 
+        // For rooms with climate control, set up the climate entity
+        ICustomClimateControlEntity? climateControl = room switch
+        {
+            "Bedroom 1" => namedEntities.Bedroom1RadiatorThermostat,
+            _ => null
+        };
+
         if (currentHeatingState)
         {
             heaterPlug.TurnOn();
+            if (climateControl != null)
+            {
+                FakeCustomClimateControlEntity fakeClimate = (FakeCustomClimateControlEntity)climateControl;
+                fakeClimate.CurrentTemperature = currentTemperature;
+                fakeClimate.SetTargetTemperature(currentTemperature.GetValueOrDefault() + 5);
+            }
         }
         else
         {
             heaterPlug.TurnOff();
+            if (climateControl != null)
+            {
+                FakeCustomClimateControlEntity fakeClimate = (FakeCustomClimateControlEntity)climateControl;
+                fakeClimate.CurrentTemperature = currentTemperature;
+                fakeClimate.SetTargetTemperature(currentTemperature.GetValueOrDefault() - 5);
+            }
         }
 
         await sut.EvaluateAllSchedules("unit test");
@@ -223,10 +250,18 @@ public sealed class HeatingControlServiceTests
         if (expectedHeatingState == Heating_Should_Be_On)
         {
             heaterPlug.IsOn().ShouldBeTrue(reason);
+            if (climateControl != null)
+            {
+                (climateControl.TargetTemperature > climateControl.CurrentTemperature).ShouldBeTrue($"{reason} - Climate control should be heating (target > current)");
+            }
         }
         else
         {
             heaterPlug.IsOff().ShouldBeTrue(reason);
+            if (climateControl != null)
+            {
+                (climateControl.TargetTemperature <= climateControl.CurrentTemperature).ShouldBeTrue($"{reason} - Climate control should not be heating (target <= current)");
+            }
         }
     }
 
@@ -334,6 +369,19 @@ public sealed class HeatingControlServiceTests
                     },
                     new HeatingScheduleTrack(){
                           TargetTime = new TimeOnly(21,30),
+                          Temperature = 16
+                    }
+                ]
+            },
+            new RoomSchedule(){
+                 Name = "Bedroom 1",
+                 ScheduleTracks = [
+                    new HeatingScheduleTrack(){
+                          TargetTime = new TimeOnly(07,00),
+                          Temperature = 18
+                    },
+                    new HeatingScheduleTrack(){
+                          TargetTime = new TimeOnly(22,00),
                           Temperature = 16
                     }
                 ]

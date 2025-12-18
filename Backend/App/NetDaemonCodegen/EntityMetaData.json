@@ -722,6 +722,11 @@
           "cSharpName": "Bedroom1PlugHeaterIdentify"
         },
         {
+          "id": "button.bedroom_1_radiator_identify",
+          "friendlyName": "Bedroom 1 - Radiator Identify",
+          "cSharpName": "Bedroom1RadiatorIdentify"
+        },
+        {
           "id": "button.bedroom_2_climate_identify",
           "friendlyName": "Bedroom 2 - Climate Identify",
           "cSharpName": "Bedroom2ClimateIdentify"
@@ -730,6 +735,11 @@
           "id": "button.bedroom_3_climate_identify",
           "friendlyName": "Bedroom 3 - Climate  Identify",
           "cSharpName": "Bedroom3ClimateIdentify"
+        },
+        {
+          "id": "button.bedroom_3_radiator_identify",
+          "friendlyName": "Bedroom 3 - Radiator Identify",
+          "cSharpName": "Bedroom3RadiatorIdentify"
         },
         {
           "id": "button.bedroom_3_temperature_and_humidity_identify",
@@ -1356,6 +1366,36 @@
       "isNumeric": true,
       "entities": [
         {
+          "id": "number.bedroom_1_radiator_external_temperature_sensor_value",
+          "friendlyName": "Bedroom 1 - Radiator External temperature sensor value",
+          "cSharpName": "Bedroom1RadiatorExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.bedroom_1_radiator_frost_protection_temperature",
+          "friendlyName": "Bedroom 1 - Radiator Frost protection temperature",
+          "cSharpName": "Bedroom1RadiatorFrostProtectionTemperature"
+        },
+        {
+          "id": "number.bedroom_1_radiator_local_temperature_offset",
+          "friendlyName": "Bedroom 1 - Radiator Local temperature offset",
+          "cSharpName": "Bedroom1RadiatorLocalTemperatureOffset"
+        },
+        {
+          "id": "number.bedroom_1_radiator_max_heat_setpoint_limit",
+          "friendlyName": "Bedroom 1 - Radiator Max heat setpoint limit",
+          "cSharpName": "Bedroom1RadiatorMaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_1_radiator_min_heat_setpoint_limit",
+          "friendlyName": "Bedroom 1 - Radiator Min heat setpoint limit",
+          "cSharpName": "Bedroom1RadiatorMinHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_1_radiator_temperature_control_accuracy",
+          "friendlyName": "Bedroom 1 - Radiator Temperature control accuracy",
+          "cSharpName": "Bedroom1RadiatorTemperatureControlAccuracy"
+        },
+        {
           "id": "number.bedroom_2_climate_comfort_humidity_max",
           "friendlyName": "Bedroom 2 - Climate Comfort humidity max",
           "cSharpName": "Bedroom2ClimateComfortHumidityMax"
@@ -1414,6 +1454,36 @@
           "id": "number.bedroom_3_climate_temperature_offset",
           "friendlyName": "Bedroom 3 - Climate  Temperature offset",
           "cSharpName": "Bedroom3ClimateTemperatureOffset"
+        },
+        {
+          "id": "number.bedroom_3_radiator_external_temperature_sensor_value",
+          "friendlyName": "Bedroom 3 - Radiator External temperature sensor value",
+          "cSharpName": "Bedroom3RadiatorExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.bedroom_3_radiator_frost_protection_temperature",
+          "friendlyName": "Bedroom 3 - Radiator Frost protection temperature",
+          "cSharpName": "Bedroom3RadiatorFrostProtectionTemperature"
+        },
+        {
+          "id": "number.bedroom_3_radiator_local_temperature_offset",
+          "friendlyName": "Bedroom 3 - Radiator Local temperature offset",
+          "cSharpName": "Bedroom3RadiatorLocalTemperatureOffset"
+        },
+        {
+          "id": "number.bedroom_3_radiator_max_heat_setpoint_limit",
+          "friendlyName": "Bedroom 3 - Radiator Max heat setpoint limit",
+          "cSharpName": "Bedroom3RadiatorMaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_3_radiator_min_heat_setpoint_limit",
+          "friendlyName": "Bedroom 3 - Radiator Min heat setpoint limit",
+          "cSharpName": "Bedroom3RadiatorMinHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_3_radiator_temperature_control_accuracy",
+          "friendlyName": "Bedroom 3 - Radiator Temperature control accuracy",
+          "cSharpName": "Bedroom3RadiatorTemperatureControlAccuracy"
         },
         {
           "id": "number.hypervolt_led_brightness",
@@ -2302,6 +2372,26 @@
           "cSharpName": "BackupNextScheduledAutomaticBackup"
         },
         {
+          "id": "sensor.bedroom_1_radiator_hvac_action",
+          "friendlyName": "Bedroom 1 - Radiator HVAC action",
+          "cSharpName": "Bedroom1RadiatorHvacAction"
+        },
+        {
+          "id": "sensor.bedroom_1_radiator_timestamp",
+          "friendlyName": "Bedroom 1 - Radiator Timestamp",
+          "cSharpName": "Bedroom1RadiatorTimestamp"
+        },
+        {
+          "id": "sensor.bedroom_3_radiator_hvac_action",
+          "friendlyName": "Bedroom 3 - Radiator HVAC action",
+          "cSharpName": "Bedroom3RadiatorHvacAction"
+        },
+        {
+          "id": "sensor.bedroom_3_radiator_timestamp",
+          "friendlyName": "Bedroom 3 - Radiator Timestamp",
+          "cSharpName": "Bedroom3RadiatorTimestamp"
+        },
+        {
           "id": "sensor.hypervolt_charging_readiness",
           "friendlyName": "Hypervolt Charging Readiness",
           "cSharpName": "HypervoltChargingReadiness"
@@ -2700,6 +2790,11 @@
           "cSharpName": "Bedroom1PlugHeaterVoltage"
         },
         {
+          "id": "sensor.bedroom_1_radiator_battery",
+          "friendlyName": "Bedroom 1 - Radiator Battery",
+          "cSharpName": "Bedroom1RadiatorBattery"
+        },
+        {
           "id": "sensor.bedroom_2_climate_battery",
           "friendlyName": "Bedroom 2 - Climate Battery",
           "cSharpName": "Bedroom2ClimateBattery"
@@ -2728,6 +2823,11 @@
           "id": "sensor.bedroom_3_climate_temperature",
           "friendlyName": "Bedroom 3",
           "cSharpName": "Bedroom3ClimateTemperature"
+        },
+        {
+          "id": "sensor.bedroom_3_radiator_battery",
+          "friendlyName": "Bedroom 3 - Radiator Battery",
+          "cSharpName": "Bedroom3RadiatorBattery"
         },
         {
           "id": "sensor.bedroom_3_temperature_and_humidity_battery",
@@ -4054,6 +4154,46 @@
           "cSharpName": "Bedroom1PlugHeaterSwitch"
         },
         {
+          "id": "switch.bedroom_1_radiator_child_lock",
+          "friendlyName": "Bedroom 1 - Radiator Child lock",
+          "cSharpName": "Bedroom1RadiatorChildLock"
+        },
+        {
+          "id": "switch.bedroom_1_radiator_external_temperature_sensor",
+          "friendlyName": "Bedroom 1 - Radiator External temperature sensor",
+          "cSharpName": "Bedroom1RadiatorExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.bedroom_1_radiator_open_window",
+          "friendlyName": "Bedroom 1 - Radiator Open window",
+          "cSharpName": "Bedroom1RadiatorOpenWindow"
+        },
+        {
+          "id": "switch.bedroom_1_radiator_switch",
+          "friendlyName": "Bedroom 1 - Radiator Switch",
+          "cSharpName": "Bedroom1RadiatorSwitch"
+        },
+        {
+          "id": "switch.bedroom_3_radiator_child_lock",
+          "friendlyName": "Bedroom 3 - Radiator Child lock",
+          "cSharpName": "Bedroom3RadiatorChildLock"
+        },
+        {
+          "id": "switch.bedroom_3_radiator_external_temperature_sensor",
+          "friendlyName": "Bedroom 3 - Radiator External temperature sensor",
+          "cSharpName": "Bedroom3RadiatorExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.bedroom_3_radiator_open_window",
+          "friendlyName": "Bedroom 3 - Radiator Open window",
+          "cSharpName": "Bedroom3RadiatorOpenWindow"
+        },
+        {
+          "id": "switch.bedroom_3_radiator_switch",
+          "friendlyName": "Bedroom 3 - Radiator Switch",
+          "cSharpName": "Bedroom3RadiatorSwitch"
+        },
+        {
           "id": "switch.christmas_tree",
           "friendlyName": "Christmas Tree",
           "cSharpName": "ChristmasTree"
@@ -4285,6 +4425,11 @@
           "cSharpName": "Bedroom1PlugHeaterFirmware"
         },
         {
+          "id": "update.bedroom_1_radiator_firmware",
+          "friendlyName": "Bedroom 1 - Radiator Firmware",
+          "cSharpName": "Bedroom1RadiatorFirmware"
+        },
+        {
           "id": "update.bedroom_2_climate_firmware",
           "friendlyName": "Bedroom 2 - Climate Firmware",
           "cSharpName": "Bedroom2ClimateFirmware"
@@ -4293,6 +4438,11 @@
           "id": "update.bedroom_3_climate_firmware",
           "friendlyName": "Bedroom 3 - Climate  Firmware",
           "cSharpName": "Bedroom3ClimateFirmware"
+        },
+        {
+          "id": "update.bedroom_3_radiator_firmware",
+          "friendlyName": "Bedroom 3 - Radiator Firmware",
+          "cSharpName": "Bedroom3RadiatorFirmware"
         },
         {
           "id": "update.bedroom_3_temperature_and_humidity_firmware",
@@ -4866,6 +5016,16 @@
     {
       "domain": "climate",
       "entities": [
+        {
+          "id": "climate.bedroom_1_radiator_thermostat",
+          "friendlyName": "Bedroom 1 - Radiator Thermostat",
+          "cSharpName": "Bedroom1RadiatorThermostat"
+        },
+        {
+          "id": "climate.bedroom_3_radiator_thermostat",
+          "friendlyName": "Bedroom 3 - Radiator Thermostat",
+          "cSharpName": "Bedroom3RadiatorThermostat"
+        },
         {
           "id": "climate.living_room_radiator_thermostat",
           "friendlyName": "Living Room - Radiator Thermostat",

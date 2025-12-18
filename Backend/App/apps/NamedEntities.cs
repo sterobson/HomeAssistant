@@ -110,12 +110,14 @@ public interface INamedEntities
     // Bedroom 1
     ICustomNumericSensorEntity Bedroom1Temperature { get; }
     ICustomSwitchEntity Bedroom1HeaterSmartPlugOnOff { get; }
+    ICustomClimateControlEntity Bedroom1RadiatorThermostat { get; }
 
     // Bedroom 2
     ICustomNumericSensorEntity Bedroom2Temperature { get; }
 
     // Bedroom 3
     ICustomNumericSensorEntity Bedroom3Temperature { get; }
+    ICustomClimateControlEntity Bedroom3RadiatorThermostat { get; }
 
     // Upstairs bathroom
     ICustomNumericSensorEntity UpstairsBathroomTemperature { get; }
@@ -177,6 +179,7 @@ public class NamedEntities : INamedEntities
     // Bedroom 1
     public ICustomNumericSensorEntity Bedroom1Temperature => new CustomNumericSensorEntity(_entities.Sensor.ClockTemperatureAndHumidityTemperature);
     public ICustomSwitchEntity Bedroom1HeaterSmartPlugOnOff => new CustomSwitchEntity(_entities.Switch.Bedroom1PlugHeaterSwitch);
+    public ICustomClimateControlEntity Bedroom1RadiatorThermostat => new CustomClimateControlEntity(_entities.Climate.Bedroom1RadiatorThermostat);
 
     // Bedroom 2
     public LightEntity BedroomTwoDeskLamp => _entities.Light.LamperionBaneOfShadows;
@@ -184,6 +187,7 @@ public class NamedEntities : INamedEntities
 
     // Bedroom 3
     public ICustomNumericSensorEntity Bedroom3Temperature => new CustomNumericSensorEntity(_entities.Sensor.Bedroom3ClimateTemperature);
+    public ICustomClimateControlEntity Bedroom3RadiatorThermostat => new CustomClimateControlEntity(_entities.Climate.Bedroom3RadiatorThermostat);
 
     // Bedroom 3
     public ICustomNumericSensorEntity UpstairsBathroomTemperature => new CustomNumericSensorEntity(_entities.Sensor.BathroomTemperature);

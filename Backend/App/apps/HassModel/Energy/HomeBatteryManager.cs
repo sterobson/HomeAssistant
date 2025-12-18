@@ -134,6 +134,7 @@ internal class HomeBatteryManager
             else if (isElectricityCheap && homeBatteryChargePct < batteryConsideredFullIfGtEqToPercent && isBatteryCharging)
             {
                 // We are already charging, energy is cheap, and the battery is not full yet, so keep topping up.
+                // Even if the car is charging, it's more cost effective to charge both at once.
                 desiredHomeBatteryState = BatteryState.ForceCharging;
             }
             else if (isElectricityCheap && isCarCharging)

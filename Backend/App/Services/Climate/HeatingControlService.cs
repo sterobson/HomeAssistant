@@ -3,6 +3,7 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reactive.Concurrency;
 using System.Threading.Tasks;
 
@@ -304,17 +305,25 @@ internal class HeatingControlService
         }
 
         // Figure out the actual current state of the room.
-        object? roomControlDevice = GetSwitchForRoom(roomHeatingSchedule);
+        object[] roomControlDevices = GetSwitchesForRoom(roomHeatingSchedule);
         bool? currentHeatingState = null;
-        if (roomControlDevice is ICustomSwitchEntity plug)
+        foreach (object roomControlDevice in roomControlDevices)
         {
-            if (plug?.IsOn() == true) currentHeatingState = true;
-            if (plug?.IsOff() == true) currentHeatingState = false;
-        }
-        else if (roomControlDevice is ICustomClimateControlEntity climateController)
-        {
-            if (climateController.TargetTemperature > climateController.CurrentTemperature) currentHeatingState = true;
-            if (climateController.TargetTemperature <= climateController.CurrentTemperature) currentHeatingState = false;
+            if (roomControlDevice is ICustomSwitchEntity plug)
+            {
+                if (plug?.IsOn() == true) currentHeatingState = true;
+                if (plug?.IsOff() == true) currentHeatingState = false;
+            }
+            else if (roomControlDevice is ICustomClimateControlEntity climateController)
+            {
+                if (climateController.TargetTemperature > climateController.CurrentTemperature) currentHeatingState = true;
+                if (climateController.TargetTemperature <= climateController.CurrentTemperature) currentHeatingState = false;
+            }
+
+            if (currentHeatingState != null)
+            {
+                break;
+            }
         }
 
         // Ensure that our cached state is updated.
@@ -516,8 +525,31 @@ internal class HeatingControlService
 
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
-        object? roomControllDevice = GetSwitchForRoom(roomHeatingSchedule);
+        List<Func<bool, Task<bool>>?> toggleFuncs = [.. GetSwitchesForRoom(roomHeatingSchedule).Select(GetOnToggleFuncForSingleDevice).Where(f => f != null)];
 
+        if (toggleFuncs.Count == 0)
+        {
+            return null;
+        }
+
+        return async (value) =>
+        {
+            bool anyChanged = false;
+            foreach (Func<bool, Task<bool>>? toggleFunc in toggleFuncs)
+            {
+                if (toggleFunc != null)
+                {
+                    bool changed = await toggleFunc(value);
+                    anyChanged |= changed;
+                }
+            }
+
+            return anyChanged;
+        };
+    }
+
+    private static Func<bool, Task<bool>>? GetOnToggleFuncForSingleDevice(object roomControllDevice)
+    {
         if (roomControllDevice is ICustomSwitchEntity plug)
         {
             return async (value) =>
@@ -560,20 +592,20 @@ internal class HeatingControlService
         }
     }
 
-    private object? GetSwitchForRoom(RoomSchedule roomHeatingSchedule)
+    private object[] GetSwitchesForRoom(RoomSchedule roomHeatingSchedule)
     {
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            "kitchen" => _namedEntities.KitchenHeaterSmartPlugOnOff,
-            "games room" => _namedEntities.GamesRoomHeaterSmartPlugOnOff,
-            "dining room" => _namedEntities.DiningRoomHeaterSmartPlugOnOff,
-            "living room" => _namedEntities.LivingRoomRadiatorThermostat,
-            "downstairs bathroom" => null,
-            "bedroom 1" => _namedEntities.Bedroom1HeaterSmartPlugOnOff,
-            "bedroom 2" => null,
-            "bedroom 3" => null,
-            "upstairs bathroom" => null,
-            _ => null
+            "kitchen" => [_namedEntities.KitchenHeaterSmartPlugOnOff],
+            "games room" => [_namedEntities.GamesRoomHeaterSmartPlugOnOff],
+            "dining room" => [_namedEntities.DiningRoomHeaterSmartPlugOnOff],
+            "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
+            "downstairs bathroom" => [],
+            "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
+            "bedroom 2" => [],
+            "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
+            "upstairs bathroom" => [],
+            _ => []
         };
     }
 
@@ -638,7 +670,7 @@ internal class HeatingControlService
 
     private RoomCapabilities GetRoomCapabilities(RoomSchedule room)
     {
-        return (GetSwitchForRoom(room) != null ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
+        return (GetSwitchesForRoom(room).Length != 0 ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
              | (_presenceService.CanDetectIfRoomInUse(room.Name) ? RoomCapabilities.CanDetectRoomOccupancy : RoomCapabilities.None);
     }
 
