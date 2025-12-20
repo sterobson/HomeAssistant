@@ -732,6 +732,11 @@
           "cSharpName": "Bedroom2ClimateIdentify"
         },
         {
+          "id": "button.bedroom_2_radiator_identify",
+          "friendlyName": "Bedroom 2 - Radiator Identify",
+          "cSharpName": "Bedroom2RadiatorIdentify"
+        },
+        {
           "id": "button.bedroom_3_climate_identify",
           "friendlyName": "Bedroom 3 - Climate  Identify",
           "cSharpName": "Bedroom3ClimateIdentify"
@@ -760,6 +765,11 @@
           "id": "button.dining_room_plug_heater_identify",
           "friendlyName": "Dining Room - Plug - Heater Identify",
           "cSharpName": "DiningRoomPlugHeaterIdentify"
+        },
+        {
+          "id": "button.dining_room_radiator_identify",
+          "friendlyName": "Dining Room - Radiator Identify",
+          "cSharpName": "DiningRoomRadiatorIdentify"
         },
         {
           "id": "button.ewelink_snzb_01p_identify",
@@ -1175,51 +1185,6 @@
           "cSharpName": "AutomationTest"
         },
         {
-          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
-          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
-          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
-          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
-          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
-          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
-          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
-        },
-        {
           "id": "input_boolean.kitchen_under_sink_flood",
           "friendlyName": "Kitchen - sink - flood",
           "cSharpName": "KitchenUnderSinkFlood"
@@ -1426,6 +1391,36 @@
           "cSharpName": "Bedroom2ClimateTemperatureOffset"
         },
         {
+          "id": "number.bedroom_2_radiator_external_temperature_sensor_value",
+          "friendlyName": "Bedroom 2 - Radiator External temperature sensor value",
+          "cSharpName": "Bedroom2RadiatorExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.bedroom_2_radiator_frost_protection_temperature",
+          "friendlyName": "Bedroom 2 - Radiator Frost protection temperature",
+          "cSharpName": "Bedroom2RadiatorFrostProtectionTemperature"
+        },
+        {
+          "id": "number.bedroom_2_radiator_local_temperature_offset",
+          "friendlyName": "Bedroom 2 - Radiator Local temperature offset",
+          "cSharpName": "Bedroom2RadiatorLocalTemperatureOffset"
+        },
+        {
+          "id": "number.bedroom_2_radiator_max_heat_setpoint_limit",
+          "friendlyName": "Bedroom 2 - Radiator Max heat setpoint limit",
+          "cSharpName": "Bedroom2RadiatorMaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_2_radiator_min_heat_setpoint_limit",
+          "friendlyName": "Bedroom 2 - Radiator Min heat setpoint limit",
+          "cSharpName": "Bedroom2RadiatorMinHeatSetpointLimit"
+        },
+        {
+          "id": "number.bedroom_2_radiator_temperature_control_accuracy",
+          "friendlyName": "Bedroom 2 - Radiator Temperature control accuracy",
+          "cSharpName": "Bedroom2RadiatorTemperatureControlAccuracy"
+        },
+        {
           "id": "number.bedroom_3_climate_comfort_humidity_max",
           "friendlyName": "Bedroom 3 - Climate  Comfort humidity max",
           "cSharpName": "Bedroom3ClimateComfortHumidityMax"
@@ -1484,6 +1479,36 @@
           "id": "number.bedroom_3_radiator_temperature_control_accuracy",
           "friendlyName": "Bedroom 3 - Radiator Temperature control accuracy",
           "cSharpName": "Bedroom3RadiatorTemperatureControlAccuracy"
+        },
+        {
+          "id": "number.dining_room_radiator_external_temperature_sensor_value",
+          "friendlyName": "Dining Room - Radiator External temperature sensor value",
+          "cSharpName": "DiningRoomRadiatorExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.dining_room_radiator_frost_protection_temperature",
+          "friendlyName": "Dining Room - Radiator Frost protection temperature",
+          "cSharpName": "DiningRoomRadiatorFrostProtectionTemperature"
+        },
+        {
+          "id": "number.dining_room_radiator_local_temperature_offset",
+          "friendlyName": "Dining Room - Radiator Local temperature offset",
+          "cSharpName": "DiningRoomRadiatorLocalTemperatureOffset"
+        },
+        {
+          "id": "number.dining_room_radiator_max_heat_setpoint_limit",
+          "friendlyName": "Dining Room - Radiator Max heat setpoint limit",
+          "cSharpName": "DiningRoomRadiatorMaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.dining_room_radiator_min_heat_setpoint_limit",
+          "friendlyName": "Dining Room - Radiator Min heat setpoint limit",
+          "cSharpName": "DiningRoomRadiatorMinHeatSetpointLimit"
+        },
+        {
+          "id": "number.dining_room_radiator_temperature_control_accuracy",
+          "friendlyName": "Dining Room - Radiator Temperature control accuracy",
+          "cSharpName": "DiningRoomRadiatorTemperatureControlAccuracy"
         },
         {
           "id": "number.hypervolt_led_brightness",
@@ -2382,6 +2407,16 @@
           "cSharpName": "Bedroom1RadiatorTimestamp"
         },
         {
+          "id": "sensor.bedroom_2_radiator_hvac_action",
+          "friendlyName": "Bedroom 2 - Radiator HVAC action",
+          "cSharpName": "Bedroom2RadiatorHvacAction"
+        },
+        {
+          "id": "sensor.bedroom_2_radiator_timestamp",
+          "friendlyName": "Bedroom 2 - Radiator Timestamp",
+          "cSharpName": "Bedroom2RadiatorTimestamp"
+        },
+        {
           "id": "sensor.bedroom_3_radiator_hvac_action",
           "friendlyName": "Bedroom 3 - Radiator HVAC action",
           "cSharpName": "Bedroom3RadiatorHvacAction"
@@ -2390,6 +2425,16 @@
           "id": "sensor.bedroom_3_radiator_timestamp",
           "friendlyName": "Bedroom 3 - Radiator Timestamp",
           "cSharpName": "Bedroom3RadiatorTimestamp"
+        },
+        {
+          "id": "sensor.dining_room_radiator_hvac_action",
+          "friendlyName": "Dining Room - Radiator HVAC action",
+          "cSharpName": "DiningRoomRadiatorHvacAction"
+        },
+        {
+          "id": "sensor.dining_room_radiator_timestamp",
+          "friendlyName": "Dining Room - Radiator Timestamp",
+          "cSharpName": "DiningRoomRadiatorTimestamp"
         },
         {
           "id": "sensor.hypervolt_charging_readiness",
@@ -2810,6 +2855,11 @@
           "cSharpName": "Bedroom2ClimateTemperature"
         },
         {
+          "id": "sensor.bedroom_2_radiator_battery",
+          "friendlyName": "Bedroom 2 - Radiator Battery",
+          "cSharpName": "Bedroom2RadiatorBattery"
+        },
+        {
           "id": "sensor.bedroom_3_climate_battery",
           "friendlyName": "Bedroom 3 - Climate  Battery",
           "cSharpName": "Bedroom3ClimateBattery"
@@ -2883,6 +2933,11 @@
           "id": "sensor.dining_room_plug_heater_voltage",
           "friendlyName": "Dining Room - Plug - Heater Voltage",
           "cSharpName": "DiningRoomPlugHeaterVoltage"
+        },
+        {
+          "id": "sensor.dining_room_radiator_battery",
+          "friendlyName": "Dining Room - Radiator Battery",
+          "cSharpName": "DiningRoomRadiatorBattery"
         },
         {
           "id": "sensor.diningroom_humidity",
@@ -4174,6 +4229,26 @@
           "cSharpName": "Bedroom1RadiatorSwitch"
         },
         {
+          "id": "switch.bedroom_2_radiator_child_lock",
+          "friendlyName": "Bedroom 2 - Radiator Child lock",
+          "cSharpName": "Bedroom2RadiatorChildLock"
+        },
+        {
+          "id": "switch.bedroom_2_radiator_external_temperature_sensor",
+          "friendlyName": "Bedroom 2 - Radiator External temperature sensor",
+          "cSharpName": "Bedroom2RadiatorExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.bedroom_2_radiator_open_window",
+          "friendlyName": "Bedroom 2 - Radiator Open window",
+          "cSharpName": "Bedroom2RadiatorOpenWindow"
+        },
+        {
+          "id": "switch.bedroom_2_radiator_switch",
+          "friendlyName": "Bedroom 2 - Radiator Switch",
+          "cSharpName": "Bedroom2RadiatorSwitch"
+        },
+        {
           "id": "switch.bedroom_3_radiator_child_lock",
           "friendlyName": "Bedroom 3 - Radiator Child lock",
           "cSharpName": "Bedroom3RadiatorChildLock"
@@ -4212,6 +4287,26 @@
           "id": "switch.dining_room_plug_heater_switch",
           "friendlyName": "Dining Room - Plug - Heater",
           "cSharpName": "DiningRoomPlugHeaterSwitch"
+        },
+        {
+          "id": "switch.dining_room_radiator_child_lock",
+          "friendlyName": "Dining Room - Radiator Child lock",
+          "cSharpName": "DiningRoomRadiatorChildLock"
+        },
+        {
+          "id": "switch.dining_room_radiator_external_temperature_sensor",
+          "friendlyName": "Dining Room - Radiator External temperature sensor",
+          "cSharpName": "DiningRoomRadiatorExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.dining_room_radiator_open_window",
+          "friendlyName": "Dining Room - Radiator Open window",
+          "cSharpName": "DiningRoomRadiatorOpenWindow"
+        },
+        {
+          "id": "switch.dining_room_radiator_switch",
+          "friendlyName": "Dining Room - Radiator Switch",
+          "cSharpName": "DiningRoomRadiatorSwitch"
         },
         {
           "id": "switch.games_room_desk_plug",
@@ -4435,6 +4530,11 @@
           "cSharpName": "Bedroom2ClimateFirmware"
         },
         {
+          "id": "update.bedroom_2_radiator_firmware",
+          "friendlyName": "Bedroom 2 - Radiator Firmware",
+          "cSharpName": "Bedroom2RadiatorFirmware"
+        },
+        {
           "id": "update.bedroom_3_climate_firmware",
           "friendlyName": "Bedroom 3 - Climate  Firmware",
           "cSharpName": "Bedroom3ClimateFirmware"
@@ -4463,6 +4563,11 @@
           "id": "update.dining_room_plug_heater_firmware",
           "friendlyName": "Dining Room - Plug - Heater Firmware",
           "cSharpName": "DiningRoomPlugHeaterFirmware"
+        },
+        {
+          "id": "update.dining_room_radiator_firmware",
+          "friendlyName": "Dining Room - Radiator Firmware",
+          "cSharpName": "DiningRoomRadiatorFirmware"
         },
         {
           "id": "update.ewelink_snzb_01p_firmware",
@@ -5022,9 +5127,19 @@
           "cSharpName": "Bedroom1RadiatorThermostat"
         },
         {
+          "id": "climate.bedroom_2_radiator_thermostat",
+          "friendlyName": "Bedroom 2 - Radiator Thermostat",
+          "cSharpName": "Bedroom2RadiatorThermostat"
+        },
+        {
           "id": "climate.bedroom_3_radiator_thermostat",
           "friendlyName": "Bedroom 3 - Radiator Thermostat",
           "cSharpName": "Bedroom3RadiatorThermostat"
+        },
+        {
+          "id": "climate.dining_room_radiator_thermostat",
+          "friendlyName": "Dining Room - Radiator Thermostat",
+          "cSharpName": "DiningRoomRadiatorThermostat"
         },
         {
           "id": "climate.living_room_radiator_thermostat",

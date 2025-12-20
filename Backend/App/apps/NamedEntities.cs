@@ -90,6 +90,7 @@ public interface INamedEntities
     ICustomSwitchEntity DiningRoomDeskPlugOnOff { get; }
     ICustomNumericSensorEntity DiningRoomDeskPlugPower { get; }
     ICustomSwitchEntity DiningRoomHeaterSmartPlugOnOff { get; }
+    ICustomClimateControlEntity DiningRoomRadiatorThermostat { get; }
 
     // Kitchen
     ICustomNumericSensorEntity KitchenTemperature { get; }
@@ -114,6 +115,7 @@ public interface INamedEntities
 
     // Bedroom 2
     ICustomNumericSensorEntity Bedroom2Temperature { get; }
+    ICustomClimateControlEntity Bedroom2RadiatorThermostat { get; }
 
     // Bedroom 3
     ICustomNumericSensorEntity Bedroom3Temperature { get; }
@@ -160,6 +162,7 @@ public class NamedEntities : INamedEntities
     public LightEntity DiningBookshelfLightStrip => _entities.Light.BookcaseLightStrip;
     public ICustomSwitchEntity DiningBookshelfLightStripPlugOnOff => new CustomSwitchEntity(_entities.Switch.Smartplug01Switch);
     public ICustomSwitchEntity DiningRoomLegoVillage => new CustomSwitchEntity(_entities.Switch.LegoVillage);
+    public ICustomClimateControlEntity DiningRoomRadiatorThermostat => new CustomClimateControlEntity(_entities.Climate.DiningRoomRadiatorThermostat);
 
     // Kitchen
     public ICustomNumericSensorEntity KitchenTemperature => new CustomNumericSensorEntity(_entities.Sensor.KitchenTemperatureAndHumidityTemperature);
@@ -184,6 +187,7 @@ public class NamedEntities : INamedEntities
     // Bedroom 2
     public LightEntity BedroomTwoDeskLamp => _entities.Light.LamperionBaneOfShadows;
     public ICustomNumericSensorEntity Bedroom2Temperature => new CustomNumericSensorEntity(_entities.Sensor.Bedroom2ClimateTemperature);
+    public ICustomClimateControlEntity Bedroom2RadiatorThermostat => new CustomClimateControlEntity(_entities.Climate.Bedroom2RadiatorThermostat);
 
     // Bedroom 3
     public ICustomNumericSensorEntity Bedroom3Temperature => new CustomNumericSensorEntity(_entities.Sensor.Bedroom3ClimateTemperature);

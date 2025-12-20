@@ -36,6 +36,8 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomNumericSensorEntity DiningRoomClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DiningRoomClimateTemperature) };
 
+    public ICustomClimateControlEntity DiningRoomRadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(DiningRoomRadiatorThermostat) };
+
     public ICustomNumericSensorEntity LivingRoomClimateHumidity { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomClimateHumidity) };
 
     public ICustomNumericSensorEntity LivingRoomClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomClimateTemperature) };
@@ -43,6 +45,8 @@ internal class FakeNamedEntities : INamedEntities
     public ICustomClimateControlEntity LivingRoomRadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(LivingRoomRadiatorThermostat) };
 
     public ICustomNumericSensorEntity Bedroom2Temperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(Bedroom2Temperature) };
+
+    public ICustomClimateControlEntity Bedroom2RadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(Bedroom2RadiatorThermostat) };
 
     public ICustomNumericSensorEntity Bedroom3Temperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(Bedroom3Temperature) };
 

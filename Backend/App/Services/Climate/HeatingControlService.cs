@@ -598,11 +598,11 @@ internal class HeatingControlService
         {
             "kitchen" => [_namedEntities.KitchenHeaterSmartPlugOnOff],
             "games room" => [_namedEntities.GamesRoomHeaterSmartPlugOnOff],
-            "dining room" => [_namedEntities.DiningRoomHeaterSmartPlugOnOff],
+            "dining room" => [_namedEntities.DiningRoomHeaterSmartPlugOnOff, _namedEntities.DiningRoomRadiatorThermostat],
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
             "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
-            "bedroom 2" => [],
+            "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
             "upstairs bathroom" => [],
             _ => []
