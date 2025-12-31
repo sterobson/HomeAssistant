@@ -248,10 +248,23 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
                 return Task.CompletedTask;
             };
 
-            _hubConnection.Reconnected += (string? connectionId) =>
+            _hubConnection.Reconnected += async (string? connectionId) =>
             {
                 _logger.LogInformation("SignalR reconnected with connection ID: {ConnectionId}", connectionId);
-                return Task.CompletedTask;
+
+                // Re-add to group after reconnection (connection ID changes on reconnect)
+                if (!string.IsNullOrEmpty(connectionId))
+                {
+                    try
+                    {
+                        await AddToGroupAsync(connectionId);
+                        _logger.LogInformation("Successfully re-added to SignalR group after reconnection");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to re-add to SignalR group after reconnection - will rely on periodic refresh");
+                    }
+                }
             };
 
             await _hubConnection.StartAsync();

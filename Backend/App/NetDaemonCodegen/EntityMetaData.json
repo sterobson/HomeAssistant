@@ -456,7 +456,7 @@
         },
         {
           "id": "binary_sensor.lego_village_cloud_connection",
-          "friendlyName": "Lego village Cloud connection",
+          "friendlyName": "Cloud connection",
           "cSharpName": "LegoVillageCloudConnection"
         },
         {
@@ -1183,6 +1183,51 @@
           "id": "input_boolean.automation_test",
           "friendlyName": "Automation test",
           "cSharpName": "AutomationTest"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
+          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
+          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
+          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
+          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
+          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
+          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
+          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
+          "cSharpName": "DevNetdaemonHassModelWooooooo"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
+        },
+        {
+          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
+          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
         },
         {
           "id": "input_boolean.kitchen_under_sink_flood",
@@ -3146,32 +3191,32 @@
         },
         {
           "id": "sensor.lego_village_current",
-          "friendlyName": "Lego village Current",
+          "friendlyName": "Current",
           "cSharpName": "LegoVillageCurrent"
         },
         {
           "id": "sensor.lego_village_current_consumption",
-          "friendlyName": "Lego village Current consumption",
+          "friendlyName": "Current consumption",
           "cSharpName": "LegoVillageCurrentConsumption"
         },
         {
           "id": "sensor.lego_village_this_month_s_consumption",
-          "friendlyName": "Lego village This month\u0027s consumption",
+          "friendlyName": "This month\u0027s consumption",
           "cSharpName": "LegoVillageThisMonthSConsumption"
         },
         {
           "id": "sensor.lego_village_today_s_consumption",
-          "friendlyName": "Lego village Today\u0027s consumption",
+          "friendlyName": "Today\u0027s consumption",
           "cSharpName": "LegoVillageTodaySConsumption"
         },
         {
           "id": "sensor.lego_village_total_consumption",
-          "friendlyName": "Lego village Total consumption",
+          "friendlyName": "Total consumption",
           "cSharpName": "LegoVillageTotalConsumption"
         },
         {
           "id": "sensor.lego_village_voltage",
-          "friendlyName": "Lego village Voltage",
+          "friendlyName": "Voltage",
           "cSharpName": "LegoVillageVoltage"
         },
         {
@@ -4335,12 +4380,12 @@
         },
         {
           "id": "switch.lego_village",
-          "friendlyName": "Lego village",
+          "friendlyName": null,
           "cSharpName": "LegoVillage"
         },
         {
           "id": "switch.lego_village_led",
-          "friendlyName": "Lego village LED",
+          "friendlyName": "LED",
           "cSharpName": "LegoVillageLed"
         },
         {

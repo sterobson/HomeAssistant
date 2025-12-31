@@ -20,11 +20,16 @@ internal class HeatingControlService
     private readonly INamedEntities _namedEntities;
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
-    private readonly HistoryService _historyService;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
+
+    private readonly CustomSwitchWithConditions _gamesRoomHeaterSmartPlugOnOffWithConditions;
+    private readonly CustomSwitchWithConditions _diningRoomHeaterSmartPlugOnOffWithConditions;
+    private readonly CustomSwitchWithConditions _bedroom1HeaterSmartPlugOnOffWithConditions;
+    private readonly CustomSwitchWithConditions _kitchenHeaterSmartPlugOnOffWithConditions;
+    private readonly HousePresenceSensor _housePresenceSensor;
 
     public HeatingControlService(
         INamedEntities namedEntities,
@@ -47,65 +52,17 @@ internal class HeatingControlService
         _schedulePersistence = schedulePersistence;
         _statePersistence = statePersistence;
 
-        //// Initialize with default schedules (will be replaced if API client is available)
-        //Schedules = new()
-        //{
-        //    Rooms = [
-        //        new()
-        //        {
-        //            Id = 1,
-        //            Name = "Kitcken",
-        //            ScheduleTracks = [
-        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(5,30), Temperature = 17 },
-        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(6,30), Temperature = 18, Days = Days.NotSunday },
-        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(18,00), Temperature = 19 },
-        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(18,30), Temperature = 17.5 },
-        //                new HeatingScheduleTrack { TargetTime = new TimeOnly(21,30), Temperature = 16 }
-        //            ]
-        //        },
-        //        new()
-        //        {
-        //            Id = 2,
-        //            Name = "Games room",
-        //            ScheduleTracks = [
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,00), Temperature = 18, Conditions = ConditionType.RoomNotInUse, Days = Days.Weekdays }, // Preheat on a weekday morning, anticipating use
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 16, Conditions = ConditionType.RoomNotInUse }, // Only if the desk has not been in use
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-        //            ]
-        //        },
-        //        new()
-        //        {
-        //            Id = 3,
-        //            Name = "Bedroom 1",
-        //            ScheduleTracks = [
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 18, Days = Days.Weekdays},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,30), Temperature = 16, Days = Days.Weekdays},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(7,30), Temperature = 19, Days = Days.Saturday},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(8,00), Temperature = 16, Days = Days.Saturday},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,00), Temperature = 19, Days = Days.Sunday},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(9,30), Temperature = 16, Days = Days.Sunday},
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,30), Temperature = 18 },
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,31), Temperature = 14 },
-        //            ]
-        //        },
-        //        new()
-        //        {
-        //            Id = 4,
-        //            Name = "Dining room",
-        //            ScheduleTracks = [
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 19, Conditions = ConditionType.RoomInUse }, // Only if the desk has been on and in use
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(0,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse },
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(6,00), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
-        //                new HeatingScheduleTrack{ TargetTime = new TimeOnly(21,00), Temperature = 14, Conditions = ConditionType.RoomNotInUse }
-        //            ]
-        //        },
+        // Entities which depend on other entities.
+        _gamesRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.GamesRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(GamesRoomHeaterConditions));
+        _diningRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.DiningRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(DiningRoomHeaterConditions));
+        _bedroom1HeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.Bedroom1HeaterSmartPlugOnOff, () => EvaluateHeaterConditions(Bedroom1HeaterConditions));
+        _kitchenHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.KitchenHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(KitchenHeaterConditions));
 
-        //    ]
-        //};
-
-        // string s = System.Text.Json.JsonSerializer.Serialize(ScheduleMapper.MapToDto(Schedules));
+        _housePresenceSensor = new(
+            namedEntities.GamesRoomDeskPlugOnOff,
+            namedEntities.GamesRoomDeskPlugPower,
+            namedEntities.DiningRoomDeskPlugOnOff,
+            namedEntities.DiningRoomDeskPlugPower);
     }
 
     public void Start()
@@ -596,12 +553,12 @@ internal class HeatingControlService
     {
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            "kitchen" => [_namedEntities.KitchenHeaterSmartPlugOnOff],
-            "games room" => [_namedEntities.GamesRoomHeaterSmartPlugOnOff],
-            "dining room" => [_namedEntities.DiningRoomHeaterSmartPlugOnOff, _namedEntities.DiningRoomRadiatorThermostat],
+            "kitchen" => [_kitchenHeaterSmartPlugOnOffWithConditions],
+            "games room" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
+            "dining room" => [_diningRoomHeaterSmartPlugOnOffWithConditions, _namedEntities.DiningRoomRadiatorThermostat],
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
-            "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
+            "bedroom 1" => [_bedroom1HeaterSmartPlugOnOffWithConditions, _namedEntities.Bedroom1RadiatorThermostat],
             "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
             "upstairs bathroom" => [],
@@ -687,4 +644,65 @@ internal class HeatingControlService
             return (int)((to - from + TimeSpan.FromDays(1)).TotalMinutes);
         }
     }
+
+    private bool EvaluateHeaterConditions(HeaterConditions conditions)
+    {
+        // Check power override first (if configured)
+        if (conditions.PowerOverrideSensor?.State >= conditions.PowerOverrideThreshold)
+        {
+            return true;
+        }
+
+        // House presence check
+        if (conditions.RequireHousePresence && _housePresenceSensor.State != true)
+        {
+            return false;
+        }
+
+        // Time-based check
+        TimeSpan now = _timeProvider.GetLocalNow().TimeOfDay;
+        return conditions.AllowedTimeWindows.Any(window => now >= window.Start && now < window.End);
+    }
+
+    private HeaterConditions GamesRoomHeaterConditions => new()
+    {
+        RequireHousePresence = true,
+        PowerOverrideSensor = _namedEntities.GamesRoomDeskPlugPower,
+        PowerOverrideThreshold = 30,
+        AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(21, 0, 0))]
+    };
+
+    private HeaterConditions DiningRoomHeaterConditions => new()
+    {
+        RequireHousePresence = true,
+        PowerOverrideSensor = _namedEntities.DiningRoomDeskPlugPower,
+        PowerOverrideThreshold = 30,
+        AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(18, 0, 0))]
+    };
+
+    private HeaterConditions KitchenHeaterConditions => new()
+    {
+        RequireHousePresence = true,
+        AllowedTimeWindows = [new(new TimeSpan(6, 0, 0), new TimeSpan(21, 0, 0))]
+    };
+
+    private HeaterConditions Bedroom1HeaterConditions => new()
+    {
+        RequireHousePresence = true,
+        AllowedTimeWindows =
+        [
+            new(new TimeSpan(8, 0, 0), new TimeSpan(8, 30, 0)),
+            new(new TimeSpan(21, 0, 0), new TimeSpan(21, 15, 0))
+        ]
+    };
+}
+
+internal record TimeWindow(TimeSpan Start, TimeSpan End);
+
+internal class HeaterConditions
+{
+    public bool RequireHousePresence { get; init; } = true;
+    public ICustomNumericSensorEntity? PowerOverrideSensor { get; init; }
+    public double PowerOverrideThreshold { get; init; } = 30;
+    public List<TimeWindow> AllowedTimeWindows { get; init; } = [];
 }
