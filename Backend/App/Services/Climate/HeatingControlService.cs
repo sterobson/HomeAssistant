@@ -648,7 +648,9 @@ internal class HeatingControlService
     private bool EvaluateHeaterConditions(HeaterConditions conditions)
     {
         // Check power override first (if configured)
-        if (conditions.PowerOverrideSensor?.State >= conditions.PowerOverrideThreshold)
+        // Only trust power reading if the switch is actually on (plugs report stale power when off)
+        bool switchIsOn = conditions.PowerOverrideSwitch?.IsOn() == true;
+        if (switchIsOn && conditions.PowerOverrideSensor?.State >= conditions.PowerOverrideThreshold)
         {
             return true;
         }
@@ -667,6 +669,7 @@ internal class HeatingControlService
     private HeaterConditions GamesRoomHeaterConditions => new()
     {
         RequireHousePresence = true,
+        PowerOverrideSwitch = _namedEntities.GamesRoomDeskPlugOnOff,
         PowerOverrideSensor = _namedEntities.GamesRoomDeskPlugPower,
         PowerOverrideThreshold = 30,
         AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(21, 0, 0))]
@@ -675,6 +678,7 @@ internal class HeatingControlService
     private HeaterConditions DiningRoomHeaterConditions => new()
     {
         RequireHousePresence = true,
+        PowerOverrideSwitch = _namedEntities.DiningRoomDeskPlugOnOff,
         PowerOverrideSensor = _namedEntities.DiningRoomDeskPlugPower,
         PowerOverrideThreshold = 30,
         AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(18, 0, 0))]
@@ -702,6 +706,7 @@ internal record TimeWindow(TimeSpan Start, TimeSpan End);
 internal class HeaterConditions
 {
     public bool RequireHousePresence { get; init; } = true;
+    public ICustomSwitchEntity? PowerOverrideSwitch { get; init; }
     public ICustomNumericSensorEntity? PowerOverrideSensor { get; init; }
     public double PowerOverrideThreshold { get; init; } = 30;
     public List<TimeWindow> AllowedTimeWindows { get; init; } = [];
