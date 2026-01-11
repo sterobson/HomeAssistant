@@ -5,6 +5,7 @@ using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
@@ -24,6 +25,7 @@ internal class HeatingControlService
     internal const double HysteresisOffset = 0.2;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
+    private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
     private readonly CustomSwitchWithConditions _gamesRoomHeaterSmartPlugOnOffWithConditions;
     private readonly CustomSwitchWithConditions _diningRoomHeaterSmartPlugOnOffWithConditions;
@@ -174,16 +176,24 @@ internal class HeatingControlService
 
     public async Task EvaluateAllSchedules(string trigger)
     {
-        RoomSchedules schedules = await LoadSchedulesAsync();
-        bool hasStateChanged = false;
-        foreach (RoomSchedule schedule in schedules.Rooms)
+        try
         {
-            hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
-        }
+            await _evaluationSemaphore.WaitAsync();
+            RoomSchedules schedules = await LoadSchedulesAsync();
+            bool hasStateChanged = false;
+            foreach (RoomSchedule schedule in schedules.Rooms)
+            {
+                hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
+            }
 
-        if (hasStateChanged)
+            if (hasStateChanged)
+            {
+                await UpdateRoomStatesAsync();
+            }
+        }
+        finally
         {
-            await UpdateRoomStatesAsync();
+            _evaluationSemaphore.Release();
         }
     }
 
@@ -266,20 +276,28 @@ internal class HeatingControlService
         bool? currentHeatingState = null;
         foreach (object roomControlDevice in roomControlDevices)
         {
+            bool? thisDeviceHeatingState = null;
             if (roomControlDevice is ICustomSwitchEntity plug)
             {
-                if (plug?.IsOn() == true) currentHeatingState = true;
-                if (plug?.IsOff() == true) currentHeatingState = false;
+                if (plug?.IsOn() == true) thisDeviceHeatingState = true;
+                if (plug?.IsOff() == true) thisDeviceHeatingState = false;
             }
             else if (roomControlDevice is ICustomClimateControlEntity climateController)
             {
-                if (climateController.TargetTemperature > climateController.CurrentTemperature) currentHeatingState = true;
-                if (climateController.TargetTemperature <= climateController.CurrentTemperature) currentHeatingState = false;
+                if (climateController.TargetTemperature >= climateController.CurrentTemperature) thisDeviceHeatingState = true;
+                if (climateController.TargetTemperature < climateController.CurrentTemperature) thisDeviceHeatingState = false;
             }
 
-            if (currentHeatingState != null)
+            if (thisDeviceHeatingState != null)
             {
-                break;
+                if (currentHeatingState == null)
+                {
+                    currentHeatingState = thisDeviceHeatingState;
+                }
+                else
+                {
+                    currentHeatingState |= thisDeviceHeatingState;
+                }
             }
         }
 
@@ -529,12 +547,12 @@ internal class HeatingControlService
         {
             return async (value) =>
             {
-                if (value && climateControl.TargetTemperature <= climateControl.CurrentTemperature)
+                if (value && climateControl.TargetTemperature < climateControl.CurrentTemperature)
                 {
                     climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() + 5);
                     return true;
                 }
-                else if (!value && climateControl.TargetTemperature > climateControl.CurrentTemperature)
+                else if (!value && climateControl.TargetTemperature >= climateControl.CurrentTemperature)
                 {
                     climateControl.SetTargetTemperature(climateControl.CurrentTemperature.GetValueOrDefault() - 5);
                     return true;
@@ -710,4 +728,14 @@ internal class HeaterConditions
     public ICustomNumericSensorEntity? PowerOverrideSensor { get; init; }
     public double PowerOverrideThreshold { get; init; } = 30;
     public List<TimeWindow> AllowedTimeWindows { get; init; } = [];
+}
+
+internal record HeatingDevice(object Device, HeaterConditions? Conditions = null)
+{
+    public string DeviceName => Device switch
+    {
+        ICustomSwitchEntity sw => sw.EntityId,
+        ICustomClimateControlEntity cc => cc.EntityId,
+        _ => "Unknown"
+    };
 }
