@@ -1,7 +1,7 @@
 import { getHouseId } from '../utils/cookies.js'
 import { reportApiError } from '../composables/useApiErrors.js'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071/api'
 const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
 const LOCALHOST_KEY = import.meta.env.VITE_LOCALHOST_KEY || ''
 
@@ -35,7 +35,7 @@ export const deviceSettingsApi = {
   async getEntities() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/entities?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/entities?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -54,7 +54,7 @@ export const deviceSettingsApi = {
   async getSettings() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/device-settings?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/device-settings?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -73,7 +73,7 @@ export const deviceSettingsApi = {
   async saveSettings(settings) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/device-settings?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/device-settings?houseId=${houseId}`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(settings)

@@ -1,7 +1,7 @@
 import { getHouseId } from '../utils/cookies.js'
 import { reportApiError } from '../composables/useApiErrors.js'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071/api'
 const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
 const LOCALHOST_KEY = import.meta.env.VITE_LOCALHOST_KEY || ''
 
@@ -35,7 +35,7 @@ export const batteryApi = {
   async getRules() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-rules?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-rules?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -54,7 +54,7 @@ export const batteryApi = {
   async setRules(rules) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-rules?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-rules?houseId=${houseId}`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(rules)
@@ -75,7 +75,7 @@ export const batteryApi = {
   async getPricing(date) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-pricing?houseId=${houseId}&date=${date}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-pricing?houseId=${houseId}&date=${date}`, {
         headers: getApiHeaders()
       })
 
@@ -94,7 +94,7 @@ export const batteryApi = {
   async setBatteryState(state) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-state?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-state?houseId=${houseId}`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(state)
@@ -115,7 +115,7 @@ export const batteryApi = {
   async getHistory(date) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-history?houseId=${houseId}&date=${date}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-history?houseId=${houseId}&date=${date}`, {
         headers: getApiHeaders()
       })
 
@@ -134,7 +134,7 @@ export const batteryApi = {
   async requestBackfill(date) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/battery-history-backfill?houseId=${houseId}&date=${date}`, {
+      const response = await fetch(`${API_BASE_URL}/battery-history-backfill?houseId=${houseId}&date=${date}`, {
         method: 'POST',
         headers: getApiHeaders()
       })

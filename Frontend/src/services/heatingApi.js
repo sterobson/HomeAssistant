@@ -5,7 +5,7 @@ import { getHouseId } from '../utils/cookies.js'
 import { reportApiError } from '../composables/useApiErrors.js'
 
 // Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071/api'
 const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
 const LOCALHOST_KEY = import.meta.env.VITE_LOCALHOST_KEY || ''
 
@@ -58,7 +58,7 @@ export const heatingApi = {
   async getSchedules() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/schedules?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -82,7 +82,7 @@ export const heatingApi = {
   async setSchedules(schedules) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/schedules?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/schedules?houseId=${houseId}`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(schedules)
@@ -109,7 +109,7 @@ export const heatingApi = {
   async getRoomStates() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/room-states?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/room-states?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -132,7 +132,7 @@ export const heatingApi = {
   async getHouseDetails() {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/house-details?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/house-details?houseId=${houseId}`, {
         headers: getApiHeaders()
       })
 
@@ -156,7 +156,7 @@ export const heatingApi = {
   async setHouseDetails(details) {
     try {
       const houseId = getCurrentHouseId()
-      const response = await fetch(`${API_BASE_URL}/api/house-details?houseId=${houseId}`, {
+      const response = await fetch(`${API_BASE_URL}/house-details?houseId=${houseId}`, {
         method: 'POST',
         headers: getApiHeaders(),
         body: JSON.stringify(details)
@@ -188,7 +188,7 @@ export const heatingApi = {
       const startISO = startDate.toISOString()
       const endISO = endDate.toISOString()
       const response = await fetch(
-        `${API_BASE_URL}/api/room-history?houseId=${houseId}&roomId=${roomId}&startDate=${startISO}&endDate=${endISO}`,
+        `${API_BASE_URL}/room-history?houseId=${houseId}&roomId=${roomId}&startDate=${startISO}&endDate=${endISO}`,
         {
           headers: getApiHeaders()
         }

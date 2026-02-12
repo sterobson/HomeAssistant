@@ -28,7 +28,7 @@ export function useSignalR(houseId) {
 
       // First, get connection info from the negotiate endpoint
       // Pass houseId as query parameter so the connection is associated with this house
-      const negotiateUrl = `${apiBaseUrl}/api/signalr/negotiate${houseId ? `?houseId=${encodeURIComponent(houseId)}` : ''}`
+      const negotiateUrl = `${apiBaseUrl}/signalr/negotiate${houseId ? `?houseId=${encodeURIComponent(houseId)}` : ''}`
       const negotiateResponse = await fetch(negotiateUrl, {
         method: 'POST'
       })
@@ -69,7 +69,7 @@ export function useSignalR(houseId) {
 
         // Re-add to house group after reconnection
         try {
-          const addToGroupUrl = `${apiBaseUrl}/api/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connectionId)}`
+          const addToGroupUrl = `${apiBaseUrl}/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connectionId)}`
           const groupResponse = await fetch(addToGroupUrl, {
             method: 'POST'
           })
@@ -91,7 +91,7 @@ export function useSignalR(houseId) {
 
       // Add connection to the house group so we receive group messages
       try {
-        const addToGroupUrl = `${apiBaseUrl}/api/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connection.value.connectionId)}`
+        const addToGroupUrl = `${apiBaseUrl}/signalr/add-to-group?houseId=${encodeURIComponent(houseId)}&connectionId=${encodeURIComponent(connection.value.connectionId)}`
         const groupResponse = await fetch(addToGroupUrl, {
           method: 'POST'
         })
