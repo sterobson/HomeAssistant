@@ -43,6 +43,16 @@
         />
       </div>
     </header>
+    <div v-if="apiErrors.length > 0" class="error-bar">
+      <div v-for="error in apiErrors" :key="error.id" class="error-bar-item">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="error-bar-icon">
+          <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+        </svg>
+        <span>{{ error.message }}</span>
+        <button class="error-bar-dismiss" @click="dismissApiError(error.id)" title="Dismiss">&times;</button>
+      </div>
+    </div>
+
     <main class="app-main" :class="{ 'app-main--full-width': route.name === 'battery' }">
       <router-view
         :occupancy-filter="occupancyFilter"
@@ -67,8 +77,10 @@ import { useRoute } from 'vue-router'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
 import { hasHouseId as checkHouseId, setHouseId, clearHouseId } from './utils/cookies.js'
+import { useApiErrors } from './composables/useApiErrors.js'
 
 const route = useRoute()
+const { errors: apiErrors, dismissError: dismissApiError } = useApiErrors()
 
 const showHouseIdModal = ref(false)
 const hasHouseId = ref(false)
@@ -314,6 +326,54 @@ function handleDisconnect() {
 .app-main--full-width {
   max-width: none;
   padding: 0.5rem;
+}
+
+.error-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.error-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-danger, #e74c3c);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: slideDown 0.25s;
+}
+
+.error-bar-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.error-bar-item span {
+  flex: 1;
+}
+
+.error-bar-dismiss {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  line-height: 1;
+}
+
+.error-bar-dismiss:hover {
+  opacity: 1;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 600px) {

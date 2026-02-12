@@ -2,6 +2,7 @@
 // Connects to Azure Functions backend
 
 import { getHouseId } from '../utils/cookies.js'
+import { reportApiError } from '../composables/useApiErrors.js'
 
 // Configuration
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
@@ -68,6 +69,7 @@ export const heatingApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching schedules:', error)
+      reportApiError('Failed to load heating schedules')
       throw error
     }
   },
@@ -94,6 +96,7 @@ export const heatingApi = {
       return { success: true }
     } catch (error) {
       console.error('Error saving schedules:', error)
+      reportApiError('Failed to save heating schedules')
       throw error
     }
   },
@@ -117,6 +120,7 @@ export const heatingApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching room states:', error)
+      reportApiError('Failed to load room states')
       throw error
     }
   },
@@ -139,6 +143,7 @@ export const heatingApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching house details:', error)
+      reportApiError('Failed to load house details')
       throw error
     }
   },
@@ -165,6 +170,7 @@ export const heatingApi = {
       return { success: true }
     } catch (error) {
       console.error('Error saving house details:', error)
+      reportApiError('Failed to save house details')
       throw error
     }
   },
@@ -195,6 +201,7 @@ export const heatingApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching room history:', error)
+      reportApiError('Failed to load room history')
       throw error
     }
   }

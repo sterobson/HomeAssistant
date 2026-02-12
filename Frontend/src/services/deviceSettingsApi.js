@@ -1,4 +1,5 @@
 import { getHouseId } from '../utils/cookies.js'
+import { reportApiError } from '../composables/useApiErrors.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
 const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
@@ -45,6 +46,7 @@ export const deviceSettingsApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching entities:', error)
+      reportApiError('Failed to load entities')
       throw error
     }
   },
@@ -63,6 +65,7 @@ export const deviceSettingsApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching device settings:', error)
+      reportApiError('Failed to load device settings')
       throw error
     }
   },
@@ -83,6 +86,7 @@ export const deviceSettingsApi = {
       return await response.json()
     } catch (error) {
       console.error('Error saving device settings:', error)
+      reportApiError('Failed to save device settings')
       throw error
     }
   }

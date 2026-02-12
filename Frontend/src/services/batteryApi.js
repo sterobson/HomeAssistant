@@ -1,4 +1,5 @@
 import { getHouseId } from '../utils/cookies.js'
+import { reportApiError } from '../composables/useApiErrors.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:7071'
 const FUNCTION_KEY = import.meta.env.VITE_FUNCTION_KEY || ''
@@ -45,6 +46,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching battery rules:', error)
+      reportApiError('Failed to load battery rules')
       throw error
     }
   },
@@ -65,6 +67,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error saving battery rules:', error)
+      reportApiError('Failed to save battery rules')
       throw error
     }
   },
@@ -83,6 +86,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching battery pricing:', error)
+      reportApiError('Failed to load energy pricing')
       throw error
     }
   },
@@ -103,6 +107,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error saving battery state:', error)
+      reportApiError('Failed to save battery state')
       throw error
     }
   },
@@ -121,6 +126,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error fetching battery history:', error)
+      reportApiError('Failed to load battery history')
       throw error
     }
   },
@@ -140,6 +146,7 @@ export const batteryApi = {
       return await response.json()
     } catch (error) {
       console.error('Error requesting battery history backfill:', error)
+      reportApiError('Failed to request history backfill')
       throw error
     }
   }
