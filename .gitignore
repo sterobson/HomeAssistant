@@ -16,3 +16,4 @@ appsettings.Production.json
 # Deployment secrets (contains Azure Function keys)
 deploy.secrets.ps1
 /publish
+/.deployment

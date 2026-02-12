@@ -26,6 +26,19 @@
         </div>
 
         <div class="menu-content">
+          <!-- Entity Settings (Battery page only) -->
+          <div v-if="isBatteryPage" class="setting-group">
+            <button class="action-button" @click="handleEntitySettingsClick">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+              </svg>
+              <span>Entity settings</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="arrow">
+                <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753l5.48-4.796a1 1 0 000-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 001.659.753z"/>
+              </svg>
+            </button>
+          </div>
+
           <!-- Theme Setting -->
           <div class="setting-group">
             <button class="accordion-header" :class="{ expanded: expandedSection === 'theme' }" @click="toggleSection('theme')">
@@ -70,8 +83,8 @@
             </transition>
           </div>
 
-          <!-- Temperature Unit Setting -->
-          <div class="setting-group">
+          <!-- Temperature Unit Setting (Heating page only) -->
+          <div v-if="route.name === 'heating'" class="setting-group">
             <button class="accordion-header" :class="{ expanded: expandedSection === 'temperature' }" @click="toggleSection('temperature')">
               <span>Temperature Unit</span>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="chevron">
@@ -182,6 +195,7 @@
 
 <script setup>
 import { ref, h, onMounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSettings } from '../composables/useSettings.js'
 import ConfirmModal from './ConfirmModal.vue'
 import { getHouseId } from '../utils/cookies.js'
@@ -189,7 +203,10 @@ import { heatingApi } from '../services/heatingApi.js'
 
 const { settings, setTheme, setTemperatureUnit, setTimeFormat, THEMES, TEMP_UNITS, TIME_FORMATS } = useSettings()
 
-const emit = defineEmits(['disconnect'])
+const route = useRoute()
+const isBatteryPage = computed(() => route.name === 'battery')
+
+const emit = defineEmits(['disconnect', 'open-entity-settings'])
 
 const isOpen = ref(false)
 const expandedSection = ref(null)
@@ -242,6 +259,11 @@ const toggleSection = (section) => {
   } else {
     expandedSection.value = section
   }
+}
+
+const handleEntitySettingsClick = () => {
+  closeMenu()
+  emit('open-entity-settings')
 }
 
 const handleDisconnectClick = () => {

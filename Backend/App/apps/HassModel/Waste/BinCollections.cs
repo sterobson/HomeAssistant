@@ -3,7 +3,7 @@
 
 using HomeAssistant.Services;
 using HomeAssistant.Services.WasteManagement;
-using HomeAssistantGenerated;
+
 using NetDaemon.Extensions.Scheduler;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,7 +20,7 @@ internal class BinCollections
     private readonly NotificationService _notificationService;
     private readonly YorkBinServiceConfiguration _configuration;
 
-    public BinCollections(IHaContext ha, IScheduler scheduler, ILogger<BinCollections> logger,
+    public BinCollections(IScheduler scheduler, ILogger<BinCollections> logger,
         IWasteCollectionService wasteCollectionService, NotificationService notificationService,
         YorkBinServiceConfiguration configuration)
     {
@@ -28,7 +28,6 @@ internal class BinCollections
         _wasteCollectionService = wasteCollectionService;
         _notificationService = notificationService;
         _configuration = configuration;
-        Entities entities = new(ha);
 
         foreach (YorkBinServiceProperty property in _configuration.Properties)
         {

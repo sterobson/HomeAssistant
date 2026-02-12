@@ -28,7 +28,17 @@
       "Bash(pwsh -Command:*)",
       "Bash(Select-String -Pattern \"NetDaemon\")",
       "Bash(Get-ChildItem -Directory -Filter \"*Function*\" -Recurse -Depth 2)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(npx vite build:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -File:*)",
+      "Bash(git status:*)",
+      "WebSearch",
+      "Bash(git branch:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(pwsh:*)",
+      "Bash(git init:*)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

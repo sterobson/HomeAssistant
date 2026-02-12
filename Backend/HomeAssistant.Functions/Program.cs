@@ -34,6 +34,21 @@ builder.Services
          string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
          return new RoomStateStorageService(connectionString);
      })
+    .AddSingleton<BatteryRulesStorageService>(serviceProvider =>
+    {
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
+        return new BatteryRulesStorageService(connectionString);
+    })
+    .AddSingleton<EntityStorageService>(serviceProvider =>
+    {
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
+        return new EntityStorageService(connectionString);
+    })
+    .AddSingleton<DeviceSettingsStorageService>(serviceProvider =>
+    {
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
+        return new DeviceSettingsStorageService(connectionString);
+    })
     .AddSingleton<SignalRService>();
 
 builder.Build().Run();

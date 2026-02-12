@@ -30,7 +30,7 @@ public class OctopusTariffRate
     public DateTime ValidFrom { get; set; }
 
     [JsonPropertyName("valid_to")]
-    public DateTime ValidTo { get; set; }
+    public DateTime? ValidTo { get; set; }
 
     [JsonPropertyName("payment_method")]
     public string? PaymentMethod { get; set; }
@@ -40,7 +40,7 @@ public class OctopusTariffRate
         return new EnergyRate
         {
             StartTimeUtc = ValidFrom.ToUniversalTime(),
-            EndTimeUtc = ValidTo.ToUniversalTime(),
+            EndTimeUtc = ValidTo?.ToUniversalTime() ?? DateTime.MaxValue,
             RateExcVat = (double)ValueExcVat,
             RateIncVat = (double)ValueIncVat
         };

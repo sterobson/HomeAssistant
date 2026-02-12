@@ -1,5 +1,4 @@
-﻿using HomeAssistantGenerated;
-using NetDaemon.HassModel.Entities;
+﻿using NetDaemon.HassModel.Entities;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.apps.HassModel.Lights;
@@ -13,7 +12,9 @@ internal class GamesRoomDesk
 
     public GamesRoomDesk(IHaContext ha, NamedEntities namedEntities, ILogger<GamesRoomDesk> logger)
     {
-        Entities entities = new(ha);
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.GamesRoomDeskPlugOnOff.EntityId,
+            namedEntities.GamesRoomDeskLamp.EntityId);
 
         // Single press to turn on or off.
         namedEntities.GamesRoomDeskButton.SinglePressed().SubscribeAsync(async e =>

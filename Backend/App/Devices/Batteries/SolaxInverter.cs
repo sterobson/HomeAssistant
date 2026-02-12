@@ -1,5 +1,6 @@
-﻿using HomeAssistant.Devices.Meters;
+using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
+using HomeAssistant.Shared;
 using HomeAssistantGenerated;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,61 +12,186 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 {
     private readonly IHaContext _ha;
     private readonly HistoryService _historyService;
-    private readonly NumericSensorEntity _batteryChargePercentSensor;
-    private readonly SelectEntity _chargerUseMode;
-    private readonly SelectEntity _chargerManualMode;
-    private readonly NumberEntity _batteryChargeMaxCurrent;
-    private readonly NumericSensorEntity _totalBatteryPowerCharge;
-    private readonly NumericSensorEntity _totalPvPowerSensor;
-    private readonly NumberEntity _exportLimitW;
+    private readonly IDeviceSettingsPersistenceService _settingsPersistence;
+    private readonly ILogger<SolaxInverter> _logger;
     private readonly HomeAssistantGenerated.Services _services;
+
+    private NumericSensorEntity? _batteryChargePercentSensor;
+    private SelectEntity? _chargerUseMode;
+    private SelectEntity? _chargerManualMode;
+    private NumberEntity? _batteryChargeMaxCurrent;
+    private NumericSensorEntity? _totalBatteryPowerCharge;
+    private NumericSensorEntity? _totalPvPowerSensor;
+    private NumberEntity? _exportLimitW;
+
+    private Func<ValueChange<double?, NumericSensorEntity>, Task>? _batteryChargePercentCallback;
+    private Func<Task>? _batteryUseModeCallback;
+    private List<IDisposable> _subscriptions = [];
+    private readonly object _rebindLock = new();
 
     public double? CurrentChargePercent => _batteryChargePercentSensor?.State;
 
-    public double BatteryCapacitykWh => 20.4;
+    public double BatteryCapacitykWh { get; private set; }
 
-    public double MaximumExportRateW => _exportLimitW.State ?? 0;
+    public int MaxChargeCurrentAmps { get; private set; }
 
-    public SolaxInverter(IHaContext ha, HistoryService historyService)
+    public double MaximumExportRateW => _exportLimitW?.State ?? 0;
+
+    public SolaxInverter(IHaContext ha, HistoryService historyService, IDeviceSettingsPersistenceService settingsPersistence, ILogger<SolaxInverter> logger)
     {
-        Entities entities = new(ha);
         _ha = ha;
         _historyService = historyService;
+        _settingsPersistence = settingsPersistence;
+        _logger = logger;
         _services = new(ha);
 
-        _batteryChargePercentSensor = entities.Sensor.SolaxInverterBatteryCapacity;
-        _chargerUseMode = entities.Select.SolaxInverterChargerUseMode;
-        _chargerManualMode = entities.Select.SolaxInverterManualModeSelect;
-        _batteryChargeMaxCurrent = entities.Number.SolaxInverterBatteryChargeMaxCurrent;
-        _totalBatteryPowerCharge = entities.Sensor.SolaxInverterTotalBatteryPowerCharge;
-        _totalPvPowerSensor = entities.Sensor.SolaxInverterPvPowerTotal;
-        _exportLimitW = entities.Number.SolaxInverterExportControlUserLimit;
+        BindEntities(settingsPersistence.GetSettingsAsync().GetAwaiter().GetResult());
+
+        settingsPersistence.SettingsUpdated += async () =>
+        {
+            try
+            {
+                await RebindEntitiesAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+                _logger.LogDebug("Ignoring SettingsUpdated callback - app context has been disposed");
+            }
+        };
+    }
+
+    private void BindEntities(DeviceSettingsDto settings)
+    {
+        BatterySettingsDto? battery = settings.Battery;
+
+        _batteryChargePercentSensor = BindSensor(battery?.BatteryChargePercentSensorId, "Battery charge percent sensor");
+        _chargerUseMode = BindSelect(battery?.ChargerUseModeSelectorId, "Charger use mode selector");
+        _chargerManualMode = BindSelect(battery?.ManualModeSelectorId, "Manual mode selector");
+        _batteryChargeMaxCurrent = BindNumber(battery?.BatteryChargeMaxCurrentNumberId, "Battery charge max current");
+        _totalBatteryPowerCharge = BindSensor(battery?.TotalBatteryPowerChargeSensorId, "Total battery power charge sensor");
+        _totalPvPowerSensor = BindSensor(battery?.TotalPvPowerSensorId, "Total PV power sensor");
+        _exportLimitW = BindNumber(battery?.ExportLimitNumberId, "Export control limit");
+
+        BatteryCapacitykWh = battery?.BatteryCapacityKwh ?? 0;
+        if (BatteryCapacitykWh == 0)
+        {
+            _logger.LogWarning("Battery capacity (kWh) not configured in device settings");
+        }
+
+        MaxChargeCurrentAmps = battery?.MaxChargeCurrentAmps ?? 0;
+        if (MaxChargeCurrentAmps == 0)
+        {
+            _logger.LogWarning("Max charge current (A) not configured in device settings");
+        }
+    }
+
+    private NumericSensorEntity? BindSensor(string? entityId, string settingName)
+    {
+        if (!string.IsNullOrEmpty(entityId))
+        {
+            return new NumericSensorEntity(_ha, entityId);
+        }
+
+        _logger.LogWarning("{SettingName} not configured in device settings", settingName);
+        return null;
+    }
+
+    private SelectEntity? BindSelect(string? entityId, string settingName)
+    {
+        if (!string.IsNullOrEmpty(entityId))
+        {
+            return new SelectEntity(_ha, entityId);
+        }
+
+        _logger.LogWarning("{SettingName} not configured in device settings", settingName);
+        return null;
+    }
+
+    private NumberEntity? BindNumber(string? entityId, string settingName)
+    {
+        if (!string.IsNullOrEmpty(entityId))
+        {
+            return new NumberEntity(_ha, entityId);
+        }
+
+        _logger.LogWarning("{SettingName} not configured in device settings", settingName);
+        return null;
     }
 
     public void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action)
     {
-        _batteryChargePercentSensor.StateChanges().SubscribeAsync(async (value) =>
-        {
-            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, _batteryChargePercentSensor);
-            await action(valueChange);
-        });
+        _batteryChargePercentCallback = action;
+        SubscribeToBatteryChargePercent();
     }
 
     public void OnBatteryUseModeChanged(Func<Task> action)
     {
-        _chargerUseMode.StateChanges().SubscribeAsync(async (value) =>
-        {
-            await action();
-        });
+        _batteryUseModeCallback = action;
+        SubscribeToBatteryUseMode();
+    }
 
-        _chargerManualMode.StateChanges().SubscribeAsync(async (value) =>
+    private void SubscribeToBatteryChargePercent()
+    {
+        if (_batteryChargePercentCallback == null || _batteryChargePercentSensor == null) return;
+
+        NumericSensorEntity sensor = _batteryChargePercentSensor;
+        Func<ValueChange<double?, NumericSensorEntity>, Task> callback = _batteryChargePercentCallback;
+        IDisposable subscription = sensor.StateChanges().SubscribeAsync(async (value) =>
         {
-            await action();
+            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
+            await callback(valueChange);
         });
+        _subscriptions.Add(subscription);
+    }
+
+    private void SubscribeToBatteryUseMode()
+    {
+        if (_batteryUseModeCallback == null) return;
+
+        Func<Task> callback = _batteryUseModeCallback;
+
+        if (_chargerUseMode != null)
+        {
+            IDisposable useModeSubscription = _chargerUseMode.StateChanges().SubscribeAsync(async (value) =>
+            {
+                await callback();
+            });
+            _subscriptions.Add(useModeSubscription);
+        }
+
+        if (_chargerManualMode != null)
+        {
+            IDisposable manualModeSubscription = _chargerManualMode.StateChanges().SubscribeAsync(async (value) =>
+            {
+                await callback();
+            });
+            _subscriptions.Add(manualModeSubscription);
+        }
+    }
+
+    private async Task RebindEntitiesAsync()
+    {
+        lock (_rebindLock)
+        {
+            foreach (IDisposable subscription in _subscriptions)
+            {
+                subscription.Dispose();
+            }
+            _subscriptions = [];
+
+            BindEntities(_settingsPersistence.GetSettingsAsync().GetAwaiter().GetResult());
+
+            SubscribeToBatteryChargePercent();
+            SubscribeToBatteryUseMode();
+        }
+
+        await Task.CompletedTask;
     }
 
     public BatteryState GetHomeBatteryState()
     {
+        if (_chargerUseMode == null || _chargerManualMode == null) return BatteryState.Unknown;
+
         string? chargerUseMode = _chargerUseMode.State;
         string? chargerManualMode = _chargerManualMode.State;
 
@@ -85,6 +211,11 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public async Task<IReadOnlyList<HistoryEntry<BatteryState>>> GetBatteryStateHistoryEntriesAsync(DateTime from, DateTime to)
     {
+        if (_chargerUseMode == null || _chargerManualMode == null)
+        {
+            return [new HistoryEntry<BatteryState> { LastChanged = from, State = BatteryState.Unknown }];
+        }
+
         Task<IReadOnlyList<HistoryTextEntry>> useModeHistoryTask = _historyService.GetEntityTextHistory(_chargerUseMode.EntityId, from.AddMonths(-1), to);
         Task<IReadOnlyList<HistoryTextEntry>> manualModeHistoryTask = _historyService.GetEntityTextHistory(_chargerManualMode.EntityId, from.AddMonths(-1), to);
 
@@ -146,6 +277,8 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public void SetHomeBatteryState(BatteryState desiredHomeBatteryState)
     {
+        if (_chargerUseMode == null || _chargerManualMode == null) return;
+
         BatteryState currentHomeBatteryState = GetHomeBatteryState();
 
         if (desiredHomeBatteryState != currentHomeBatteryState)
@@ -194,19 +327,24 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
         }
     }
 
-    private const int MaxChargeCurrent = 50;
     public void SetMaxChargeCurrentHeadroom(int headroom)
     {
-        _batteryChargeMaxCurrent.SetValue((MaxChargeCurrent - headroom).ToString());
+        if (_batteryChargeMaxCurrent == null || MaxChargeCurrentAmps == 0) return;
+
+        _batteryChargeMaxCurrent.SetValue((MaxChargeCurrentAmps - headroom).ToString());
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalBatteryPowerChargeHistoryEntriesAsync(DateTime from, DateTime to)
     {
+        if (_totalBatteryPowerCharge == null) return [];
+
         return await _historyService.GetEntityNumericHistory(_totalBatteryPowerCharge.EntityId, from, to);
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalSolarPanelPowerHistoryEntriesAsync(DateTime from, DateTime to)
     {
+        if (_totalPvPowerSensor == null) return [];
+
         return await _historyService.GetEntityNumericHistory(_totalPvPowerSensor.EntityId, from, to);
     }
 }

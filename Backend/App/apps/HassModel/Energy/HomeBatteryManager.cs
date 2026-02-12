@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace HomeAssistant.apps.HassModel.Energy;
 
-[NetDaemonApp]
+// [NetDaemonApp]
 internal class HomeBatteryManager
 {
     private readonly IElectricityMeter _electricityMeter;

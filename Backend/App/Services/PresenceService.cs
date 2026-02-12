@@ -10,10 +10,16 @@ internal class PresenceService : IPresenceService
     private readonly NamedEntities _namedEntities;
     private readonly HistoryService _historyService;
 
-    public PresenceService(NamedEntities namedEntities, HistoryService historyService)
+    public PresenceService(IHaContext ha, NamedEntities namedEntities, HistoryService historyService, ILogger<PresenceService> logger)
     {
         _namedEntities = namedEntities;
         _historyService = historyService;
+
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.GamesRoomDeskPlugOnOff.EntityId,
+            namedEntities.GamesRoomDeskPlugPower.EntityId,
+            namedEntities.DiningRoomDeskPlugOnOff.EntityId,
+            namedEntities.DiningRoomDeskPlugPower.EntityId);
     }
 
     public async Task<bool> IsRoomInUse(string roomName)

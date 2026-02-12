@@ -8,4 +8,8 @@ public interface IElectricityRatesReader
     public Task<EnergyRate> GetCurrentElectricityImportRateAsync();
 
     public Task<List<EnergyRate>> GetElectricityImportRatesAsync(DateTime from, DateTime to);
+
+    public Task<EnergyRate> GetCurrentElectricityExportRateAsync();
+
+    public Task<List<EnergyRate>> GetElectricityExportRatesAsync(DateTime from, DateTime to);
 }

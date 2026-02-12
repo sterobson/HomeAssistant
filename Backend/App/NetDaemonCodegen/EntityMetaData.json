@@ -9,6 +9,11 @@
           "cSharpName": "BookcaseLightStrip"
         },
         {
+          "id": "light.hypervolt_led",
+          "friendlyName": "Hypervolt LED",
+          "cSharpName": "HypervoltLed"
+        },
+        {
           "id": "light.lamperion_bane_of_shadows",
           "friendlyName": "Lamperion Bane of Shadows",
           "cSharpName": "LamperionBaneOfShadows"
@@ -177,12 +182,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": "Living Room TV",
+          "friendlyName": null,
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": "Main speakers",
+          "friendlyName": null,
           "cSharpName": "MainSpeakers"
         }
       ],
@@ -436,7 +441,7 @@
       "entities": [
         {
           "id": "binary_sensor.christmas_tree_cloud_connection",
-          "friendlyName": "Christmas Tree Cloud connection",
+          "friendlyName": "Cloud connection",
           "cSharpName": "ChristmasTreeCloudConnection"
         },
         {
@@ -1183,51 +1188,6 @@
           "id": "input_boolean.automation_test",
           "friendlyName": "Automation test",
           "cSharpName": "AutomationTest"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_energy_prices",
-          "friendlyName": "dev_netdaemon_hass_model_energy_prices",
-          "cSharpName": "DevNetdaemonHassModelEnergyPrices"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_reminders_milk_bottles",
-          "friendlyName": "dev_netdaemon_hass_model_reminders_milk_bottles",
-          "cSharpName": "DevNetdaemonHassModelRemindersMilkBottles"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_waste_bin_collections",
-          "friendlyName": "dev_netdaemon_hass_model_waste_bin_collections",
-          "cSharpName": "DevNetdaemonHassModelWasteBinCollections"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_hass_model_wooooooo",
-          "friendlyName": "dev_netdaemon_hass_model_wooooooo",
-          "cSharpName": "DevNetdaemonHassModelWooooooo"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_dining_room_dehumidifier",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateDiningRoomDehumidifier"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_climate_heating",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelClimateHeating"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_energy_home_battery_manager",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelEnergyHomeBatteryManager"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_dining_room_light",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsDiningRoomLight"
-        },
-        {
-          "id": "input_boolean.dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "friendlyName": "dev_netdaemon_home_assistant_apps_hass_model_lights_games_room_desk",
-          "cSharpName": "DevNetdaemonHomeAssistantAppsHassModelLightsGamesRoomDesk"
         },
         {
           "id": "input_boolean.kitchen_under_sink_flood",
@@ -2103,6 +2063,16 @@
           "id": "select.hypervolt_schedule_session_4_charge_mode",
           "friendlyName": "Hypervolt Schedule Session 4 Charge Mode",
           "cSharpName": "HypervoltScheduleSession4ChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_5_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 5 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession5ChargeMode"
+        },
+        {
+          "id": "select.hypervolt_schedule_session_6_charge_mode",
+          "friendlyName": "Hypervolt Schedule Session 6 Charge Mode",
+          "cSharpName": "HypervoltScheduleSession6ChargeMode"
         },
         {
           "id": "select.kitchen_temperature_and_humidity_display_unit",
@@ -4315,12 +4285,12 @@
         },
         {
           "id": "switch.christmas_tree",
-          "friendlyName": "Christmas Tree",
+          "friendlyName": null,
           "cSharpName": "ChristmasTree"
         },
         {
           "id": "switch.christmas_tree_led",
-          "friendlyName": "Christmas Tree LED",
+          "friendlyName": "LED",
           "cSharpName": "ChristmasTreeLed"
         },
         {
@@ -5081,6 +5051,16 @@
           "id": "text.hypervolt_schedule_session_4_days_of_week",
           "friendlyName": "Hypervolt Schedule Session 4 Days Of Week",
           "cSharpName": "HypervoltScheduleSession4DaysOfWeek"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_5_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 5 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession5DaysOfWeek"
+        },
+        {
+          "id": "text.hypervolt_schedule_session_6_days_of_week",
+          "friendlyName": "Hypervolt Schedule Session 6 Days Of Week",
+          "cSharpName": "HypervoltScheduleSession6DaysOfWeek"
         }
       ],
       "attributes": [
@@ -5153,6 +5133,26 @@
           "id": "time.hypervolt_schedule_session_4_start_time",
           "friendlyName": "Hypervolt Schedule Session 4 Start Time",
           "cSharpName": "HypervoltScheduleSession4StartTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_5_end_time",
+          "friendlyName": "Hypervolt Schedule Session 5 End Time",
+          "cSharpName": "HypervoltScheduleSession5EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_5_start_time",
+          "friendlyName": "Hypervolt Schedule Session 5 Start Time",
+          "cSharpName": "HypervoltScheduleSession5StartTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_6_end_time",
+          "friendlyName": "Hypervolt Schedule Session 6 End Time",
+          "cSharpName": "HypervoltScheduleSession6EndTime"
+        },
+        {
+          "id": "time.hypervolt_schedule_session_6_start_time",
+          "friendlyName": "Hypervolt Schedule Session 6 Start Time",
+          "cSharpName": "HypervoltScheduleSession6StartTime"
         }
       ],
       "attributes": [

@@ -7,8 +7,13 @@ namespace HassModel;
 [NetDaemonApp]
 public class Wooooooo
 {
-    public Wooooooo(NamedEntities namedEntities, IServiceProvider serviceProvider)
+    public Wooooooo(IHaContext ha, NamedEntities namedEntities, ILogger<Wooooooo> logger)
     {
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.PorchMotionSensor.EntityId,
+            namedEntities.PorchLight.EntityId,
+            namedEntities.GamesRoomSpeaker.EntityId);
+
         namedEntities.PorchMotionSensor.StateChanges().SubscribeAsync(async e =>
         {
             if (e.New?.State == "on")

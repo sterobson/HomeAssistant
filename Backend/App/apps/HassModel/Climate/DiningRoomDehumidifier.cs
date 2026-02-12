@@ -17,13 +17,22 @@ internal class DiningRoomDehumidifier
     private const int _minutesToWaitBeforeNextStateChange = 5;
     private DateTime _lastStateChangeTime = DateTime.MinValue;
 
-    public DiningRoomDehumidifier(NamedEntities namedEntities, HistoryService historyService, IScheduler scheduler,
+    public DiningRoomDehumidifier(IHaContext ha, NamedEntities namedEntities, HistoryService historyService, IScheduler scheduler,
         NotificationService notificationService, ILogger<DiningRoomDehumidifier> logger)
     {
         _namedEntities = namedEntities;
         _historyService = historyService;
         _notificationService = notificationService;
         _logger = logger;
+
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.DiningRoomClimateHumidity.EntityId,
+            namedEntities.DiningRoomDehumidierSmartPlugOnOff.EntityId,
+            namedEntities.DiningRoomDehumidifierSmartPlugPower.EntityId,
+            namedEntities.DiningRoomDehumidierLowerThreshold.EntityId,
+            namedEntities.DiningRoomDehumidierUpperThreshold.EntityId,
+            namedEntities.DiningRoomDehumidierLookAheadMinutes.EntityId);
+
         _namedEntities.DiningRoomClimateHumidity.SubscribeToStateChangesAsync(async e => _ = SetDehumidifierState());
         _namedEntities.DiningRoomDehumidierSmartPlugOnOff.SubscribeToStateChangesAsync(async e => _ = SetDehumidifierState());
         _namedEntities.DiningRoomDehumidierLookAheadMinutes.StateChanges().SubscribeAsync(async e => _ = SetDehumidifierState());

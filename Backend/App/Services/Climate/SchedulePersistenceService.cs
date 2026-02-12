@@ -1,5 +1,4 @@
 using HomeAssistant.Shared.Climate;
-using Microsoft.AspNetCore.SignalR.Client;
 using System.IO;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -33,13 +32,13 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
     private readonly ILogger<SchedulePersistenceService> _logger;
     private readonly IScheduleApiClient? _scheduleApiClient;
     private readonly WebSynchronisationConfiguration _configuration;
+    private readonly ISignalRConnectionService? _signalRConnection;
     private readonly string _scheduleStoragePath;
     private const string _scheduleStorageFileName = "heating-schedules.json";
     private const int _cacheExpirationMinutes = 10;
 
     private RoomSchedules? _cachedSchedules;
     private DateTimeOffset _lastRefreshTime = DateTimeOffset.MinValue;
-    private HubConnection? _hubConnection;
 
     /// <summary>
     /// Event fired when schedules have been updated via SignalR notification
@@ -49,11 +48,13 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
     public SchedulePersistenceService(
         ILogger<SchedulePersistenceService> logger,
         WebSynchronisationConfiguration configuration,
-        IScheduleApiClient? scheduleApiClient = null)
+        IScheduleApiClient? scheduleApiClient = null,
+        ISignalRConnectionService? signalRConnection = null)
     {
         _logger = logger;
         _configuration = configuration;
         _scheduleApiClient = scheduleApiClient;
+        _signalRConnection = signalRConnection;
 
         // Set up local storage path
         string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -67,8 +68,23 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
         // Load from local storage on startup
         await LoadFromLocalStorageAsync();
 
-        // Connect to SignalR for real-time updates
-        await ConnectToSignalRAsync();
+        // Register SignalR handler and start connection
+        if (_signalRConnection != null)
+        {
+            _signalRConnection.On<object>("schedules-changed", async (data) =>
+            {
+                _logger.LogDebug("Received 'schedules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
+                _lastRefreshTime = DateTimeOffset.MinValue; // Invalidate cache
+                await RefreshSchedulesFromApiAsync();
+
+                if (SchedulesUpdated != null)
+                {
+                    await SchedulesUpdated.Invoke();
+                }
+            });
+
+            await _signalRConnection.StartAsync();
+        }
     }
 
     public async Task<RoomSchedules> GetSchedulesAsync()
@@ -162,153 +178,6 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving schedules to local storage at {Path}", _scheduleStoragePath);
-        }
-    }
-
-    private async Task ConnectToSignalRAsync()
-    {
-        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
-        {
-            _logger.LogWarning("SignalR not configured - API client or HouseId missing");
-            return;
-        }
-
-        try
-        {
-            _logger.LogDebug("Connecting to SignalR for schedule updates (house {HouseId})", _configuration.HouseId);
-            string connectionInfoJson = await _scheduleApiClient.GetSignalRConnectionInfoAsync(_configuration.HouseId);
-
-            using JsonDocument doc = JsonDocument.Parse(connectionInfoJson);
-            JsonElement root = doc.RootElement;
-
-            if (!root.TryGetProperty("url", out JsonElement urlElement) ||
-                !root.TryGetProperty("accessToken", out JsonElement tokenElement))
-            {
-                _logger.LogError("SignalR connection info missing required properties (url or accessToken)");
-                return;
-            }
-
-            string hubUrl = urlElement.GetString() ?? string.Empty;
-            string accessToken = tokenElement.GetString() ?? string.Empty;
-
-            if (string.IsNullOrEmpty(hubUrl) || string.IsNullOrEmpty(accessToken))
-            {
-                _logger.LogError("SignalR connection info contains empty url or accessToken");
-                return;
-            }
-
-            _hubConnection = new HubConnectionBuilder()
-                .WithUrl(hubUrl, options =>
-                {
-                    options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
-                })
-                .WithAutomaticReconnect()
-                .Build();
-
-            _hubConnection.On<object>("test-message", (data) =>
-            {
-                _logger.LogDebug("✅ RECEIVED 'test-message' from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
-                return Task.CompletedTask;
-            });
-
-            _hubConnection.On<object>("test-message-all", (data) =>
-            {
-                _logger.LogDebug("✅ RECEIVED 'test-message-all' (broadcast to ALL) from SignalR: {Data}", System.Text.Json.JsonSerializer.Serialize(data));
-                return Task.CompletedTask;
-            });
-
-            _hubConnection.On<object>("schedules-changed", async (data) =>
-            {
-                _logger.LogDebug("✅ RECEIVED 'schedules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
-                _lastRefreshTime = DateTimeOffset.MinValue; // Invalidate cache
-                await RefreshSchedulesFromApiAsync();
-
-                // Notify subscribers that schedules have been updated
-                if (SchedulesUpdated != null)
-                {
-                    await SchedulesUpdated.Invoke();
-                }
-            });
-
-            _hubConnection.Closed += async (Exception? error) =>
-            {
-                if (error != null)
-                {
-                    _logger.LogError(error, "SignalR connection closed with error");
-                }
-                else
-                {
-                    _logger.LogWarning("SignalR connection closed");
-                }
-            };
-
-            _hubConnection.Reconnecting += (Exception? error) =>
-            {
-                _logger.LogWarning(error, "SignalR connection lost, attempting to reconnect");
-                return Task.CompletedTask;
-            };
-
-            _hubConnection.Reconnected += async (string? connectionId) =>
-            {
-                _logger.LogInformation("SignalR reconnected with connection ID: {ConnectionId}", connectionId);
-
-                // Re-add to group after reconnection (connection ID changes on reconnect)
-                if (!string.IsNullOrEmpty(connectionId))
-                {
-                    try
-                    {
-                        await AddToGroupAsync(connectionId);
-                        _logger.LogInformation("Successfully re-added to SignalR group after reconnection");
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to re-add to SignalR group after reconnection - will rely on periodic refresh");
-                    }
-                }
-            };
-
-            await _hubConnection.StartAsync();
-            _logger.LogInformation("Connected to SignalR for schedule updates (house {HouseId}, ConnectionId: {ConnectionId})",
-                _configuration.HouseId, _hubConnection.ConnectionId);
-
-            // Add this connection to the house group
-            if (_scheduleApiClient != null && !string.IsNullOrEmpty(_hubConnection.ConnectionId))
-            {
-                try
-                {
-                    await AddToGroupAsync(_hubConnection.ConnectionId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to add connection to group - will rely on fallback");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error connecting to SignalR for house {HouseId}", _configuration.HouseId);
-        }
-    }
-
-    private async Task AddToGroupAsync(string connectionId)
-    {
-        if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
-        {
-            _logger.LogWarning("Cannot add to group - API client or HouseId not configured");
-            return;
-        }
-
-        try
-        {
-            _logger.LogInformation("Adding connection {ConnectionId} to group for house {HouseId}", connectionId, _configuration.HouseId);
-            System.Net.Http.HttpResponseMessage response = await _scheduleApiClient.AddToGroupAsync(_configuration.HouseId, connectionId);
-            response.EnsureSuccessStatusCode();
-            _logger.LogDebug("Successfully added connection to SignalR group for house {HouseId}", _configuration.HouseId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error adding connection to group for house {HouseId}", _configuration.HouseId);
-            throw;
         }
     }
 }

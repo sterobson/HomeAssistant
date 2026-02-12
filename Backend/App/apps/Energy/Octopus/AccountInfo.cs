@@ -61,10 +61,10 @@ internal class ElectricityMeterPoint
     public string Mpan { get; set; } = string.Empty;
 
     [JsonPropertyName("profile_class")]
-    public int ProfileClass { get; set; }
+    public int? ProfileClass { get; set; }
 
     [JsonPropertyName("consumption_standard")]
-    public int ConsumptionStandard { get; set; }
+    public int? ConsumptionStandard { get; set; }
 
     [JsonPropertyName("meters")]
     public List<ElectricityMeter> Meters { get; set; } = new();
@@ -115,7 +115,7 @@ internal class GasMeterPoint
     public string Mprn { get; set; } = string.Empty;
 
     [JsonPropertyName("consumption_standard")]
-    public int ConsumptionStandard { get; set; }
+    public int? ConsumptionStandard { get; set; }
 
     [JsonPropertyName("meters")]
     public List<GasMeter> Meters { get; set; } = new();

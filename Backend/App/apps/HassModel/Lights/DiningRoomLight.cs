@@ -8,9 +8,16 @@ namespace HomeAssistant.apps.HassModel.Lights;
 [NetDaemonApp]
 internal class DiningRoomLight
 {
-    public DiningRoomLight(IHaContext ha, NamedEntities namedEntities, IScheduler scheduler)
+    public DiningRoomLight(IHaContext ha, NamedEntities namedEntities, IScheduler scheduler, ILogger<DiningRoomLight> logger)
     {
-        Entities entities = new(ha);
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.DiningBookshelfLightStripPlugOnOff.EntityId,
+            namedEntities.DiningBookshelfLightStrip.EntityId,
+            namedEntities.DiningRoomLegoVillage.EntityId,
+            namedEntities.LivingRoomChristmasTreePlugOnOff.EntityId,
+            namedEntities.KitchenMotionSensor.EntityId,
+            namedEntities.GamesRoomDeskPlugOnOff.EntityId,
+            namedEntities.DiningRoomDeskPlugOnOff.EntityId);
 
         scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), () =>
         {

@@ -14,7 +14,8 @@ public class OctopusReader : IElectricityRatesReader
     private readonly HttpClient _httpClient;
     private readonly OctopusConfiguration _configuration;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
-    private OctopusTariffRates _rates = new();
+    private OctopusTariffRates _importRates = new();
+    private OctopusTariffRates _exportRates = new();
     private DateTime _lastRefresh;
     private const int _refreshIntervalMinutes = 30;
 
@@ -28,8 +29,8 @@ public class OctopusReader : IElectricityRatesReader
     {
         await RefreshRatesIfNeeded();
 
-        return _rates.Results
-            .Where(r => r.ValidFrom <= DateTime.UtcNow && r.ValidTo > DateTime.UtcNow)
+        return _importRates.Results
+            .Where(r => r.ValidFrom <= DateTime.UtcNow && (r.ValidTo == null || r.ValidTo > DateTime.UtcNow))
             .FirstOrDefault()?
             .ToEnergyRate() ?? new();
     }
@@ -38,8 +39,27 @@ public class OctopusReader : IElectricityRatesReader
     {
         await RefreshRatesIfNeeded();
 
-        return _rates.Results
-            .Where(r => r.ValidFrom <= DateTime.UtcNow && r.ValidTo > DateTime.UtcNow)
+        return _importRates.Results
+            .Where(r => r.ValidFrom < to && (r.ValidTo == null || r.ValidTo > from))
+            .Select(r => r.ToEnergyRate()).ToList();
+    }
+
+    public async Task<EnergyRate> GetCurrentElectricityExportRateAsync()
+    {
+        await RefreshRatesIfNeeded();
+
+        return _exportRates.Results
+            .Where(r => r.ValidFrom <= DateTime.UtcNow && (r.ValidTo == null || r.ValidTo > DateTime.UtcNow))
+            .FirstOrDefault()?
+            .ToEnergyRate() ?? new();
+    }
+
+    public async Task<List<EnergyRate>> GetElectricityExportRatesAsync(DateTime from, DateTime to)
+    {
+        await RefreshRatesIfNeeded();
+
+        return _exportRates.Results
+            .Where(r => r.ValidFrom < to && (r.ValidTo == null || r.ValidTo > from))
             .Select(r => r.ToEnergyRate()).ToList();
     }
 
@@ -61,22 +81,33 @@ public class OctopusReader : IElectricityRatesReader
             }
 
             Property currentProperty = result.Properties.Where(p => p.MovedInAt < DateTime.UtcNow && p.MovedOutAt == null).FirstOrDefault() ?? new();
-            ElectricityMeterPoint electricityMeterPoint = currentProperty.ElectricityMeterPoints.FirstOrDefault(m => !m.IsExport) ?? new();
-            ElectricityMeter currentMeter = electricityMeterPoint.Meters.LastOrDefault() ?? new();
-            Agreement currentAgreement = electricityMeterPoint.Agreements.LastOrDefault(a => a.ValidFrom < DateTime.UtcNow && (a.ValidTo == null || a.ValidTo > DateTime.UtcNow)) ?? new();
 
-            string tariffCode = currentAgreement.TariffCode;
-            if (string.IsNullOrEmpty(tariffCode))
+            // Import meter point
+            ElectricityMeterPoint importMeterPoint = currentProperty.ElectricityMeterPoints.FirstOrDefault(m => !m.IsExport) ?? new();
+            Agreement importAgreement = importMeterPoint.Agreements.LastOrDefault(a => a.ValidFrom < DateTime.UtcNow && (a.ValidTo == null || a.ValidTo > DateTime.UtcNow)) ?? new();
+
+            string importTariffCode = importAgreement.TariffCode;
+            if (!string.IsNullOrEmpty(importTariffCode))
             {
-                return;
+                string[] importTariffCodeParts = importTariffCode.Split('-');
+                string importProductCode = string.Join('-', importTariffCodeParts[2..^1]);
+                OctopusTariffRates importRatesResult = await GetTariffRatesAsync(importProductCode, importTariffCode) ?? new();
+                _importRates = importRatesResult;
             }
 
-            string[] tariffCodeParts = tariffCode.Split('-');
-            string productCode = string.Join('-', tariffCodeParts[2..^1]);
+            // Export meter point
+            ElectricityMeterPoint exportMeterPoint = currentProperty.ElectricityMeterPoints.FirstOrDefault(m => m.IsExport) ?? new();
+            Agreement exportAgreement = exportMeterPoint.Agreements.LastOrDefault(a => a.ValidFrom < DateTime.UtcNow && (a.ValidTo == null || a.ValidTo > DateTime.UtcNow)) ?? new();
 
-            OctopusTariffRates ratesResult = await GetTariffRatesAsync(productCode, tariffCode) ?? new();
+            string exportTariffCode = exportAgreement.TariffCode;
+            if (!string.IsNullOrEmpty(exportTariffCode))
+            {
+                string[] exportTariffCodeParts = exportTariffCode.Split('-');
+                string exportProductCode = string.Join('-', exportTariffCodeParts[2..^1]);
+                OctopusTariffRates exportRatesResult = await GetTariffRatesAsync(exportProductCode, exportTariffCode) ?? new();
+                _exportRates = exportRatesResult;
+            }
 
-            _rates = ratesResult;
             _lastRefresh = DateTime.UtcNow;
         }
         finally

@@ -97,3 +97,14 @@ export function isValidTime(time) {
 
   return time24Pattern.test(time) || time12Pattern.test(time)
 }
+
+/**
+ * Format minutes since midnight as HH:MM string.
+ * @param {number} minutes - Minutes since midnight (0-1440)
+ * @returns {string} Formatted time (e.g., "02:30")
+ */
+export function formatMinutesAsTime(minutes) {
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
+}

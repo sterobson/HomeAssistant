@@ -127,7 +127,6 @@ public interface INamedEntities
 
 public class NamedEntities : INamedEntities
 {
-    private readonly Entities _entities;
     private readonly IHaContext _ha;
 
     private readonly ICustomSwitchEntity _gamesRoomHeaterSmartPlugOnOff;
@@ -200,76 +199,75 @@ public class NamedEntities : INamedEntities
 
     public NamedEntities(IHaContext ha)
     {
-        _entities = new Entities(ha);
         _ha = ha;
 
-        _gamesRoomDeskPlugOnOff = new CustomSwitchEntity(_entities.Switch.GamesRoomDeskPlug);
-        _gamesRoomDeskPlugPower = new CustomNumericSensorEntity(_entities.Sensor.GamesRoomDeskPlugPower);
-        _gamesRoomHeaterSmartPlugOnOff = new CustomSwitchEntity(_entities.Switch.GamesRoomPlugHeaterSwitch);
+        _gamesRoomDeskPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.games_room_desk_plug"));
+        _gamesRoomDeskPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.games_room_desk_plug_power"));
+        _gamesRoomHeaterSmartPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.games_room_plug_heater_switch"));
 
-        _diningRoomDeskPlugOnOff = new CustomSwitchEntity(_entities.Switch.DiningRoomDeskPlug);
-        _diningRoomDeskPlugPower = new CustomNumericSensorEntity(_entities.Sensor.DiningRoomDeskPlugPower);
-        _diningRoomHeaterSmartPlugOnOff = new CustomSwitchEntity(_entities.Switch.DiningRoomPlugHeaterSwitch);
+        _diningRoomDeskPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.dining_room_desk_plug"));
+        _diningRoomDeskPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.dining_room_desk_plug_power"));
+        _diningRoomHeaterSmartPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.dining_room_plug_heater_switch"));
 
-        _bedroom1HeaterSmartPlugOnOff = new CustomSwitchEntity(_entities.Switch.Bedroom1PlugHeaterSwitch);
+        _bedroom1HeaterSmartPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.bedroom_1_plug_heater_switch"));
 
-        _kitchenHeaterSmartPlugOnOff = new CustomSwitchEntity(_entities.Switch.KitchenPlugHeaterSwitch);
+        _kitchenHeaterSmartPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.kitchen_plug_heater_switch"));
 
         // Testing
-        _automationTest = _entities.InputBoolean.AutomationTest;
+        _automationTest = new InputBooleanEntity(ha, "input_boolean.automation_test");
 
         // Living room
-        _livingRoomChristmasTreeButton = new SonoffButton(_ha, "C4:D8:C8:FF:FE:49:3E:DF");
-        _livingRoomChristmasTreePlugOnOff = new CustomSwitchEntity(_entities.Switch.ChristmasTree);
-        _livingRoomRadiatorThermostat = new CustomClimateControlEntity(_entities.Climate.LivingRoomRadiatorThermostat);
-        _livingRoomClimateHumidity = new CustomNumericSensorEntity(_entities.Sensor.LivingroomClimateHumidity);
-        _livingRoomClimateTemperature = new CustomNumericSensorEntity(_entities.Sensor.LivingroomClimateTemperature);
+        _livingRoomChristmasTreeButton = new SonoffButton(ha, "C4:D8:C8:FF:FE:49:3E:DF");
+        _livingRoomChristmasTreePlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.christmas_tree"));
+        _livingRoomRadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.living_room_radiator_thermostat"));
+        _livingRoomClimateHumidity = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.livingroom_climate_humidity"));
+        _livingRoomClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.livingroom_climate_temperature"));
 
         // Dining room
-        _diningRoomDeskButton = new SonoffButton(_ha, "d4:48:67:ff:fe:0b:f6:0b");
-        _diningRoomDehumidierLowerThreshold = _entities.InputNumber.DiningroomDehumidifierLowerThreshold;
-        _diningRoomDehumidierUpperThreshold = _entities.InputNumber.DiningroomDehumidifierUpperThreshold;
-        _diningRoomDehumidierLookAheadMinutes = _entities.InputNumber.DiningroomDehumidifierProjectionLookAheadMinutes;
-        _diningRoomDehumidierSmartPlugOnOff = new CustomSwitchEntity(_entities.Switch.SonoffS60zbtpg);
-        _diningRoomDehumidifierSmartPlugPower = new CustomNumericSensorEntity(_entities.Sensor.SonoffS60zbtpgPower);
-        _diningRoomClimateHumidity = new CustomNumericSensorEntity(_entities.Sensor.DiningroomHumidity);
-        _diningRoomClimateTemperature = new CustomNumericSensorEntity(_entities.Sensor.DiningroomTemperature);
-        _diningRoomBookshelfButton = new SonoffButton(_ha, "d4:48:67:ff:fe:08:1a:bc");
-        _diningBookshelfLightStrip = _entities.Light.BookcaseLightStrip;
-        _diningBookshelfLightStripPlugOnOff = new CustomSwitchEntity(_entities.Switch.Smartplug01Switch);
-        _diningRoomLegoVillage = new CustomSwitchEntity(_entities.Switch.LegoVillage);
-        _diningRoomRadiatorThermostat = new CustomClimateControlEntity(_entities.Climate.DiningRoomRadiatorThermostat);
+        _diningRoomDeskButton = new SonoffButton(ha, "d4:48:67:ff:fe:0b:f6:0b");
+        _diningRoomDehumidierLowerThreshold = new InputNumberEntity(ha, "input_number.diningroom_dehumidifier_lower_threshold");
+        _diningRoomDehumidierUpperThreshold = new InputNumberEntity(ha, "input_number.diningroom_dehumidifier_upper_threshold");
+        _diningRoomDehumidierLookAheadMinutes = new InputNumberEntity(ha, "input_number.diningroom_dehumidifier_projection_look_ahead_minutes");
+        _diningRoomDehumidierSmartPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.sonoff_s60zbtpg"));
+        _diningRoomDehumidifierSmartPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.sonoff_s60zbtpg_power"));
+        _diningRoomClimateHumidity = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.diningroom_humidity"));
+        _diningRoomClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.diningroom_temperature"));
+        _diningRoomBookshelfButton = new SonoffButton(ha, "d4:48:67:ff:fe:08:1a:bc");
+        _diningBookshelfLightStrip = new LightEntity(ha, "light.bookcase_light_strip");
+        _diningBookshelfLightStripPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.smartplug01_switch"));
+        _diningRoomLegoVillage = new CustomSwitchEntity(new SwitchEntity(ha, "switch.lego_village"));
+        _diningRoomRadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.dining_room_radiator_thermostat"));
 
         // Kitchen
-        _kitchenTemperature = new CustomNumericSensorEntity(_entities.Sensor.KitchenTemperatureAndHumidityTemperature);
-        _kitchenMotionSensor = _entities.BinarySensor.MotionSensor02Occupancy;
+        _kitchenTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.kitchen_temperature_and_humidity_temperature"));
+        _kitchenMotionSensor = new BinarySensorEntity(ha, "binary_sensor.motion_sensor_02_occupancy");
 
         // Games room
-        _gamesRoomDeskLamp = _entities.Light.WizRgbwTunable22099a;
-        _gamesRoomDeskTemperature = new CustomNumericSensorEntity(_entities.Sensor.SonoffSnzb02dTemperature);
-        _gamesRoomDeskHumidity = new CustomNumericSensorEntity(_entities.Sensor.SonoffSnzb02dHumidity);
-        _gamesRoomSpeaker = _entities.MediaPlayer.KitchenSpeaker;
-        _gamesRoomDeskButton = new SonoffButton(_ha, "D4:48:67:FF:FE:0C:12:00");
+        _gamesRoomDeskLamp = new LightEntity(ha, "light.wiz_rgbw_tunable_22099a");
+        _gamesRoomDeskTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.sonoff_snzb_02d_temperature"));
+        _gamesRoomDeskHumidity = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.sonoff_snzb_02d_humidity"));
+        _gamesRoomSpeaker = new MediaPlayerEntity(ha, "media_player.kitchen_speaker");
+        _gamesRoomDeskButton = new SonoffButton(ha, "D4:48:67:FF:FE:0C:12:00");
 
         // Bedroom 1
-        _bedroom1Temperature = new CustomNumericSensorEntity(_entities.Sensor.ClockTemperatureAndHumidityTemperature);
-        _bedroom1RadiatorThermostat = new CustomClimateControlEntity(_entities.Climate.Bedroom1RadiatorThermostat);
+        _bedroom1Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.clock_temperature_and_humidity_temperature"));
+        _bedroom1RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_1_radiator_thermostat"));
 
         // Bedroom 2
-        _bedroomTwoDeskLamp = _entities.Light.LamperionBaneOfShadows;
-        _bedroom2Temperature = new CustomNumericSensorEntity(_entities.Sensor.Bedroom2ClimateTemperature);
-        _bedroom2RadiatorThermostat = new CustomClimateControlEntity(_entities.Climate.Bedroom2RadiatorThermostat);
+        _bedroomTwoDeskLamp = new LightEntity(ha, "light.lamperion_bane_of_shadows");
+        _bedroom2Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bedroom_2_climate_temperature"));
+        _bedroom2RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_2_radiator_thermostat"));
 
         // Bedroom 3
-        _bedroom3Temperature = new CustomNumericSensorEntity(_entities.Sensor.Bedroom3ClimateTemperature);
-        _bedroom3RadiatorThermostat = new CustomClimateControlEntity(_entities.Climate.Bedroom3RadiatorThermostat);
+        _bedroom3Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bedroom_3_climate_temperature"));
+        _bedroom3RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_3_radiator_thermostat"));
 
         // Upstairs bathroom
-        _upstairsBathroomTemperature = new CustomNumericSensorEntity(_entities.Sensor.BathroomTemperature);
+        _upstairsBathroomTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bathroom_temperature"));
 
         // Porch
-        _porchLight = _entities.Light.PorchLight;
-        _porchMotionSensor = _entities.BinarySensor.EwelinkSnzb03pOccupancy;
+        _porchLight = new LightEntity(ha, "light.porch_light");
+        _porchMotionSensor = new BinarySensorEntity(ha, "binary_sensor.ewelink_snzb_03p_occupancy");
     }
 
     // Testing
@@ -523,17 +521,17 @@ public static class SwitchEntityExtensions
 
 public class Mg4Ev
 {
-    private readonly Entities _entities;
+    private readonly IHaContext _ha;
 
-    public BinarySensorEntity IgnitionEntity => _entities.BinarySensor.MgMg4ElectricEngineStatus;
-    public SwitchEntity FrontDefrostEntity => _entities.Switch.MgMg4ElectricFrontDefrost;
-    public SwitchEntity RearDefrostEntity => _entities.Switch.MgMg4ElectricRearWindowDefrost;
+    public BinarySensorEntity IgnitionEntity => new(_ha, "binary_sensor.mg_mg4_electric_engine_status");
+    public SwitchEntity FrontDefrostEntity => new(_ha, "switch.mg_mg4_electric_front_defrost");
+    public SwitchEntity RearDefrostEntity => new(_ha, "switch.mg_mg4_electric_rear_window_defrost");
 
     public bool? IgnitionState => IgnitionEntity.IsOn;
 
-    public Mg4Ev(Entities entities)
+    public Mg4Ev(IHaContext ha)
     {
-        _entities = entities;
+        _ha = ha;
     }
 
     public void SetFrontDefrost(bool value)
@@ -669,5 +667,19 @@ public class CustomClimateControlEntity : ICustomClimateControlEntity
     public void SetTargetTemperature(double temperature)
     {
         _climateEntity.SetTemperature(temperature);
+    }
+}
+
+internal static class EntityExistenceValidator
+{
+    internal static void ValidateEntities(IHaContext ha, ILogger logger, params string[] entityIds)
+    {
+        foreach (string entityId in entityIds)
+        {
+            if (ha.GetState(entityId) == null)
+            {
+                logger.LogWarning("Entity '{EntityId}' not found in Home Assistant. Features depending on this entity will not work.", entityId);
+            }
+        }
     }
 }

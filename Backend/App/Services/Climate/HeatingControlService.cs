@@ -34,6 +34,7 @@ internal class HeatingControlService
     private readonly HousePresenceSensor _housePresenceSensor;
 
     public HeatingControlService(
+        IHaContext ha,
         INamedEntities namedEntities,
         IScheduler scheduler,
         ILogger<HeatingControlService> logger,
@@ -65,6 +66,29 @@ internal class HeatingControlService
             namedEntities.GamesRoomDeskPlugPower,
             namedEntities.DiningRoomDeskPlugOnOff,
             namedEntities.DiningRoomDeskPlugPower);
+
+        EntityExistenceValidator.ValidateEntities(ha, logger,
+            namedEntities.GamesRoomHeaterSmartPlugOnOff.EntityId,
+            namedEntities.DiningRoomHeaterSmartPlugOnOff.EntityId,
+            namedEntities.Bedroom1HeaterSmartPlugOnOff.EntityId,
+            namedEntities.KitchenHeaterSmartPlugOnOff.EntityId,
+            namedEntities.GamesRoomDeskPlugOnOff.EntityId,
+            namedEntities.GamesRoomDeskPlugPower.EntityId,
+            namedEntities.DiningRoomDeskPlugOnOff.EntityId,
+            namedEntities.DiningRoomDeskPlugPower.EntityId,
+            namedEntities.GamesRoomDeskTemperature.EntityId,
+            namedEntities.KitchenTemperature.EntityId,
+            namedEntities.Bedroom1Temperature.EntityId,
+            namedEntities.Bedroom2Temperature.EntityId,
+            namedEntities.Bedroom3Temperature.EntityId,
+            namedEntities.UpstairsBathroomTemperature.EntityId,
+            namedEntities.DiningRoomClimateTemperature.EntityId,
+            namedEntities.LivingRoomClimateTemperature.EntityId,
+            namedEntities.DiningRoomRadiatorThermostat.EntityId,
+            namedEntities.LivingRoomRadiatorThermostat.EntityId,
+            namedEntities.Bedroom1RadiatorThermostat.EntityId,
+            namedEntities.Bedroom2RadiatorThermostat.EntityId,
+            namedEntities.Bedroom3RadiatorThermostat.EntityId);
     }
 
     public void Start()

@@ -1,9 +1,21 @@
 <template>
   <div class="app">
     <header class="app-header">
-      <h1>Heating Control</h1>
+      <div class="header-left">
+        <router-link
+          v-if="route.name !== 'home'"
+          to="/"
+          class="home-btn"
+          title="Home"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+          </svg>
+        </router-link>
+        <h1>{{ pageTitle }}</h1>
+      </div>
       <div class="header-controls">
-        <div class="occupancy-filter">
+        <div v-if="route.name === 'heating'" class="occupancy-filter">
           <button
             class="filter-btn"
             :class="{ active: currentHouseState === 0 }"
@@ -27,13 +39,16 @@
         </div>
         <SettingsMenu
           @disconnect="handleDisconnect"
+          @open-entity-settings="handleOpenEntitySettings"
         />
       </div>
     </header>
-    <main class="app-main">
-      <HeatingView
+    <main class="app-main" :class="{ 'app-main--full-width': route.name === 'battery' }">
+      <router-view
         :occupancy-filter="occupancyFilter"
+        :show-entity-settings="showEntitySettings"
         @house-state-changed="handleHouseStateChanged"
+        @entity-settings-closed="showEntitySettings = false"
       />
     </main>
 
@@ -47,16 +62,27 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import HeatingView from './views/HeatingView.vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
 import { hasHouseId as checkHouseId, setHouseId, clearHouseId } from './utils/cookies.js'
+
+const route = useRoute()
 
 const showHouseIdModal = ref(false)
 const hasHouseId = ref(false)
 const occupancyFilter = ref('occupied') // 'occupied', 'vacant', or null for all
 const currentHouseState = ref(0) // 0 = Home, 1 = Away
+const showEntitySettings = ref(false)
+
+const pageTitle = computed(() => {
+  switch (route.name) {
+    case 'heating': return 'Heating Control'
+    case 'battery': return 'Battery Management'
+    default: return 'Home Assistant'
+  }
+})
 
 // Cookie helpers
 const OCCUPANCY_FILTER_COOKIE = 'heating-app-occupancy-filter'
@@ -172,6 +198,11 @@ async function handleHouseIdSubmit(houseId) {
   }
 }
 
+// Handle entity settings request from hamburger menu
+function handleOpenEntitySettings() {
+  showEntitySettings.value = true
+}
+
 // Handle disconnect from house
 function handleDisconnect() {
   clearHouseId()
@@ -197,6 +228,33 @@ function handleDisconnect() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.home-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-header);
+  padding: 0.375rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+.home-btn:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.home-btn:active {
+  transform: scale(0.95);
 }
 
 .app-header h1 {
@@ -251,6 +309,11 @@ function handleDisconnect() {
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
+}
+
+.app-main--full-width {
+  max-width: none;
+  padding: 0.5rem;
 }
 
 @media (max-width: 600px) {

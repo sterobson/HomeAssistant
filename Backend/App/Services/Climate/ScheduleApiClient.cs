@@ -15,8 +15,6 @@ public interface IScheduleApiClient
 {
     Task<RoomSchedules> GetSchedulesAsync(string houseId);
     Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates);
-    Task<string> GetSignalRConnectionInfoAsync(string houseId);
-    Task<HttpResponseMessage> AddToGroupAsync(string houseId, string connectionId);
 }
 
 public class ScheduleApiClient : IScheduleApiClient
@@ -79,41 +77,6 @@ public class ScheduleApiClient : IScheduleApiClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error setting room states to API for house {HouseId}", houseId);
-            throw;
-        }
-    }
-
-    public async Task<string> GetSignalRConnectionInfoAsync(string houseId)
-    {
-        try
-        {
-            HttpResponseMessage response = await _httpClient.PostAsync($"/api/signalr/negotiate?houseId={houseId}", null);
-            response.EnsureSuccessStatusCode();
-
-            string connectionInfo = await response.Content.ReadAsStringAsync();
-            _logger.LogDebug("Successfully retrieved SignalR connection info for house {HouseId}", houseId);
-            return connectionInfo;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting SignalR connection info for house {HouseId}", houseId);
-            throw;
-        }
-    }
-
-    public async Task<HttpResponseMessage> AddToGroupAsync(string houseId, string connectionId)
-    {
-        try
-        {
-            HttpResponseMessage response = await _httpClient.PostAsync($"/api/signalr/add-to-group?houseId={houseId}&connectionId={connectionId}", null);
-            response.EnsureSuccessStatusCode();
-
-            _logger.LogDebug("Successfully added connection to group for house {HouseId}", houseId);
-            return response;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error adding connection to group for house {HouseId}", houseId);
             throw;
         }
     }

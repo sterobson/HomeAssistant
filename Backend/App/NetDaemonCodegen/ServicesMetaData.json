@@ -177,9 +177,9 @@
                 "critical"
               ],
               "translation_key": "level",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -210,9 +210,9 @@
                 "critical"
               ],
               "translation_key": "level",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -243,9 +243,9 @@
                 "light"
               ],
               "translation_key": "mode",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -372,9 +372,9 @@
                 "week",
                 "month"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -396,8 +396,8 @@
                 "sum"
               ],
               "multiple": true,
-              "sort": false,
-              "custom_value": false
+              "custom_value": false,
+              "sort": false
             }
           }
         },
@@ -651,56 +651,6 @@
       }
     }
   },
-  "ffmpeg": {
-    "start": {
-      "fields": {
-        "entity_id": {
-          "selector": {
-            "entity": {
-              "integration": "ffmpeg",
-              "domain": [
-                "binary_sensor"
-              ],
-              "reorder": false,
-              "multiple": false
-            }
-          }
-        }
-      }
-    },
-    "stop": {
-      "fields": {
-        "entity_id": {
-          "selector": {
-            "entity": {
-              "integration": "ffmpeg",
-              "domain": [
-                "binary_sensor"
-              ],
-              "reorder": false,
-              "multiple": false
-            }
-          }
-        }
-      }
-    },
-    "restart": {
-      "fields": {
-        "entity_id": {
-          "selector": {
-            "entity": {
-              "integration": "ffmpeg",
-              "domain": [
-                "binary_sensor"
-              ],
-              "reorder": false,
-              "multiple": false
-            }
-          }
-        }
-      }
-    }
-  },
   "switch": {
     "turn_off": {
       "fields": {},
@@ -804,6 +754,118 @@
       "fields": {}
     }
   },
+  "ffmpeg": {
+    "start": {
+      "fields": {
+        "entity_id": {
+          "selector": {
+            "entity": {
+              "integration": "ffmpeg",
+              "domain": [
+                "binary_sensor"
+              ],
+              "multiple": false,
+              "reorder": false
+            }
+          }
+        }
+      }
+    },
+    "stop": {
+      "fields": {
+        "entity_id": {
+          "selector": {
+            "entity": {
+              "integration": "ffmpeg",
+              "domain": [
+                "binary_sensor"
+              ],
+              "multiple": false,
+              "reorder": false
+            }
+          }
+        }
+      }
+    },
+    "restart": {
+      "fields": {
+        "entity_id": {
+          "selector": {
+            "entity": {
+              "integration": "ffmpeg",
+              "domain": [
+                "binary_sensor"
+              ],
+              "multiple": false,
+              "reorder": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "conversation": {
+    "process": {
+      "fields": {
+        "text": {
+          "example": "Turn all lights on",
+          "required": true,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "language": {
+          "example": "NL",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "agent_id": {
+          "example": "homeassistant",
+          "selector": {
+            "conversation_agent": {}
+          }
+        },
+        "conversation_id": {
+          "example": "my_conversation_1",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "response": {
+        "optional": true
+      }
+    },
+    "reload": {
+      "fields": {
+        "language": {
+          "example": "NL",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "agent_id": {
+          "example": "homeassistant",
+          "selector": {
+            "conversation_agent": {}
+          }
+        }
+      }
+    }
+  },
   "tts": {
     "speak": {
       "fields": {
@@ -814,8 +876,8 @@
               "domain": [
                 "media_player"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           }
         },
@@ -908,68 +970,6 @@
       }
     }
   },
-  "conversation": {
-    "process": {
-      "fields": {
-        "text": {
-          "example": "Turn all lights on",
-          "required": true,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "language": {
-          "example": "NL",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "agent_id": {
-          "example": "homeassistant",
-          "selector": {
-            "conversation_agent": {}
-          }
-        },
-        "conversation_id": {
-          "example": "my_conversation_1",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "response": {
-        "optional": true
-      }
-    },
-    "reload": {
-      "fields": {
-        "language": {
-          "example": "NL",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "agent_id": {
-          "example": "homeassistant",
-          "selector": {
-            "conversation_agent": {}
-          }
-        }
-      }
-    }
-  },
   "cloud": {
     "remote_connect": {
       "fields": {}
@@ -979,6 +979,30 @@
     }
   },
   "scene": {
+    "turn_on": {
+      "fields": {
+        "transition": {
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 300.0,
+              "unit_of_measurement": "seconds",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "scene"
+            ]
+          }
+        ]
+      }
+    },
     "reload": {
       "fields": {}
     },
@@ -1044,30 +1068,6 @@
         "entity": [
           {
             "integration": "homeassistant",
-            "domain": [
-              "scene"
-            ]
-          }
-        ]
-      }
-    },
-    "turn_on": {
-      "fields": {
-        "transition": {
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 300.0,
-              "unit_of_measurement": "seconds",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
             "domain": [
               "scene"
             ]
@@ -1157,8 +1157,8 @@
               "domain": [
                 "media_player"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           }
         },
@@ -1169,9 +1169,9 @@
               "options": [
                 "hls"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -1228,6 +1228,93 @@
           {
             "domain": [
               "camera"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "timer": {
+    "reload": {
+      "fields": {}
+    },
+    "start": {
+      "fields": {
+        "duration": {
+          "example": "00:01:00 or 60",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "timer"
+            ]
+          }
+        ]
+      }
+    },
+    "pause": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "timer"
+            ]
+          }
+        ]
+      }
+    },
+    "cancel": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "timer"
+            ]
+          }
+        ]
+      }
+    },
+    "finish": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "timer"
+            ]
+          }
+        ]
+      }
+    },
+    "change": {
+      "fields": {
+        "duration": {
+          "default": 0,
+          "required": true,
+          "example": "00:01:00, 60 or -60",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "timer"
             ]
           }
         ]
@@ -1301,8 +1388,8 @@
         "entity_id": {
           "selector": {
             "entity": {
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           }
         },
@@ -1439,134 +1526,6 @@
       }
     }
   },
-  "timer": {
-    "reload": {
-      "fields": {}
-    },
-    "start": {
-      "fields": {
-        "duration": {
-          "example": "00:01:00 or 60",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "timer"
-            ]
-          }
-        ]
-      }
-    },
-    "pause": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "timer"
-            ]
-          }
-        ]
-      }
-    },
-    "cancel": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "timer"
-            ]
-          }
-        ]
-      }
-    },
-    "finish": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "timer"
-            ]
-          }
-        ]
-      }
-    },
-    "change": {
-      "fields": {
-        "duration": {
-          "default": 0,
-          "required": true,
-          "example": "00:01:00, 60 or -60",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "timer"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "input_boolean": {
-    "reload": {
-      "fields": {}
-    },
-    "turn_on": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "input_boolean"
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "input_boolean"
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "input_boolean"
-            ]
-          }
-        ]
-      }
-    }
-  },
   "input_number": {
     "reload": {
       "fields": {}
@@ -1620,6 +1579,47 @@
       }
     }
   },
+  "input_boolean": {
+    "reload": {
+      "fields": {}
+    },
+    "turn_on": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_boolean"
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_boolean"
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "input_boolean"
+            ]
+          }
+        ]
+      }
+    }
+  },
   "input_button": {
     "reload": {
       "fields": {}
@@ -1640,6 +1640,154 @@
   "person": {
     "reload": {
       "fields": {}
+    }
+  },
+  "file": {
+    "read_file": {
+      "fields": {
+        "file_name": {
+          "example": "www/my_file.json",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "file_encoding": {
+          "example": "JSON",
+          "selector": {
+            "select": {
+              "options": [
+                "JSON",
+                "YAML"
+              ],
+              "custom_value": false,
+              "multiple": false,
+              "sort": false
+            }
+          }
+        }
+      },
+      "response": {
+        "optional": false
+      }
+    }
+  },
+  "shopping_list": {
+    "add_item": {
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      }
+    },
+    "remove_item": {
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      }
+    },
+    "complete_item": {
+      "fields": {
+        "name": {
+          "required": true,
+          "example": "Beer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      }
+    },
+    "incomplete_item": {
+      "fields": {
+        "name": {
+          "example": "Beer",
+          "required": true,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      }
+    },
+    "complete_all": {
+      "fields": {}
+    },
+    "incomplete_all": {
+      "fields": {}
+    },
+    "clear_completed_items": {
+      "fields": {}
+    },
+    "sort": {
+      "fields": {
+        "reverse": {
+          "default": false,
+          "selector": {
+            "boolean": {}
+          }
+        }
+      }
+    }
+  },
+  "solax_modbus": {
+    "stop_all": {
+      "fields": {},
+      "description": "Force-stop all SolaX hubs (kills timers, tasks, sockets).",
+      "name": "Stop all SolaX hubs"
+    },
+    "stop_hub": {
+      "fields": {
+        "name": {
+          "name": "Hub name",
+          "description": "Name of the hub to stop (e.g., \u0022SolaX\u0022)",
+          "required": true,
+          "example": "SolaX"
+        }
+      },
+      "description": "Force-stop a single SolaX hub by name.",
+      "name": "Stop a specific SolaX hub"
+    }
+  },
+  "schedule": {
+    "reload": {
+      "fields": {}
+    },
+    "get_schedule": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "schedule"
+            ]
+          }
+        ]
+      },
+      "response": {
+        "optional": false
+      }
     }
   },
   "counter": {
@@ -1704,43 +1852,19 @@
       }
     }
   },
-  "input_datetime": {
+  "input_text": {
     "reload": {
       "fields": {}
     },
-    "set_datetime": {
+    "set_value": {
       "fields": {
-        "date": {
-          "example": "\u00222019-04-20\u0022",
+        "value": {
+          "required": true,
+          "example": "This is an example text",
           "selector": {
             "text": {
               "multiple": false,
               "multiline": false
-            }
-          }
-        },
-        "time": {
-          "example": "\u002205:04:20\u0022",
-          "selector": {
-            "time": {}
-          }
-        },
-        "datetime": {
-          "example": "\u00222019-04-20 05:04:20\u0022",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "timestamp": {
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 9.223372036854776e18,
-              "mode": "box",
-              "step": 1.0
             }
           }
         }
@@ -1749,18 +1873,31 @@
         "entity": [
           {
             "domain": [
-              "input_datetime"
+              "input_text"
             ]
           }
         ]
       }
     }
   },
-  "file": {
-    "read_file": {
+  "cast": {
+    "show_lovelace_view": {
       "fields": {
-        "file_name": {
-          "example": "www/my_file.json",
+        "entity_id": {
+          "required": true,
+          "selector": {
+            "entity": {
+              "integration": "cast",
+              "domain": [
+                "media_player"
+              ],
+              "multiple": false,
+              "reorder": false
+            }
+          }
+        },
+        "dashboard_path": {
+          "example": "lovelace-cast",
           "selector": {
             "text": {
               "multiple": false,
@@ -1768,23 +1905,16 @@
             }
           }
         },
-        "file_encoding": {
-          "example": "JSON",
+        "view_path": {
+          "required": true,
+          "example": "downstairs",
           "selector": {
-            "select": {
-              "options": [
-                "JSON",
-                "YAML"
-              ],
+            "text": {
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "multiline": false
             }
           }
         }
-      },
-      "response": {
-        "optional": false
       }
     }
   },
@@ -2056,102 +2186,6 @@
       }
     }
   },
-  "shopping_list": {
-    "add_item": {
-      "fields": {
-        "name": {
-          "required": true,
-          "example": "Beer",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      }
-    },
-    "remove_item": {
-      "fields": {
-        "name": {
-          "required": true,
-          "example": "Beer",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      }
-    },
-    "complete_item": {
-      "fields": {
-        "name": {
-          "required": true,
-          "example": "Beer",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      }
-    },
-    "incomplete_item": {
-      "fields": {
-        "name": {
-          "example": "Beer",
-          "required": true,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      }
-    },
-    "complete_all": {
-      "fields": {}
-    },
-    "incomplete_all": {
-      "fields": {}
-    },
-    "clear_completed_items": {
-      "fields": {}
-    },
-    "sort": {
-      "fields": {
-        "reverse": {
-          "default": false,
-          "selector": {
-            "boolean": {}
-          }
-        }
-      }
-    }
-  },
-  "solax_modbus": {
-    "stop_all": {
-      "fields": {},
-      "description": "Force-stop all SolaX hubs (kills timers, tasks, sockets).",
-      "name": "Stop all SolaX hubs"
-    },
-    "stop_hub": {
-      "fields": {
-        "name": {
-          "name": "Hub name",
-          "description": "Name of the hub to stop (e.g., \u0022SolaX\u0022)",
-          "required": true,
-          "example": "SolaX"
-        }
-      },
-      "description": "Force-stop a single SolaX hub by name.",
-      "name": "Stop a specific SolaX hub"
-    }
-  },
   "hypervolt_charger": {
     "set_schedule": {
       "fields": {
@@ -2176,8 +2210,8 @@
               "domain": [
                 "binary_sensor"
               ],
-              "reorder": false,
-              "multiple": false
+              "multiple": false,
+              "reorder": false
             }
           }
         },
@@ -2208,19 +2242,43 @@
       "name": "Set schedule"
     }
   },
-  "input_text": {
+  "input_datetime": {
     "reload": {
       "fields": {}
     },
-    "set_value": {
+    "set_datetime": {
       "fields": {
-        "value": {
-          "required": true,
-          "example": "This is an example text",
+        "date": {
+          "example": "\u00222019-04-20\u0022",
           "selector": {
             "text": {
               "multiple": false,
               "multiline": false
+            }
+          }
+        },
+        "time": {
+          "example": "\u002205:04:20\u0022",
+          "selector": {
+            "time": {}
+          }
+        },
+        "datetime": {
+          "example": "\u00222019-04-20 05:04:20\u0022",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "timestamp": {
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 9.223372036854776e18,
+              "mode": "box",
+              "step": 1.0
             }
           }
         }
@@ -2229,68 +2287,10 @@
         "entity": [
           {
             "domain": [
-              "input_text"
+              "input_datetime"
             ]
           }
         ]
-      }
-    }
-  },
-  "schedule": {
-    "reload": {
-      "fields": {}
-    },
-    "get_schedule": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "schedule"
-            ]
-          }
-        ]
-      },
-      "response": {
-        "optional": false
-      }
-    }
-  },
-  "cast": {
-    "show_lovelace_view": {
-      "fields": {
-        "entity_id": {
-          "required": true,
-          "selector": {
-            "entity": {
-              "integration": "cast",
-              "domain": [
-                "media_player"
-              ],
-              "reorder": false,
-              "multiple": false
-            }
-          }
-        },
-        "dashboard_path": {
-          "example": "lovelace-cast",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "view_path": {
-          "required": true,
-          "example": "downstairs",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
       }
     }
   },
@@ -2651,9 +2651,9 @@
                 "needs_action",
                 "completed"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -2746,8 +2746,8 @@
                 "completed"
               ],
               "multiple": true,
-              "sort": false,
-              "custom_value": false
+              "custom_value": false,
+              "sort": false
             }
           }
         }
@@ -2946,9 +2946,9 @@
                 "reverse"
               ],
               "translation_key": "direction",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -3345,9 +3345,9 @@
                     "yellow",
                     "yellowgreen"
                   ],
+                  "custom_value": false,
                   "multiple": false,
-                  "sort": false,
-                  "custom_value": false
+                  "sort": false
                 }
               }
             },
@@ -3493,9 +3493,9 @@
                     "long",
                     "short"
                   ],
+                  "custom_value": false,
                   "multiple": false,
-                  "sort": false,
-                  "custom_value": false
+                  "sort": false
                 }
               }
             }
@@ -3546,9 +3546,9 @@
                     "long",
                     "short"
                   ],
+                  "custom_value": false,
                   "multiple": false,
-                  "sort": false,
-                  "custom_value": false
+                  "sort": false
                 }
               }
             }
@@ -3864,9 +3864,9 @@
                     "yellow",
                     "yellowgreen"
                   ],
+                  "custom_value": false,
                   "multiple": false,
-                  "sort": false,
-                  "custom_value": false
+                  "sort": false
                 }
               }
             },
@@ -3989,9 +3989,9 @@
                     "long",
                     "short"
                   ],
+                  "custom_value": false,
                   "multiple": false,
-                  "sort": false,
-                  "custom_value": false
+                  "sort": false
                 }
               }
             }
@@ -4031,6 +4031,1205 @@
             ]
           }
         ]
+      }
+    }
+  },
+  "alarm_control_panel": {
+    "alarm_disarm": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_arm_home": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_arm_away": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_arm_night": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_arm_vacation": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              32
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_arm_custom_bypass": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              16
+            ]
+          }
+        ]
+      }
+    },
+    "alarm_trigger": {
+      "fields": {
+        "code": {
+          "example": "1234",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "alarm_control_panel"
+            ],
+            "supported_features": [
+              8
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "button": {
+    "press": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "button"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "climate": {
+    "turn_on": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              256
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              128
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              128,
+              256
+            ]
+          }
+        ]
+      }
+    },
+    "set_hvac_mode": {
+      "fields": {
+        "hvac_mode": {
+          "selector": {
+            "state": {
+              "hide_states": [
+                "unavailable",
+                "unknown"
+              ],
+              "multiple": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ]
+          }
+        ]
+      }
+    },
+    "set_preset_mode": {
+      "fields": {
+        "preset_mode": {
+          "required": true,
+          "example": "away",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              16
+            ]
+          }
+        ]
+      }
+    },
+    "set_temperature": {
+      "fields": {
+        "temperature": {
+          "filter": {
+            "supported_features": [
+              1
+            ]
+          },
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 250.0,
+              "step": 0.1,
+              "mode": "box"
+            }
+          }
+        },
+        "target_temp_high": {
+          "filter": {
+            "supported_features": [
+              2
+            ]
+          },
+          "advanced": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 250.0,
+              "step": 0.1,
+              "mode": "box"
+            }
+          }
+        },
+        "target_temp_low": {
+          "filter": {
+            "supported_features": [
+              2
+            ]
+          },
+          "advanced": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 250.0,
+              "step": 0.1,
+              "mode": "box"
+            }
+          }
+        },
+        "hvac_mode": {
+          "selector": {
+            "select": {
+              "options": [
+                "off",
+                "auto",
+                "cool",
+                "dry",
+                "fan_only",
+                "heat_cool",
+                "heat"
+              ],
+              "translation_key": "hvac_mode",
+              "custom_value": false,
+              "multiple": false,
+              "sort": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              1,
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "set_humidity": {
+      "fields": {
+        "humidity": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 30.0,
+              "max": 99.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "set_fan_mode": {
+      "fields": {
+        "fan_mode": {
+          "required": true,
+          "example": "low",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              8
+            ]
+          }
+        ]
+      }
+    },
+    "set_swing_mode": {
+      "fields": {
+        "swing_mode": {
+          "required": true,
+          "example": "on",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              32
+            ]
+          }
+        ]
+      }
+    },
+    "set_swing_horizontal_mode": {
+      "fields": {
+        "swing_horizontal_mode": {
+          "required": true,
+          "example": "on",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "climate"
+            ],
+            "supported_features": [
+              512
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "cover": {
+    "open_cover": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "close_cover": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "set_cover_position": {
+      "fields": {
+        "position": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "stop_cover": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              8
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              3
+            ]
+          }
+        ]
+      }
+    },
+    "open_cover_tilt": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              16
+            ]
+          }
+        ]
+      }
+    },
+    "close_cover_tilt": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              32
+            ]
+          }
+        ]
+      }
+    },
+    "stop_cover_tilt": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              64
+            ]
+          }
+        ]
+      }
+    },
+    "set_cover_tilt_position": {
+      "fields": {
+        "tilt_position": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              128
+            ]
+          }
+        ]
+      }
+    },
+    "toggle_cover_tilt": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "cover"
+            ],
+            "supported_features": [
+              48
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "humidifier": {
+    "turn_on": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "humidifier"
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "humidifier"
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "humidifier"
+            ]
+          }
+        ]
+      }
+    },
+    "set_mode": {
+      "fields": {
+        "mode": {
+          "required": true,
+          "example": "away",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "humidifier"
+            ],
+            "supported_features": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "set_humidity": {
+      "fields": {
+        "humidity": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "humidifier"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "select": {
+    "select_first": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "select"
+            ]
+          }
+        ]
+      }
+    },
+    "select_last": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "select"
+            ]
+          }
+        ]
+      }
+    },
+    "select_next": {
+      "fields": {
+        "cycle": {
+          "default": true,
+          "selector": {
+            "boolean": {}
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "select"
+            ]
+          }
+        ]
+      }
+    },
+    "select_option": {
+      "fields": {
+        "option": {
+          "required": true,
+          "example": "\u0022Item A\u0022",
+          "selector": {
+            "state": {
+              "hide_states": [
+                "unavailable",
+                "unknown"
+              ],
+              "multiple": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "select"
+            ]
+          }
+        ]
+      }
+    },
+    "select_previous": {
+      "fields": {
+        "cycle": {
+          "default": true,
+          "selector": {
+            "boolean": {}
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "select"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "siren": {
+    "turn_on": {
+      "fields": {
+        "tone": {
+          "example": "fire",
+          "filter": {
+            "supported_features": [
+              4
+            ]
+          },
+          "required": false,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "volume_level": {
+          "example": 0.5,
+          "filter": {
+            "supported_features": [
+              8
+            ]
+          },
+          "required": false,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "mode": "slider"
+            }
+          }
+        },
+        "duration": {
+          "example": 15,
+          "filter": {
+            "supported_features": [
+              16
+            ]
+          },
+          "required": false,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "siren"
+            ],
+            "supported_features": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "turn_off": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "siren"
+            ],
+            "supported_features": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "siren"
+            ],
+            "supported_features": [
+              3
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "vacuum": {
+    "start": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ],
+            "supported_features": [
+              8192
+            ]
+          }
+        ]
+      }
+    },
+    "pause": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "return_to_base": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ],
+            "supported_features": [
+              16
+            ]
+          }
+        ]
+      }
+    },
+    "clean_spot": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ]
+          }
+        ]
+      }
+    },
+    "locate": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ],
+            "supported_features": [
+              512
+            ]
+          }
+        ]
+      }
+    },
+    "stop": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ],
+            "supported_features": [
+              8
+            ]
+          }
+        ]
+      }
+    },
+    "set_fan_speed": {
+      "fields": {
+        "fan_speed": {
+          "required": true,
+          "example": "low",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ]
+          }
+        ]
+      }
+    },
+    "send_command": {
+      "fields": {
+        "command": {
+          "required": true,
+          "example": "set_dnd_timer",
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "params": {
+          "example": "{ \u0022key\u0022: \u0022value\u0022 }",
+          "selector": {
+            "object": {
+              "multiple": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "vacuum"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "valve": {
+    "open_valve": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "valve"
+            ],
+            "supported_features": [
+              1
+            ]
+          }
+        ]
+      }
+    },
+    "close_valve": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "valve"
+            ],
+            "supported_features": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    "set_valve_position": {
+      "fields": {
+        "position": {
+          "required": true,
+          "selector": {
+            "number": {
+              "min": 0.0,
+              "max": 100.0,
+              "unit_of_measurement": "%",
+              "step": 1.0,
+              "mode": "slider"
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "valve"
+            ],
+            "supported_features": [
+              4
+            ]
+          }
+        ]
+      }
+    },
+    "stop_valve": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "valve"
+            ],
+            "supported_features": [
+              8
+            ]
+          }
+        ]
+      }
+    },
+    "toggle": {
+      "fields": {},
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "valve"
+            ],
+            "supported_features": [
+              3
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "weather": {
+    "get_forecasts": {
+      "fields": {
+        "type": {
+          "required": true,
+          "selector": {
+            "select": {
+              "options": [
+                "daily",
+                "hourly",
+                "twice_daily"
+              ],
+              "translation_key": "forecast_type",
+              "custom_value": false,
+              "multiple": false,
+              "sort": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "weather"
+            ],
+            "supported_features": [
+              1,
+              2,
+              4
+            ]
+          }
+        ]
+      },
+      "response": {
+        "optional": false
       }
     }
   },
@@ -4400,9 +5599,9 @@
                 "replace"
               ],
               "translation_key": "enqueue",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -4582,9 +5781,9 @@
                 "one"
               ],
               "translation_key": "repeat",
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -4597,110 +5796,6 @@
             ],
             "supported_features": [
               262144
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "button": {
-    "press": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "button"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "select": {
-    "select_first": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "select"
-            ]
-          }
-        ]
-      }
-    },
-    "select_last": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "select"
-            ]
-          }
-        ]
-      }
-    },
-    "select_next": {
-      "fields": {
-        "cycle": {
-          "default": true,
-          "selector": {
-            "boolean": {}
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "select"
-            ]
-          }
-        ]
-      }
-    },
-    "select_option": {
-      "fields": {
-        "option": {
-          "required": true,
-          "example": "\u0022Item A\u0022",
-          "selector": {
-            "state": {
-              "hide_states": [
-                "unavailable",
-                "unknown"
-              ],
-              "multiple": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "select"
-            ]
-          }
-        ]
-      }
-    },
-    "select_previous": {
-      "fields": {
-        "cycle": {
-          "default": true,
-          "selector": {
-            "boolean": {}
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "select"
             ]
           }
         ]
@@ -4748,293 +5843,6 @@
           {
             "domain": [
               "time"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "climate": {
-    "turn_on": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              256
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              128
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              128,
-              256
-            ]
-          }
-        ]
-      }
-    },
-    "set_hvac_mode": {
-      "fields": {
-        "hvac_mode": {
-          "selector": {
-            "state": {
-              "hide_states": [
-                "unavailable",
-                "unknown"
-              ],
-              "multiple": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ]
-          }
-        ]
-      }
-    },
-    "set_preset_mode": {
-      "fields": {
-        "preset_mode": {
-          "required": true,
-          "example": "away",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              16
-            ]
-          }
-        ]
-      }
-    },
-    "set_temperature": {
-      "fields": {
-        "temperature": {
-          "filter": {
-            "supported_features": [
-              1
-            ]
-          },
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 250.0,
-              "step": 0.1,
-              "mode": "box"
-            }
-          }
-        },
-        "target_temp_high": {
-          "filter": {
-            "supported_features": [
-              2
-            ]
-          },
-          "advanced": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 250.0,
-              "step": 0.1,
-              "mode": "box"
-            }
-          }
-        },
-        "target_temp_low": {
-          "filter": {
-            "supported_features": [
-              2
-            ]
-          },
-          "advanced": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 250.0,
-              "step": 0.1,
-              "mode": "box"
-            }
-          }
-        },
-        "hvac_mode": {
-          "selector": {
-            "select": {
-              "options": [
-                "off",
-                "auto",
-                "cool",
-                "dry",
-                "fan_only",
-                "heat_cool",
-                "heat"
-              ],
-              "translation_key": "hvac_mode",
-              "multiple": false,
-              "sort": false,
-              "custom_value": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              1,
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "set_humidity": {
-      "fields": {
-        "humidity": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 30.0,
-              "max": 99.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "set_fan_mode": {
-      "fields": {
-        "fan_mode": {
-          "required": true,
-          "example": "low",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              8
-            ]
-          }
-        ]
-      }
-    },
-    "set_swing_mode": {
-      "fields": {
-        "swing_mode": {
-          "required": true,
-          "example": "on",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              32
-            ]
-          }
-        ]
-      }
-    },
-    "set_swing_horizontal_mode": {
-      "fields": {
-        "swing_horizontal_mode": {
-          "required": true,
-          "example": "on",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "climate"
-            ],
-            "supported_features": [
-              512
             ]
           }
         ]
@@ -5249,814 +6057,6 @@
       }
     }
   },
-  "weather": {
-    "get_forecasts": {
-      "fields": {
-        "type": {
-          "required": true,
-          "selector": {
-            "select": {
-              "options": [
-                "daily",
-                "hourly",
-                "twice_daily"
-              ],
-              "translation_key": "forecast_type",
-              "multiple": false,
-              "sort": false,
-              "custom_value": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "weather"
-            ],
-            "supported_features": [
-              1,
-              2,
-              4
-            ]
-          }
-        ]
-      },
-      "response": {
-        "optional": false
-      }
-    }
-  },
-  "alarm_control_panel": {
-    "alarm_disarm": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_arm_home": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              1
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_arm_away": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_arm_night": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_arm_vacation": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              32
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_arm_custom_bypass": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              16
-            ]
-          }
-        ]
-      }
-    },
-    "alarm_trigger": {
-      "fields": {
-        "code": {
-          "example": "1234",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "alarm_control_panel"
-            ],
-            "supported_features": [
-              8
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "cover": {
-    "open_cover": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              1
-            ]
-          }
-        ]
-      }
-    },
-    "close_cover": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "set_cover_position": {
-      "fields": {
-        "position": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "stop_cover": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              8
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              3
-            ]
-          }
-        ]
-      }
-    },
-    "open_cover_tilt": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              16
-            ]
-          }
-        ]
-      }
-    },
-    "close_cover_tilt": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              32
-            ]
-          }
-        ]
-      }
-    },
-    "stop_cover_tilt": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              64
-            ]
-          }
-        ]
-      }
-    },
-    "set_cover_tilt_position": {
-      "fields": {
-        "tilt_position": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              128
-            ]
-          }
-        ]
-      }
-    },
-    "toggle_cover_tilt": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "cover"
-            ],
-            "supported_features": [
-              48
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "humidifier": {
-    "turn_on": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "humidifier"
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "humidifier"
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "humidifier"
-            ]
-          }
-        ]
-      }
-    },
-    "set_mode": {
-      "fields": {
-        "mode": {
-          "required": true,
-          "example": "away",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "humidifier"
-            ],
-            "supported_features": [
-              1
-            ]
-          }
-        ]
-      }
-    },
-    "set_humidity": {
-      "fields": {
-        "humidity": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "humidifier"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "siren": {
-    "turn_on": {
-      "fields": {
-        "tone": {
-          "example": "fire",
-          "filter": {
-            "supported_features": [
-              4
-            ]
-          },
-          "required": false,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "volume_level": {
-          "example": 0.5,
-          "filter": {
-            "supported_features": [
-              8
-            ]
-          },
-          "required": false,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 1.0,
-              "step": 0.05,
-              "mode": "slider"
-            }
-          }
-        },
-        "duration": {
-          "example": 15,
-          "filter": {
-            "supported_features": [
-              16
-            ]
-          },
-          "required": false,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "siren"
-            ],
-            "supported_features": [
-              1
-            ]
-          }
-        ]
-      }
-    },
-    "turn_off": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "siren"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "siren"
-            ],
-            "supported_features": [
-              3
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "vacuum": {
-    "start": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ],
-            "supported_features": [
-              8192
-            ]
-          }
-        ]
-      }
-    },
-    "pause": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "return_to_base": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ],
-            "supported_features": [
-              16
-            ]
-          }
-        ]
-      }
-    },
-    "clean_spot": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ]
-          }
-        ]
-      }
-    },
-    "locate": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ],
-            "supported_features": [
-              512
-            ]
-          }
-        ]
-      }
-    },
-    "stop": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ],
-            "supported_features": [
-              8
-            ]
-          }
-        ]
-      }
-    },
-    "set_fan_speed": {
-      "fields": {
-        "fan_speed": {
-          "required": true,
-          "example": "low",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ]
-          }
-        ]
-      }
-    },
-    "send_command": {
-      "fields": {
-        "command": {
-          "required": true,
-          "example": "set_dnd_timer",
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "params": {
-          "example": "{ \u0022key\u0022: \u0022value\u0022 }",
-          "selector": {
-            "object": {
-              "multiple": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "vacuum"
-            ]
-          }
-        ]
-      }
-    }
-  },
-  "valve": {
-    "open_valve": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "valve"
-            ],
-            "supported_features": [
-              1
-            ]
-          }
-        ]
-      }
-    },
-    "close_valve": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "valve"
-            ],
-            "supported_features": [
-              2
-            ]
-          }
-        ]
-      }
-    },
-    "set_valve_position": {
-      "fields": {
-        "position": {
-          "required": true,
-          "selector": {
-            "number": {
-              "min": 0.0,
-              "max": 100.0,
-              "unit_of_measurement": "%",
-              "step": 1.0,
-              "mode": "slider"
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "valve"
-            ],
-            "supported_features": [
-              4
-            ]
-          }
-        ]
-      }
-    },
-    "stop_valve": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "valve"
-            ],
-            "supported_features": [
-              8
-            ]
-          }
-        ]
-      }
-    },
-    "toggle": {
-      "fields": {},
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "valve"
-            ],
-            "supported_features": [
-              3
-            ]
-          }
-        ]
-      }
-    }
-  },
   "zha": {
     "permit": {
       "fields": {
@@ -6166,9 +6166,9 @@
                 "in",
                 "out"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -6247,9 +6247,9 @@
                 "in",
                 "out"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -6272,9 +6272,9 @@
                 "client",
                 "server"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -6335,9 +6335,9 @@
                 "in",
                 "out"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -6790,9 +6790,9 @@
                 "2",
                 "3"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         },
@@ -6807,9 +6807,9 @@
                 "2",
                 "3"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -6837,9 +6837,9 @@
                 "start",
                 "stop"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }
@@ -6922,9 +6922,9 @@
                 "16A",
                 "Max"
               ],
+              "custom_value": false,
               "multiple": false,
-              "sort": false,
-              "custom_value": false
+              "sort": false
             }
           }
         }

@@ -2,7 +2,7 @@
 // conflicting names
 
 using HomeAssistant.Services;
-using HomeAssistantGenerated;
+
 using NetDaemon.Extensions.Scheduler;
 using System.Collections.Generic;
 using System.Reactive.Concurrency;
@@ -16,11 +16,10 @@ internal class MilkBottles
     private readonly ILogger<MilkBottles> _logger;
     private readonly NotificationService _notificationService;
 
-    public MilkBottles(IHaContext ha, IScheduler scheduler, ILogger<MilkBottles> logger, NotificationService notificationService)
+    public MilkBottles(IScheduler scheduler, ILogger<MilkBottles> logger, NotificationService notificationService)
     {
         _logger = logger;
         _notificationService = notificationService;
-        Entities entities = new(ha);
 
         // Bottles out at 21:15 on Sunday and Tuesday nights, before we go to bed.
         scheduler.ScheduleCron("15 21 * * 0,2", async () => await SendMilkBottlesOutReminder());

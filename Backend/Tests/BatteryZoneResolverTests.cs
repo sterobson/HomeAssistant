@@ -1,0 +1,719 @@
+using HomeAssistant.apps.Energy;
+using HomeAssistant.Services.Energy;
+using Shouldly;
+
+namespace HomeAssistant.Tests;
+
+[TestClass]
+public sealed class BatteryZoneResolverTests
+{
+    // ========================================================================
+    // ResolveTimeDefinition
+    // ========================================================================
+
+    [TestMethod]
+    public void ResolveTimeDefinition_FixedTime_ReturnsFixedMinutes()
+    {
+        TimeDefinition def = new()
+        {
+            Type = TimeDefinitionType.FixedTime,
+            FixedTimeMinutes = 120 // 02:00
+        };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, []);
+
+        result.ShouldBe([120]);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_FixedTime_NullMinutes_ReturnsEmpty()
+    {
+        TimeDefinition def = new()
+        {
+            Type = TimeDefinitionType.FixedTime,
+            FixedTimeMinutes = null
+        };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, []);
+
+        result.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_StartOfCheapImport_FindsMinimaBoundary()
+    {
+        // Price pattern: high, low, high - minima region starts at 120
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30 },
+            new() { TimeMinutes = 30, ImportPrice = 30 },
+            new() { TimeMinutes = 60, ImportPrice = 30 },
+            new() { TimeMinutes = 90, ImportPrice = 30 },
+            new() { TimeMinutes = 120, ImportPrice = 10 },
+            new() { TimeMinutes = 150, ImportPrice = 10 },
+            new() { TimeMinutes = 180, ImportPrice = 30 },
+            new() { TimeMinutes = 210, ImportPrice = 30 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.StartOfCheapImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(120);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_EndOfCheapImport_FindsMinimaBoundaryEnd()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30 },
+            new() { TimeMinutes = 30, ImportPrice = 30 },
+            new() { TimeMinutes = 60, ImportPrice = 30 },
+            new() { TimeMinutes = 90, ImportPrice = 30 },
+            new() { TimeMinutes = 120, ImportPrice = 10 },
+            new() { TimeMinutes = 150, ImportPrice = 10 },
+            new() { TimeMinutes = 180, ImportPrice = 30 },
+            new() { TimeMinutes = 210, ImportPrice = 30 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.EndOfCheapImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(180);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_StartOfExpensiveImport_FindsMaximaBoundary()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 10 },
+            new() { TimeMinutes = 60, ImportPrice = 10 },
+            new() { TimeMinutes = 90, ImportPrice = 10 },
+            new() { TimeMinutes = 120, ImportPrice = 40 },
+            new() { TimeMinutes = 150, ImportPrice = 40 },
+            new() { TimeMinutes = 180, ImportPrice = 10 },
+            new() { TimeMinutes = 210, ImportPrice = 10 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.StartOfExpensiveImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(120);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_EndOfExpensiveImport_FindsMaximaBoundaryEnd()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 10 },
+            new() { TimeMinutes = 60, ImportPrice = 10 },
+            new() { TimeMinutes = 90, ImportPrice = 10 },
+            new() { TimeMinutes = 120, ImportPrice = 40 },
+            new() { TimeMinutes = 150, ImportPrice = 40 },
+            new() { TimeMinutes = 180, ImportPrice = 10 },
+            new() { TimeMinutes = 210, ImportPrice = 10 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.EndOfExpensiveImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(180);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_ExportExceedsImport_FindsCrossover()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30, ExportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 30, ExportPrice = 10 },
+            new() { TimeMinutes = 60, ImportPrice = 10, ExportPrice = 20 }, // export exceeds import
+            new() { TimeMinutes = 90, ImportPrice = 10, ExportPrice = 20 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.ExportExceedsImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(60);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_ImportExceedsExport_FindsCrossover()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 10, ExportPrice = 20 },
+            new() { TimeMinutes = 30, ImportPrice = 10, ExportPrice = 20 },
+            new() { TimeMinutes = 60, ImportPrice = 30, ExportPrice = 10 }, // import exceeds export
+            new() { TimeMinutes = 90, ImportPrice = 30, ExportPrice = 10 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.ImportExceedsExport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldContain(60);
+    }
+
+    [TestMethod]
+    public void ResolveTimeDefinition_NoCrossoverFound_ReturnsEmpty()
+    {
+        // Import always exceeds export, so ExportExceedsImport finds nothing
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30, ExportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 30, ExportPrice = 10 },
+            new() { TimeMinutes = 60, ImportPrice = 30, ExportPrice = 10 },
+        ];
+
+        TimeDefinition def = new() { Type = TimeDefinitionType.ExportExceedsImport };
+
+        List<int> result = BatteryZoneResolver.ResolveTimeDefinition(def, slots);
+
+        result.ShouldBeEmpty();
+    }
+
+    // ========================================================================
+    // EvaluateZoneRule - Fixed time zones
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_FixedStartAndEnd_CreatesOneZone()
+    {
+        BatteryZoneRule rule = new()
+        {
+            Id = "rule-1",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 60 },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 240 },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        zones.Count.ShouldBe(1);
+        zones[0].RuleId.ShouldBe("rule-1");
+        zones[0].StartMinutes.ShouldBe(60);
+        zones[0].EndMinutes.ShouldBe(240);
+        zones[0].Action.ShouldBe(BatteryZoneAction.Import);
+        zones[0].TargetPercent.ShouldBe(80);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_ExportAction_SetsActionCorrectly()
+    {
+        BatteryZoneRule rule = new()
+        {
+            Id = "export-1",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 960 }, // 16:00
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1140 }, // 19:00
+            Action = BatteryZoneAction.Export,
+            TargetPercent = 20
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        zones.Count.ShouldBe(1);
+        zones[0].Action.ShouldBe(BatteryZoneAction.Export);
+        zones[0].TargetPercent.ShouldBe(20);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_MissingStartTime_ReturnsNoZones()
+    {
+        BatteryZoneRule rule = new()
+        {
+            Id = "rule-1",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = null },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 240 },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        zones.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_MissingEndTime_ReturnsNoZones()
+    {
+        BatteryZoneRule rule = new()
+        {
+            Id = "rule-1",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 60 },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = null },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        zones.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_EndBeforeStart_WrapsAroundMidnight()
+    {
+        // 23:00 to 05:00 should wrap around midnight
+        BatteryZoneRule rule = new()
+        {
+            Id = "overnight",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1380 }, // 23:00
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 300 }, // 05:00
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        // Should create two segments: 23:00-midnight and midnight-05:00
+        zones.Count.ShouldBe(2);
+
+        ResolvedZone eveningSegment = zones.First(z => z.StartMinutes == 1380);
+        eveningSegment.EndMinutes.ShouldBe(1440);
+
+        ResolvedZone morningSegment = zones.First(z => z.StartMinutes == 0);
+        morningSegment.EndMinutes.ShouldBe(300);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_StartEqualsEnd_WrapsAroundFullDay()
+    {
+        // When start == end, the greedy pairing can't match forward,
+        // so midnight wrap creates a full-day zone (two segments)
+        BatteryZoneRule rule = new()
+        {
+            Id = "wrap",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 120 },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 120 },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        // Wraps: 02:00→midnight + midnight→02:00
+        zones.Count.ShouldBe(2);
+        zones.ShouldContain(z => z.StartMinutes == 120 && z.EndMinutes == 1440);
+        zones.ShouldContain(z => z.StartMinutes == 0 && z.EndMinutes == 120);
+    }
+
+    // ========================================================================
+    // EvaluateZoneRule - Price-driven zones
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_CheapImportWindow_ChargesDuringTrough()
+    {
+        // FindMinimaRegionBoundaries finds the flat trough where price < both neighbours.
+        // The boundary starts at the first slot of the trough and ends at the first slot after.
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 25 },
+            new() { TimeMinutes = 30, ImportPrice = 25 },
+            new() { TimeMinutes = 60, ImportPrice = 25 },
+            new() { TimeMinutes = 90, ImportPrice = 5 },   // trough (lower than 60 and 150)
+            new() { TimeMinutes = 120, ImportPrice = 5 },
+            new() { TimeMinutes = 150, ImportPrice = 25 },
+            new() { TimeMinutes = 180, ImportPrice = 25 },
+            new() { TimeMinutes = 210, ImportPrice = 25 },
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "cheap-charge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(90);
+        zones[0].EndMinutes.ShouldBe(150);
+        zones[0].Action.ShouldBe(BatteryZoneAction.Import);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_ExpensiveImportWindow_DischargesDuringPeak()
+    {
+        // FindMaximaRegionBoundaries finds the flat peak where price > both neighbours.
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 20 },
+            new() { TimeMinutes = 30, ImportPrice = 20 },
+            new() { TimeMinutes = 60, ImportPrice = 20 },
+            new() { TimeMinutes = 90, ImportPrice = 20 },
+            new() { TimeMinutes = 120, ImportPrice = 50 }, // flat peak (higher than 90 and 180)
+            new() { TimeMinutes = 150, ImportPrice = 50 },
+            new() { TimeMinutes = 180, ImportPrice = 20 },
+            new() { TimeMinutes = 210, ImportPrice = 20 },
+            new() { TimeMinutes = 240, ImportPrice = 20 },
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "peak-discharge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveImport },
+            Action = BatteryZoneAction.Export,
+            TargetPercent = 10
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(120);
+        zones[0].EndMinutes.ShouldBe(180);
+        zones[0].Action.ShouldBe(BatteryZoneAction.Export);
+    }
+
+    // ========================================================================
+    // ResolveAllZones
+    // ========================================================================
+
+    [TestMethod]
+    public void ResolveAllZones_MultipleRules_ReturnsAllZonesOrderedByStart()
+    {
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "afternoon-export",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 960 }, // 16:00
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1140 },  // 19:00
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 20
+                },
+                new BatteryZoneRule
+                {
+                    Id = "overnight-charge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 30 },  // 00:30
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 270 },   // 04:30
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, []);
+
+        zones.Count.ShouldBe(2);
+        zones[0].RuleId.ShouldBe("overnight-charge");
+        zones[0].StartMinutes.ShouldBe(30);
+        zones[1].RuleId.ShouldBe("afternoon-export");
+        zones[1].StartMinutes.ShouldBe(960);
+    }
+
+    [TestMethod]
+    public void ResolveAllZones_NoRules_ReturnsEmpty()
+    {
+        BatteryZoneRules rules = new() { Rules = [] };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, []);
+
+        zones.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void ResolveAllZones_RuleWithNoMatchingPriceData_SkipsRule()
+    {
+        // Flat pricing - no minima/maxima regions
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 20 },
+            new() { TimeMinutes = 30, ImportPrice = 20 },
+            new() { TimeMinutes = 60, ImportPrice = 20 },
+            new() { TimeMinutes = 90, ImportPrice = 20 },
+        ];
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-charge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                },
+                new BatteryZoneRule
+                {
+                    Id = "fixed-fallback",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 0 },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 240 },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 80
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].RuleId.ShouldBe("fixed-fallback");
+    }
+
+    // ========================================================================
+    // Typical day scenarios
+    // ========================================================================
+
+    [TestMethod]
+    public void TypicalFluxDay_ChargesOvernightAndDischargesDuringPeak()
+    {
+        // Octopus Flux-style: cheap 02:00-05:00, expensive 16:00-19:00
+        List<PricingSlot> slots = BuildFluxDaySlots();
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-charge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                },
+                new BatteryZoneRule
+                {
+                    Id = "peak-discharge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveImport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 10
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+
+        // Should have a charge zone in the cheap window and discharge zone in the expensive window
+        ResolvedZone? chargeZone = zones.FirstOrDefault(z => z.Action == BatteryZoneAction.Import);
+        ResolvedZone? dischargeZone = zones.FirstOrDefault(z => z.Action == BatteryZoneAction.Export);
+
+        chargeZone.ShouldNotBeNull();
+        chargeZone.StartMinutes.ShouldBeLessThan(300); // Before 05:00
+        chargeZone.TargetPercent.ShouldBe(100);
+
+        dischargeZone.ShouldNotBeNull();
+        dischargeZone.StartMinutes.ShouldBeGreaterThanOrEqualTo(960); // At or after 16:00
+        dischargeZone.TargetPercent.ShouldBe(10);
+    }
+
+    [TestMethod]
+    public void TypicalDay_FixedOvernight_ExportDuringHighExportPrices()
+    {
+        // Fixed overnight charge, dynamic export when export > import
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 60, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 90, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 120, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 150, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 180, ImportPrice = 15, ExportPrice = 25 }, // export exceeds import
+            new() { TimeMinutes = 210, ImportPrice = 15, ExportPrice = 25 },
+            new() { TimeMinutes = 240, ImportPrice = 20, ExportPrice = 10 }, // import exceeds export again
+            new() { TimeMinutes = 270, ImportPrice = 20, ExportPrice = 10 },
+        ];
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "fixed-charge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 0 },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 150 },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                },
+                new BatteryZoneRule
+                {
+                    Id = "export-profitable",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.ExportExceedsImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.ImportExceedsExport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 20
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+
+        zones.Count.ShouldBe(2);
+
+        ResolvedZone chargeZone = zones.First(z => z.RuleId == "fixed-charge");
+        chargeZone.StartMinutes.ShouldBe(0);
+        chargeZone.EndMinutes.ShouldBe(150);
+
+        ResolvedZone exportZone = zones.First(z => z.RuleId == "export-profitable");
+        exportZone.StartMinutes.ShouldBe(180);
+        exportZone.EndMinutes.ShouldBe(240);
+    }
+
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+    private static List<PricingSlot> BuildFluxDaySlots()
+    {
+        // Simulate Octopus Flux: cheap 02:00-05:00 (7p), peak 16:00-19:00 (34p), standard elsewhere (20p)
+        List<PricingSlot> slots = [];
+        for (int minutes = 0; minutes < 1440; minutes += 30)
+        {
+            double importPrice = minutes switch
+            {
+                >= 120 and < 300 => 7,   // 02:00-05:00 cheap
+                >= 960 and < 1140 => 34,  // 16:00-19:00 peak
+                _ => 20                    // standard
+            };
+            slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = 15 });
+        }
+        return slots;
+    }
+
+    // ========================================================================
+    // DetermineOverrideEndMinutes
+    // ========================================================================
+
+    private static List<EnergyRate> BuildPublishedRates(params (int hourStart, int hourEnd, double rate)[] periods)
+    {
+        // Build rates for a single day (2025-01-15) in UTC, assuming GMT (no offset)
+        DateTime baseDate = new(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc);
+        List<EnergyRate> rates = [];
+        foreach ((int hourStart, int hourEnd, double rate) period in periods)
+        {
+            rates.Add(new EnergyRate
+            {
+                StartTimeUtc = baseDate.AddHours(period.hourStart),
+                EndTimeUtc = baseDate.AddHours(period.hourEnd),
+                RateIncVat = period.rate
+            });
+        }
+        return rates;
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_AlignedRateChange_ReturnsNextChangeTime()
+    {
+        // Published: 0-14:30 at 29p, 14:30-19:00 at 7p, 19:00-24:00 at 29p
+        List<EnergyRate> rates = BuildPublishedRates(
+            (0, 14, 29.0), (14, 19, 7.0), (19, 24, 29.0));
+        // Rate change at 14:28 matches boundary at 14:00*60=840 → not within 5 min
+        // Actually we need half-hour boundaries. Let's use proper minute boundaries.
+        // Published: 00:00-14:30 at 29p, 14:30-19:00 at 7p, 19:00-24:00 at 29p
+        rates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), RateIncVat = 7.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 29.0 }
+        ];
+
+        // Rate change at 14:28, boundary at 14:30 with matching rate 7p → aligned
+        DateTime localNow = new(2025, 1, 15, 14, 28, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 7.0);
+
+        // Next change after the 14:30 boundary is at 19:00 (1140 minutes)
+        result.ShouldBe(1140);
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_AlignedButDifferentRate_ReturnsDefault()
+    {
+        List<EnergyRate> rates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), RateIncVat = 7.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 29.0 }
+        ];
+
+        // Rate change at 14:28, boundary at 14:30 exists but sensor reports 15p (not 7p) → not aligned
+        DateTime localNow = new(2025, 1, 15, 14, 28, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 15.0);
+
+        // Not aligned: currentMinutes (868) + 60 = 928
+        result.ShouldBe(868 + 60);
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_NoNearbyBoundary_ReturnsDefault()
+    {
+        List<EnergyRate> rates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), RateIncVat = 7.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 29.0 }
+        ];
+
+        // Rate change at 14:15 — nearest boundary is at 14:30 (15 min away, > 5 min tolerance)
+        DateTime localNow = new(2025, 1, 15, 14, 15, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 7.0);
+
+        // Not aligned: 855 + 60 = 915
+        result.ShouldBe(855 + 60);
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_AlignedRateSameRestOfDay_Returns1440()
+    {
+        List<EnergyRate> rates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 7.0 }
+        ];
+
+        // Rate change at 14:28, aligned with 14:30 boundary at 7p, rate stays 7p for rest of day
+        DateTime localNow = new(2025, 1, 15, 14, 28, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 7.0);
+
+        result.ShouldBe(1440);
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_NotAlignedNearMidnight_ClampedTo1440()
+    {
+        List<EnergyRate> rates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 29.0 }
+        ];
+
+        // Rate change at 23:30 (1410), not aligned, 1410 + 60 = 1470 → clamped to 1440
+        DateTime localNow = new(2025, 1, 15, 23, 30, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 7.0);
+
+        result.ShouldBe(1440);
+    }
+
+    [TestMethod]
+    public void DetermineOverrideEndMinutes_EmptyPublishedRates_ReturnsDefault()
+    {
+        List<EnergyRate> rates = [];
+
+        DateTime localNow = new(2025, 1, 15, 14, 28, 0);
+        int result = PriceAnalysis.DetermineOverrideEndMinutes(rates, localNow, 7.0);
+
+        // 868 + 60 = 928
+        result.ShouldBe(928);
+    }
+}

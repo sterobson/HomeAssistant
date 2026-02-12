@@ -7,6 +7,7 @@ using HomeAssistant.Devices.CarChargers;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
 using HomeAssistant.Services.Climate;
+using HomeAssistant.Services.Energy;
 using HomeAssistant.Services.WasteManagement;
 using HomeAssistant.Weather;
 using HomeAssistant.Weather.WeatherApi;
@@ -18,6 +19,7 @@ using NetDaemon.Extensions.Logging;
 using NetDaemon.Extensions.Scheduler;
 using NetDaemon.Extensions.Tts;
 using NetDaemon.Runtime;
+using System.Net.Http;
 using System.Reflection;
 
 #pragma warning disable CA1812
@@ -63,7 +65,28 @@ try
                 .AddSingleton<IWasteCollectionService, YorkWasteCollectionService>()
                 .AddScoped<NamedEntities>()
                 .AddScoped<INamedEntities>(provider => provider.GetRequiredService<NamedEntities>())
-                .AddScoped<IPresenceService, PresenceService>()
+                .AddScoped<IPresenceService, PresenceService>();
+
+            services.AddHttpClient("SignalR", (serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                });
+
+            services.AddSingleton<ISignalRConnectionService>(serviceProvider =>
+                {
+                    IHttpClientFactory httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
+                    HttpClient httpClient = httpClientFactory.CreateClient("SignalR");
+                    return new SignalRConnectionService(
+                        serviceProvider.GetRequiredService<ILogger<SignalRConnectionService>>(),
+                        serviceProvider.GetRequiredService<WebSynchronisationConfiguration>(),
+                        httpClient);
+                });
+
+            services
                 .AddHttpClient<IScheduleApiClient, ScheduleApiClient>((serviceProvider, client) =>
                 {
                     WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
@@ -76,6 +99,54 @@ try
                 .AddScoped<ISchedulePersistenceService, SchedulePersistenceService>()
                 .AddScoped<IRoomStatePersistenceService, RoomStatePersistenceService>()
                 .AddScoped<HeatingControlService>()
+                .AddScoped<BatteryControlService>()
+                .AddHttpClient<IBatteryRulesApiClient, BatteryRulesApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddScoped<IBatteryRulesPersistenceService, BatteryRulesPersistenceService>()
+                .AddHttpClient<IEntityPushApiClient, EntityPushApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddHttpClient<IDeviceSettingsApiClient, DeviceSettingsApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddScoped<IDeviceSettingsPersistenceService, DeviceSettingsPersistenceService>()
+                .AddHttpClient<IBatteryPricingApiClient, BatteryPricingApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddHttpClient<IBatteryHistoryApiClient, BatteryHistoryApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
                 .AddSingleton<TimeProvider>(provider => TimeProvider.System);
 
         })
