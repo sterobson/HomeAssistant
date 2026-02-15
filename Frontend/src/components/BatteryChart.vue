@@ -9,6 +9,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Line } from 'vue-chartjs'
 import { getAvailableRuleTypes } from '../utils/priceAnalysis.js'
 import { useFormatting } from '../composables/useFormatting.js'
+import { isMinuteInZone, getElapsedMinutes } from '../composables/useBatteryRules.js'
 import {
   Chart as ChartJS,
   LinearScale,
@@ -84,6 +85,25 @@ function formatMinutes(minutes) {
   return formatTimeDisplay(time24)
 }
 
+/**
+ * Split a zone into 1-2 display segments for rendering on the [0, 1440] chart.
+ * Each segment carries _fullStart/_fullEnd from the original zone for graduated progress.
+ */
+function getDisplaySegments(zone) {
+  if (zone.endMinutes <= 1440) {
+    return [{ ...zone, _fullStart: zone.startMinutes, _fullEnd: zone.endMinutes }]
+  }
+  // Wrapped zone: split into evening + morning visual segments
+  const segments = [
+    { ...zone, startMinutes: zone.startMinutes, endMinutes: 1440, _fullStart: zone.startMinutes, _fullEnd: zone.endMinutes }
+  ]
+  const morningEnd = zone.endMinutes - 1440
+  if (morningEnd > 0) {
+    segments.push({ ...zone, startMinutes: 0, endMinutes: morningEnd, _fullStart: zone.startMinutes, _fullEnd: zone.endMinutes })
+  }
+  return segments
+}
+
 // --- Zone rendering plugin ---
 // Split into two hooks so zone fills are behind datasets but labels are in front.
 const zoneRenderingPlugin = {
@@ -100,52 +120,49 @@ const zoneRenderingPlugin = {
 
     ctx.save()
 
-    const sortedZones = [...zones].sort((a, b) => a.startMinutes - b.startMinutes)
+    // Flatten zones into display segments for rendering on [0, 1440]
+    const allSegments = []
+    for (const zone of zones) {
+      allSegments.push(...getDisplaySegments(zone))
+    }
+    allSegments.sort((a, b) => a.startMinutes - b.startMinutes)
 
-    for (const zone of sortedZones) {
-      const startPx = xScale.getPixelForValue(zone.startMinutes)
-      const endPx = xScale.getPixelForValue(zone.endMinutes)
+    for (const seg of allSegments) {
+      const startPx = xScale.getPixelForValue(seg.startMinutes)
+      const endPx = xScale.getPixelForValue(seg.endMinutes)
       const width = endPx - startPx
       const areaHeight = chartArea.bottom - chartArea.top
 
-      const isImport = zone.action === 'import'
+      const isImport = seg.action === 'import'
       const yChargeScale = chart.scales.yCharge
       const targetY = yChargeScale
-        ? yChargeScale.getPixelForValue(zone.targetPercent)
-        : chartArea.bottom - (zone.targetPercent / 100) * areaHeight
+        ? yChargeScale.getPixelForValue(seg.targetPercent)
+        : chartArea.bottom - (seg.targetPercent / 100) * areaHeight
 
       // Zone shading: two-tone for graduated (by-end) zones, flat fill for fixed-rate zones
-      const isGraduated = zone.rateMode !== 'fixed'
+      const isGraduated = seg.rateMode !== 'fixed'
 
       if (isGraduated && yChargeScale) {
         // Two-tone shading divided by the ideal charge/discharge trajectory
-        const fullStart = zone._fullZoneStart
-        const fullEnd = zone._fullZoneEnd
-        const isWrapSegment = fullStart != null && fullEnd != null
+        const fullStart = seg._fullStart
+        const fullEnd = seg._fullEnd
+        const totalDuration = fullEnd - fullStart
 
-        let startProgress, endProgress
-        if (isWrapSegment) {
-          const totalDuration = fullEnd - fullStart
-          const logicalStart = zone.startMinutes === 0
-            ? 1440 - fullStart
-            : zone.startMinutes - fullStart
-          const logicalEnd = zone.endMinutes === 1440
-            ? 1440 - fullStart
-            : 1440 - fullStart + zone.endMinutes
-          startProgress = logicalStart / totalDuration
-          endProgress = logicalEnd / totalDuration
-        } else {
-          startProgress = 0
-          endProgress = 1
-        }
+        // Calculate progress at segment start and end using elapsed minutes
+        const startProgress = getElapsedMinutes(seg.startMinutes, fullStart, fullEnd) / totalDuration
+        const endProgress = getElapsedMinutes(seg.endMinutes === 1440 && fullEnd > 1440 ? 0 : seg.endMinutes, fullStart, fullEnd) / totalDuration
+        // Handle the special case where segment ends at 1440 (midnight boundary of wrapped zone)
+        const adjustedEndProgress = seg.endMinutes === 1440 && fullEnd > 1440
+          ? (1440 - fullStart) / totalDuration
+          : endProgress
 
-        const logicalZoneStart = isWrapSegment ? fullStart : zone.startMinutes
         const defaultStart = isImport ? 0 : 100
-        const precedingZone = sortedZones.find(z => z !== zone && z.endMinutes === logicalZoneStart)
+        const sortedZones = [...zones].sort((a, b) => a.startMinutes - b.startMinutes)
+        const precedingZone = sortedZones.find(z => z.ruleId !== seg.ruleId && z.endMinutes === fullStart)
         const baseStartPercent = precedingZone ? precedingZone.targetPercent : defaultStart
 
-        const idealStartPercent = baseStartPercent + startProgress * (zone.targetPercent - baseStartPercent)
-        const idealEndPercent = baseStartPercent + endProgress * (zone.targetPercent - baseStartPercent)
+        const idealStartPercent = baseStartPercent + startProgress * (seg.targetPercent - baseStartPercent)
+        const idealEndPercent = baseStartPercent + adjustedEndProgress * (seg.targetPercent - baseStartPercent)
 
         const idealStartY = yChargeScale.getPixelForValue(idealStartPercent)
         const idealEndY = yChargeScale.getPixelForValue(idealEndPercent)
@@ -239,20 +256,40 @@ const zoneRenderingPlugin = {
 
     ctx.save()
 
-    const sortedZones = [...zones].sort((a, b) => a.startMinutes - b.startMinutes)
+    // Flatten zones into display segments, track which is the largest per zone for label placement
+    const segmentsByZone = new Map()
+    for (const zone of zones) {
+      const segs = getDisplaySegments(zone)
+      segmentsByZone.set(zone, segs)
+    }
 
-    for (const zone of sortedZones) {
-      const startPx = xScale.getPixelForValue(zone.startMinutes)
-      const endPx = xScale.getPixelForValue(zone.endMinutes)
+    const allSegments = []
+    for (const [zone, segs] of segmentsByZone) {
+      // Find the largest segment for this zone (where we draw labels)
+      let largestIdx = 0
+      let largestWidth = 0
+      for (let i = 0; i < segs.length; i++) {
+        const w = segs[i].endMinutes - segs[i].startMinutes
+        if (w > largestWidth) { largestWidth = w; largestIdx = i }
+      }
+      for (let i = 0; i < segs.length; i++) {
+        allSegments.push({ seg: segs[i], zone, isLargest: i === largestIdx })
+      }
+    }
+    allSegments.sort((a, b) => a.seg.startMinutes - b.seg.startMinutes)
+
+    for (const { seg, zone, isLargest } of allSegments) {
+      const startPx = xScale.getPixelForValue(seg.startMinutes)
+      const endPx = xScale.getPixelForValue(seg.endMinutes)
       const width = endPx - startPx
       const areaHeight = chartArea.bottom - chartArea.top
       const centerX = startPx + width / 2
 
-      const isImport = zone.action === 'import'
+      const isImport = seg.action === 'import'
       const yChargeScale = chart.scales.yCharge
       const targetY = yChargeScale
-        ? yChargeScale.getPixelForValue(zone.targetPercent)
-        : chartArea.bottom - (zone.targetPercent / 100) * areaHeight
+        ? yChargeScale.getPixelForValue(seg.targetPercent)
+        : chartArea.bottom - (seg.targetPercent / 100) * areaHeight
 
       // Target line (red for import, green for export)
       ctx.beginPath()
@@ -262,126 +299,120 @@ const zoneRenderingPlugin = {
       ctx.lineTo(endPx, targetY)
       ctx.stroke()
 
-      // Label and arrow
-      const actionLabel = isImport ? 'Import' : 'Export'
-      const rateLabel = zone.rateMode === 'fixed'
-        ? 'at fixed rate'
-        : 'by end of zone'
-      const label = `${actionLabel} to ${zone.targetPercent}% ${rateLabel}`
-      const textColor = isImport ? '#c0392b' : '#1e8449'
-      const arrowColor = isImport ? 'rgba(231, 76, 60, 0.9)' : 'rgba(39, 174, 96, 0.9)'
-      const arrowSize = 9
-      const arrowGap = 5
+      // Only draw label and arrow on the largest segment
+      if (isLargest) {
+        const actionLabel = isImport ? 'Import' : 'Export'
+        const rateLabel = zone.rateMode === 'fixed'
+          ? 'at fixed rate'
+          : 'by end of zone'
+        const label = `${actionLabel} to ${zone.targetPercent}% ${rateLabel}`
+        const textColor = isImport ? '#c0392b' : '#1e8449'
+        const arrowColor = isImport ? 'rgba(231, 76, 60, 0.9)' : 'rgba(39, 174, 96, 0.9)'
+        const arrowSize = 9
+        const arrowGap = 5
 
-      ctx.font = 'bold 11px sans-serif'
-      const fullTextWidth = ctx.measureText(label).width
-      const shortLabel = `${zone.targetPercent}%`
+        ctx.font = 'bold 11px sans-serif'
+        const fullTextWidth = ctx.measureText(label).width
+        const shortLabel = `${zone.targetPercent}%`
 
-      // Determine which label to use
-      let displayLabel = null
-      if (width > fullTextWidth + 16) {
-        displayLabel = label
-      } else {
-        const shortWidth = ctx.measureText(shortLabel).width
-        if (width > shortWidth + 8) {
-          displayLabel = shortLabel
-        }
-      }
-
-      const arrowTip = arrowGap
-      const arrowBase = arrowGap + arrowSize * 1.5
-      const textOffset = arrowBase + 5
-
-      // Pill badge style: opaque background with colored border
-      const pillBg = isImport ? 'rgba(255, 255, 255, 0.92)' : 'rgba(255, 255, 255, 0.92)'
-      const pillBorder = isImport ? 'rgba(231, 76, 60, 0.5)' : 'rgba(39, 174, 96, 0.5)'
-      const labelPadX = 6
-      const labelPadY = 3
-      const pillRadius = 4
-
-      if (isImport) {
-        // Import: arrow BELOW line pointing UP, text BELOW arrow
-        ctx.beginPath()
-        ctx.moveTo(centerX, targetY + arrowTip)
-        ctx.lineTo(centerX - arrowSize, targetY + arrowBase)
-        ctx.lineTo(centerX + arrowSize, targetY + arrowBase)
-        ctx.closePath()
-        ctx.fillStyle = arrowColor
-        ctx.fill()
-        if (displayLabel) {
-          const labelW = ctx.measureText(displayLabel).width
-          const pillW = labelW + labelPadX * 2
-          const pillH = 14 + labelPadY * 2
-          // Clamp label within chart area
-          let labelCenterX = centerX
-          const minCenter = chartArea.left + pillW / 2 + 2
-          const maxCenter = chartArea.right - pillW / 2 - 2
-          labelCenterX = Math.max(minCenter, Math.min(maxCenter, labelCenterX))
-          const pillX = labelCenterX - pillW / 2
-          const pillY = targetY + textOffset - labelPadY
-
-          // Draw pill background
-          ctx.fillStyle = pillBg
-          if (ctx.roundRect) {
-            ctx.beginPath()
-            ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius)
-            ctx.fill()
-            ctx.strokeStyle = pillBorder
-            ctx.lineWidth = 1
-            ctx.stroke()
-          } else {
-            ctx.fillRect(pillX, pillY, pillW, pillH)
-            ctx.strokeStyle = pillBorder
-            ctx.lineWidth = 1
-            ctx.strokeRect(pillX, pillY, pillW, pillH)
+        let displayLabel = null
+        if (width > fullTextWidth + 16) {
+          displayLabel = label
+        } else {
+          const shortWidth = ctx.measureText(shortLabel).width
+          if (width > shortWidth + 8) {
+            displayLabel = shortLabel
           }
-
-          ctx.fillStyle = textColor
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'top'
-          ctx.fillText(displayLabel, labelCenterX, targetY + textOffset)
         }
-      } else {
-        // Export: arrow ABOVE line pointing DOWN, text ABOVE arrow
-        ctx.beginPath()
-        ctx.moveTo(centerX, targetY - arrowTip)
-        ctx.lineTo(centerX - arrowSize, targetY - arrowBase)
-        ctx.lineTo(centerX + arrowSize, targetY - arrowBase)
-        ctx.closePath()
-        ctx.fillStyle = arrowColor
-        ctx.fill()
-        if (displayLabel) {
-          const labelW = ctx.measureText(displayLabel).width
-          const pillW = labelW + labelPadX * 2
-          const pillH = 14 + labelPadY * 2
-          // Clamp label within chart area
-          let labelCenterX = centerX
-          const minCenter = chartArea.left + pillW / 2 + 2
-          const maxCenter = chartArea.right - pillW / 2 - 2
-          labelCenterX = Math.max(minCenter, Math.min(maxCenter, labelCenterX))
-          const pillX = labelCenterX - pillW / 2
-          const pillY = targetY - textOffset - 14 - labelPadY
 
-          // Draw pill background
-          ctx.fillStyle = pillBg
-          if (ctx.roundRect) {
-            ctx.beginPath()
-            ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius)
-            ctx.fill()
-            ctx.strokeStyle = pillBorder
-            ctx.lineWidth = 1
-            ctx.stroke()
-          } else {
-            ctx.fillRect(pillX, pillY, pillW, pillH)
-            ctx.strokeStyle = pillBorder
-            ctx.lineWidth = 1
-            ctx.strokeRect(pillX, pillY, pillW, pillH)
+        const arrowTip = arrowGap
+        const arrowBase = arrowGap + arrowSize * 1.5
+        const textOffset = arrowBase + 5
+
+        const pillBg = 'rgba(255, 255, 255, 0.92)'
+        const pillBorder = isImport ? 'rgba(231, 76, 60, 0.5)' : 'rgba(39, 174, 96, 0.5)'
+        const labelPadX = 6
+        const labelPadY = 3
+        const pillRadius = 4
+
+        if (isImport) {
+          ctx.beginPath()
+          ctx.moveTo(centerX, targetY + arrowTip)
+          ctx.lineTo(centerX - arrowSize, targetY + arrowBase)
+          ctx.lineTo(centerX + arrowSize, targetY + arrowBase)
+          ctx.closePath()
+          ctx.fillStyle = arrowColor
+          ctx.fill()
+          if (displayLabel) {
+            const labelW = ctx.measureText(displayLabel).width
+            const pillW = labelW + labelPadX * 2
+            const pillH = 14 + labelPadY * 2
+            let labelCenterX = centerX
+            const minCenter = chartArea.left + pillW / 2 + 2
+            const maxCenter = chartArea.right - pillW / 2 - 2
+            labelCenterX = Math.max(minCenter, Math.min(maxCenter, labelCenterX))
+            const pillX = labelCenterX - pillW / 2
+            const pillY = targetY + textOffset - labelPadY
+
+            ctx.fillStyle = pillBg
+            if (ctx.roundRect) {
+              ctx.beginPath()
+              ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius)
+              ctx.fill()
+              ctx.strokeStyle = pillBorder
+              ctx.lineWidth = 1
+              ctx.stroke()
+            } else {
+              ctx.fillRect(pillX, pillY, pillW, pillH)
+              ctx.strokeStyle = pillBorder
+              ctx.lineWidth = 1
+              ctx.strokeRect(pillX, pillY, pillW, pillH)
+            }
+
+            ctx.fillStyle = textColor
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'top'
+            ctx.fillText(displayLabel, labelCenterX, targetY + textOffset)
           }
+        } else {
+          ctx.beginPath()
+          ctx.moveTo(centerX, targetY - arrowTip)
+          ctx.lineTo(centerX - arrowSize, targetY - arrowBase)
+          ctx.lineTo(centerX + arrowSize, targetY - arrowBase)
+          ctx.closePath()
+          ctx.fillStyle = arrowColor
+          ctx.fill()
+          if (displayLabel) {
+            const labelW = ctx.measureText(displayLabel).width
+            const pillW = labelW + labelPadX * 2
+            const pillH = 14 + labelPadY * 2
+            let labelCenterX = centerX
+            const minCenter = chartArea.left + pillW / 2 + 2
+            const maxCenter = chartArea.right - pillW / 2 - 2
+            labelCenterX = Math.max(minCenter, Math.min(maxCenter, labelCenterX))
+            const pillX = labelCenterX - pillW / 2
+            const pillY = targetY - textOffset - 14 - labelPadY
 
-          ctx.fillStyle = textColor
-          ctx.textAlign = 'center'
-          ctx.textBaseline = 'bottom'
-          ctx.fillText(displayLabel, labelCenterX, targetY - textOffset)
+            ctx.fillStyle = pillBg
+            if (ctx.roundRect) {
+              ctx.beginPath()
+              ctx.roundRect(pillX, pillY, pillW, pillH, pillRadius)
+              ctx.fill()
+              ctx.strokeStyle = pillBorder
+              ctx.lineWidth = 1
+              ctx.stroke()
+            } else {
+              ctx.fillRect(pillX, pillY, pillW, pillH)
+              ctx.strokeStyle = pillBorder
+              ctx.lineWidth = 1
+              ctx.strokeRect(pillX, pillY, pillW, pillH)
+            }
+
+            ctx.fillStyle = textColor
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'bottom'
+            ctx.fillText(displayLabel, labelCenterX, targetY - textOffset)
+          }
         }
       }
 
@@ -389,19 +420,17 @@ const zoneRenderingPlugin = {
       const iconSize = 14
       const iconPad = 3
       const edges = [
-        { px: startPx, type: zone.startTimeType },
-        { px: endPx, type: zone.endTimeType }
+        { px: startPx, type: seg.startTimeType },
+        { px: endPx, type: seg.endTimeType }
       ]
 
       for (const edge of edges) {
         const isFixed = edge.type === 'fixed-time'
-        // Import zones: icon at bottom axis; Export zones: icon at top axis
         const iconY = isImport
           ? chartArea.bottom - iconSize - iconPad
           : chartArea.top + iconPad
         const iconX = edge.px - iconSize / 2
 
-        // Circular background
         const cx = iconX + iconSize / 2
         const cy = iconY + iconSize / 2
         const radius = iconSize / 2 + 2
@@ -418,10 +447,8 @@ const zoneRenderingPlugin = {
         const iconColor = isImport ? '#c0392b' : '#1e8449'
 
         if (isFixed) {
-          // Clock icon
           drawClockIcon(ctx, cx, cy, iconSize * 0.4, iconColor)
         } else {
-          // Lightning bolt icon for smart/price-based
           drawBoltIcon(ctx, cx, cy, iconSize * 0.4, iconColor)
         }
       }
@@ -508,18 +535,22 @@ function hitTestZoneEdge(x, y, chart) {
 
   const hits = []
   for (const zone of zones) {
-    if (zone.startTimeType === 'fixed-time') {
-      const edgePx = xScale.getPixelForValue(zone.startMinutes)
-      const dist = Math.abs(x - edgePx)
-      if (dist <= EDGE_HIT_PX) {
-        hits.push({ zone, edge: 'start', dist, edgePx })
+    // Use display segments so edges are tested at their visual positions
+    const segs = getDisplaySegments(zone)
+    for (const seg of segs) {
+      if (zone.startTimeType === 'fixed-time') {
+        const edgePx = xScale.getPixelForValue(seg.startMinutes)
+        const dist = Math.abs(x - edgePx)
+        if (dist <= EDGE_HIT_PX) {
+          hits.push({ zone, edge: 'start', dist, edgePx })
+        }
       }
-    }
-    if (zone.endTimeType === 'fixed-time') {
-      const edgePx = xScale.getPixelForValue(zone.endMinutes)
-      const dist = Math.abs(x - edgePx)
-      if (dist <= EDGE_HIT_PX) {
-        hits.push({ zone, edge: 'end', dist, edgePx })
+      if (zone.endTimeType === 'fixed-time') {
+        const edgePx = xScale.getPixelForValue(seg.endMinutes)
+        const dist = Math.abs(x - edgePx)
+        if (dist <= EDGE_HIT_PX) {
+          hits.push({ zone, edge: 'end', dist, edgePx })
+        }
       }
     }
   }
@@ -557,8 +588,17 @@ function hitTestArrow(x, y, chart) {
   if (!xScale || !yChargeScale) return null
 
   for (const zone of zones) {
-    const startPx = xScale.getPixelForValue(zone.startMinutes)
-    const endPx = xScale.getPixelForValue(zone.endMinutes)
+    // For wrapped zones, test arrow on the largest display segment
+    const segs = getDisplaySegments(zone)
+    let largestSeg = segs[0]
+    for (const seg of segs) {
+      if ((seg.endMinutes - seg.startMinutes) > (largestSeg.endMinutes - largestSeg.startMinutes)) {
+        largestSeg = seg
+      }
+    }
+
+    const startPx = xScale.getPixelForValue(largestSeg.startMinutes)
+    const endPx = xScale.getPixelForValue(largestSeg.endMinutes)
     const centerX = startPx + (endPx - startPx) / 2
     const targetY = yChargeScale.getPixelForValue(zone.targetPercent)
 
@@ -804,7 +844,7 @@ const zoneInteractionPlugin = {
             chart.canvas.style.cursor = 'col-resize'
           } else {
             const hoverMinutes = xScale.getValueForPixel(event.x)
-            const overZone = props.zones.find(z => hoverMinutes >= z.startMinutes && hoverMinutes <= z.endMinutes)
+            const overZone = props.zones.find(z => isMinuteInZone(Math.round(hoverMinutes), z.startMinutes, z.endMinutes))
             chart.canvas.style.cursor = overZone ? 'pointer' : 'crosshair'
           }
         }
@@ -905,7 +945,14 @@ const zoneInteractionPlugin = {
         if (dragStart >= dragEnd) return
 
         // Check entire drag range is unzoned
-        const overlapsZone = props.zones.some(z => dragStart < z.endMinutes && dragEnd > z.startMinutes)
+        const overlapsZone = props.zones.some(z => {
+          // Check if the drag range [dragStart, dragEnd) overlaps with any segment of this zone
+          if (z.endMinutes <= 1440) {
+            return dragStart < z.endMinutes && dragEnd > z.startMinutes
+          }
+          // Wrapped zone: check against both segments
+          return (dragStart < 1440 && dragEnd > z.startMinutes) || (dragStart < (z.endMinutes - 1440) && dragEnd > 0)
+        })
         if (overlapsZone) return
 
         // Treat as drag-to-create
@@ -929,7 +976,7 @@ const zoneInteractionPlugin = {
 
       // Check if clicked on an existing zone
       const clickMinutes = xScale.getValueForPixel(event.x)
-      const clickedZone = props.zones.find(z => clickMinutes >= z.startMinutes && clickMinutes <= z.endMinutes)
+      const clickedZone = props.zones.find(z => isMinuteInZone(Math.round(clickMinutes), z.startMinutes, z.endMinutes))
       if (clickedZone) {
         emit('edit-zone', clickedZone.ruleId)
       } else {

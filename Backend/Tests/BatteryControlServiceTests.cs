@@ -279,7 +279,7 @@ public sealed class BatteryControlServiceTests
         });
 
         // Act: rate change at 14:28, aligned with 14:30 boundary (7p)
-        await sut.ReactToRateChangeAsync(7.0);
+        await sut.ReactToRateChangeAsync(0.07);
 
         // Assert: zones should cover 14:30-19:00 (the published cheap period)
         // At 14:30 = 870 minutes, there should be an active import zone
@@ -325,7 +325,7 @@ public sealed class BatteryControlServiceTests
         });
 
         // Act: rate change at 14:28, aligned with 14:30 boundary (7p)
-        await sut.ReactToRateChangeAsync(7.0);
+        await sut.ReactToRateChangeAsync(0.07);
 
         // Assert: zones should cover 14:30-19:00 (the published cheap period)
         // At 14:30 = 870 minutes, there should be an active import zone
@@ -350,7 +350,7 @@ public sealed class BatteryControlServiceTests
             .Returns(new List<EnergyRate>());
 
         // No cached rates - should fall back to full RefreshRatesAsync
-        await sut.ReactToRateChangeAsync(7.0);
+        await sut.ReactToRateChangeAsync(0.07);
 
         // Assert: should have called the rates reader (full refresh path)
         await ratesReader.Received(1).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
@@ -782,6 +782,111 @@ public sealed class BatteryControlServiceTests
 
         ResolvedZone? gap = BatteryControlService.FindBestZone(zones, 600);
         gap.ShouldBeNull();
+    }
+
+    // ========================================================================
+    // FindBestZone - Wrapped zone (EndMinutes > 1440)
+    // ========================================================================
+
+    [TestMethod]
+    public void FindBestZone_WrappedZone_EveningPortion_Matches()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "overnight", StartMinutes = 1410, EndMinutes = 1770, Action = BatteryZoneAction.Import, TargetPercent = 100, IsSmart = false }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 1420);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("overnight");
+    }
+
+    [TestMethod]
+    public void FindBestZone_WrappedZone_MorningPortion_Matches()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "overnight", StartMinutes = 1410, EndMinutes = 1770, Action = BatteryZoneAction.Import, TargetPercent = 100, IsSmart = false }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 200);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("overnight");
+    }
+
+    [TestMethod]
+    public void FindBestZone_WrappedZone_OutsideZone_ReturnsNull()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "overnight", StartMinutes = 1410, EndMinutes = 1770, Action = BatteryZoneAction.Import, TargetPercent = 100, IsSmart = false }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 400);
+        active.ShouldBeNull();
+    }
+
+    // ========================================================================
+    // Graduated target - overnight zone spanning midnight
+    //
+    // Zone: 23:00-05:00 (1380-1740), 360 min duration, import to 80%
+    // No preceding zone → initial percent defaults to 0
+    // effectiveTarget(t) = 0 + 80 × elapsed/360
+    //   23:30 (1410): elapsed=30,  progress=0.0833, effective=6.67,  boundary=4.67
+    //   01:00 (60):   elapsed=120, progress=0.3333, effective=26.67, boundary=24.67
+    //   03:00 (180):  elapsed=240, progress=0.6667, effective=53.33
+    // ========================================================================
+
+    [TestMethod]
+    [DataRow(0.0, 23, 30, 3.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "23:30 effective≈6.7, battery at 3% < boundary 4.67 → ForceCharging")]
+    [DataRow(0.0, 1, 0, 20.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "01:00 effective≈26.7, battery at 20% < boundary 24.67 → ForceCharging")]
+    [DataRow(0.0, 3, 0, 70.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "03:00 effective≈53.3, battery at 70% > 53.3 → NormalTOU")]
+    public async Task SetBatteryState_GraduatedImportZone_Overnight_HysteresisAndTiming(
+        double initialPercent,
+        int hour, int minute,
+        double chargePercent,
+        string currentState,
+        bool isCarCharging,
+        string expectedState,
+        string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(chargePercent);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(isCarCharging ? 10.0 : 0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Graduated import zone 23:00-05:00 (wraps midnight), target 80%
+        sut.SetCurrentRules(CreateFixedZoneRules("overnight", 1380, 300, BatteryZoneAction.Import, 80, graduatedTarget: true));
+
+        // Pre-set the graduated zone state so the service uses the given initial battery %
+        sut.SetGraduatedZoneState("overnight", initialPercent);
+
+        // Act
+        await sut.SetBatteryState("unit test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
     }
 
     private static BatteryZoneRules CreateFixedZoneRules(

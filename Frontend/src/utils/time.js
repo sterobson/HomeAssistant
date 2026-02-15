@@ -104,7 +104,8 @@ export function isValidTime(time) {
  * @returns {string} Formatted time (e.g., "02:30")
  */
 export function formatMinutesAsTime(minutes) {
-  const h = Math.floor(minutes / 60)
-  const m = Math.round(minutes % 60)
+  const normalized = ((minutes % 1440) + 1440) % 1440
+  const h = Math.floor(normalized / 60)
+  const m = Math.round(normalized % 60)
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 }

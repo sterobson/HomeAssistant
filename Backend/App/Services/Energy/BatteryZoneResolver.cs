@@ -16,6 +16,35 @@ public class ResolvedZone
 
 public static class BatteryZoneResolver
 {
+    /// <summary>
+    /// Check if a minute value falls within a zone, handling zones where EndMinutes > 1440 (midnight wrap).
+    /// </summary>
+    public static bool IsMinuteInZone(int currentMinutes, int startMinutes, int endMinutes)
+    {
+        if (endMinutes <= 1440)
+        {
+            // Normal zone
+            return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+        }
+
+        // Wrapped zone: current is in zone if it's in the evening portion OR the morning portion
+        return currentMinutes >= startMinutes || currentMinutes < (endMinutes - 1440);
+    }
+
+    /// <summary>
+    /// Get elapsed minutes since zone start, handling zones where EndMinutes > 1440 (midnight wrap).
+    /// </summary>
+    public static int GetElapsedMinutes(int currentMinutes, int startMinutes, int endMinutes)
+    {
+        if (currentMinutes >= startMinutes)
+        {
+            return currentMinutes - startMinutes;
+        }
+
+        // Morning portion of a wrapped zone
+        return (1440 - startMinutes) + currentMinutes;
+    }
+
     public static List<int> ResolveTimeDefinition(TimeDefinition def, List<PricingSlot> slots)
     {
         switch (def.Type)
@@ -120,6 +149,7 @@ public static class BatteryZoneResolver
         }
 
         // Second pass: wrap around midnight for unmatched starts
+        // Emit a single zone with EndMinutes > 1440 — consumers use IsMinuteInZone/GetElapsedMinutes
         HashSet<int> matchedStarts = new(zones.Select(z => z.StartMinutes));
         foreach (int start in startTimes)
         {
@@ -143,34 +173,16 @@ public static class BatteryZoneResolver
             if (bestEnd != null)
             {
                 usedEnds.Add(bestEndIndex);
-                int actualEnd = endTimes[bestEndIndex];
-
-                // Evening segment: start → midnight
                 zones.Add(new ResolvedZone
                 {
                     RuleId = rule.Id,
                     StartMinutes = start,
-                    EndMinutes = 1440,
+                    EndMinutes = bestEnd.Value,
                     Action = rule.Action,
                     TargetPercent = rule.TargetPercent,
                     IsSmart = isSmart,
                     GraduatedTarget = rule.GraduatedTarget
                 });
-
-                // Morning segment: midnight → end
-                if (actualEnd > 0)
-                {
-                    zones.Add(new ResolvedZone
-                    {
-                        RuleId = rule.Id,
-                        StartMinutes = 0,
-                        EndMinutes = actualEnd,
-                        Action = rule.Action,
-                        TargetPercent = rule.TargetPercent,
-                        IsSmart = isSmart,
-                        GraduatedTarget = rule.GraduatedTarget
-                    });
-                }
             }
         }
 

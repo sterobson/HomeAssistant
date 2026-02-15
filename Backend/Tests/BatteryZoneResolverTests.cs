@@ -264,7 +264,7 @@ public sealed class BatteryZoneResolverTests
     [TestMethod]
     public void EvaluateZoneRule_EndBeforeStart_WrapsAroundMidnight()
     {
-        // 23:00 to 05:00 should wrap around midnight
+        // 23:00 to 05:00 should wrap around midnight as a single zone
         BatteryZoneRule rule = new()
         {
             Id = "overnight",
@@ -276,21 +276,17 @@ public sealed class BatteryZoneResolverTests
 
         List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
 
-        // Should create two segments: 23:00-midnight and midnight-05:00
-        zones.Count.ShouldBe(2);
-
-        ResolvedZone eveningSegment = zones.First(z => z.StartMinutes == 1380);
-        eveningSegment.EndMinutes.ShouldBe(1440);
-
-        ResolvedZone morningSegment = zones.First(z => z.StartMinutes == 0);
-        morningSegment.EndMinutes.ShouldBe(300);
+        // Single zone with EndMinutes > 1440
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(1380);
+        zones[0].EndMinutes.ShouldBe(1740); // 300 + 1440
     }
 
     [TestMethod]
     public void EvaluateZoneRule_StartEqualsEnd_WrapsAroundFullDay()
     {
         // When start == end, the greedy pairing can't match forward,
-        // so midnight wrap creates a full-day zone (two segments)
+        // so midnight wrap creates a single zone spanning the full day
         BatteryZoneRule rule = new()
         {
             Id = "wrap",
@@ -302,10 +298,55 @@ public sealed class BatteryZoneResolverTests
 
         List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
 
-        // Wraps: 02:00→midnight + midnight→02:00
-        zones.Count.ShouldBe(2);
-        zones.ShouldContain(z => z.StartMinutes == 120 && z.EndMinutes == 1440);
-        zones.ShouldContain(z => z.StartMinutes == 0 && z.EndMinutes == 120);
+        // Single zone: 02:00 → 02:00 next day (120 + 1440 = 1560)
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(120);
+        zones[0].EndMinutes.ShouldBe(1560);
+    }
+
+    // ========================================================================
+    // IsMinuteInZone
+    // ========================================================================
+
+    [TestMethod]
+    // Normal zone (120-300)
+    [DataRow(120, 300, 120, true, "Normal: at start")]
+    [DataRow(120, 300, 200, true, "Normal: middle")]
+    [DataRow(120, 300, 299, true, "Normal: before end")]
+    [DataRow(120, 300, 300, false, "Normal: at end (exclusive)")]
+    [DataRow(120, 300, 119, false, "Normal: before start")]
+    // Wrapped zone (1410-1770)
+    [DataRow(1410, 1770, 1410, true, "Wrapped: at start")]
+    [DataRow(1410, 1770, 1430, true, "Wrapped: evening")]
+    [DataRow(1410, 1770, 0, true, "Wrapped: midnight")]
+    [DataRow(1410, 1770, 200, true, "Wrapped: morning")]
+    [DataRow(1410, 1770, 330, false, "Wrapped: at end (exclusive, 1770-1440=330)")]
+    [DataRow(1410, 1770, 1400, false, "Wrapped: before start")]
+    [DataRow(1410, 1770, 400, false, "Wrapped: after end")]
+    public void IsMinuteInZone_ReturnsExpected(int start, int end, int current, bool expected, string reason)
+    {
+        bool result = BatteryZoneResolver.IsMinuteInZone(current, start, end);
+        result.ShouldBe(expected, reason);
+    }
+
+    // ========================================================================
+    // GetElapsedMinutes
+    // ========================================================================
+
+    [TestMethod]
+    // Normal zone (120-300)
+    [DataRow(120, 300, 120, 0, "Normal: at start")]
+    [DataRow(120, 300, 200, 80, "Normal: 80 min in")]
+    // Wrapped zone (1410-1770)
+    [DataRow(1410, 1770, 1410, 0, "Wrapped: at start")]
+    [DataRow(1410, 1770, 1430, 20, "Wrapped: evening 20 min")]
+    [DataRow(1410, 1770, 0, 30, "Wrapped: midnight")]
+    [DataRow(1410, 1770, 100, 130, "Wrapped: morning 100 min")]
+    [DataRow(1410, 1770, 329, 359, "Wrapped: near end")]
+    public void GetElapsedMinutes_ReturnsExpected(int start, int end, int current, int expected, string reason)
+    {
+        int result = BatteryZoneResolver.GetElapsedMinutes(current, start, end);
+        result.ShouldBe(expected, reason);
     }
 
     // ========================================================================

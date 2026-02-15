@@ -161,7 +161,7 @@ public sealed class EntityExistenceTests
         NamedEntities namedEntities = new(ha);
         HistoryService historyService = new MockHistoryService(new HomeAssistantConfiguration(), Substitute.For<ILogger<HistoryService>>());
         IScheduler scheduler = Substitute.For<IScheduler>();
-        NotificationService notificationService = new(ha, new HomeAssistantGenerated.NotifyServices(ha));
+        NotificationService notificationService = new(ha, new NotificationConfiguration(), CreateLogger<NotificationService>());
         ILogger<DiningRoomDehumidifier> logger = CreateLogger<DiningRoomDehumidifier>();
 
         // Act & Assert - constructor should not throw

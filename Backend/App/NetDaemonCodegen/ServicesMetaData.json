@@ -6058,6 +6058,112 @@
     }
   },
   "zha": {
+    "set_lock_user_code": {
+      "fields": {
+        "code_slot": {
+          "required": true,
+          "example": 1,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        },
+        "user_code": {
+          "required": true,
+          "example": 1234,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "lock"
+            ],
+            "integration": "zha"
+          }
+        ]
+      }
+    },
+    "enable_lock_user_code": {
+      "fields": {
+        "code_slot": {
+          "required": true,
+          "example": 1,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "lock"
+            ],
+            "integration": "zha"
+          }
+        ]
+      }
+    },
+    "disable_lock_user_code": {
+      "fields": {
+        "code_slot": {
+          "required": true,
+          "example": 1,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "lock"
+            ],
+            "integration": "zha"
+          }
+        ]
+      }
+    },
+    "clear_lock_user_code": {
+      "fields": {
+        "code_slot": {
+          "required": true,
+          "example": 1,
+          "selector": {
+            "text": {
+              "multiple": false,
+              "multiline": false
+            }
+          }
+        }
+      },
+      "target": {
+        "entity": [
+          {
+            "domain": [
+              "lock"
+            ],
+            "integration": "zha"
+          }
+        ]
+      }
+    },
     "permit": {
       "fields": {
         "duration": {
@@ -6497,112 +6603,6 @@
             }
           }
         }
-      }
-    },
-    "set_lock_user_code": {
-      "fields": {
-        "code_slot": {
-          "required": true,
-          "example": 1,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        },
-        "user_code": {
-          "required": true,
-          "example": 1234,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "lock"
-            ],
-            "integration": "zha"
-          }
-        ]
-      }
-    },
-    "enable_lock_user_code": {
-      "fields": {
-        "code_slot": {
-          "required": true,
-          "example": 1,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "lock"
-            ],
-            "integration": "zha"
-          }
-        ]
-      }
-    },
-    "disable_lock_user_code": {
-      "fields": {
-        "code_slot": {
-          "required": true,
-          "example": 1,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "lock"
-            ],
-            "integration": "zha"
-          }
-        ]
-      }
-    },
-    "clear_lock_user_code": {
-      "fields": {
-        "code_slot": {
-          "required": true,
-          "example": 1,
-          "selector": {
-            "text": {
-              "multiple": false,
-              "multiline": false
-            }
-          }
-        }
-      },
-      "target": {
-        "entity": [
-          {
-            "domain": [
-              "lock"
-            ],
-            "integration": "zha"
-          }
-        ]
       }
     }
   },

@@ -10,6 +10,28 @@ import {
   findMaximaRegionBoundaries
 } from '../utils/priceAnalysis.js'
 
+/**
+ * Check if a minute value falls within a zone, handling zones where endMinutes > 1440 (midnight wrap).
+ */
+export function isMinuteInZone(currentMinutes, startMinutes, endMinutes) {
+  if (endMinutes <= 1440) {
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes
+  }
+  // Wrapped zone
+  return currentMinutes >= startMinutes || currentMinutes < (endMinutes - 1440)
+}
+
+/**
+ * Get elapsed minutes since zone start, handling zones where endMinutes > 1440 (midnight wrap).
+ */
+export function getElapsedMinutes(currentMinutes, startMinutes, endMinutes) {
+  if (currentMinutes >= startMinutes) {
+    return currentMinutes - startMinutes
+  }
+  // Morning portion of a wrapped zone
+  return (1440 - startMinutes) + currentMinutes
+}
+
 const STORAGE_KEY = 'battery-zone-rules'
 
 function generateId() {
@@ -171,6 +193,7 @@ function evaluateZoneRule(rule, pricingData) {
   }
 
   // Second pass: wrap around midnight for unmatched starts
+  // Emit a single zone with endMinutes > 1440 — consumers use isMinuteInZone/getElapsedMinutes
   const matchedStarts = new Set(zones.map(z => z.startMinutes))
   for (const start of startTimes) {
     if (matchedStarts.has(start)) continue
@@ -189,23 +212,16 @@ function evaluateZoneRule(rule, pricingData) {
     }
     if (bestEnd !== null) {
       usedEnds.add(bestEndIndex)
-      const actualEnd = endTimes[bestEndIndex]
-      const baseZone = {
+      zones.push({
         ruleId: rule.id,
+        startMinutes: start,
+        endMinutes: bestEnd,
         action: rule.action,
         targetPercent: rule.targetPercent,
         rateMode: rule.rateMode || 'by-end',
         startTimeType: rule.startTime?.type || 'fixed-time',
-        endTimeType: rule.endTime?.type || 'fixed-time',
-        _fullZoneStart: start,
-        _fullZoneEnd: bestEnd
-      }
-      // Evening segment: start → midnight
-      zones.push({ ...baseZone, startMinutes: start, endMinutes: 1440 })
-      // Morning segment: midnight → end
-      if (actualEnd > 0) {
-        zones.push({ ...baseZone, startMinutes: 0, endMinutes: actualEnd })
-      }
+        endTimeType: rule.endTime?.type || 'fixed-time'
+      })
     }
   }
 
@@ -213,14 +229,34 @@ function evaluateZoneRule(rule, pricingData) {
 }
 
 /**
+ * Expand a zone into 1-2 [start, end) segments within [0, 1440).
+ */
+function getSegments(zone) {
+  if (zone.endMinutes <= 1440) {
+    return [{ start: zone.startMinutes, end: zone.endMinutes }]
+  }
+  // Wrapped zone: split into evening + morning
+  return [
+    { start: zone.startMinutes, end: 1440 },
+    { start: 0, end: zone.endMinutes - 1440 }
+  ]
+}
+
+/**
  * Check if a proposed zone overlaps any existing resolved zones.
  */
 function hasOverlap(newZone, existingZones) {
+  const newSegs = getSegments(newZone)
   for (const zone of existingZones) {
     // Skip zones from the same rule (when editing)
     if (newZone.ruleId && zone.ruleId === newZone.ruleId) continue
-    if (newZone.startMinutes < zone.endMinutes && newZone.endMinutes > zone.startMinutes) {
-      return true
+    const existingSegs = getSegments(zone)
+    for (const a of newSegs) {
+      for (const b of existingSegs) {
+        if (a.start < b.end && a.end > b.start) {
+          return true
+        }
+      }
     }
   }
   return false

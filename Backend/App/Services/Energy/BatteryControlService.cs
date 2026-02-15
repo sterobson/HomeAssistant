@@ -184,7 +184,7 @@ internal class BatteryControlService
         ResolvedZone? best = null;
         foreach (ResolvedZone zone in zones)
         {
-            if (currentMinutes < zone.StartMinutes || currentMinutes >= zone.EndMinutes)
+            if (!BatteryZoneResolver.IsMinuteInZone(currentMinutes, zone.StartMinutes, zone.EndMinutes))
                 continue;
 
             if (best == null)
@@ -248,18 +248,19 @@ internal class BatteryControlService
             double effectiveTargetPercent = activeZone?.TargetPercent ?? 0;
             if (activeZone != null && activeZone.GraduatedTarget && homeBatteryChargePct.HasValue)
             {
-                ResolvedZone? precedingZone = resolvedZones.Find(z => z != activeZone && z.EndMinutes == activeZone.StartMinutes);
-                _graduatedInitialPercent = precedingZone != null
-                    ? precedingZone.TargetPercent
-                    : activeZone.Action == BatteryZoneAction.Export ? 100 : 0;
-
-                if (_graduatedInitialPercent.HasValue)
+                // Only capture the initial percent when first entering this zone
+                if (activeZoneRuleId != _previousActiveZoneRuleId || !_graduatedInitialPercent.HasValue)
                 {
-                    int elapsed = currentMinutes - activeZone.StartMinutes;
-                    int totalDuration = activeZone.EndMinutes - activeZone.StartMinutes;
-                    double progress = Math.Clamp((double)elapsed / totalDuration, 0.0, 1.0);
-                    effectiveTargetPercent = _graduatedInitialPercent.Value + (activeZone.TargetPercent - _graduatedInitialPercent.Value) * progress;
+                    ResolvedZone? precedingZone = resolvedZones.Find(z => z != activeZone && z.EndMinutes == activeZone.StartMinutes);
+                    _graduatedInitialPercent = precedingZone != null
+                        ? precedingZone.TargetPercent
+                        : activeZone.Action == BatteryZoneAction.Export ? 100 : 0;
                 }
+
+                int elapsed = BatteryZoneResolver.GetElapsedMinutes(currentMinutes, activeZone.StartMinutes, activeZone.EndMinutes);
+                int totalDuration = activeZone.EndMinutes - activeZone.StartMinutes;
+                double progress = Math.Clamp((double)elapsed / totalDuration, 0.0, 1.0);
+                effectiveTargetPercent = _graduatedInitialPercent.Value + (activeZone.TargetPercent - _graduatedInitialPercent.Value) * progress;
             }
 
             bool isBatteryAtTarget = true;
@@ -363,7 +364,7 @@ internal class BatteryControlService
                     homeBatteryChargePct?.ToString("F0"),
                     _previousHomeBatteryChargePct?.ToString("F0"),
                     activeZone != null
-                        ? $"{activeZone.Action} to {effectiveTargetPercent:F0}% ({activeZone.StartMinutes / 60:00}:{activeZone.StartMinutes % 60:00}-{activeZone.EndMinutes / 60:00}:{activeZone.EndMinutes % 60:00})"
+                        ? $"{activeZone.Action} to {effectiveTargetPercent:F0}% ({activeZone.StartMinutes / 60:00}:{activeZone.StartMinutes % 60:00}-{activeZone.EndMinutes % 1440 / 60:00}:{activeZone.EndMinutes % 1440 % 60:00})"
                         : "none",
                     currentHomeBatteryState,
                     desiredHomeBatteryState,
