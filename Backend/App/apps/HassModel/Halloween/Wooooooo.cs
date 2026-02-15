@@ -31,25 +31,20 @@ public class Wooooooo
 
     private static async Task PlaySounds(NamedEntities myDevices)
     {
-        myDevices.GamesRoomSpeaker.PlayMedia(new MediaPlayerPlayMediaParameters
-        {
-            Media = new
-            {
-                media_content_id = "http://192.168.1.188:8123/media/local/thunderstorm.mp3",
-                media_content_type = "music"
-            }
-        });
+        // TODO: PlayMedia API changed in NetDaemon 25.46 codegen - re-enable when needed
+        // myDevices.GamesRoomSpeaker.CallService("play_media", new
+        // {
+        //     media_content_id = "http://192.168.1.188:8123/media/local/thunderstorm.mp3",
+        //     media_content_type = "music"
+        // });
 
         await Task.Delay(TimeSpan.FromSeconds(8));
 
-        myDevices.GamesRoomSpeaker.PlayMedia(new MediaPlayerPlayMediaParameters
-        {
-            Media = new
-            {
-                media_content_id = "http://192.168.1.188:8123/media/local/wolf.mp3",
-                media_content_type = "music"
-            }
-        });
+        // myDevices.GamesRoomSpeaker.CallService("play_media", new
+        // {
+        //     media_content_id = "http://192.168.1.188:8123/media/local/wolf.mp3",
+        //     media_content_type = "music"
+        // });
     }
 
     private async Task FlashLight(LightEntity light)
@@ -65,7 +60,7 @@ public class Wooooooo
         {
             if (++i == turnOnAfter)
             {
-                light.TurnOn();
+                light.CallService("turn_on");
             }
             else if (i > turnOnAfter)
             {
@@ -100,7 +95,7 @@ public class Wooooooo
 
         if (colour == null && effect != null)
         {
-            light.TurnOn(effect: effect);
+            light.CallService("turn_on", new { effect });
         }
         else if (colour != null)
         {

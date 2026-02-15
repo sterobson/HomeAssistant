@@ -48,8 +48,8 @@ public class ScheduleFunctions
 
             if (schedules == null)
             {
-                // Return default schedules if none exist
-                return new NotFoundResult();
+                // Return empty schedules for new houses
+                schedules = new RoomSchedulesDto();
             }
 
             // Load room states to find any rooms that exist in states but not in schedules

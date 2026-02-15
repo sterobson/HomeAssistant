@@ -196,10 +196,9 @@ async function handleHouseIdSubmit(houseId) {
     const { heatingApi } = await import('./services/heatingApi.js')
     const schedulesResponse = await heatingApi.getSchedules()
 
-    // Check if we got valid data
-    if (!schedulesResponse || !schedulesResponse.rooms || schedulesResponse.rooms.length === 0) {
-      // Invalid house ID - no schedules found
-      throw new Error('No schedules found for this House ID')
+    // Check if we got a valid response (empty rooms is fine for a new house)
+    if (!schedulesResponse || !Array.isArray(schedulesResponse.rooms)) {
+      throw new Error('Invalid response from server')
     }
 
     // Valid house ID - keep it and reload

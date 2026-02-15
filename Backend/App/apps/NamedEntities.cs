@@ -463,25 +463,25 @@ public static class LightEntityExtensions
     public static LightEntity SetColour(this LightEntity lightEntity, FavouriteColour colour)
     {
         (int r, int g, int b) = GetRgb(colour);
-        lightEntity.TurnOn(rgbColor: [r, g, b]);
+        lightEntity.CallService("turn_on", new { rgb_color = new[] { r, g, b } });
         return lightEntity;
     }
 
     public static LightEntity SetRgb(this LightEntity lightEntity, int r, int g, int b)
     {
-        lightEntity.TurnOn(rgbColor: [r, g, b]);
+        lightEntity.CallService("turn_on", new { rgb_color = new[] { r, g, b } });
         return lightEntity;
     }
 
     public static LightEntity SetRgb(this LightEntity lightEntity, int r, int g, int b, long brightnessPercent)
     {
-        lightEntity.TurnOn(rgbColor: [r, g, b], brightnessPct: brightnessPercent);
+        lightEntity.CallService("turn_on", new { rgb_color = new[] { r, g, b }, brightness_pct = brightnessPercent });
         return lightEntity;
     }
 
     public static LightEntity SetBrightnessPercent(this LightEntity lightEntity, long? brightnessPercent)
     {
-        lightEntity.TurnOn(brightnessPct: brightnessPercent);
+        lightEntity.CallService("turn_on", new { brightness_pct = brightnessPercent });
         return lightEntity;
     }
 
@@ -666,7 +666,7 @@ public class CustomClimateControlEntity : ICustomClimateControlEntity
 
     public void SetTargetTemperature(double temperature)
     {
-        _climateEntity.SetTemperature(temperature);
+        _climateEntity.CallService("set_temperature", new { temperature });
     }
 }
 

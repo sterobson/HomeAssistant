@@ -287,41 +287,26 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             {
                 case BatteryState.NormalTOU:
                 case BatteryState.Unknown:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [_chargerUseMode.EntityId] },
-                        option: "Smart Schedule"
-                    );
+                    _chargerUseMode.CallService("select_option", new { option = "Smart Schedule" });
                     break;
 
                 case BatteryState.ForceCharging:
                 case BatteryState.ForceDischarging:
                 case BatteryState.Stopped:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [_chargerUseMode.EntityId] },
-                        option: "Manual Mode"
-                    );
+                    _chargerUseMode.CallService("select_option", new { option = "Manual Mode" });
                     break;
             }
 
             switch (desiredHomeBatteryState)
             {
                 case BatteryState.ForceCharging:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [_chargerManualMode.EntityId] },
-                        option: "Force Charge"
-                    );
+                    _chargerManualMode.CallService("select_option", new { option = "Force Charge" });
                     break;
                 case BatteryState.ForceDischarging:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [_chargerManualMode.EntityId] },
-                        option: "Force Discharge"
-                    );
+                    _chargerManualMode.CallService("select_option", new { option = "Force Discharge" });
                     break;
                 case BatteryState.Stopped:
-                    _services.Select.SelectOption(
-                        target: new() { EntityIds = [_chargerManualMode.EntityId] },
-                        option: "Stop Charge and Discharge"
-                    );
+                    _chargerManualMode.CallService("select_option", new { option = "Stop Charge and Discharge" });
                     break;
             }
         }
@@ -331,7 +316,7 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
     {
         if (_batteryChargeMaxCurrent == null || MaxChargeCurrentAmps == 0) return;
 
-        _batteryChargeMaxCurrent.SetValue((MaxChargeCurrentAmps - headroom).ToString());
+        _batteryChargeMaxCurrent.CallService("set_value", new { value = (MaxChargeCurrentAmps - headroom).ToString() });
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetTotalBatteryPowerChargeHistoryEntriesAsync(DateTime from, DateTime to)

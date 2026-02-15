@@ -39,7 +39,9 @@
       "Bash(pwsh:*)",
       "Bash(git init:*)",
       "Bash(powershell:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(dotnet-ildasm:*)",
+      "WebFetch(domain:netdaemon.xyz)"
     ],
     "deny": [],
     "ask": []
