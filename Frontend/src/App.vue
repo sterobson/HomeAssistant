@@ -72,7 +72,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
@@ -93,6 +93,17 @@ const pageTitle = computed(() => {
     case 'heating': return 'Heating Control'
     case 'battery': return 'Battery Management'
     default: return 'Home Assistant'
+  }
+})
+
+// Dynamic favicon based on current route
+watchEffect(() => {
+  const link = document.querySelector("link[rel~='icon']")
+  if (!link) return
+  switch (route.name) {
+    case 'heating': link.href = '/favicon-heating.svg'; break
+    case 'battery': link.href = '/favicon-battery.svg'; break
+    default: link.href = '/favicon.svg'; break
   }
 })
 
@@ -200,13 +211,19 @@ async function handleHouseIdSubmit(houseId) {
     clearHouseId()
     hasHouseId.value = false
 
+    // Delay before showing the error to prevent enumeration attacks
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
     // Re-show the modal with error
-    // We'll pass the error back to the modal
     showHouseIdModal.value = true
 
     console.error('Failed to validate house ID:', error)
-    // The modal will be shown again automatically since hasHouseId is false
-    throw error // Re-throw so modal can catch and display
+
+    // Provide a user-friendly message for 404s
+    const message = error.message?.includes('Not Found')
+      ? 'House not found. Please check your House ID and try again.'
+      : error.message || 'Unable to connect. Please try again.'
+    throw new Error(message)
   }
 }
 

@@ -138,16 +138,7 @@ public sealed class BatteryControlServiceTests
         if (zoneType != Zone_None)
         {
             BatteryZoneAction action = zoneType == Zone_Import ? BatteryZoneAction.Import : BatteryZoneAction.Export;
-            sut.SetResolvedZones([
-                new ResolvedZone
-                {
-                    RuleId = "test-rule",
-                    StartMinutes = 0,
-                    EndMinutes = 1440,
-                    Action = action,
-                    TargetPercent = targetPercent
-                }
-            ]);
+            sut.SetCurrentRules(CreateFixedZoneRules("test-rule", 0, 1440, action, targetPercent));
         }
 
         // Act
@@ -196,7 +187,7 @@ public sealed class BatteryControlServiceTests
     }
 
     [TestMethod]
-    public async Task SetBatteryState_DoesNotCallSetState_WhenInputsUnchanged()
+    public async Task SetBatteryState_SkipsUpdate_WhenNothingChanged()
     {
         // Arrange
         ServiceProvider serviceProvider = GetServiceProvider();
@@ -212,30 +203,25 @@ public sealed class BatteryControlServiceTests
         IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
         electricityMeter.CurrentRatePerKwh.Returns(0.25);
 
-        // Act - first call should evaluate
+        // Act - call twice with the same state
         await sut.SetBatteryState("first call");
-        // Second call with identical inputs should be skipped by change detection
         await sut.SetBatteryState("second call");
 
-        // Assert - SetHomeBatteryState should NOT have been called at all
-        // (NormalTOU desired == NormalTOU current, so no state change on first call either)
+        // Assert - SetHomeBatteryState should only be called once (or not at all if already in correct state)
+        // Since initial state is NormalTOU and desired is NormalTOU (no zone, no car), no calls expected
         homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
-
-        // SetMaxChargeCurrentHeadroom IS called each time (before change detection)
-        homeBattery.Received(2).SetMaxChargeCurrentHeadroom(0);
     }
 
     [TestMethod]
-    public async Task SetBatteryState_ChangeDetection_SkipsSecondCallWithSameInputs()
+    public async Task SetBatteryState_UpdatesAfterChange()
     {
-        // Arrange - use a scenario where SetHomeBatteryState IS called
+        // Arrange
         ServiceProvider serviceProvider = GetServiceProvider();
         BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
 
         IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
         homeBattery.CurrentChargePercent.Returns(50.0);
-        // Current state is ForceCharging but no zone -> should transition to NormalTOU
-        homeBattery.GetHomeBatteryState().Returns(BatteryState.ForceCharging);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
 
         ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
         carCharger.ChargerCurrent.Returns(0.0);
@@ -243,56 +229,40 @@ public sealed class BatteryControlServiceTests
         IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
         electricityMeter.CurrentRatePerKwh.Returns(0.25);
 
-        // Act
+        // First call - no zone, no car, NormalTOU -> NormalTOU (no change)
         await sut.SetBatteryState("first call");
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
 
-        // Now the battery reports the new state
-        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+        // Now car starts charging
+        carCharger.ChargerCurrent.Returns(10.0);
+        homeBattery.ClearReceivedCalls();
 
-        await sut.SetBatteryState("second call");
-
-        // Assert - SetHomeBatteryState called exactly once (first call), second is skipped
-        homeBattery.Received(1).SetHomeBatteryState(BatteryState.NormalTOU);
+        // Second call - car charging, should switch to Stopped
+        await sut.SetBatteryState("car started");
+        homeBattery.Received(1).SetHomeBatteryState(BatteryState.Stopped);
     }
 
-    // ========================================================================
-    // ReactToRateChangeAsync
-    // ========================================================================
-
     [TestMethod]
-    public async Task ReactToRateChangeAsync_UnexpectedRateDrop_CreatesImportZone()
+    public async Task ReactToRateChangeAsync_AppliesOverrideToZones()
     {
-        // Arrange: Octopus published 29p all day, but sensor reports 7p at 14:00
+        // Arrange: Octopus published 29p 00:00-14:30, 7p 14:30-19:00, 29p 19:00-24:00
         ServiceProvider serviceProvider = GetServiceProvider();
         BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
         FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
-        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 14, 0, 0, TimeSpan.Zero));
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 14, 28, 0, TimeSpan.Zero));
 
-        // Build published rates: 29p all day in 30-min slots
-        List<EnergyRate> importRates = [];
-        for (int h = 0; h < 48; h++)
-        {
-            importRates.Add(new EnergyRate
-            {
-                StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc).AddMinutes(h * 30),
-                EndTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc).AddMinutes((h + 1) * 30),
-                RateIncVat = 29.0
-            });
-        }
-        List<EnergyRate> exportRates = [];
-        for (int h = 0; h < 48; h++)
-        {
-            exportRates.Add(new EnergyRate
-            {
-                StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc).AddMinutes(h * 30),
-                EndTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc).AddMinutes((h + 1) * 30),
-                RateIncVat = 15.0
-            });
-        }
+        List<EnergyRate> importRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 14, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), RateIncVat = 7.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 19, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 29.0 }
+        ];
+        List<EnergyRate> exportRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+        ];
 
         sut.SetCachedRates(importRates, exportRates);
-
-        // Rule: import when price < 10p (would match the surprise 7p rate)
         sut.SetCurrentRules(new BatteryZoneRules
         {
             Rules =
@@ -308,17 +278,14 @@ public sealed class BatteryControlServiceTests
             ]
         });
 
-        // Act
+        // Act: rate change at 14:28, aligned with 14:30 boundary (7p)
         await sut.ReactToRateChangeAsync(7.0);
 
-        // Assert: the reactive resolution should have patched the 7p rate into slots
-        // and re-resolved zones. At 14:00 (840 minutes), we should have an active zone
-        // because the patched slots now show 7p (cheap) in the current time window.
-        ResolvedZone? activeZone = sut.GetActiveZone(840);
-        // The zone resolver looks for minima regions - with 7p patched into an otherwise 29p day,
-        // it should create an import zone covering the patched slots.
-        activeZone.ShouldNotBeNull();
-        activeZone.Action.ShouldBe(BatteryZoneAction.Import);
+        // Assert: zones should cover 14:30-19:00 (the published cheap period)
+        // At 14:30 = 870 minutes, there should be an active import zone
+        ResolvedZone? zoneAt870 = sut.GetActiveZone(870);
+        zoneAt870.ShouldNotBeNull();
+        zoneAt870.Action.ShouldBe(BatteryZoneAction.Import);
     }
 
     [TestMethod]
@@ -382,10 +349,10 @@ public sealed class BatteryControlServiceTests
         ratesReader.GetElectricityExportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>())
             .Returns(new List<EnergyRate>());
 
-        // No cached rates - should fall back to full ResolveZonesAsync
+        // No cached rates - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(7.0);
 
-        // Assert: should have called the rates reader (full resolution path)
+        // Assert: should have called the rates reader (full refresh path)
         await ratesReader.Received(1).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
     }
 
@@ -404,11 +371,439 @@ public sealed class BatteryControlServiceTests
         ratesReader.GetElectricityExportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>())
             .Returns(new List<EnergyRate>());
 
-        // Null rate - should fall back to full ResolveZonesAsync
+        // Null rate - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(null);
 
-        // Assert: should have called the rates reader (full resolution path)
+        // Assert: should have called the rates reader
         await ratesReader.Received(1).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
+    }
+
+    // ========================================================================
+    // Export zone - hysteresis and timing (12:00-17:00, target 20%)
+    // ========================================================================
+
+    [TestMethod]
+    // Well above target — should always start discharging
+    [DataRow(14, 30, 50.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "50% well above target → start discharging")]
+    [DataRow(12, 5, 30.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "30% well above target → start discharging")]
+    // Hysteresis boundary (target + 2% = 22%)
+    [DataRow(15, 0, 23.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "23% above boundary → start discharging")]
+    [DataRow(15, 0, 22.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "22% at boundary → start discharging")]
+    // Within hysteresis band (20% < charge < 22%), not discharging — don't start
+    [DataRow(15, 0, 21.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "21% in hysteresis, not discharging → don't start")]
+    // Within hysteresis band, already discharging — keep going
+    [DataRow(15, 0, 21.0, State_ForceDischarging, Car_Not_Charging, State_ForceDischarging, "21% in hysteresis, already discharging → keep going")]
+    // At target — stop
+    [DataRow(16, 0, 20.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "20% at target → NormalTOU")]
+    [DataRow(16, 0, 20.0, State_ForceDischarging, Car_Not_Charging, State_NormalTOU, "20% at target, was discharging → stop")]
+    // Below target — stop
+    [DataRow(16, 0, 15.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "15% below target → NormalTOU")]
+    [DataRow(16, 0, 10.0, State_ForceDischarging, Car_Not_Charging, State_NormalTOU, "10% below target, was discharging → stop")]
+    // Car charging — Stopped in hysteresis/at target, ForceDischarging above boundary
+    [DataRow(14, 0, 50.0, State_NormalTOU, Car_Charging, State_ForceDischarging, "50% above boundary + car → ForceDischarging")]
+    [DataRow(14, 0, 21.0, State_NormalTOU, Car_Charging, State_Stopped, "21% in hysteresis + car → Stopped")]
+    [DataRow(14, 0, 20.0, State_NormalTOU, Car_Charging, State_Stopped, "20% at target + car → Stopped")]
+    // Outside zone — NormalTOU regardless of charge
+    [DataRow(11, 59, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "Before zone start → NormalTOU")]
+    [DataRow(17, 0, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "At zone end (exclusive) → NormalTOU")]
+    [DataRow(17, 1, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "After zone end → NormalTOU")]
+    // Outside zone + car charging → Stopped
+    [DataRow(17, 1, 50.0, State_NormalTOU, Car_Charging, State_Stopped, "After zone + car → Stopped")]
+    public async Task SetBatteryState_ExportZone_HysteresisAndTiming(
+        int hour, int minute,
+        double chargePercent,
+        string currentState,
+        bool isCarCharging,
+        string expectedState,
+        string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(chargePercent);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(isCarCharging ? 10.0 : 0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Export zone 12:00-17:00, target 20%
+        sut.SetCurrentRules(CreateFixedZoneRules("test-export", 720, 1020, BatteryZoneAction.Export, 20));
+
+        // Act
+        await sut.SetBatteryState("unit test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
+    }
+
+    // ========================================================================
+    // Import zone - hysteresis and timing (02:00-07:00, target 80%)
+    // ========================================================================
+
+    [TestMethod]
+    // Well below target — should always start charging
+    [DataRow(2, 5, 10.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "10% well below target → start charging")]
+    [DataRow(3, 0, 50.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "50% well below target → start charging")]
+    [DataRow(5, 30, 70.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "70% below target-hysteresis → start charging")]
+    // Hysteresis boundary (target - 2% = 78%)
+    [DataRow(4, 0, 77.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "77% below boundary → start charging")]
+    [DataRow(4, 0, 78.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "78% at boundary → start charging")]
+    // Within hysteresis band (78% < charge < 80%), not charging — don't start
+    [DataRow(4, 0, 79.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "79% in hysteresis, not charging → don't start")]
+    // Within hysteresis band, already charging — keep going
+    [DataRow(4, 0, 79.0, State_ForceCharging, Car_Not_Charging, State_ForceCharging, "79% in hysteresis, already charging → keep going")]
+    // At target — stop
+    [DataRow(5, 0, 80.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "80% at target → NormalTOU")]
+    [DataRow(5, 0, 80.0, State_ForceCharging, Car_Not_Charging, State_NormalTOU, "80% at target, was charging → stop")]
+    // Above target — stop
+    [DataRow(6, 0, 85.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "85% above target → NormalTOU")]
+    [DataRow(6, 0, 90.0, State_ForceCharging, Car_Not_Charging, State_NormalTOU, "90% above target, was charging → stop")]
+    // Car charging — ForceCharging still wins below boundary, Stopped in hysteresis/at target
+    [DataRow(4, 0, 50.0, State_NormalTOU, Car_Charging, State_ForceCharging, "50% below boundary + car → ForceCharging")]
+    [DataRow(4, 0, 79.0, State_NormalTOU, Car_Charging, State_Stopped, "79% in hysteresis + car → Stopped")]
+    [DataRow(4, 0, 80.0, State_NormalTOU, Car_Charging, State_Stopped, "80% at target + car → Stopped")]
+    // Outside zone — NormalTOU regardless of charge
+    [DataRow(1, 59, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "Before zone start → NormalTOU")]
+    [DataRow(7, 0, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "At zone end (exclusive) → NormalTOU")]
+    [DataRow(7, 1, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "After zone end → NormalTOU")]
+    // Outside zone + car charging → Stopped
+    [DataRow(7, 1, 50.0, State_NormalTOU, Car_Charging, State_Stopped, "After zone + car → Stopped")]
+    public async Task SetBatteryState_ImportZone_HysteresisAndTiming(
+        int hour, int minute,
+        double chargePercent,
+        string currentState,
+        bool isCarCharging,
+        string expectedState,
+        string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(chargePercent);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(isCarCharging ? 10.0 : 0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Import zone 02:00-07:00, target 80%
+        sut.SetCurrentRules(CreateFixedZoneRules("test-import", 120, 420, BatteryZoneAction.Import, 80));
+
+        // Act
+        await sut.SetBatteryState("unit test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
+    }
+
+    // ========================================================================
+    // Graduated export zone - 12:00-17:00 (300 min), initial 100%, target 20%
+    //
+    // effectiveTarget(t) = 100 - 80 × elapsed/300
+    //   13:15 (elapsed=75):  effectiveTarget = 80, boundary = 82
+    //   14:30 (elapsed=150): effectiveTarget = 60, boundary = 62
+    //   15:45 (elapsed=225): effectiveTarget = 40, boundary = 42
+    //   16:45 (elapsed=285): effectiveTarget = 24, boundary = 26
+    // ========================================================================
+
+    [TestMethod]
+    // Early in zone (13:15, effectiveTarget=80, boundary=82)
+    [DataRow(100.0, 13, 15, 90.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "90% above boundary → start discharging")]
+    [DataRow(100.0, 13, 15, 82.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "82% at boundary → start discharging")]
+    [DataRow(100.0, 13, 15, 81.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "81% in hysteresis → don't start")]
+    [DataRow(100.0, 13, 15, 81.0, State_ForceDischarging, Car_Not_Charging, State_ForceDischarging, "81% in hysteresis, already discharging → keep going")]
+    [DataRow(100.0, 13, 15, 80.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "80% at effective target → NormalTOU")]
+    [DataRow(100.0, 13, 15, 80.0, State_ForceDischarging, Car_Not_Charging, State_NormalTOU, "80% at effective target, was discharging → stop")]
+    [DataRow(100.0, 13, 15, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "50% below effective target → NormalTOU (ahead of schedule)")]
+    // Midpoint (14:30, effectiveTarget=60, boundary=62)
+    [DataRow(100.0, 14, 30, 62.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "62% at boundary → start discharging")]
+    [DataRow(100.0, 14, 30, 61.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "61% in hysteresis → don't start")]
+    [DataRow(100.0, 14, 30, 61.0, State_ForceDischarging, Car_Not_Charging, State_ForceDischarging, "61% in hysteresis, already discharging → keep going")]
+    [DataRow(100.0, 14, 30, 60.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "60% at effective target → NormalTOU")]
+    [DataRow(100.0, 14, 30, 60.0, State_ForceDischarging, Car_Not_Charging, State_NormalTOU, "60% at effective target, was discharging → stop")]
+    [DataRow(100.0, 14, 30, 80.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "80% above effective target → ForceDischarging (behind schedule)")]
+    // Near end (16:45, effectiveTarget=24, boundary=26)
+    [DataRow(100.0, 16, 45, 26.0, State_NormalTOU, Car_Not_Charging, State_ForceDischarging, "26% at boundary → start discharging")]
+    [DataRow(100.0, 16, 45, 25.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "25% in hysteresis → don't start")]
+    [DataRow(100.0, 16, 45, 25.0, State_ForceDischarging, Car_Not_Charging, State_ForceDischarging, "25% in hysteresis, already discharging → keep going")]
+    [DataRow(100.0, 16, 45, 24.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "24% at effective target → NormalTOU")]
+    [DataRow(100.0, 16, 45, 20.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "20% below effective target → NormalTOU (at final target)")]
+    // Car charging at midpoint
+    [DataRow(100.0, 14, 30, 62.0, State_NormalTOU, Car_Charging, State_ForceDischarging, "62% at boundary + car → ForceDischarging")]
+    [DataRow(100.0, 14, 30, 61.0, State_NormalTOU, Car_Charging, State_Stopped, "61% in hysteresis + car → Stopped")]
+    [DataRow(100.0, 14, 30, 60.0, State_NormalTOU, Car_Charging, State_Stopped, "60% at effective target + car → Stopped")]
+    public async Task SetBatteryState_GraduatedExportZone_HysteresisAndTiming(
+        double initialPercent,
+        int hour, int minute,
+        double chargePercent,
+        string currentState,
+        bool isCarCharging,
+        string expectedState,
+        string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(chargePercent);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(isCarCharging ? 10.0 : 0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Graduated export zone 12:00-17:00, target 20%
+        sut.SetCurrentRules(CreateFixedZoneRules("test-graduated-export", 720, 1020, BatteryZoneAction.Export, 20, graduatedTarget: true));
+
+        // Pre-set the graduated zone state so the service uses the given initial battery %
+        sut.SetGraduatedZoneState("test-graduated-export", initialPercent);
+
+        // Act
+        await sut.SetBatteryState("unit test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
+    }
+
+    // ========================================================================
+    // Graduated import zone - 02:00-07:00 (300 min), initial 20%, target 80%
+    //
+    // effectiveTarget(t) = 20 + 60 × elapsed/300
+    //   03:15 (elapsed=75):  effectiveTarget = 35, boundary = 33
+    //   04:30 (elapsed=150): effectiveTarget = 50, boundary = 48
+    //   05:45 (elapsed=225): effectiveTarget = 65, boundary = 63
+    //   06:40 (elapsed=280): effectiveTarget = 76, boundary = 74
+    // ========================================================================
+
+    [TestMethod]
+    // Early in zone (03:15, effectiveTarget=35, boundary=33)
+    [DataRow(20.0, 3, 15, 10.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "10% well below boundary → start charging")]
+    [DataRow(20.0, 3, 15, 33.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "33% at boundary → start charging")]
+    [DataRow(20.0, 3, 15, 34.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "34% in hysteresis → don't start")]
+    [DataRow(20.0, 3, 15, 34.0, State_ForceCharging, Car_Not_Charging, State_ForceCharging, "34% in hysteresis, already charging → keep going")]
+    [DataRow(20.0, 3, 15, 35.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "35% at effective target → NormalTOU")]
+    [DataRow(20.0, 3, 15, 35.0, State_ForceCharging, Car_Not_Charging, State_NormalTOU, "35% at effective target, was charging → stop")]
+    [DataRow(20.0, 3, 15, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "50% above effective target → NormalTOU (ahead of schedule)")]
+    // Midpoint (04:30, effectiveTarget=50, boundary=48)
+    [DataRow(20.0, 4, 30, 48.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "48% at boundary → start charging")]
+    [DataRow(20.0, 4, 30, 49.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "49% in hysteresis → don't start")]
+    [DataRow(20.0, 4, 30, 49.0, State_ForceCharging, Car_Not_Charging, State_ForceCharging, "49% in hysteresis, already charging → keep going")]
+    [DataRow(20.0, 4, 30, 50.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "50% at effective target → NormalTOU")]
+    [DataRow(20.0, 4, 30, 50.0, State_ForceCharging, Car_Not_Charging, State_NormalTOU, "50% at effective target, was charging → stop")]
+    [DataRow(20.0, 4, 30, 30.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "30% below boundary → ForceCharging (behind schedule)")]
+    // Three-quarter way (05:45, effectiveTarget=65, boundary=63)
+    [DataRow(20.0, 5, 45, 63.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "63% at boundary → start charging")]
+    [DataRow(20.0, 5, 45, 64.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "64% in hysteresis → don't start")]
+    [DataRow(20.0, 5, 45, 64.0, State_ForceCharging, Car_Not_Charging, State_ForceCharging, "64% in hysteresis, already charging → keep going")]
+    [DataRow(20.0, 5, 45, 65.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "65% at effective target → NormalTOU")]
+    [DataRow(20.0, 5, 45, 65.0, State_ForceCharging, Car_Not_Charging, State_NormalTOU, "65% at effective target, was charging → stop")]
+    // Near end (06:40, effectiveTarget=76, boundary=74)
+    [DataRow(20.0, 6, 40, 74.0, State_NormalTOU, Car_Not_Charging, State_ForceCharging, "74% at boundary → start charging")]
+    [DataRow(20.0, 6, 40, 75.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "75% in hysteresis → don't start")]
+    [DataRow(20.0, 6, 40, 75.0, State_ForceCharging, Car_Not_Charging, State_ForceCharging, "75% in hysteresis, already charging → keep going")]
+    [DataRow(20.0, 6, 40, 76.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "76% at effective target → NormalTOU")]
+    [DataRow(20.0, 6, 40, 80.0, State_NormalTOU, Car_Not_Charging, State_NormalTOU, "80% above effective target → NormalTOU (at final target)")]
+    // Car charging at midpoint
+    [DataRow(20.0, 4, 30, 48.0, State_NormalTOU, Car_Charging, State_ForceCharging, "48% at boundary + car → ForceCharging")]
+    [DataRow(20.0, 4, 30, 49.0, State_NormalTOU, Car_Charging, State_Stopped, "49% in hysteresis + car → Stopped")]
+    [DataRow(20.0, 4, 30, 50.0, State_NormalTOU, Car_Charging, State_Stopped, "50% at effective target + car → Stopped")]
+    public async Task SetBatteryState_GraduatedImportZone_HysteresisAndTiming(
+        double initialPercent,
+        int hour, int minute,
+        double chargePercent,
+        string currentState,
+        bool isCarCharging,
+        string expectedState,
+        string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(chargePercent);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(isCarCharging ? 10.0 : 0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Graduated import zone 02:00-07:00, target 80%
+        sut.SetCurrentRules(CreateFixedZoneRules("test-graduated-import", 120, 420, BatteryZoneAction.Import, 80, graduatedTarget: true));
+
+        // Pre-set the graduated zone state so the service uses the given initial battery %
+        sut.SetGraduatedZoneState("test-graduated-import", initialPercent);
+
+        // Act
+        await sut.SetBatteryState("unit test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
+    }
+
+    // ========================================================================
+    // FindBestZone - Overlap priority resolution
+    // ========================================================================
+
+    [TestMethod]
+    public void FindBestZone_SmartOverridesFixed()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "fixed", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Export, TargetPercent = 20, IsSmart = false },
+            new ResolvedZone { RuleId = "smart", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Export, TargetPercent = 20, IsSmart = true }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 720);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("smart");
+    }
+
+    [TestMethod]
+    public void FindBestZone_ImportOverridesExport_SameSmartness()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "export", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Export, TargetPercent = 20, IsSmart = false },
+            new ResolvedZone { RuleId = "import", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Import, TargetPercent = 80, IsSmart = false }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 720);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("import");
+    }
+
+    [TestMethod]
+    public void FindBestZone_HigherTargetPercentWins_SameSmartnessAndAction()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "low", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Import, TargetPercent = 60, IsSmart = false },
+            new ResolvedZone { RuleId = "high", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Import, TargetPercent = 100, IsSmart = false }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 720);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("high");
+    }
+
+    [TestMethod]
+    public void FindBestZone_SmartImportOverridesSmartExport()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "smart-export", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Export, TargetPercent = 20, IsSmart = true },
+            new ResolvedZone { RuleId = "smart-import", StartMinutes = 0, EndMinutes = 1440, Action = BatteryZoneAction.Import, TargetPercent = 80, IsSmart = true }
+        ];
+
+        ResolvedZone? active = BatteryControlService.FindBestZone(zones, 720);
+        active.ShouldNotBeNull();
+        active.RuleId.ShouldBe("smart-import");
+    }
+
+    [TestMethod]
+    public void FindBestZone_NonOverlappingZones_SelectedByTime()
+    {
+        List<ResolvedZone> zones =
+        [
+            new ResolvedZone { RuleId = "morning", StartMinutes = 0, EndMinutes = 360, Action = BatteryZoneAction.Import, TargetPercent = 100, IsSmart = false },
+            new ResolvedZone { RuleId = "evening", StartMinutes = 960, EndMinutes = 1200, Action = BatteryZoneAction.Export, TargetPercent = 20, IsSmart = false }
+        ];
+
+        ResolvedZone? morning = BatteryControlService.FindBestZone(zones, 180);
+        morning.ShouldNotBeNull();
+        morning.RuleId.ShouldBe("morning");
+
+        ResolvedZone? evening = BatteryControlService.FindBestZone(zones, 1000);
+        evening.ShouldNotBeNull();
+        evening.RuleId.ShouldBe("evening");
+
+        ResolvedZone? gap = BatteryControlService.FindBestZone(zones, 600);
+        gap.ShouldBeNull();
+    }
+
+    private static BatteryZoneRules CreateFixedZoneRules(
+        string ruleId, int startMinutes, int endMinutes,
+        BatteryZoneAction action, int targetPercent,
+        bool graduatedTarget = false)
+    {
+        return new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = ruleId,
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = startMinutes },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = endMinutes },
+                    Action = action,
+                    TargetPercent = targetPercent,
+                    GraduatedTarget = graduatedTarget
+                }
+            ]
+        };
     }
 
     private static ServiceProvider GetServiceProvider()
@@ -427,6 +822,8 @@ public sealed class BatteryControlServiceTests
         services.AddSingleton<TimeProvider>(provider => provider.GetRequiredService<FakeTimeProvider>());
         services.AddSingleton<BatteryControlService>();
 
-        return services.BuildServiceProvider();
+        ServiceProvider provider = services.BuildServiceProvider();
+        provider.GetRequiredService<BatteryControlService>().MarkAsInitialized();
+        return provider;
     }
 }

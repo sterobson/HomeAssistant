@@ -1,4 +1,3 @@
-﻿using HomeAssistantGenerated;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,12 +6,14 @@ namespace HomeAssistant.Services;
 internal class NotificationService
 {
     private readonly IHaContext _ha;
-    private readonly NotifyServices _notifyServices;
+    private readonly NotificationConfiguration _config;
+    private readonly ILogger<NotificationService> _logger;
 
-    public NotificationService(IHaContext ha, NotifyServices notifyServices)
+    public NotificationService(IHaContext ha, NotificationConfiguration config, ILogger<NotificationService> logger)
     {
         _ha = ha;
-        _notifyServices = notifyServices;
+        _config = config;
+        _logger = logger;
     }
 
     public void SendPersistentNotification(string title, string message)
@@ -25,47 +26,41 @@ internal class NotificationService
         _ha.CallService("notify", "persistent_notification", data: new { message, title, notificationId });
     }
 
-    public void SendNotificationToStePhone(string title, string message)
-    {
-        _notifyServices.MobileAppSmA546b(message, title);
-    }
-
-    public void SendNotificationToRuthPhone(string title, string message)
-    {
-        _notifyServices.MobileAppRuthgalaxya55(message, title);
-    }
-
-    public void SendNotificationToKevinPhone(string title, string message)
-    {
-        _notifyServices.MobileAppKevinsIphone(message, title);
-    }
-
-    public const string GroupRuth = "ruth";
-    public const string GroupSte = "ste";
-    public const string GroupRobson = "robson";
-    public const string GroupKevin = "kevin";
-    public const string GroupBlount = "blount";
-    public const string GroupAll = "all";
-
     public void SendNotificationToGroups(string title, string message, params string[] groups)
     {
-        List<string> trimmedLower = [.. groups.Select(g => g.Trim().ToLower())];
+        HashSet<string> recipients = new(StringComparer.OrdinalIgnoreCase);
 
-        if (trimmedLower.Intersect([GroupSte, GroupRobson, GroupAll]).Any())
+        foreach (string name in groups)
         {
-            SendNotificationToStePhone(message, title);
+            string key = name.Trim().ToLowerInvariant();
+
+            if (_config.Groups.TryGetValue(key, out List<string>? members))
+            {
+                foreach (string member in members)
+                {
+                    recipients.Add(member);
+                }
+            }
+            else if (_config.Recipients.ContainsKey(key))
+            {
+                recipients.Add(key);
+            }
+            else
+            {
+                _logger.LogWarning("Unrecognised notification recipient or group: {Name}", key);
+            }
         }
 
-        if (trimmedLower.Intersect([GroupRuth, GroupRobson, GroupAll]).Any())
+        foreach (string recipient in recipients)
         {
-            SendNotificationToRuthPhone(message, title);
-        }
-
-        if (trimmedLower.Intersect([GroupKevin, GroupBlount, GroupAll]).Any())
-        {
-            SendNotificationToKevinPhone(message, title);
+            if (_config.Recipients.TryGetValue(recipient, out string? serviceName))
+            {
+                _ha.CallService("notify", serviceName, data: new { message, title });
+            }
+            else
+            {
+                _logger.LogWarning("Recipient '{Recipient}' is referenced in a group but not defined in Recipients", recipient);
+            }
         }
     }
-
-
 }

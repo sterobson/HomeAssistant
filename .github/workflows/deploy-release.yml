@@ -43,6 +43,10 @@ jobs:
           VITE_FUNCTION_KEY: ${{ secrets.VITE_PRODUCTION_FUNCTION_KEY }}
         run: npm run build -- --mode production
 
+      - name: Copy index.html to 404.html for SPA routing
+        working-directory: ./Frontend
+        run: cp dist/index.html dist/404.html
+
       - name: Deploy to GitHub Pages (root)
         uses: peaceiris/actions-gh-pages@v4
         with:

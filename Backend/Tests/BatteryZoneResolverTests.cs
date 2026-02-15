@@ -309,6 +309,115 @@ public sealed class BatteryZoneResolverTests
     }
 
     // ========================================================================
+    // EvaluateZoneRule - IsSmart propagation
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_BothFixed_IsSmartFalse()
+    {
+        BatteryZoneRule rule = new()
+        {
+            Id = "fixed-fixed",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 60 },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 240 },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, []);
+
+        zones.Count.ShouldBe(1);
+        zones[0].IsSmart.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_SmartStartFixedEnd_IsSmartTrue()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30 },
+            new() { TimeMinutes = 30, ImportPrice = 30 },
+            new() { TimeMinutes = 60, ImportPrice = 30 },
+            new() { TimeMinutes = 90, ImportPrice = 5 },
+            new() { TimeMinutes = 120, ImportPrice = 5 },
+            new() { TimeMinutes = 150, ImportPrice = 30 },
+            new() { TimeMinutes = 180, ImportPrice = 30 },
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "smart-fixed",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 180 },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].IsSmart.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_FixedStartSmartEnd_IsSmartTrue()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30 },
+            new() { TimeMinutes = 30, ImportPrice = 30 },
+            new() { TimeMinutes = 60, ImportPrice = 30 },
+            new() { TimeMinutes = 90, ImportPrice = 5 },
+            new() { TimeMinutes = 120, ImportPrice = 5 },
+            new() { TimeMinutes = 150, ImportPrice = 30 },
+            new() { TimeMinutes = 180, ImportPrice = 30 },
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "fixed-smart",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 0 },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].IsSmart.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_BothSmart_IsSmartTrue()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 30 },
+            new() { TimeMinutes = 30, ImportPrice = 30 },
+            new() { TimeMinutes = 60, ImportPrice = 30 },
+            new() { TimeMinutes = 90, ImportPrice = 5 },
+            new() { TimeMinutes = 120, ImportPrice = 5 },
+            new() { TimeMinutes = 150, ImportPrice = 30 },
+            new() { TimeMinutes = 180, ImportPrice = 30 },
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "smart-smart",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].IsSmart.ShouldBeTrue();
+    }
+
+    // ========================================================================
     // EvaluateZoneRule - Price-driven zones
     // ========================================================================
 

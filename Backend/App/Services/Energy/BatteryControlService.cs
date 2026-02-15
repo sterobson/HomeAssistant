@@ -2,7 +2,6 @@ using HomeAssistant.apps.Energy;
 using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.CarChargers;
 using HomeAssistant.Devices.Meters;
-using HomeAssistant.Services;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
@@ -24,13 +23,15 @@ internal class BatteryControlService
     private readonly IDeviceSettingsPersistenceService _deviceSettingsPersistence;
 
     private BatteryZoneRules _currentRules = new();
-    private List<ResolvedZone> _resolvedZones = [];
     private List<EnergyRate> _cachedImportRates = [];
     private List<EnergyRate> _cachedExportRates = [];
-    private DateTime _lastZoneResolution = DateTime.MinValue;
-    private const int _zoneResolutionIntervalMinutes = 30;
+    private List<PricingSlot> _cachedPricingSlots = [];
+    private DateTime _lastRatesRefresh = DateTime.MinValue;
+    private const int _ratesRefreshIntervalMinutes = 30;
     internal const int HysteresisPercent = 2;
 
+    private bool _initialized;
+    private readonly SemaphoreSlim _initSemaphore = new(1, 1);
     private readonly SemaphoreSlim _setBatteryStateSemaphore = new(1, 1);
 
     private double? _previousUnitPriceRate = null;
@@ -39,6 +40,7 @@ internal class BatteryControlService
     private string? _previousActiveZoneRuleId = null;
     private bool _previousIsBatteryAtTarget = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
+    private double? _graduatedInitialPercent = null;
 
     public BatteryControlService(IScheduler scheduler, IElectricityMeter electricityMeter,
                                  IHomeBattery homeBattery, ICarCharger carCharger,
@@ -63,11 +65,7 @@ internal class BatteryControlService
         // Start the persistence service and load rules
         _scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () =>
         {
-            await _deviceSettingsPersistence.StartAsync();
-            await _rulesPersistence.StartAsync();
-            _currentRules = await _rulesPersistence.GetRulesAsync();
-            _logger.LogInformation("Loaded {Count} battery zone rules on startup", _currentRules.Rules.Count);
-            await ResolveZonesAsync();
+            await EnsureInitializedAsync();
             await SetBatteryState("app startup");
         });
 
@@ -78,7 +76,6 @@ internal class BatteryControlService
             {
                 _currentRules = await _rulesPersistence.GetRulesAsync();
                 _logger.LogInformation("Battery zone rules updated via SignalR, now have {Count} rules", _currentRules.Rules.Count);
-                await ResolveZonesAsync();
                 await SetBatteryState("rules updated");
             }
             catch (ObjectDisposedException)
@@ -90,7 +87,7 @@ internal class BatteryControlService
         // Run every 10 minutes, in case there's been a state change we somehow missed.
         _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), async () =>
         {
-            await ResolveZonesIfStaleAsync();
+            await RefreshRatesIfStaleAsync();
             await SetBatteryState("periodic check");
         });
 
@@ -121,7 +118,32 @@ internal class BatteryControlService
         });
     }
 
-    internal async Task ResolveZonesAsync()
+    private async Task EnsureInitializedAsync()
+    {
+        if (_initialized)
+            return;
+
+        await _initSemaphore.WaitAsync();
+        try
+        {
+            if (_initialized)
+                return;
+
+            _logger.LogInformation("Battery control service initializing: loading rules and refreshing rates");
+            await _deviceSettingsPersistence.StartAsync();
+            await _rulesPersistence.StartAsync();
+            _currentRules = await _rulesPersistence.GetRulesAsync();
+            _logger.LogInformation("Loaded {Count} battery zone rules on startup", _currentRules.Rules.Count);
+            await RefreshRatesAsync();
+            _initialized = true;
+        }
+        finally
+        {
+            _initSemaphore.Release();
+        }
+    }
+
+    internal async Task RefreshRatesAsync()
     {
         try
         {
@@ -129,40 +151,75 @@ internal class BatteryControlService
             DateTime dayStart = now.Date;
             DateTime dayEnd = dayStart.AddDays(1);
 
-            List<EnergyRate> importRates = await _ratesReader.GetElectricityImportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
-            List<EnergyRate> exportRates = await _ratesReader.GetElectricityExportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
-            _cachedImportRates = importRates;
-            _cachedExportRates = exportRates;
+            _cachedImportRates = await _ratesReader.GetElectricityImportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
+            _cachedExportRates = await _ratesReader.GetElectricityExportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
+            _cachedPricingSlots = PricingSlot.FromEnergyRates(_cachedImportRates, _cachedExportRates, now);
+            _lastRatesRefresh = DateTime.UtcNow;
 
-            List<PricingSlot> slots = PricingSlot.FromEnergyRates(importRates, exportRates, now);
-            _resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, slots);
-            _lastZoneResolution = DateTime.UtcNow;
-
-            _logger.LogInformation("Resolved {ZoneCount} zones from {RuleCount} rules for {Date:yyyy-MM-dd}",
-                _resolvedZones.Count, _currentRules.Rules.Count, dayStart);
+            _logger.LogInformation("Refreshed rates: {ImportCount} import, {ExportCount} export rates, {SlotCount} pricing slots for {Date:yyyy-MM-dd}",
+                _cachedImportRates.Count, _cachedExportRates.Count, _cachedPricingSlots.Count, dayStart);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resolve battery zones from pricing data");
+            _logger.LogError(ex, "Failed to refresh rate data");
         }
     }
 
-    private async Task ResolveZonesIfStaleAsync()
+    private async Task RefreshRatesIfStaleAsync()
     {
-        if (_lastZoneResolution.AddMinutes(_zoneResolutionIntervalMinutes) < DateTime.UtcNow)
+        if (_lastRatesRefresh.AddMinutes(_ratesRefreshIntervalMinutes) < DateTime.UtcNow)
         {
-            await ResolveZonesAsync();
+            await RefreshRatesAsync();
         }
     }
 
     internal ResolvedZone? GetActiveZone(int currentMinutes)
     {
-        return _resolvedZones.FirstOrDefault(z =>
-            currentMinutes >= z.StartMinutes && currentMinutes < z.EndMinutes);
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
+        return FindBestZone(zones, currentMinutes);
+    }
+
+    internal static ResolvedZone? FindBestZone(List<ResolvedZone> zones, int currentMinutes)
+    {
+        ResolvedZone? best = null;
+        foreach (ResolvedZone zone in zones)
+        {
+            if (currentMinutes < zone.StartMinutes || currentMinutes >= zone.EndMinutes)
+                continue;
+
+            if (best == null)
+            {
+                best = zone;
+                continue;
+            }
+
+            // Priority 1: Smart zones override fixed zones
+            if (zone.IsSmart != best.IsSmart)
+            {
+                if (zone.IsSmart) best = zone;
+                continue;
+            }
+
+            // Priority 2: Import overrides export (same smartness)
+            if (zone.Action != best.Action)
+            {
+                if (zone.Action == BatteryZoneAction.Import) best = zone;
+                continue;
+            }
+
+            // Priority 3: Higher target percent wins (same smartness + action)
+            if (zone.TargetPercent > best.TargetPercent)
+            {
+                best = zone;
+            }
+        }
+        return best;
     }
 
     public async Task SetBatteryState(string trigger)
     {
+        await EnsureInitializedAsync();
+
         try
         {
             await _setBatteryStateSemaphore.WaitAsync();
@@ -182,32 +239,51 @@ internal class BatteryControlService
             double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
             _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
 
-            // Find the active zone for the current time
-            ResolvedZone? activeZone = GetActiveZone(currentMinutes);
+            // Resolve zones from current rules + pricing slots and find the active zone
+            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
+            ResolvedZone? activeZone = FindBestZone(resolvedZones, currentMinutes);
             string? activeZoneRuleId = activeZone?.RuleId;
 
-            bool isBatteryAtTarget = false;
+            // Graduated target: interpolate from initial battery % toward target over zone duration
+            double effectiveTargetPercent = activeZone?.TargetPercent ?? 0;
+            if (activeZone != null && activeZone.GraduatedTarget && homeBatteryChargePct.HasValue)
+            {
+                ResolvedZone? precedingZone = resolvedZones.Find(z => z != activeZone && z.EndMinutes == activeZone.StartMinutes);
+                _graduatedInitialPercent = precedingZone != null
+                    ? precedingZone.TargetPercent
+                    : activeZone.Action == BatteryZoneAction.Export ? 100 : 0;
+
+                if (_graduatedInitialPercent.HasValue)
+                {
+                    int elapsed = currentMinutes - activeZone.StartMinutes;
+                    int totalDuration = activeZone.EndMinutes - activeZone.StartMinutes;
+                    double progress = Math.Clamp((double)elapsed / totalDuration, 0.0, 1.0);
+                    effectiveTargetPercent = _graduatedInitialPercent.Value + (activeZone.TargetPercent - _graduatedInitialPercent.Value) * progress;
+                }
+            }
+
+            bool isBatteryAtTarget = true;
             if (activeZone != null && homeBatteryChargePct.HasValue)
             {
                 if (activeZone.Action == BatteryZoneAction.Import)
                 {
-                    isBatteryAtTarget = homeBatteryChargePct.Value >= activeZone.TargetPercent;
+                    isBatteryAtTarget = homeBatteryChargePct.Value >= effectiveTargetPercent;
                 }
                 else
                 {
-                    isBatteryAtTarget = homeBatteryChargePct.Value <= activeZone.TargetPercent;
+                    isBatteryAtTarget = homeBatteryChargePct.Value <= effectiveTargetPercent;
                 }
             }
 
-            if (currentUnitPriceRate == _previousUnitPriceRate
-                && homeBatteryChargePct == _previousHomeBatteryChargePct
-                && isCarCharging == _previousIsCarCharging
-                && currentHomeBatteryState == _previousBatteryState
-                && activeZoneRuleId == _previousActiveZoneRuleId
-                && isBatteryAtTarget == _previousIsBatteryAtTarget)
-            {
-                return;
-            }
+            //if (currentUnitPriceRate == _previousUnitPriceRate
+            //    && homeBatteryChargePct == _previousHomeBatteryChargePct
+            //    && isCarCharging == _previousIsCarCharging
+            //    && currentHomeBatteryState == _previousBatteryState
+            //    && activeZoneRuleId == _previousActiveZoneRuleId
+            //    && isBatteryAtTarget)
+            //{
+            //    return;
+            //}
 
             BatteryState desiredHomeBatteryState;
 
@@ -215,7 +291,7 @@ internal class BatteryControlService
             if (activeZone?.Action == BatteryZoneAction.Import)
             {
                 // Zone says charge (import)
-                if (homeBatteryChargePct >= activeZone.TargetPercent)
+                if (homeBatteryChargePct >= effectiveTargetPercent)
                 {
                     // At or above target - stop charging
                     desiredHomeBatteryState = isCarCharging ? BatteryState.Stopped : BatteryState.NormalTOU;
@@ -225,7 +301,7 @@ internal class BatteryControlService
                     // Already charging and below target - keep charging
                     desiredHomeBatteryState = BatteryState.ForceCharging;
                 }
-                else if (homeBatteryChargePct <= activeZone.TargetPercent - HysteresisPercent)
+                else if (homeBatteryChargePct <= effectiveTargetPercent - HysteresisPercent)
                 {
                     // 2%+ below target and not charging - start charging
                     desiredHomeBatteryState = BatteryState.ForceCharging;
@@ -239,7 +315,7 @@ internal class BatteryControlService
             else if (activeZone?.Action == BatteryZoneAction.Export)
             {
                 // Zone says discharge (export)
-                if (homeBatteryChargePct <= activeZone.TargetPercent)
+                if (homeBatteryChargePct <= effectiveTargetPercent)
                 {
                     // At or below target - stop discharging
                     desiredHomeBatteryState = isCarCharging ? BatteryState.Stopped : BatteryState.NormalTOU;
@@ -249,7 +325,7 @@ internal class BatteryControlService
                     // Already discharging and above target - keep discharging
                     desiredHomeBatteryState = BatteryState.ForceDischarging;
                 }
-                else if (homeBatteryChargePct >= activeZone.TargetPercent + HysteresisPercent)
+                else if (homeBatteryChargePct >= effectiveTargetPercent + HysteresisPercent)
                 {
                     // 2%+ above target and not discharging - start discharging
                     desiredHomeBatteryState = BatteryState.ForceDischarging;
@@ -287,7 +363,7 @@ internal class BatteryControlService
                     homeBatteryChargePct?.ToString("F0"),
                     _previousHomeBatteryChargePct?.ToString("F0"),
                     activeZone != null
-                        ? $"{activeZone.Action} to {activeZone.TargetPercent}% ({activeZone.StartMinutes / 60:00}:{activeZone.StartMinutes % 60:00}-{activeZone.EndMinutes / 60:00}:{activeZone.EndMinutes % 60:00})"
+                        ? $"{activeZone.Action} to {effectiveTargetPercent:F0}% ({activeZone.StartMinutes / 60:00}:{activeZone.StartMinutes % 60:00}-{activeZone.EndMinutes / 60:00}:{activeZone.EndMinutes % 60:00})"
                         : "none",
                     currentHomeBatteryState,
                     desiredHomeBatteryState,
@@ -295,7 +371,7 @@ internal class BatteryControlService
                     _previousUnitPriceRate?.ToString("F3"),
                     hypervoltCurrent.ToString("F0"),
                     _currentRules.Rules.Count,
-                    _resolvedZones.Count,
+                    resolvedZones.Count,
                     trigger
                 );
             }
@@ -317,19 +393,22 @@ internal class BatteryControlService
     {
         if (newImportRate == null || _cachedImportRates.Count == 0)
         {
-            await ResolveZonesAsync();
+            await RefreshRatesAsync();
             return;
         }
 
         try
         {
+            // Sensor reports in £/kWh, pricing slots use p/kWh — convert to pence
+            double sensorPencePerKwh = newImportRate.Value * 100;
+
             DateTime now = _timeProvider.GetLocalNow().DateTime;
             int currentMinutes = now.Hour * 60 + now.Minute;
 
             List<PricingSlot> slots = PricingSlot.FromEnergyRatesExact(_cachedImportRates, _cachedExportRates, now);
 
             int overrideEndMinutes = PriceAnalysis.DetermineOverrideEndMinutes(
-                _cachedImportRates, now, newImportRate.Value);
+                _cachedImportRates, now, sensorPencePerKwh);
 
             // Look up published rates at key times before modifying the list
             double exportAtStart = slots
@@ -347,14 +426,14 @@ internal class BatteryControlService
             PricingSlot? existingAtStart = slots.FirstOrDefault(s => s.TimeMinutes == currentMinutes);
             if (existingAtStart != null)
             {
-                existingAtStart.ImportPrice = newImportRate.Value;
+                existingAtStart.ImportPrice = sensorPencePerKwh;
             }
             else
             {
                 slots.Add(new PricingSlot
                 {
                     TimeMinutes = currentMinutes,
-                    ImportPrice = newImportRate.Value,
+                    ImportPrice = sensorPencePerKwh,
                     ExportPrice = exportAtStart
                 });
             }
@@ -374,27 +453,25 @@ internal class BatteryControlService
                 }
             }
 
-            slots = slots.OrderBy(s => s.TimeMinutes).ToList();
-            _resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, slots);
+            _cachedPricingSlots = slots.OrderBy(s => s.TimeMinutes).ToList();
 
+            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
             _logger.LogInformation(
-                "Reactively re-resolved zones for rate change to {NewRate}: override minutes {Start}-{End}, {ZoneCount} zones",
-                newImportRate.Value, currentMinutes, overrideEndMinutes, _resolvedZones.Count);
+                "Applied rate override {NewRate}p/kWh: override minutes {Start}-{End}, {ZoneCount} zones resolved",
+                sensorPencePerKwh, currentMinutes, overrideEndMinutes, resolvedZones.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to reactively re-resolve zones, falling back to full resolution");
-            await ResolveZonesAsync();
+            _logger.LogError(ex, "Failed to apply rate override, falling back to full rate refresh");
+            await RefreshRatesAsync();
         }
     }
 
     /// <summary>
-    /// Inject pre-resolved zones for testing, bypassing the async zone resolution.
+    /// Mark the service as already initialized, skipping the startup sequence.
+    /// Used by tests that pre-configure rules and rates directly.
     /// </summary>
-    internal void SetResolvedZones(List<ResolvedZone> zones)
-    {
-        _resolvedZones = zones;
-    }
+    internal void MarkAsInitialized() => _initialized = true;
 
     /// <summary>
     /// Inject rules for testing, bypassing the persistence service.
@@ -405,12 +482,20 @@ internal class BatteryControlService
     }
 
     /// <summary>
-    /// Inject cached rates for testing, so ReactToRateChangeAsync can work without API calls.
+    /// Inject cached rates and rebuild pricing slots for testing.
     /// </summary>
     internal void SetCachedRates(List<EnergyRate> importRates, List<EnergyRate> exportRates)
     {
         _cachedImportRates = importRates;
         _cachedExportRates = exportRates;
+    }
+
+    /// <summary>
+    /// Inject cached pricing slots directly for testing.
+    /// </summary>
+    internal void SetCachedPricingSlots(List<PricingSlot> slots)
+    {
+        _cachedPricingSlots = slots;
     }
 
     /// <summary>
@@ -424,5 +509,16 @@ internal class BatteryControlService
         _previousActiveZoneRuleId = null;
         _previousIsBatteryAtTarget = false;
         _previousBatteryState = BatteryState.Unknown;
+        _graduatedInitialPercent = null;
+    }
+
+    /// <summary>
+    /// Pre-set the graduated zone state for testing, so the service treats the zone as already entered
+    /// with the given initial battery percent, bypassing the automatic capture on first evaluation.
+    /// </summary>
+    internal void SetGraduatedZoneState(string zoneRuleId, double initialPercent)
+    {
+        _previousActiveZoneRuleId = zoneRuleId;
+        _graduatedInitialPercent = initialPercent;
     }
 }

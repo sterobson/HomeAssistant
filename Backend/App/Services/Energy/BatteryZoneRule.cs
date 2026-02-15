@@ -14,6 +14,7 @@ public class BatteryZoneRule
     public TimeDefinition EndTime { get; set; } = new();
     public BatteryZoneAction Action { get; set; } = BatteryZoneAction.Import;
     public int TargetPercent { get; set; }
+    public bool GraduatedTarget { get; set; }
 }
 
 public enum BatteryZoneAction

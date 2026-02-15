@@ -39,9 +39,9 @@
         <button
           @click="handleSubmit"
           class="btn btn-primary"
-          :disabled="!houseIdInput.trim()"
+          :disabled="!houseIdInput.trim() || isValidating"
         >
-          Connect
+          {{ isValidating ? 'Connecting...' : 'Connect' }}
         </button>
       </div>
     </div>
@@ -67,6 +67,7 @@ const emit = defineEmits(['update:modelValue', 'submit'])
 const houseIdInput = ref('')
 const hasError = ref(false)
 const errorMessage = ref('')
+const isValidating = ref(false)
 
 // Reset input when modal opens
 watch(() => props.modelValue, (newValue) => {
@@ -74,6 +75,7 @@ watch(() => props.modelValue, (newValue) => {
     houseIdInput.value = ''
     hasError.value = false
     errorMessage.value = ''
+    isValidating.value = false
   }
 })
 
@@ -95,6 +97,7 @@ async function handleSubmit() {
   }
 
   try {
+    isValidating.value = true
     // Call parent's submit handler (which validates with API)
     await emit('submit', trimmedId)
     emit('update:modelValue', false)
@@ -102,6 +105,8 @@ async function handleSubmit() {
     // Validation failed - show error
     hasError.value = true
     errorMessage.value = error.message || 'Invalid House ID. No schedules found for this house.'
+  } finally {
+    isValidating.value = false
   }
 }
 

@@ -83,6 +83,18 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
                 }
             });
 
+            _signalRConnection.ConnectionRestored += async () =>
+            {
+                _logger.LogInformation("SignalR connection restored — refreshing schedules");
+                _lastRefreshTime = DateTimeOffset.MinValue;
+                await RefreshSchedulesFromApiAsync();
+
+                if (SchedulesUpdated != null)
+                {
+                    await SchedulesUpdated.Invoke();
+                }
+            };
+
             await _signalRConnection.StartAsync();
         }
     }

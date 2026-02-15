@@ -164,7 +164,6 @@ function evaluateZoneRule(rule, pricingData) {
         action: rule.action,
         targetPercent: rule.targetPercent,
         rateMode: rule.rateMode || 'by-end',
-        rateKw: rule.rateKw,
         startTimeType: rule.startTime?.type || 'fixed-time',
         endTimeType: rule.endTime?.type || 'fixed-time'
       })
@@ -196,7 +195,6 @@ function evaluateZoneRule(rule, pricingData) {
         action: rule.action,
         targetPercent: rule.targetPercent,
         rateMode: rule.rateMode || 'by-end',
-        rateKw: rule.rateKw,
         startTimeType: rule.startTime?.type || 'fixed-time',
         endTimeType: rule.endTime?.type || 'fixed-time',
         _fullZoneStart: start,

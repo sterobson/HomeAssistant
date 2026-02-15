@@ -174,7 +174,7 @@ import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 
 const emit = defineEmits(['save', 'cancel'])
 
-const { loadEntities, loadSettings, saveSettings, settings, entitiesByDomain, loading: settingsLoading } = useDeviceSettings()
+const { loadEntities, loadSettings, saveSettings, settings, entities, entitiesByDomain, loading: settingsLoading } = useDeviceSettings()
 
 const loading = ref(true)
 const saving = ref(false)
@@ -207,6 +207,42 @@ const form = reactive({
   maxChargeCurrentAmps: null
 })
 
+// Find an entity by exact ID, returning the ID if it exists
+function findEntity(entityId) {
+  return entities.value.find(e => e.entityId === entityId)?.entityId || ''
+}
+
+// Find an entity by pattern (supports * wildcards), returning the first match
+// excludePattern optionally filters out matches containing a substring
+function findEntityByPattern(pattern, excludeSubstring) {
+  const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$')
+  return entities.value.find(e =>
+    regex.test(e.entityId) && (!excludeSubstring || !e.entityId.includes(excludeSubstring))
+  )?.entityId || ''
+}
+
+// Default entity mappings — exact IDs or wildcard patterns
+const defaults = {
+  batteryChargePercentSensorId: 'sensor.solax_inverter_battery_capacity',
+  chargerUseModeSelectorId: 'select.solax_inverter_charger_use_mode',
+  manualModeSelectorId: 'select.solax_inverter_manual_mode_select',
+  batteryChargeMaxCurrentNumberId: 'number.solax_inverter_battery_charge_max_current',
+  totalBatteryPowerChargeSensorId: 'sensor.solax_inverter_total_battery_power_charge',
+  totalPvPowerSensorId: 'sensor.solax_inverter_pv_power_total',
+  exportLimitNumberId: 'number.solax_inverter_export_control_user_limit',
+  electricityRateSensorId: 'sensor.octopus_energy_electricity_*_current_rate',
+  exportRateSensorId: 'sensor.octopus_energy_electricity_*_export_current_rate',
+  chargerCurrentSensorId: 'sensor.hypervolt_charger_current'
+}
+
+function resolveDefault(key) {
+  const pattern = defaults[key]
+  if (!pattern.includes('*')) return findEntity(pattern)
+  // For import rate, exclude export entities so the wildcard doesn't match the wrong one
+  if (key === 'electricityRateSensorId') return findEntityByPattern(pattern, 'export')
+  return findEntityByPattern(pattern)
+}
+
 onMounted(async () => {
   try {
     await Promise.all([loadEntities(), loadSettings()])
@@ -229,6 +265,13 @@ onMounted(async () => {
     if (settings.value?.carCharger) {
       const c = settings.value.carCharger
       form.chargerCurrentSensorId = c.chargerCurrentSensorId || ''
+    }
+
+    // Auto-populate empty fields with defaults if matching entities exist
+    for (const key of Object.keys(defaults)) {
+      if (!form[key]) {
+        form[key] = resolveDefault(key)
+      }
     }
   } finally {
     loading.value = false

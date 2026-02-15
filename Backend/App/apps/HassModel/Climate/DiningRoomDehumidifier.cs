@@ -131,7 +131,7 @@ internal class DiningRoomDehumidifier
         else if (!_notificationSent)
         {
             // Uh oh, the plug has been on for a while but delivering no power.
-            _notificationService.SendNotificationToStePhone("Dining room dehumidifier full?", "The dining room dehumidifier has been on for a while, but isn't drawing power. Is its tank full?");
+            _notificationService.SendNotificationToGroups("Dining room dehumidifier full?", "The dining room dehumidifier has been on for a while, but isn't drawing power. Is its tank full?", "all");
             _notificationSent = true;
         }
 

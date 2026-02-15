@@ -153,7 +153,9 @@ public class OctopusReader : IElectricityRatesReader
             return null;
         }
 
-        string requestUri = $"https://api.octopus.energy/v1/products/{productCode}/electricity-tariffs/{tariffCode}/standard-unit-rates/";
+        string periodFrom = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        string periodTo = DateTime.UtcNow.AddDays(3).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        string requestUri = $"https://api.octopus.energy/v1/products/{productCode}/electricity-tariffs/{tariffCode}/standard-unit-rates/?period_from={periodFrom}&period_to={periodTo}&page_size=500";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
         using HttpResponseMessage response = await _httpClient.SendAsync(request);

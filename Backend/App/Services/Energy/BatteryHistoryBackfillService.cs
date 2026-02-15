@@ -1,13 +1,11 @@
 using HomeAssistant.Services;
-using HomeAssistant.Services.Energy;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace HomeAssistant.apps.HassModel.Energy;
+namespace HomeAssistant.Services.Energy;
 
-[NetDaemonApp]
 internal class BatteryHistoryBackfillService
 {
     private readonly ISignalRConnectionService _signalRConnection;
@@ -40,7 +38,10 @@ internal class BatteryHistoryBackfillService
         _configuration = configuration;
         _timeProvider = timeProvider;
         _logger = logger;
+    }
 
+    public void Initialize()
+    {
         _signalRConnection.On<JsonElement>("backfill-battery-history", HandleBackfillRequestAsync);
 
         // Push today's full battery history on startup
@@ -260,11 +261,16 @@ internal class BatteryHistoryBackfillService
             return (emptyList, emptyList);
         }
 
-        // Process each day in the month
+        // Process each day in the month (skip today — ElectricityRatePushService handles today
+        // with Octopus API forecasts for future slots, which sensor history doesn't have)
+        DateOnly today = DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
         int uploadedDays = 0;
         for (int day = 1; day <= daysInMonth; day++)
         {
             DateOnly date = new(requestedDate.Year, requestedDate.Month, day);
+            if (date == today)
+                continue;
+
             string dateStr = date.ToString("yyyy-MM-dd");
 
             DateTime dayLocalMidnight = date.ToDateTime(TimeOnly.MinValue);

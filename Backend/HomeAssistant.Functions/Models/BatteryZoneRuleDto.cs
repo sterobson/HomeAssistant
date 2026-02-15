@@ -12,6 +12,7 @@ public class BatteryZoneRuleDto
     public TimeDefinitionDto EndTime { get; set; } = new();
     public string Action { get; set; } = string.Empty;
     public int TargetPercent { get; set; }
+    public string? RateMode { get; set; }
 }
 
 public class TimeDefinitionDto

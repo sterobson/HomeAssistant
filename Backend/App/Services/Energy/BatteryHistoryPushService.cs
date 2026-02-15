@@ -1,10 +1,8 @@
 using HomeAssistant.Devices.Batteries;
-using HomeAssistant.Services.Energy;
 using System.Threading.Tasks;
 
-namespace HomeAssistant.apps.HassModel.Energy;
+namespace HomeAssistant.Services.Energy;
 
-[NetDaemonApp]
 internal class BatteryHistoryPushService
 {
     private readonly IHomeBattery _homeBattery;
@@ -25,7 +23,10 @@ internal class BatteryHistoryPushService
         _configuration = configuration;
         _timeProvider = timeProvider;
         _logger = logger;
+    }
 
+    public void Initialize()
+    {
         _homeBattery.OnBatteryChargePercentChanged(async change =>
         {
             await HandleBatteryPercentChangedAsync(change.New);

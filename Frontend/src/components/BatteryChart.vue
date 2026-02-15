@@ -114,14 +114,93 @@ const zoneRenderingPlugin = {
         ? yChargeScale.getPixelForValue(zone.targetPercent)
         : chartArea.bottom - (zone.targetPercent / 100) * areaHeight
 
-      // Zone fill: import = bottom up to target, export = top down to target
-      ctx.fillStyle = isImport
-        ? 'rgba(231, 76, 60, 0.2)'
-        : 'rgba(39, 174, 96, 0.2)'
-      if (isImport) {
-        ctx.fillRect(startPx, targetY, width, chartArea.bottom - targetY)
+      // Zone shading: two-tone for graduated (by-end) zones, flat fill for fixed-rate zones
+      const isGraduated = zone.rateMode !== 'fixed'
+
+      if (isGraduated && yChargeScale) {
+        // Two-tone shading divided by the ideal charge/discharge trajectory
+        const fullStart = zone._fullZoneStart
+        const fullEnd = zone._fullZoneEnd
+        const isWrapSegment = fullStart != null && fullEnd != null
+
+        let startProgress, endProgress
+        if (isWrapSegment) {
+          const totalDuration = fullEnd - fullStart
+          const logicalStart = zone.startMinutes === 0
+            ? 1440 - fullStart
+            : zone.startMinutes - fullStart
+          const logicalEnd = zone.endMinutes === 1440
+            ? 1440 - fullStart
+            : 1440 - fullStart + zone.endMinutes
+          startProgress = logicalStart / totalDuration
+          endProgress = logicalEnd / totalDuration
+        } else {
+          startProgress = 0
+          endProgress = 1
+        }
+
+        const logicalZoneStart = isWrapSegment ? fullStart : zone.startMinutes
+        const defaultStart = isImport ? 0 : 100
+        const precedingZone = sortedZones.find(z => z !== zone && z.endMinutes === logicalZoneStart)
+        const baseStartPercent = precedingZone ? precedingZone.targetPercent : defaultStart
+
+        const idealStartPercent = baseStartPercent + startProgress * (zone.targetPercent - baseStartPercent)
+        const idealEndPercent = baseStartPercent + endProgress * (zone.targetPercent - baseStartPercent)
+
+        const idealStartY = yChargeScale.getPixelForValue(idealStartPercent)
+        const idealEndY = yChargeScale.getPixelForValue(idealEndPercent)
+
+        if (isImport) {
+          // Above ideal line → target: lighter
+          ctx.beginPath()
+          ctx.moveTo(startPx, idealStartY)
+          ctx.lineTo(endPx, idealEndY)
+          ctx.lineTo(endPx, targetY)
+          ctx.lineTo(startPx, targetY)
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(231, 76, 60, 0.10)'
+          ctx.fill()
+
+          // Below ideal line → bottom: darker
+          ctx.beginPath()
+          ctx.moveTo(startPx, idealStartY)
+          ctx.lineTo(endPx, idealEndY)
+          ctx.lineTo(endPx, chartArea.bottom)
+          ctx.lineTo(startPx, chartArea.bottom)
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(231, 76, 60, 0.25)'
+          ctx.fill()
+        } else {
+          // Above ideal line → top: lighter
+          ctx.beginPath()
+          ctx.moveTo(startPx, idealStartY)
+          ctx.lineTo(endPx, idealEndY)
+          ctx.lineTo(endPx, chartArea.top)
+          ctx.lineTo(startPx, chartArea.top)
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(39, 174, 96, 0.10)'
+          ctx.fill()
+
+          // Below ideal line → target: darker
+          ctx.beginPath()
+          ctx.moveTo(startPx, idealStartY)
+          ctx.lineTo(endPx, idealEndY)
+          ctx.lineTo(endPx, targetY)
+          ctx.lineTo(startPx, targetY)
+          ctx.closePath()
+          ctx.fillStyle = 'rgba(39, 174, 96, 0.25)'
+          ctx.fill()
+        }
       } else {
-        ctx.fillRect(startPx, chartArea.top, width, targetY - chartArea.top)
+        // Flat fill for fixed-rate zones (or fallback when yCharge scale unavailable)
+        ctx.fillStyle = isImport
+          ? 'rgba(231, 76, 60, 0.2)'
+          : 'rgba(39, 174, 96, 0.2)'
+        if (isImport) {
+          ctx.fillRect(startPx, targetY, width, chartArea.bottom - targetY)
+        } else {
+          ctx.fillRect(startPx, chartArea.top, width, targetY - chartArea.top)
+        }
       }
 
       // Vertical borders matching zone color
@@ -143,6 +222,7 @@ const zoneRenderingPlugin = {
         ctx.lineTo(endPx, targetY)
       }
       ctx.stroke()
+
     }
 
     ctx.restore()
@@ -174,20 +254,18 @@ const zoneRenderingPlugin = {
         ? yChargeScale.getPixelForValue(zone.targetPercent)
         : chartArea.bottom - (zone.targetPercent / 100) * areaHeight
 
-      // Dashed target line (red for import, green for export)
+      // Target line (red for import, green for export)
       ctx.beginPath()
-      ctx.setLineDash([5, 4])
       ctx.strokeStyle = isImport ? 'rgba(231, 76, 60, 0.85)' : 'rgba(39, 174, 96, 0.85)'
       ctx.lineWidth = 1.5
       ctx.moveTo(startPx, targetY)
       ctx.lineTo(endPx, targetY)
       ctx.stroke()
-      ctx.setLineDash([])
 
       // Label and arrow
       const actionLabel = isImport ? 'Import' : 'Export'
-      const rateLabel = zone.rateMode === 'fixed' && zone.rateKw
-        ? `at ${zone.rateKw}kW`
+      const rateLabel = zone.rateMode === 'fixed'
+        ? 'at fixed rate'
         : 'by end of zone'
       const label = `${actionLabel} to ${zone.targetPercent}% ${rateLabel}`
       const textColor = isImport ? '#c0392b' : '#1e8449'
@@ -1210,7 +1288,9 @@ const chartOptions = computed(() => {
       min: 0,
       max: 100,
       grid: {
-        drawOnChartArea: false
+        color: themeColors.value.gridColor,
+        drawOnChartArea: true,
+        lineWidth: 1
       },
       ticks: {
         color: themeColors.value.textSecondary,
@@ -1226,9 +1306,7 @@ const chartOptions = computed(() => {
       min: 0,
       max: yCostMax.value,
       grid: {
-        color: themeColors.value.gridColor,
-        drawBorder: true,
-        lineWidth: 1
+        drawOnChartArea: false
       },
       ticks: {
         color: themeColors.value.textSecondary,

@@ -54,6 +54,7 @@ try
                 .AddScoped<IHomeBattery>(provider => provider.GetRequiredService<SolaxInverter>())
                 .AddScoped<ISolarPanels>(provider => provider.GetRequiredService<SolaxInverter>())
                 .AddScoped<ICarCharger, HypervoltPro3>()
+                .AddConfiguration<NotificationConfiguration>(context, "Notifications")
                 .AddScoped<NotificationService>()
                 .AddConfiguration<WeatherApiConfiguration>(context, "WeatherApi")
                 .AddSingleton<IWeatherProvider, WeatherApiProvider>()
@@ -147,6 +148,11 @@ try
                     }
                 })
                 .Services
+                .AddSingleton<EntityPushCoordinator>()
+                .AddScoped<EntityPushService>()
+                .AddScoped<BatteryHistoryPushService>()
+                .AddScoped<BatteryHistoryBackfillService>()
+                .AddScoped<ElectricityRatePushService>()
                 .AddSingleton<TimeProvider>(provider => TimeProvider.System);
 
         })

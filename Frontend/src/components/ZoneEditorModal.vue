@@ -230,22 +230,8 @@
               :class="{ active: rateMode === 'fixed' }"
               @click="rateMode = 'fixed'"
             >
-              At {{ rateKw.toFixed(1) }} kW
+              At fixed rate
             </button>
-          </div>
-          <div v-if="rateMode === 'fixed'" class="charge-selector rate-slider">
-            <input
-              type="range"
-              min="0.1"
-              max="7.0"
-              step="0.1"
-              v-model.number="rateKw"
-              class="charge-slider"
-            />
-            <div class="charge-display">
-              <span class="charge-value charge-value-sm">{{ rateKw.toFixed(1) }}</span>
-              <span class="charge-unit">kW</span>
-            </div>
           </div>
         </div>
 
@@ -259,10 +245,7 @@
             Delete
           </button>
           <div class="action-spacer"></div>
-          <button type="button" class="btn btn-secondary" @click="handleCancel">
-            Cancel
-          </button>
-          <button type="button" class="btn btn-primary" @click="handleSave">
+<button type="button" class="btn btn-primary" @click="handleSave">
             Save
           </button>
         </div>
@@ -318,7 +301,6 @@ const isEditing = computed(() => props.editingRule !== null)
 const action = ref('import')
 const targetPercent = ref(50)
 const rateMode = ref('by-end')
-const rateKw = ref(3.0)
 const startRuleTypeKey = ref('fixed-time')
 const endRuleTypeKey = ref('fixed-time')
 
@@ -405,7 +387,6 @@ onMounted(() => {
     action.value = props.editingRule.action || 'import'
     targetPercent.value = props.editingRule.targetPercent ?? 50
     rateMode.value = props.editingRule.rateMode || 'by-end'
-    rateKw.value = props.editingRule.rateKw ?? 3.0
 
     if (props.editingRule.startTime) {
       startRuleTypeKey.value = getRuleTypeKey(props.editingRule.startTime)
@@ -502,8 +483,7 @@ function handleSave() {
     endTime: buildTimeDef(endRuleTypeKey.value, editedEndMinutes.value, allRuleTypes.value, endThreshold),
     action: action.value,
     targetPercent: targetPercent.value,
-    rateMode: rateMode.value,
-    rateKw: rateMode.value === 'fixed' ? rateKw.value : undefined
+    rateMode: rateMode.value
   }
 
   emit('save', {
@@ -657,6 +637,7 @@ function handleCancel() {
   font-weight: 600;
   color: var(--color-primary);
 }
+
 
 /* Action toggle */
 .action-toggle {
@@ -900,7 +881,7 @@ function handleCancel() {
   }
 
   .form-actions {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .action-spacer {
@@ -908,8 +889,31 @@ function handleCancel() {
   }
 
   .btn-danger {
-    flex: 1 1 100%;
-    order: 3;
+    flex: 1;
+  }
+
+  .btn-primary {
+    flex: 1;
+  }
+
+  .time-select {
+    font-size: 1.3rem;
+    padding: 0.5rem 0.6rem;
+    min-width: 3.5rem;
+  }
+
+  .time-separator {
+    font-size: 1.3rem;
+  }
+
+  .inline-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inline-group .time-editor {
+    justify-content: center;
+    gap: 0.5rem;
   }
 }
 </style>

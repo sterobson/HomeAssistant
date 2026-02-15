@@ -38,7 +38,8 @@
       "Bash(npx vue-tsc:*)",
       "Bash(pwsh:*)",
       "Bash(git init:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

@@ -8,7 +8,6 @@ using HomeAssistant.Services.Climate;
 using HomeAssistant.Shared;
 using HomeAssistant.Shared.Climate;
 using HassModel;
-using HassModel.Energy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NetDaemon.HassModel;
@@ -225,51 +224,4 @@ public sealed class EntityExistenceTests
             Arg.Any<Func<object, Exception?, string>>());
     }
 
-    [TestMethod]
-    public void Prices_Constructor_DoesNotThrow_WhenElectricityRateSensorNotConfigured()
-    {
-        // Arrange
-        IHaContext ha = CreateMockHaContext();
-        IDeviceSettingsPersistenceService settingsPersistence = Substitute.For<IDeviceSettingsPersistenceService>();
-        settingsPersistence.GetSettingsAsync().Returns(Task.FromResult(new DeviceSettingsDto()));
-        ILogger<Prices> logger = CreateLogger<Prices>();
-
-        // Act & Assert - constructor should not throw
-        Prices sut = new(ha, settingsPersistence, logger);
-
-        // Verify a warning was logged about the missing sensor configuration
-        logger.Received(1).Log(
-            LogLevel.Warning,
-            Arg.Any<EventId>(),
-            Arg.Any<object>(),
-            Arg.Any<Exception?>(),
-            Arg.Any<Func<object, Exception?, string>>());
-    }
-
-    [TestMethod]
-    public void Prices_Constructor_DoesNotThrow_WhenElectricityRateSensorConfiguredButDoesNotExist()
-    {
-        // Arrange
-        IHaContext ha = CreateMockHaContext();
-        IDeviceSettingsPersistenceService settingsPersistence = Substitute.For<IDeviceSettingsPersistenceService>();
-        settingsPersistence.GetSettingsAsync().Returns(Task.FromResult(new DeviceSettingsDto
-        {
-            Battery = new BatterySettingsDto
-            {
-                ElectricityRateSensorId = "sensor.nonexistent_rate"
-            }
-        }));
-        ILogger<Prices> logger = CreateLogger<Prices>();
-
-        // Act & Assert - constructor should not throw even though the sensor entity doesn't exist
-        Prices sut = new(ha, settingsPersistence, logger);
-
-        // No warning logged from Prices itself (the sensor is configured, it just doesn't exist yet)
-        logger.DidNotReceive().Log(
-            LogLevel.Warning,
-            Arg.Any<EventId>(),
-            Arg.Any<object>(),
-            Arg.Any<Exception?>(),
-            Arg.Any<Func<object, Exception?, string>>());
-    }
 }

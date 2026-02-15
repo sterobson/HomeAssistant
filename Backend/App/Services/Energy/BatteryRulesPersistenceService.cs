@@ -1,6 +1,7 @@
 using HomeAssistant.Shared.Energy;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Energy;
@@ -34,10 +35,10 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
     private readonly ISignalRConnectionService? _signalRConnection;
     private readonly string _localStoragePath;
     private const string _storageFileName = "battery-zone-rules.json";
-    private const int _cacheExpirationMinutes = 10;
+    private static readonly Random _jitterRandom = new();
 
     private BatteryZoneRules? _cachedRules;
-    private DateTimeOffset _lastRefreshTime = DateTimeOffset.MinValue;
+    private Timer? _periodicRefreshTimer;
 
     public event Func<Task>? RulesUpdated;
 
@@ -61,8 +62,11 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
 
     public async Task StartAsync()
     {
-        // Load from local storage on startup
+        // Load from local storage first for immediate availability
         await LoadFromLocalStorageAsync();
+
+        // Then fetch from API to ensure we have the latest rules
+        await RefreshRulesFromApiAsync();
 
         // Register SignalR handler and start connection
         if (_signalRConnection != null)
@@ -70,37 +74,63 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
             _signalRConnection.On<object>("battery-rules-changed", async (data) =>
             {
                 _logger.LogDebug("Received 'battery-rules-changed' notification from SignalR for house {HouseId}", _configuration.HouseId);
-                _lastRefreshTime = DateTimeOffset.MinValue; // Invalidate cache
-                await RefreshRulesFromApiAsync();
+                bool success = await RefreshRulesFromApiAsync();
 
-                if (RulesUpdated != null)
+                if (success && RulesUpdated != null)
                 {
                     await RulesUpdated.Invoke();
                 }
             });
 
+            _signalRConnection.ConnectionRestored += async () =>
+            {
+                _logger.LogInformation("SignalR connection restored — refreshing battery rules");
+                bool success = await RefreshRulesFromApiAsync();
+
+                if (success && RulesUpdated != null)
+                {
+                    await RulesUpdated.Invoke();
+                }
+            };
+
             await _signalRConnection.StartAsync();
         }
+
+        // Start periodic refresh every hour (±30 seconds jitter)
+        ScheduleNextPeriodicRefresh();
     }
 
     public async Task<BatteryZoneRules> GetRulesAsync()
     {
-        // Check if cache is still valid
-        TimeSpan timeSinceLastRefresh = DateTimeOffset.UtcNow - _lastRefreshTime;
-        if (_cachedRules == null || timeSinceLastRefresh.TotalMinutes >= _cacheExpirationMinutes)
-        {
-            await RefreshRulesFromApiAsync();
-        }
-
         return _cachedRules ?? new();
     }
 
-    private async Task RefreshRulesFromApiAsync()
+    private void ScheduleNextPeriodicRefresh()
+    {
+        int jitterSeconds = _jitterRandom.Next(-30, 31);
+        TimeSpan interval = TimeSpan.FromHours(1) + TimeSpan.FromSeconds(jitterSeconds);
+        _logger.LogDebug("Next periodic battery rules refresh in {Interval}", interval);
+
+        _periodicRefreshTimer = new Timer(async _ =>
+        {
+            _logger.LogDebug("Performing periodic battery rules refresh");
+            bool success = await RefreshRulesFromApiAsync();
+
+            if (success && RulesUpdated != null)
+            {
+                await RulesUpdated.Invoke();
+            }
+
+            ScheduleNextPeriodicRefresh();
+        }, null, interval, Timeout.InfiniteTimeSpan);
+    }
+
+    private async Task<bool> RefreshRulesFromApiAsync()
     {
         if (_apiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
         {
             _logger.LogWarning("Cannot refresh battery rules - API client or HouseId not configured");
-            return;
+            return false;
         }
 
         try
@@ -109,15 +139,16 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
             BatteryZoneRules rules = await _apiClient.GetRulesAsync(_configuration.HouseId);
 
             _cachedRules = rules;
-            _lastRefreshTime = DateTimeOffset.UtcNow;
             _logger.LogDebug("Successfully refreshed {Count} battery rules from API", rules.Rules.Count);
 
             // Save to local storage
             await SaveToLocalStorageAsync(rules);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error refreshing battery rules from API for house {HouseId}", _configuration.HouseId);
+            return false;
         }
     }
 
@@ -141,7 +172,6 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
             if (dto != null)
             {
                 _cachedRules = BatteryRuleMapper.MapFromDto(dto);
-                _lastRefreshTime = DateTimeOffset.UtcNow;
                 _logger.LogDebug("Successfully loaded {Count} battery rules from local storage", _cachedRules.Rules.Count);
             }
         }

@@ -64,6 +64,18 @@ internal class DeviceSettingsPersistenceService : IDeviceSettingsPersistenceServ
                 }
             });
 
+            _signalRConnection.ConnectionRestored += async () =>
+            {
+                _logger.LogInformation("SignalR connection restored — refreshing device settings");
+                _lastRefreshTime = DateTimeOffset.MinValue;
+                await RefreshSettingsFromApiAsync();
+
+                if (SettingsUpdated != null)
+                {
+                    await SettingsUpdated.Invoke();
+                }
+            };
+
             await _signalRConnection.StartAsync();
         }
     }

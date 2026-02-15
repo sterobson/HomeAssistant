@@ -56,7 +56,8 @@ public static class BatteryRuleMapper
                 StartTime = MapTimeDefinitionFromDto(ruleDto.StartTime),
                 EndTime = MapTimeDefinitionFromDto(ruleDto.EndTime),
                 Action = _actionMap.GetValueOrDefault(ruleDto.Action, BatteryZoneAction.Import),
-                TargetPercent = ruleDto.TargetPercent
+                TargetPercent = ruleDto.TargetPercent,
+                GraduatedTarget = !string.Equals(ruleDto.RateMode, "fixed", StringComparison.OrdinalIgnoreCase)
             };
 
             result.Rules.Add(rule);
@@ -79,7 +80,8 @@ public static class BatteryRuleMapper
                 StartTime = MapTimeDefinitionToDto(rule.StartTime),
                 EndTime = MapTimeDefinitionToDto(rule.EndTime),
                 Action = _reverseActionMap.GetValueOrDefault(rule.Action, "import"),
-                TargetPercent = rule.TargetPercent
+                TargetPercent = rule.TargetPercent,
+                RateMode = rule.GraduatedTarget ? "by-end" : "fixed"
             };
 
             result.Rules.Add(ruleDto);

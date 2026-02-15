@@ -1,15 +1,12 @@
-using HomeAssistant.Services;
 using HomeAssistant.Shared;
 using NetDaemon.HassModel.Entities;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reactive.Concurrency;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace HomeAssistant.apps.HassModel.Energy;
+namespace HomeAssistant.Services;
 
-[NetDaemonApp]
 internal class EntityPushService
 {
     private static readonly HashSet<string> AllowedDomains =
@@ -19,32 +16,30 @@ internal class EntityPushService
 
     private readonly IHaContext _ha;
     private readonly IEntityPushApiClient _apiClient;
+    private readonly EntityPushCoordinator _coordinator;
     private readonly WebSynchronisationConfiguration _configuration;
     private readonly ILogger<EntityPushService> _logger;
 
     public EntityPushService(
-        IScheduler scheduler,
         IHaContext ha,
         IEntityPushApiClient apiClient,
+        EntityPushCoordinator coordinator,
         WebSynchronisationConfiguration configuration,
         ILogger<EntityPushService> logger)
     {
         _ha = ha;
         _apiClient = apiClient;
+        _coordinator = coordinator;
         _configuration = configuration;
         _logger = logger;
+    }
 
-        // Initial push after 30s delay to allow HA to fully load
-        Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
-        {
-            await PushEntitiesAsync();
-        });
+    public async Task PushEntitiesIfDueAsync()
+    {
+        if (!await _coordinator.TryAcquirePushAsync())
+            return;
 
-        // Re-push every 6 hours to pick up new entities
-        scheduler.SchedulePeriodic(TimeSpan.FromHours(6), async () =>
-        {
-            await PushEntitiesAsync();
-        });
+        await PushEntitiesAsync();
     }
 
     private async Task PushEntitiesAsync()

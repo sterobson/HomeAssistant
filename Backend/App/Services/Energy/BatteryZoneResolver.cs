@@ -10,6 +10,8 @@ public class ResolvedZone
     public int EndMinutes { get; set; }
     public BatteryZoneAction Action { get; set; }
     public int TargetPercent { get; set; }
+    public bool IsSmart { get; set; }
+    public bool GraduatedTarget { get; set; }
 }
 
 public static class BatteryZoneResolver
@@ -70,6 +72,9 @@ public static class BatteryZoneResolver
 
     public static List<ResolvedZone> EvaluateZoneRule(BatteryZoneRule rule, List<PricingSlot> slots)
     {
+        bool isSmart = rule.StartTime.Type != TimeDefinitionType.FixedTime
+                    || rule.EndTime.Type != TimeDefinitionType.FixedTime;
+
         List<int> startTimes = ResolveTimeDefinition(rule.StartTime, slots);
         startTimes.Sort();
 
@@ -107,7 +112,9 @@ public static class BatteryZoneResolver
                     StartMinutes = start,
                     EndMinutes = bestEnd.Value,
                     Action = rule.Action,
-                    TargetPercent = rule.TargetPercent
+                    TargetPercent = rule.TargetPercent,
+                    IsSmart = isSmart,
+                    GraduatedTarget = rule.GraduatedTarget
                 });
             }
         }
@@ -145,7 +152,9 @@ public static class BatteryZoneResolver
                     StartMinutes = start,
                     EndMinutes = 1440,
                     Action = rule.Action,
-                    TargetPercent = rule.TargetPercent
+                    TargetPercent = rule.TargetPercent,
+                    IsSmart = isSmart,
+                    GraduatedTarget = rule.GraduatedTarget
                 });
 
                 // Morning segment: midnight → end
@@ -157,7 +166,9 @@ public static class BatteryZoneResolver
                         StartMinutes = 0,
                         EndMinutes = actualEnd,
                         Action = rule.Action,
-                        TargetPercent = rule.TargetPercent
+                        TargetPercent = rule.TargetPercent,
+                        IsSmart = isSmart,
+                        GraduatedTarget = rule.GraduatedTarget
                     });
                 }
             }
