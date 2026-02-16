@@ -94,6 +94,34 @@ public static class BatteryZoneResolver
                 return boundaries.Where(b => b.BoundaryType == "end").Select(b => b.TimeMinutes).ToList();
             }
 
+            case TimeDefinitionType.StartOfCheapExport:
+            {
+                List<PriceBoundary> boundaries = PriceAnalysis.FindMinimaRegionBoundaries(
+                    slots, s => s.ExportPrice);
+                return boundaries.Where(b => b.BoundaryType == "start").Select(b => b.TimeMinutes).ToList();
+            }
+
+            case TimeDefinitionType.EndOfCheapExport:
+            {
+                List<PriceBoundary> boundaries = PriceAnalysis.FindMinimaRegionBoundaries(
+                    slots, s => s.ExportPrice);
+                return boundaries.Where(b => b.BoundaryType == "end").Select(b => b.TimeMinutes).ToList();
+            }
+
+            case TimeDefinitionType.StartOfExpensiveExport:
+            {
+                List<PriceBoundary> boundaries = PriceAnalysis.FindMaximaRegionBoundaries(
+                    slots, s => s.ExportPrice);
+                return boundaries.Where(b => b.BoundaryType == "start").Select(b => b.TimeMinutes).ToList();
+            }
+
+            case TimeDefinitionType.EndOfExpensiveExport:
+            {
+                List<PriceBoundary> boundaries = PriceAnalysis.FindMaximaRegionBoundaries(
+                    slots, s => s.ExportPrice);
+                return boundaries.Where(b => b.BoundaryType == "end").Select(b => b.TimeMinutes).ToList();
+            }
+
             default:
                 return [];
         }
@@ -105,6 +133,7 @@ public static class BatteryZoneResolver
                     || rule.EndTime.Type != TimeDefinitionType.FixedTime;
 
         List<int> startTimes = ResolveTimeDefinition(rule.StartTime, slots);
+        startTimes = startTimes.Select(t => t >= 1440 ? t - 1440 : t).Distinct().ToList();
         startTimes.Sort();
 
         List<int> endTimes = ResolveTimeDefinition(rule.EndTime, slots);

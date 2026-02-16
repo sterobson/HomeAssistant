@@ -11,23 +11,23 @@ public static class BatteryRuleMapper
     private static readonly Dictionary<string, TimeDefinitionType> _typeMap = new()
     {
         { "fixed-time", TimeDefinitionType.FixedTime },
-        { "start-of-cheap-import:import", TimeDefinitionType.StartOfCheapImport },
-        { "end-of-cheap-import:import", TimeDefinitionType.EndOfCheapImport },
-        { "start-of-expensive-import:import", TimeDefinitionType.StartOfExpensiveImport },
-        { "end-of-expensive-import:import", TimeDefinitionType.EndOfExpensiveImport },
-        { "export-exceeds-import:export", TimeDefinitionType.ExportExceedsImport },
-        { "import-exceeds-export:import", TimeDefinitionType.ImportExceedsExport }
+        { "export-exceeds-import", TimeDefinitionType.ExportExceedsImport },
+        { "import-exceeds-export", TimeDefinitionType.ImportExceedsExport }
     };
 
     private static readonly Dictionary<TimeDefinitionType, string> _reverseTypeMap = new()
     {
         { TimeDefinitionType.FixedTime, "fixed-time" },
-        { TimeDefinitionType.StartOfCheapImport, "start-of-cheap-import:import" },
-        { TimeDefinitionType.EndOfCheapImport, "end-of-cheap-import:import" },
-        { TimeDefinitionType.StartOfExpensiveImport, "start-of-expensive-import:import" },
-        { TimeDefinitionType.EndOfExpensiveImport, "end-of-expensive-import:import" },
-        { TimeDefinitionType.ExportExceedsImport, "export-exceeds-import:export" },
-        { TimeDefinitionType.ImportExceedsExport, "import-exceeds-export:import" }
+        { TimeDefinitionType.ExportExceedsImport, "export-exceeds-import" },
+        { TimeDefinitionType.ImportExceedsExport, "import-exceeds-export" },
+        { TimeDefinitionType.StartOfCheapImport, "local-extrema-boundary" },
+        { TimeDefinitionType.EndOfCheapImport, "local-extrema-boundary" },
+        { TimeDefinitionType.StartOfExpensiveImport, "local-extrema-boundary" },
+        { TimeDefinitionType.EndOfExpensiveImport, "local-extrema-boundary" },
+        { TimeDefinitionType.StartOfCheapExport, "local-extrema-boundary" },
+        { TimeDefinitionType.EndOfCheapExport, "local-extrema-boundary" },
+        { TimeDefinitionType.StartOfExpensiveExport, "local-extrema-boundary" },
+        { TimeDefinitionType.EndOfExpensiveExport, "local-extrema-boundary" }
     };
 
     private static readonly Dictionary<string, BatteryZoneAction> _actionMap = new()
@@ -92,9 +92,31 @@ public static class BatteryRuleMapper
 
     private static TimeDefinition MapTimeDefinitionFromDto(TimeDefinitionDto dto)
     {
+        TimeDefinitionType type;
+
+        if (dto.Type == "local-extrema-boundary")
+        {
+            type = (dto.PriceType, dto.RegionType, dto.ExtremaType) switch
+            {
+                ("import", "minima", "start") => TimeDefinitionType.StartOfCheapImport,
+                ("import", "minima", "end") => TimeDefinitionType.EndOfCheapImport,
+                ("import", "maxima", "start") => TimeDefinitionType.StartOfExpensiveImport,
+                ("import", "maxima", "end") => TimeDefinitionType.EndOfExpensiveImport,
+                ("export", "minima", "start") => TimeDefinitionType.StartOfCheapExport,
+                ("export", "minima", "end") => TimeDefinitionType.EndOfCheapExport,
+                ("export", "maxima", "start") => TimeDefinitionType.StartOfExpensiveExport,
+                ("export", "maxima", "end") => TimeDefinitionType.EndOfExpensiveExport,
+                _ => TimeDefinitionType.FixedTime
+            };
+        }
+        else
+        {
+            type = _typeMap.GetValueOrDefault(dto.Type, TimeDefinitionType.FixedTime);
+        }
+
         return new TimeDefinition
         {
-            Type = _typeMap.GetValueOrDefault(dto.Type, TimeDefinitionType.FixedTime),
+            Type = type,
             FixedTimeMinutes = dto.FixedTimeMinutes,
             PriceType = dto.PriceType,
             ExtremaType = dto.ExtremaType,
@@ -106,13 +128,36 @@ public static class BatteryRuleMapper
 
     private static TimeDefinitionDto MapTimeDefinitionToDto(TimeDefinition def)
     {
+        string type = _reverseTypeMap.GetValueOrDefault(def.Type, "fixed-time");
+
+        // Populate subfields for local-extrema-boundary types
+        string? regionType = def.RegionType;
+        string? extremaType = def.ExtremaType;
+        string? priceType = def.PriceType;
+
+        if (type == "local-extrema-boundary")
+        {
+            (regionType, extremaType, priceType) = def.Type switch
+            {
+                TimeDefinitionType.StartOfCheapImport => ("minima", "start", "import"),
+                TimeDefinitionType.EndOfCheapImport => ("minima", "end", "import"),
+                TimeDefinitionType.StartOfExpensiveImport => ("maxima", "start", "import"),
+                TimeDefinitionType.EndOfExpensiveImport => ("maxima", "end", "import"),
+                TimeDefinitionType.StartOfCheapExport => ("minima", "start", "export"),
+                TimeDefinitionType.EndOfCheapExport => ("minima", "end", "export"),
+                TimeDefinitionType.StartOfExpensiveExport => ("maxima", "start", "export"),
+                TimeDefinitionType.EndOfExpensiveExport => ("maxima", "end", "export"),
+                _ => (regionType, extremaType, priceType)
+            };
+        }
+
         return new TimeDefinitionDto
         {
-            Type = _reverseTypeMap.GetValueOrDefault(def.Type, "fixed-time"),
+            Type = type,
             FixedTimeMinutes = def.FixedTimeMinutes,
-            PriceType = def.PriceType,
-            ExtremaType = def.ExtremaType,
-            RegionType = def.RegionType,
+            PriceType = priceType,
+            ExtremaType = extremaType,
+            RegionType = regionType,
             ThresholdType = def.ThresholdType,
             ThresholdValue = def.ThresholdValue
         };

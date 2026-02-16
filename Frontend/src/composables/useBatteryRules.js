@@ -1,6 +1,8 @@
 // Battery zone-rule management with API persistence (localStorage fallback)
 import { ref, computed, watch } from 'vue'
 import { batteryApi } from '../services/batteryApi.js'
+import { getHouseId } from '../utils/cookies.js'
+import { getCache, setCache } from '../utils/apiCache.js'
 import {
   findExportExceedsImportCrossovers,
   findImportExceedsExportCrossovers,
@@ -32,22 +34,34 @@ export function getElapsedMinutes(currentMinutes, startMinutes, endMinutes) {
   return (1440 - startMinutes) + currentMinutes
 }
 
-const STORAGE_KEY = 'battery-zone-rules'
+const LEGACY_STORAGE_KEY = 'battery-zone-rules'
+const cachedHouseId = getHouseId()
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9)
 }
 
+function migrateActions(rules) {
+  for (const rule of rules) {
+    if (rule.action === 'charge') rule.action = 'import'
+    if (rule.action === 'discharge') rule.action = 'export'
+  }
+  return rules
+}
+
 function loadFromLocalStorage() {
+  // Try houseId-scoped cache first
+  if (cachedHouseId) {
+    const cached = getCache(cachedHouseId, 'rules', 'current')
+    if (cached) return migrateActions(cached)
+  }
+
+  // Fall back to legacy flat key
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
+    const stored = localStorage.getItem(LEGACY_STORAGE_KEY)
     if (stored) {
       const rules = JSON.parse(stored)
-      for (const rule of rules) {
-        if (rule.action === 'charge') rule.action = 'import'
-        if (rule.action === 'discharge') rule.action = 'export'
-      }
-      return rules
+      return migrateActions(rules)
     }
   } catch (error) {
     console.error('Failed to load battery zone rules from localStorage:', error)
@@ -59,8 +73,21 @@ function loadFromLocalStorage() {
 const rules = ref(loadFromLocalStorage())
 const loading = ref(false)
 const saveError = ref(null)
+const savingRuleIds = ref(new Set())
 
 let saveTimeout = null
+let _preChangeSnapshot = null
+
+function snapshotRules() {
+  if (!_preChangeSnapshot) {
+    _preChangeSnapshot = JSON.parse(JSON.stringify(rules.value))
+  }
+}
+
+function markSaving(ruleId) {
+  snapshotRules()
+  savingRuleIds.value = new Set([...savingRuleIds.value, ruleId])
+}
 
 async function loadFromApi() {
   try {
@@ -68,8 +95,11 @@ async function loadFromApi() {
     const response = await batteryApi.getRules()
     if (response && response.rules) {
       rules.value = response.rules
-      // Clear localStorage after successful API load
-      localStorage.removeItem(STORAGE_KEY)
+      // Update houseId-scoped cache and remove legacy key
+      if (cachedHouseId) {
+        setCache(cachedHouseId, 'rules', 'current', response.rules)
+      }
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
     }
   } catch (error) {
     console.warn('Failed to load battery rules from API, using localStorage fallback:', error)
@@ -82,18 +112,30 @@ async function loadFromApi() {
 function saveToApi() {
   clearTimeout(saveTimeout)
   saveTimeout = setTimeout(async () => {
+    const snapshot = _preChangeSnapshot
+    _preChangeSnapshot = null
     try {
       saveError.value = null
       await batteryApi.setRules({ rules: rules.value })
+      // Update cache on successful save
+      if (cachedHouseId) {
+        setCache(cachedHouseId, 'rules', 'current', rules.value)
+      }
     } catch (error) {
       console.error('Failed to save battery rules to API:', error)
-      saveError.value = error.message
-      // Fallback: save to localStorage
+      saveError.value = 'Failed to save, changes reverted'
+      // Revert to snapshot
+      if (snapshot) {
+        rules.value = snapshot
+      }
+      // Fallback: save snapshot to localStorage
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(rules.value))
+        localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(rules.value))
       } catch (e) {
         console.error('Failed to save to localStorage fallback:', e)
       }
+    } finally {
+      savingRuleIds.value = new Set()
     }
   }, 500)
 }
@@ -156,7 +198,10 @@ function resolveTimeDefinition(timeDef, pricingData) {
  * when dynamic start/end times match multiple events).
  */
 function evaluateZoneRule(rule, pricingData) {
-  const startTimes = resolveTimeDefinition(rule.startTime, pricingData).sort((a, b) => a - b)
+  const startTimes = [...new Set(
+    resolveTimeDefinition(rule.startTime, pricingData)
+      .map(t => t >= 1440 ? t - 1440 : t)
+  )].sort((a, b) => a - b)
   const endTimes = resolveTimeDefinition(rule.endTime, pricingData).sort((a, b) => a - b)
 
   if (startTimes.length === 0 || endTimes.length === 0) return []
@@ -283,6 +328,7 @@ export function useBatteryRules() {
       id: generateId(),
       ...ruleData
     }
+    markSaving(rule.id)
     rules.value.push(rule)
     return rule
   }
@@ -290,11 +336,13 @@ export function useBatteryRules() {
   function updateRule(ruleId, ruleData) {
     const index = rules.value.findIndex(r => r.id === ruleId)
     if (index !== -1) {
+      markSaving(ruleId)
       rules.value[index] = { id: ruleId, ...ruleData }
     }
   }
 
   function deleteRule(ruleId) {
+    markSaving(ruleId)
     rules.value = rules.value.filter(r => r.id !== ruleId)
   }
 
@@ -310,6 +358,7 @@ export function useBatteryRules() {
     rules,
     loading,
     saveError,
+    savingRuleIds,
     getResolvedZones,
     addRule,
     updateRule,

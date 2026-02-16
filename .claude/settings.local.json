@@ -41,7 +41,8 @@
       "Bash(powershell:*)",
       "Bash(findstr:*)",
       "Bash(dotnet-ildasm:*)",
-      "WebFetch(domain:netdaemon.xyz)"
+      "WebFetch(domain:netdaemon.xyz)",
+      "Bash(node scripts/generate-icons.js:*)"
     ],
     "deny": [],
     "ask": []

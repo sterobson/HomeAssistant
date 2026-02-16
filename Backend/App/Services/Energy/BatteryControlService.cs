@@ -26,6 +26,7 @@ internal class BatteryControlService
     private List<EnergyRate> _cachedImportRates = [];
     private List<EnergyRate> _cachedExportRates = [];
     private List<PricingSlot> _cachedPricingSlots = [];
+    private List<PricingSlot> _cachedNextDayPricingSlots = [];
     private DateTime _lastRatesRefresh = DateTime.MinValue;
     private const int _ratesRefreshIntervalMinutes = 30;
     internal const int HysteresisPercent = 2;
@@ -41,6 +42,9 @@ internal class BatteryControlService
     private bool _previousIsBatteryAtTarget = false;
     private BatteryState _previousBatteryState = BatteryState.Unknown;
     private double? _graduatedInitialPercent = null;
+    private ActiveRateOverride? _activeOverride = null;
+
+    internal record ActiveRateOverride(int StartMinutes, int EndMinutes, double SensorImportRate, DateTime Date);
 
     public BatteryControlService(IScheduler scheduler, IElectricityMeter electricityMeter,
                                  IHomeBattery homeBattery, ICarCharger carCharger,
@@ -143,6 +147,11 @@ internal class BatteryControlService
         }
     }
 
+    private List<PricingSlot> GetExtendedPricingSlots()
+    {
+        return PricingSlot.ExtendWithNextDay(_cachedPricingSlots, _cachedNextDayPricingSlots);
+    }
+
     internal async Task RefreshRatesAsync()
     {
         try
@@ -150,11 +159,27 @@ internal class BatteryControlService
             DateTime now = _timeProvider.GetLocalNow().DateTime;
             DateTime dayStart = now.Date;
             DateTime dayEnd = dayStart.AddDays(1);
+            DateTime nextDayEnd = dayStart.AddDays(2);
 
             _cachedImportRates = await _ratesReader.GetElectricityImportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
             _cachedExportRates = await _ratesReader.GetElectricityExportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
-            _cachedPricingSlots = PricingSlot.FromEnergyRates(_cachedImportRates, _cachedExportRates, now);
+            _cachedPricingSlots = PricingSlot.FromEnergyRatesExact(_cachedImportRates, _cachedExportRates, now);
             _lastRatesRefresh = DateTime.UtcNow;
+
+            // Fetch tomorrow's rates for cross-midnight zone detection
+            try
+            {
+                List<EnergyRate> nextDayImport = await _ratesReader.GetElectricityImportRatesAsync(dayEnd.ToUniversalTime(), nextDayEnd.ToUniversalTime());
+                List<EnergyRate> nextDayExport = await _ratesReader.GetElectricityExportRatesAsync(dayEnd.ToUniversalTime(), nextDayEnd.ToUniversalTime());
+                _cachedNextDayPricingSlots = PricingSlot.FromEnergyRatesExact(nextDayImport, nextDayExport, now.Date.AddDays(1));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch next-day rates for cross-midnight detection, continuing with today only");
+                _cachedNextDayPricingSlots = [];
+            }
+
+            ReapplyActiveOverride(now);
 
             _logger.LogInformation("Refreshed rates: {ImportCount} import, {ExportCount} export rates, {SlotCount} pricing slots for {Date:yyyy-MM-dd}",
                 _cachedImportRates.Count, _cachedExportRates.Count, _cachedPricingSlots.Count, dayStart);
@@ -163,6 +188,31 @@ internal class BatteryControlService
         {
             _logger.LogError(ex, "Failed to refresh rate data");
         }
+    }
+
+    private void ReapplyActiveOverride(DateTime now)
+    {
+        if (_activeOverride == null)
+            return;
+
+        int currentMinutes = now.Hour * 60 + now.Minute;
+
+        // Clear expired overrides or overrides from a previous day
+        if (now.Date != _activeOverride.Date || currentMinutes >= _activeOverride.EndMinutes)
+        {
+            _activeOverride = null;
+            return;
+        }
+
+        _cachedPricingSlots = ApplyRateOverride(
+            _cachedPricingSlots,
+            _activeOverride.StartMinutes,
+            _activeOverride.EndMinutes,
+            _activeOverride.SensorImportRate);
+
+        _logger.LogInformation(
+            "Re-applied active rate override after refresh: {Rate}p/kWh, minutes {Start}-{End}",
+            _activeOverride.SensorImportRate, _activeOverride.StartMinutes, _activeOverride.EndMinutes);
     }
 
     private async Task RefreshRatesIfStaleAsync()
@@ -175,7 +225,7 @@ internal class BatteryControlService
 
     internal ResolvedZone? GetActiveZone(int currentMinutes)
     {
-        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(_currentRules, GetExtendedPricingSlots());
         return FindBestZone(zones, currentMinutes);
     }
 
@@ -240,7 +290,7 @@ internal class BatteryControlService
             _homeBattery.SetMaxChargeCurrentHeadroom((int)hypervoltCurrent);
 
             // Resolve zones from current rules + pricing slots and find the active zone
-            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
+            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, GetExtendedPricingSlots());
             ResolvedZone? activeZone = FindBestZone(resolvedZones, currentMinutes);
             string? activeZoneRuleId = activeZone?.RuleId;
 
@@ -411,52 +461,10 @@ internal class BatteryControlService
             int overrideEndMinutes = PriceAnalysis.DetermineOverrideEndMinutes(
                 _cachedImportRates, now, sensorPencePerKwh);
 
-            // Look up published rates at key times before modifying the list
-            double exportAtStart = slots
-                .Where(s => s.TimeMinutes <= currentMinutes)
-                .LastOrDefault()?.ExportPrice ?? 0;
+            _activeOverride = new ActiveRateOverride(currentMinutes, overrideEndMinutes, sensorPencePerKwh, now.Date);
+            _cachedPricingSlots = ApplyRateOverride(slots, currentMinutes, overrideEndMinutes, sensorPencePerKwh);
 
-            PricingSlot? publishedAtEnd = slots
-                .Where(s => s.TimeMinutes <= overrideEndMinutes)
-                .LastOrDefault();
-
-            // Remove any published boundaries inside the override window
-            slots.RemoveAll(s => s.TimeMinutes > currentMinutes && s.TimeMinutes < overrideEndMinutes);
-
-            // Insert override start data point
-            PricingSlot? existingAtStart = slots.FirstOrDefault(s => s.TimeMinutes == currentMinutes);
-            if (existingAtStart != null)
-            {
-                existingAtStart.ImportPrice = sensorPencePerKwh;
-            }
-            else
-            {
-                slots.Add(new PricingSlot
-                {
-                    TimeMinutes = currentMinutes,
-                    ImportPrice = sensorPencePerKwh,
-                    ExportPrice = exportAtStart
-                });
-            }
-
-            // Insert revert data point (back to published rate)
-            if (overrideEndMinutes < 1440)
-            {
-                PricingSlot? existingAtEnd = slots.FirstOrDefault(s => s.TimeMinutes == overrideEndMinutes);
-                if (existingAtEnd == null)
-                {
-                    slots.Add(new PricingSlot
-                    {
-                        TimeMinutes = overrideEndMinutes,
-                        ImportPrice = publishedAtEnd?.ImportPrice ?? 0,
-                        ExportPrice = publishedAtEnd?.ExportPrice ?? 0
-                    });
-                }
-            }
-
-            _cachedPricingSlots = slots.OrderBy(s => s.TimeMinutes).ToList();
-
-            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, _cachedPricingSlots);
+            List<ResolvedZone> resolvedZones = BatteryZoneResolver.ResolveAllZones(_currentRules, GetExtendedPricingSlots());
             _logger.LogInformation(
                 "Applied rate override {NewRate}p/kWh: override minutes {Start}-{End}, {ZoneCount} zones resolved",
                 sensorPencePerKwh, currentMinutes, overrideEndMinutes, resolvedZones.Count);
@@ -466,6 +474,58 @@ internal class BatteryControlService
             _logger.LogError(ex, "Failed to apply rate override, falling back to full rate refresh");
             await RefreshRatesAsync();
         }
+    }
+
+    internal static List<PricingSlot> ApplyRateOverride(
+        List<PricingSlot> slots, int startMinutes, int endMinutes, double sensorImportRate)
+    {
+        // Capture published rates as values before any mutations to avoid
+        // the reference bug where publishedAtEnd and existingAtStart are the same object
+        double exportAtStart = slots
+            .Where(s => s.TimeMinutes <= startMinutes)
+            .LastOrDefault()?.ExportPrice ?? 0;
+
+        PricingSlot? publishedAtEnd = slots
+            .Where(s => s.TimeMinutes <= endMinutes)
+            .LastOrDefault();
+        double revertImportPrice = publishedAtEnd?.ImportPrice ?? 0;
+        double revertExportPrice = publishedAtEnd?.ExportPrice ?? 0;
+
+        // Remove any published boundaries inside the override window
+        slots.RemoveAll(s => s.TimeMinutes > startMinutes && s.TimeMinutes < endMinutes);
+
+        // Insert override start data point
+        PricingSlot? existingAtStart = slots.FirstOrDefault(s => s.TimeMinutes == startMinutes);
+        if (existingAtStart != null)
+        {
+            existingAtStart.ImportPrice = sensorImportRate;
+        }
+        else
+        {
+            slots.Add(new PricingSlot
+            {
+                TimeMinutes = startMinutes,
+                ImportPrice = sensorImportRate,
+                ExportPrice = exportAtStart
+            });
+        }
+
+        // Insert revert data point (back to published rate)
+        if (endMinutes < 1440)
+        {
+            PricingSlot? existingAtEnd = slots.FirstOrDefault(s => s.TimeMinutes == endMinutes);
+            if (existingAtEnd == null)
+            {
+                slots.Add(new PricingSlot
+                {
+                    TimeMinutes = endMinutes,
+                    ImportPrice = revertImportPrice,
+                    ExportPrice = revertExportPrice
+                });
+            }
+        }
+
+        return slots.OrderBy(s => s.TimeMinutes).ToList();
     }
 
     /// <summary>
@@ -500,6 +560,14 @@ internal class BatteryControlService
     }
 
     /// <summary>
+    /// Inject cached next-day pricing slots for testing cross-midnight zone detection.
+    /// </summary>
+    internal void SetCachedNextDayPricingSlots(List<PricingSlot> slots)
+    {
+        _cachedNextDayPricingSlots = slots;
+    }
+
+    /// <summary>
     /// Clear previous state tracking so the next SetBatteryState call is guaranteed to evaluate.
     /// </summary>
     internal void ResetChangeDetection()
@@ -511,6 +579,7 @@ internal class BatteryControlService
         _previousIsBatteryAtTarget = false;
         _previousBatteryState = BatteryState.Unknown;
         _graduatedInitialPercent = null;
+        _activeOverride = null;
     }
 
     /// <summary>

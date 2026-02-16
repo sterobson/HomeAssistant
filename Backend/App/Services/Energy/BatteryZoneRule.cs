@@ -41,6 +41,10 @@ public enum TimeDefinitionType
     EndOfCheapImport,
     StartOfExpensiveImport,
     EndOfExpensiveImport,
+    StartOfCheapExport,
+    EndOfCheapExport,
+    StartOfExpensiveExport,
+    EndOfExpensiveExport,
     ExportExceedsImport,
     ImportExceedsExport
 }

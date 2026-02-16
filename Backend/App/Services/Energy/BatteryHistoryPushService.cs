@@ -1,15 +1,21 @@
 using HomeAssistant.Devices.Batteries;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Energy;
 
 internal class BatteryHistoryPushService
 {
+    private static readonly TimeSpan MaxPushInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
+
     private readonly IHomeBattery _homeBattery;
     private readonly IBatteryHistoryApiClient _historyApiClient;
     private readonly WebSynchronisationConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BatteryHistoryPushService> _logger;
+
+    private DateTimeOffset _lastPushTime = DateTimeOffset.MinValue;
 
     public BatteryHistoryPushService(
         IHomeBattery homeBattery,
@@ -31,9 +37,41 @@ internal class BatteryHistoryPushService
         {
             await HandleBatteryPercentChangedAsync(change.New);
         });
+
+        _ = RunPeriodicPushAsync();
+    }
+
+    private async Task RunPeriodicPushAsync()
+    {
+        PeriodicTimer timer = new(CheckInterval);
+        while (await timer.WaitForNextTickAsync())
+        {
+            DateTimeOffset now = _timeProvider.GetUtcNow();
+            if (now - _lastPushTime < MaxPushInterval)
+                continue;
+
+            double? currentPercent = _homeBattery.CurrentChargePercent;
+            if (currentPercent == null)
+                continue;
+
+            _logger.LogDebug("No battery push in {Minutes} minutes, pushing current state",
+                (int)(now - _lastPushTime).TotalMinutes);
+            await PushBatteryStateAsync(currentPercent.Value);
+        }
     }
 
     private async Task HandleBatteryPercentChangedAsync(double? newPercent)
+    {
+        if (newPercent == null)
+        {
+            _logger.LogDebug("Battery percent is null, skipping push");
+            return;
+        }
+
+        await PushBatteryStateAsync(newPercent.Value);
+    }
+
+    private async Task PushBatteryStateAsync(double percent)
     {
         if (string.IsNullOrEmpty(_configuration.HouseId))
         {
@@ -41,17 +79,12 @@ internal class BatteryHistoryPushService
             return;
         }
 
-        if (newPercent == null)
-        {
-            _logger.LogDebug("Battery percent is null, skipping push");
-            return;
-        }
-
         try
         {
             string date = _timeProvider.GetLocalNow().DateTime.ToString("yyyy-MM-dd");
-            await _historyApiClient.PostBatteryStateAsync(_configuration.HouseId, newPercent.Value, null, date);
-            _logger.LogDebug("Pushed battery state {Percent}% for date {Date}", newPercent.Value, date);
+            await _historyApiClient.PostBatteryStateAsync(_configuration.HouseId, percent, null, date);
+            _lastPushTime = _timeProvider.GetUtcNow();
+            _logger.LogDebug("Pushed battery state {Percent}% for date {Date}", percent, date);
         }
         catch (Exception ex)
         {

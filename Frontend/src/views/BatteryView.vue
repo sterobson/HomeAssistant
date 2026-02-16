@@ -12,6 +12,7 @@
         :zones="resolvedZones"
         :date="selectedDate"
         :battery-history="batteryChartData"
+        :pending-rule-ids="savingRuleIds"
         @create-zone="handleCreateZone"
         @edit-zone="handleEditZone"
         @update-target="handleUpdateTarget"
@@ -21,6 +22,10 @@
 
     <div v-if="overlapError" class="overlap-toast">
       This zone overlaps an existing zone
+    </div>
+
+    <div v-if="saveErrorVisible" class="overlap-toast">
+      Failed to save, changes reverted
     </div>
 
     <ZoneEditorModal
@@ -55,6 +60,7 @@ import { batteryApi } from '../services/batteryApi.js'
 import { useBatteryRules } from '../composables/useBatteryRules.js'
 import { useSignalR } from '../composables/useSignalR.js'
 import { getHouseId } from '../utils/cookies.js'
+import { getCache, setCache, pruneCache } from '../utils/apiCache.js'
 
 const props = defineProps({
   showEntitySettings: { type: Boolean, default: false }
@@ -110,6 +116,9 @@ function goToNextDay() {
   selectedDate.value = d
 }
 
+// House ID (needed early for cache operations)
+const houseId = getHouseId()
+
 // Pricing data
 const pricingData = ref([])
 
@@ -122,33 +131,89 @@ function getNextDateString(dateStr) {
   return `${year}-${month}-${day}`
 }
 
+function getRecentDateKeys() {
+  const keys = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    keys.push(`${year}-${month}-${day}`)
+  }
+  // Also keep tomorrow for next-day pricing
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const ty = tomorrow.getFullYear()
+  const tm = String(tomorrow.getMonth() + 1).padStart(2, '0')
+  const td = String(tomorrow.getDate()).padStart(2, '0')
+  keys.push(`${ty}-${tm}-${td}`)
+  return keys
+}
+
+function pruneDateCache(category) {
+  if (!houseId) return
+  pruneCache(houseId, category, getRecentDateKeys())
+}
+
+function mergePricingPoints(response) {
+  if (!response || !response.points || response.points.length === 0) return null
+  const points = [...response.points]
+  const lastPoint = response.points[response.points.length - 1]
+
+  // Bridge point: carry today's last rate past midnight so the end-of-day
+  // plateau continues smoothly even if the midnight rate is a different tier.
+  points.push({
+    timeMinutes: 1440,
+    importPrice: lastPoint.importPrice,
+    exportPrice: lastPoint.exportPrice
+  })
+
+  // Self-extend: append today's data shifted by +1440 for cross-midnight zone
+  // detection. Skip minute 0 (already covered by the bridge point above).
+  for (const pt of response.points) {
+    if (pt.timeMinutes === 0) continue
+    points.push({
+      timeMinutes: pt.timeMinutes + 1440,
+      importPrice: pt.importPrice,
+      exportPrice: pt.exportPrice
+    })
+  }
+  return points
+}
+
 async function loadPricing() {
+  const date = dateString.value
+
+  // Show cached data immediately
+  if (houseId) {
+    const cachedResponse = getCache(houseId, 'pricing', date)
+    const cachedPoints = mergePricingPoints(cachedResponse)
+    if (cachedPoints) {
+      pricingData.value = cachedPoints
+    }
+  }
+
+  // Fetch fresh data in background
   try {
-    const [response, nextResponse] = await Promise.all([
-      batteryApi.getPricing(dateString.value),
-      batteryApi.getPricing(getNextDateString(dateString.value)).catch(() => null)
-    ])
+    const response = await batteryApi.getPricing(date)
 
-    if (response && response.points && response.points.length > 0) {
-      const points = [...response.points]
-
-      // Append tomorrow's first point at minute 1440 so stepped lines extend to midnight
-      if (nextResponse && nextResponse.points && nextResponse.points.length > 0) {
-        const firstTomorrow = nextResponse.points[0]
-        points.push({
-          timeMinutes: 1440,
-          importPrice: firstTomorrow.importPrice,
-          exportPrice: firstTomorrow.exportPrice
-        })
-      }
-
+    const points = mergePricingPoints(response)
+    if (points) {
       pricingData.value = points
-    } else {
+      if (houseId) {
+        setCache(houseId, 'pricing', date, response)
+        pruneDateCache('pricing')
+      }
+    } else if (!pricingData.value.length) {
       pricingData.value = []
       requestBackfillIfNeeded()
     }
   } catch {
-    pricingData.value = []
+    // Keep showing cached data if available, otherwise clear
+    if (!pricingData.value.length) {
+      pricingData.value = []
+    }
   }
 }
 
@@ -214,26 +279,48 @@ const batteryChartData = computed(() => {
   return points
 })
 
+function applyHistoryResponse(response) {
+  batteryHistory.value = response.points.map(p => ({
+    timestamp: p.timestamp,
+    batteryPercent: p.batteryPercent
+  }))
+  previousDayLastPoint.value = response.previousDayLastPoint || null
+  nextDayFirstPoint.value = response.nextDayFirstPoint || null
+}
+
 async function loadBatteryHistory() {
+  const date = dateString.value
+
+  // Show cached data immediately
+  if (houseId) {
+    const cached = getCache(houseId, 'history', date)
+    if (cached && cached.points && cached.points.length > 0) {
+      applyHistoryResponse(cached)
+    }
+  }
+
+  // Fetch fresh data in background
   try {
-    const response = await batteryApi.getHistory(dateString.value)
+    const response = await batteryApi.getHistory(date)
     if (response && response.points && response.points.length > 0) {
-      batteryHistory.value = response.points.map(p => ({
-        timestamp: p.timestamp,
-        batteryPercent: p.batteryPercent
-      }))
-      previousDayLastPoint.value = response.previousDayLastPoint || null
-      nextDayFirstPoint.value = response.nextDayFirstPoint || null
-    } else {
+      applyHistoryResponse(response)
+      if (houseId) {
+        setCache(houseId, 'history', date, response)
+        pruneDateCache('history')
+      }
+    } else if (!batteryHistory.value.length) {
       batteryHistory.value = []
       previousDayLastPoint.value = null
       nextDayFirstPoint.value = null
       requestBackfillIfNeeded()
     }
   } catch {
-    batteryHistory.value = []
-    previousDayLastPoint.value = null
-    nextDayFirstPoint.value = null
+    // Keep showing cached data if available, otherwise clear
+    if (!batteryHistory.value.length) {
+      batteryHistory.value = []
+      previousDayLastPoint.value = null
+      nextDayFirstPoint.value = null
+    }
   }
 }
 
@@ -244,7 +331,6 @@ watch(dateString, () => {
 }, { immediate: true })
 
 // SignalR connection for real-time battery updates
-const houseId = getHouseId()
 let signalR = houseId ? useSignalR(houseId) : null
 
 async function initializeSignalR() {
@@ -292,7 +378,7 @@ onUnmounted(async () => {
 })
 
 // Zone rules
-const { getResolvedZones, addRule, updateRule, deleteRule, getRuleById, hasOverlap } = useBatteryRules()
+const { getResolvedZones, addRule, updateRule, deleteRule, getRuleById, hasOverlap, savingRuleIds, saveError } = useBatteryRules()
 
 const resolvedZones = getResolvedZones(pricingData)
 
@@ -310,6 +396,8 @@ const modalSuggestedStartRuleTypeKey = ref(null)
 const modalSuggestedEndRuleTypeKey = ref(null)
 const overlapError = ref(false)
 let overlapTimer = null
+const saveErrorVisible = ref(false)
+let saveErrorTimer = null
 
 function showOverlapError() {
   overlapError.value = true
@@ -318,6 +406,17 @@ function showOverlapError() {
     overlapError.value = false
   }, 3000)
 }
+
+watch(saveError, (val) => {
+  if (val) {
+    saveErrorVisible.value = true
+    clearTimeout(saveErrorTimer)
+    saveErrorTimer = setTimeout(() => {
+      saveErrorVisible.value = false
+      saveError.value = null
+    }, 4000)
+  }
+})
 
 function handleCreateZone({ startMinutes, endMinutes, suggestedAction, suggestedTargetPercent, suggestedStartRuleTypeKey, suggestedEndRuleTypeKey }) {
   const proposed = { startMinutes, endMinutes }

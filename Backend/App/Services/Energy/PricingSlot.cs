@@ -10,39 +10,6 @@ public class PricingSlot
     public double ImportPrice { get; set; }
     public double ExportPrice { get; set; }
 
-    public static List<PricingSlot> FromEnergyRates(
-        List<EnergyRate> importRates,
-        List<EnergyRate> exportRates,
-        DateTime localDate)
-    {
-        DateTime dayStart = localDate.Date;
-        DateTime dayEnd = dayStart.AddDays(1);
-        TimeZoneInfo localZone = TimeZoneInfo.Local;
-
-        List<PricingSlot> slots = [];
-
-        for (int minutes = 0; minutes < 1440; minutes += 30)
-        {
-            DateTime slotLocalStart = dayStart.AddMinutes(minutes);
-            DateTime slotUtcStart = TimeZoneInfo.ConvertTimeToUtc(slotLocalStart, localZone);
-
-            EnergyRate? importRate = importRates
-                .FirstOrDefault(r => r.StartTimeUtc <= slotUtcStart && r.EndTimeUtc > slotUtcStart);
-
-            EnergyRate? exportRate = exportRates
-                .FirstOrDefault(r => r.StartTimeUtc <= slotUtcStart && r.EndTimeUtc > slotUtcStart);
-
-            slots.Add(new PricingSlot
-            {
-                TimeMinutes = minutes,
-                ImportPrice = importRate?.RateIncVat ?? 0,
-                ExportPrice = exportRate?.RateIncVat ?? 0
-            });
-        }
-
-        return slots;
-    }
-
     public static List<PricingSlot> FromEnergyRatesExact(
         List<EnergyRate> importRates,
         List<EnergyRate> exportRates,
@@ -103,5 +70,28 @@ public class PricingSlot
         }
 
         return slots;
+    }
+
+    public static List<PricingSlot> ExtendWithNextDay(
+        List<PricingSlot> today, List<PricingSlot> tomorrow)
+    {
+        List<PricingSlot> extended = today.Select(s => new PricingSlot
+        {
+            TimeMinutes = s.TimeMinutes,
+            ImportPrice = s.ImportPrice,
+            ExportPrice = s.ExportPrice
+        }).ToList();
+
+        foreach (PricingSlot slot in tomorrow)
+        {
+            extended.Add(new PricingSlot
+            {
+                TimeMinutes = slot.TimeMinutes + 1440,
+                ImportPrice = slot.ImportPrice,
+                ExportPrice = slot.ExportPrice
+            });
+        }
+
+        return extended;
     }
 }

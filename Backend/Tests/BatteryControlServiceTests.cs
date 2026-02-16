@@ -352,8 +352,8 @@ public sealed class BatteryControlServiceTests
         // No cached rates - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(0.07);
 
-        // Assert: should have called the rates reader (full refresh path)
-        await ratesReader.Received(1).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
+        // Assert: should have called the rates reader (full refresh path: today + tomorrow = 2 calls)
+        await ratesReader.Received(2).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
     }
 
     [TestMethod]
@@ -374,8 +374,8 @@ public sealed class BatteryControlServiceTests
         // Null rate - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(null);
 
-        // Assert: should have called the rates reader
-        await ratesReader.Received(1).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
+        // Assert: should have called the rates reader (full refresh path: today + tomorrow = 2 calls)
+        await ratesReader.Received(2).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
     }
 
     // ========================================================================
@@ -889,6 +889,206 @@ public sealed class BatteryControlServiceTests
         }
     }
 
+    // ========================================================================
+    // FindBestZone - empty zones list
+    // ========================================================================
+
+    [TestMethod]
+    public void FindBestZone_EmptyZonesList_ReturnsNull()
+    {
+        ResolvedZone? active = BatteryControlService.FindBestZone([], 720);
+        active.ShouldBeNull();
+    }
+
+    // ========================================================================
+    // SetBatteryState - null battery percent
+    // ========================================================================
+
+    [TestMethod]
+    public async Task SetBatteryState_NullBatteryPercent_ImportZone_DoesNotCharge()
+    {
+        // When battery percent is unknown, the service should not start charging
+        // because null comparisons (null >= 80, null <= 78) are both false in C#,
+        // falling through to the else branch → NormalTOU
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns((double?)null);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        sut.SetCurrentRules(CreateFixedZoneRules("test-import", 0, 1440, BatteryZoneAction.Import, 80));
+
+        await sut.SetBatteryState("unit test");
+
+        // Desired state is NormalTOU (same as current) → no call to SetHomeBatteryState
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+    }
+
+    [TestMethod]
+    public async Task SetBatteryState_NullBatteryPercent_ExportZone_DoesNotDischarge()
+    {
+        // Same logic for export: null comparisons fall through → NormalTOU
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns((double?)null);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        sut.SetCurrentRules(CreateFixedZoneRules("test-export", 0, 1440, BatteryZoneAction.Export, 20));
+
+        await sut.SetBatteryState("unit test");
+
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+    }
+
+    [TestMethod]
+    public async Task SetBatteryState_NullBatteryPercent_AlreadyCharging_KeepsCharging()
+    {
+        // If already charging and we lose the battery percent reading, keep charging
+        // because null >= 80 is false, so it doesn't stop; isBatteryCharging is true → ForceCharging
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns((double?)null);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.ForceCharging);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        sut.SetCurrentRules(CreateFixedZoneRules("test-import", 0, 1440, BatteryZoneAction.Import, 80));
+
+        await sut.SetBatteryState("unit test");
+
+        // Already ForceCharging, desired is ForceCharging → no state change call
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+    }
+
+    // ========================================================================
+    // Graduated target - initial percent from preceding zone
+    // ========================================================================
+
+    [TestMethod]
+    public async Task SetBatteryState_GraduatedTarget_PrecedingZoneSetsInitialPercent()
+    {
+        // Zone A: export 12:00-17:00 (720-1020), target 20%
+        // Zone B: import 17:00-22:00 (1020-1320), graduated, target 80%
+        // Preceding zone A ends at 1020 = zone B starts → initial percent = 20 (Zone A's target)
+        //
+        // At 18:00 (1080): elapsed=60, totalDuration=300, progress=0.2
+        // effectiveTarget = 20 + (80-20) * 0.2 = 32
+        // Battery at 30% → 30 <= 32-2 = 30 → start charging (at hysteresis boundary)
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 18, 0, 0, TimeSpan.Zero));
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(30.0);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        // Two zones: A feeds into B
+        sut.SetCurrentRules(new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "zone-a",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 720 },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1020 },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 20
+                },
+                new BatteryZoneRule
+                {
+                    Id = "zone-b",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1020 },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1320 },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 80,
+                    GraduatedTarget = true
+                }
+            ]
+        });
+
+        // Do NOT call SetGraduatedZoneState — let the natural capture logic run
+        await sut.SetBatteryState("unit test");
+
+        // With initial=20, effectiveTarget=32, battery at 30% → 30 <= 30 (boundary) → ForceCharging
+        homeBattery.Received(1).SetHomeBatteryState(BatteryState.ForceCharging);
+    }
+
+    [TestMethod]
+    public async Task SetBatteryState_GraduatedTarget_NoPrecedingZone_UsesDefault()
+    {
+        // Single graduated import zone with no preceding zone
+        // Default initial percent for import = 0
+        //
+        // Zone: import 17:00-22:00 (1020-1320), graduated, target 80%
+        // At 18:00 (1080): elapsed=60, totalDuration=300, progress=0.2
+        // effectiveTarget = 0 + 80 * 0.2 = 16
+        // Battery at 30% → 30 >= 16 → NormalTOU (ahead of schedule)
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 18, 0, 0, TimeSpan.Zero));
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(30.0);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.25);
+
+        sut.SetCurrentRules(new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "zone-b",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1020 },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.FixedTime, FixedTimeMinutes = 1320 },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 80,
+                    GraduatedTarget = true
+                }
+            ]
+        });
+
+        await sut.SetBatteryState("unit test");
+
+        // With initial=0, effectiveTarget=16, battery at 30% → 30 >= 16 → NormalTOU (no change)
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+    }
+
     private static BatteryZoneRules CreateFixedZoneRules(
         string ruleId, int startMinutes, int endMinutes,
         BatteryZoneAction action, int targetPercent,
@@ -909,6 +1109,402 @@ public sealed class BatteryControlServiceTests
                 }
             ]
         };
+    }
+
+    // ========================================================================
+    // Rate override persistence across refreshes
+    // ========================================================================
+
+    [TestMethod]
+    public async Task ReactToRateChangeAsync_OverrideSurvivesRateRefresh()
+    {
+        // Arrange: published rates are flat 25p all day
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 10, 0, 0, TimeSpan.Zero));
+
+        List<EnergyRate> importRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
+        ];
+        List<EnergyRate> exportRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+        ];
+
+        IElectricityRatesReader ratesReader = serviceProvider.GetRequiredService<IElectricityRatesReader>();
+        ratesReader.GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(importRates);
+        ratesReader.GetElectricityExportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(exportRates);
+
+        sut.SetCachedRates(importRates, exportRates);
+        sut.SetCurrentRules(new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        });
+
+        // Act: sensor rate drops to 5p at 10:00
+        await sut.ReactToRateChangeAsync(0.05);
+
+        // Verify: zone exists at 10:00 (minute 600)
+        ResolvedZone? zoneBeforeRefresh = sut.GetActiveZone(600);
+        zoneBeforeRefresh.ShouldNotBeNull("Zone should exist after rate override");
+
+        // Now simulate a rate refresh (which rebuilds slots from API data)
+        await sut.RefreshRatesAsync();
+
+        // Assert: zone should STILL exist after refresh
+        ResolvedZone? zoneAfterRefresh = sut.GetActiveZone(600);
+        zoneAfterRefresh.ShouldNotBeNull("Zone should survive rate refresh");
+        zoneAfterRefresh.Action.ShouldBe(BatteryZoneAction.Import);
+    }
+
+    [TestMethod]
+    public async Task ReactToRateChangeAsync_OverrideExpires_NotReappliedAfterRefresh()
+    {
+        // Arrange: published rates are flat 25p all day
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 10, 0, 0, TimeSpan.Zero));
+
+        List<EnergyRate> importRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
+        ];
+        List<EnergyRate> exportRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+        ];
+
+        IElectricityRatesReader ratesReader = serviceProvider.GetRequiredService<IElectricityRatesReader>();
+        ratesReader.GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(importRates);
+        ratesReader.GetElectricityExportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>()).Returns(exportRates);
+
+        sut.SetCachedRates(importRates, exportRates);
+        sut.SetCurrentRules(new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        });
+
+        // Act: sensor rate drops to 5p at 10:00 (override ends at ~11:00)
+        await sut.ReactToRateChangeAsync(0.05);
+
+        // Advance time past the override end
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 12, 0, 0, TimeSpan.Zero));
+        await sut.RefreshRatesAsync();
+
+        // Assert: override should have expired, no zone at 12:00
+        ResolvedZone? zone = sut.GetActiveZone(720);
+        zone.ShouldBeNull("Expired override should not be re-applied");
+    }
+
+    // ========================================================================
+    // ApplyRateOverride - reference bug fix
+    // ========================================================================
+
+    [TestMethod]
+    public void ApplyRateOverride_RevertPrice_NotCorruptedByStartMutation()
+    {
+        // Arrange: rate change falls exactly on an existing slot boundary
+        List<PricingSlot> slots =
+        [
+            new PricingSlot { TimeMinutes = 0, ImportPrice = 24, ExportPrice = 15 },
+            new PricingSlot { TimeMinutes = 300, ImportPrice = 25, ExportPrice = 15 },
+            new PricingSlot { TimeMinutes = 960, ImportPrice = 35, ExportPrice = 15 }
+        ];
+
+        // Act: override at minute 300 (exactly on existing slot), ends at 360
+        List<PricingSlot> result = BatteryControlService.ApplyRateOverride(slots, 300, 360, 10);
+
+        // Assert: revert slot at 360 should have the ORIGINAL published rate (25), not the override (10)
+        PricingSlot revertSlot = result.First(s => s.TimeMinutes == 360);
+        revertSlot.ImportPrice.ShouldBe(25, "Revert price should be the original published rate, not the override rate");
+
+        PricingSlot overrideSlot = result.First(s => s.TimeMinutes == 300);
+        overrideSlot.ImportPrice.ShouldBe(10, "Override slot should have the sensor rate");
+    }
+
+    [TestMethod]
+    public void ApplyRateOverride_EndOfDay_SkipsRevertPoint()
+    {
+        // Override extends to 1440 (end of day) — no revert point needed
+        List<PricingSlot> slots =
+        [
+            new PricingSlot { TimeMinutes = 0, ImportPrice = 25, ExportPrice = 15 },
+            new PricingSlot { TimeMinutes = 1200, ImportPrice = 30, ExportPrice = 15 }
+        ];
+
+        List<PricingSlot> result = BatteryControlService.ApplyRateOverride(slots, 1200, 1440, 5);
+
+        // Should NOT have a slot at 1440
+        result.ShouldNotContain(s => s.TimeMinutes == 1440);
+
+        // Override slot should exist
+        PricingSlot overrideSlot = result.First(s => s.TimeMinutes == 1200);
+        overrideSlot.ImportPrice.ShouldBe(5);
+    }
+
+    [TestMethod]
+    public void ApplyRateOverride_RemovesMultipleIntermediateSlots()
+    {
+        // Multiple published slots fall inside the override window
+        List<PricingSlot> slots =
+        [
+            new PricingSlot { TimeMinutes = 0, ImportPrice = 20, ExportPrice = 10 },
+            new PricingSlot { TimeMinutes = 360, ImportPrice = 25, ExportPrice = 10 },   // inside window
+            new PricingSlot { TimeMinutes = 480, ImportPrice = 30, ExportPrice = 10 },   // inside window
+            new PricingSlot { TimeMinutes = 600, ImportPrice = 35, ExportPrice = 10 },   // inside window
+            new PricingSlot { TimeMinutes = 720, ImportPrice = 40, ExportPrice = 10 }
+        ];
+
+        // Override from 300 to 660: intermediate slots at 360, 480, 600 should be removed
+        List<PricingSlot> result = BatteryControlService.ApplyRateOverride(slots, 300, 660, 8);
+
+        // Intermediate slots removed
+        result.ShouldNotContain(s => s.TimeMinutes == 360);
+        result.ShouldNotContain(s => s.TimeMinutes == 480);
+        result.ShouldNotContain(s => s.TimeMinutes == 600);
+
+        // Override start inserted
+        PricingSlot overrideSlot = result.First(s => s.TimeMinutes == 300);
+        overrideSlot.ImportPrice.ShouldBe(8);
+
+        // Revert point inserted at 660 with the published rate that covers that time (35p from slot 600)
+        PricingSlot revertSlot = result.First(s => s.TimeMinutes == 660);
+        revertSlot.ImportPrice.ShouldBe(35);
+
+        // Original slots outside the window remain
+        result.ShouldContain(s => s.TimeMinutes == 0);
+        result.ShouldContain(s => s.TimeMinutes == 720);
+    }
+
+    [TestMethod]
+    public void ApplyRateOverride_NoExistingSlotAtStart_InsertsNewSlot()
+    {
+        // Override start time doesn't coincide with any existing slot
+        List<PricingSlot> slots =
+        [
+            new PricingSlot { TimeMinutes = 0, ImportPrice = 20, ExportPrice = 12 },
+            new PricingSlot { TimeMinutes = 600, ImportPrice = 30, ExportPrice = 12 }
+        ];
+
+        // Override at minute 400 (no existing slot there)
+        List<PricingSlot> result = BatteryControlService.ApplyRateOverride(slots, 400, 500, 7);
+
+        // New slot inserted at 400 with override import and inherited export
+        PricingSlot overrideSlot = result.First(s => s.TimeMinutes == 400);
+        overrideSlot.ImportPrice.ShouldBe(7);
+        overrideSlot.ExportPrice.ShouldBe(12, "Export price should be inherited from the preceding slot");
+
+        // Revert slot at 500
+        PricingSlot revertSlot = result.First(s => s.TimeMinutes == 500);
+        revertSlot.ImportPrice.ShouldBe(20, "Revert should use the published rate covering minute 500");
+    }
+
+    // ========================================================================
+    // Early rate drop scenario
+    //
+    // Published rates: 7p 0:00-5:30, 29p 5:30-23:30, 7p 23:30-5:30
+    // Zone rule: StartOfCheapImport → EndOfCheapImport, import to 100%
+    // Battery at 32%, rate drops to 7p at 22:40 (50 min early)
+    // ========================================================================
+
+    [TestMethod]
+    public async Task EarlyRateDrop_BeforeRateChange_NormalUsage()
+    {
+        // Arrange: at 22:00, cheap import zone hasn't started yet → NormalTOU
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 22, 0, 0, TimeSpan.Zero));
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(32.0);
+        homeBattery.GetHomeBatteryState().Returns(BatteryState.NormalTOU);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.29);
+
+        SetupEarlyRateDropScenario(sut, postOverride: false);
+
+        // Act
+        await sut.SetBatteryState("test");
+
+        // Assert: no zone active at 22:00, already NormalTOU → no state change
+        homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+    }
+
+    [TestMethod]
+    // Zone becomes active after rate override, battery starts charging
+    [DataRow(22, 41, State_NormalTOU, State_ForceCharging, "22:41 after rate drop → start charging")]
+    // Battery continues charging through the zone
+    [DataRow(23, 29, State_ForceCharging, State_ForceCharging, "23:29 → still charging")]
+    [DataRow(23, 30, State_ForceCharging, State_ForceCharging, "23:30 published cheap starts → still charging")]
+    // Crosses midnight into next day
+    [DataRow(0, 0, State_ForceCharging, State_ForceCharging, "00:00 next day → still charging")]
+    [DataRow(5, 29, State_ForceCharging, State_ForceCharging, "05:29 → still charging")]
+    // Zone ends at 5:30 (EndOfCheapImport)
+    [DataRow(5, 31, State_ForceCharging, State_NormalTOU, "05:31 zone ends → normal use")]
+    public async Task EarlyRateDrop_AfterRateChange_CorrectBatteryState(
+        int hour, int minute,
+        string currentState, string expectedState, string reason)
+    {
+        // Arrange
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+        FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
+        timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, hour, minute, 0, TimeSpan.Zero));
+
+        BatteryState currentBatteryState = Enum.Parse<BatteryState>(currentState);
+        BatteryState expectedBatteryState = Enum.Parse<BatteryState>(expectedState);
+
+        IHomeBattery homeBattery = serviceProvider.GetRequiredService<IHomeBattery>();
+        homeBattery.CurrentChargePercent.Returns(32.0);
+        homeBattery.GetHomeBatteryState().Returns(currentBatteryState);
+
+        ICarCharger carCharger = serviceProvider.GetRequiredService<ICarCharger>();
+        carCharger.ChargerCurrent.Returns(0.0);
+
+        IElectricityMeter electricityMeter = serviceProvider.GetRequiredService<IElectricityMeter>();
+        electricityMeter.CurrentRatePerKwh.Returns(0.07);
+
+        // Post-override pricing: rate dropped to 7p at 22:40, merging with the published
+        // 23:30 cheap period. The override replaces the 23:30 boundary with 22:40, creating
+        // a continuous 7p region from 22:40 through to 5:30 next day.
+        SetupEarlyRateDropScenario(sut, postOverride: true);
+
+        // Act
+        await sut.SetBatteryState("test");
+
+        // Assert
+        if (expectedBatteryState != currentBatteryState)
+        {
+            homeBattery.Received(1).SetHomeBatteryState(expectedBatteryState);
+        }
+        else
+        {
+            homeBattery.DidNotReceive().SetHomeBatteryState(Arg.Any<BatteryState>());
+        }
+    }
+
+    [TestMethod]
+    public void EarlyRateDrop_ZoneResolution_PreAndPostOverride()
+    {
+        // Verify zone detection from pre- and post-override pricing slots directly.
+        // Note: ReactToRateChangeAsync uses PricingSlot.FromEnergyRatesExact which depends on
+        // TimeZoneInfo.Local (not FakeTimeProvider), making it unreliable in timezone-agnostic tests.
+        ServiceProvider serviceProvider = GetServiceProvider();
+        BatteryControlService sut = serviceProvider.GetRequiredService<BatteryControlService>();
+
+        // Pre-override: published zone at 23:30 but not at 22:00
+        SetupEarlyRateDropScenario(sut, postOverride: false);
+
+        ResolvedZone? beforeZone = sut.GetActiveZone(1320);
+        beforeZone.ShouldBeNull("Before override, no zone at 22:00");
+
+        ResolvedZone? publishedZone = sut.GetActiveZone(1410);
+        publishedZone.ShouldNotBeNull("Before override, zone exists at 23:30 (published cheap)");
+
+        // Post-override: zone starts at 22:40 and wraps through midnight to 5:30
+        SetupEarlyRateDropScenario(sut, postOverride: true);
+
+        ResolvedZone? afterAt1361 = sut.GetActiveZone(1361);
+        afterAt1361.ShouldNotBeNull("After override, zone at 22:41 should exist");
+        afterAt1361.Action.ShouldBe(BatteryZoneAction.Import);
+
+        ResolvedZone? afterAt0 = sut.GetActiveZone(0);
+        afterAt0.ShouldNotBeNull("After override, zone at 00:00 should exist (wrapped midnight)");
+
+        ResolvedZone? afterAt331 = sut.GetActiveZone(331);
+        afterAt331.ShouldBeNull("After override, zone at 05:31 should not exist");
+    }
+
+    private static void SetupEarlyRateDropScenario(BatteryControlService sut, bool postOverride)
+    {
+        // Published rates: 7p 0:00-5:30, 29p 5:30-23:30, 7p 23:30-5:30
+        List<EnergyRate> importRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 5, 30, 0, DateTimeKind.Utc), RateIncVat = 7.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 5, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 15, 23, 30, 0, DateTimeKind.Utc), RateIncVat = 29.0 },
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 23, 30, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 5, 30, 0, DateTimeKind.Utc), RateIncVat = 7.0 }
+        ];
+        List<EnergyRate> exportRates =
+        [
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+        ];
+
+        sut.SetCachedRates(importRates, exportRates);
+
+        if (postOverride)
+        {
+            // After rate override at 22:40 (minute 1360): the 23:30 slot is absorbed into
+            // the override, creating a continuous 7p region from 22:40.
+            // DetermineOverrideEndMinutes returns min(1360+60,1440)=1420 for unaligned override.
+            sut.SetCachedPricingSlots(
+            [
+                new PricingSlot { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 15 },
+                new PricingSlot { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 },
+                new PricingSlot { TimeMinutes = 1360, ImportPrice = 7, ExportPrice = 15 },
+                new PricingSlot { TimeMinutes = 1420, ImportPrice = 7, ExportPrice = 15 }
+            ]);
+        }
+        else
+        {
+            // Original published pricing slots
+            sut.SetCachedPricingSlots(
+            [
+                new PricingSlot { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 15 },
+                new PricingSlot { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 },
+                new PricingSlot { TimeMinutes = 1410, ImportPrice = 7, ExportPrice = 15 }
+            ]);
+        }
+
+        // Next day's pricing slots (for cross-midnight zone detection)
+        sut.SetCachedNextDayPricingSlots(
+        [
+            new PricingSlot { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 15 },
+            new PricingSlot { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 }
+        ]);
+
+        // Zone rule: charge battery when cheap import rate starts, stop when it ends
+        sut.SetCurrentRules(new BatteryZoneRules
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        });
     }
 
     private static ServiceProvider GetServiceProvider()

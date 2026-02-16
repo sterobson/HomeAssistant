@@ -22,4 +22,6 @@ public class TimeDefinitionDto
     public string? PriceType { get; set; }
     public string? ExtremaType { get; set; }
     public string? RegionType { get; set; }
+    public string? ThresholdType { get; set; }
+    public double? ThresholdValue { get; set; }
 }

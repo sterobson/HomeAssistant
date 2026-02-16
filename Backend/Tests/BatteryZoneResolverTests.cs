@@ -723,6 +723,173 @@ public sealed class BatteryZoneResolverTests
     }
 
     // ========================================================================
+    // Cozy/3-rate tariff: no false zones at edge-of-data
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_CozyTariff_StartEndOfCheapImport_ProducesExactlyOneZone()
+    {
+        // Cozy tariff: 27.5 → 16.5 → 27.5 → 38.5 → 27.5
+        // "Start of cheap import" to "End of cheap import" should only find the 02:00-05:00 trough.
+        // The 19:00-00:00 return-to-standard must NOT be falsely detected as a second cheap period.
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "cheap-charge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(120);  // 02:00
+        zones[0].EndMinutes.ShouldBe(300);    // 05:00
+        zones[0].Action.ShouldBe(BatteryZoneAction.Import);
+        zones[0].TargetPercent.ShouldBe(100);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_CozyTariff_StartEndOfExpensiveImport_ProducesExactlyOneZone()
+    {
+        // Same tariff: "Start of expensive import" to "End of expensive import"
+        // should only find the 16:00-19:00 peak, not the 0:00-2:00 standard at the start.
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "peak-discharge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveImport },
+            Action = BatteryZoneAction.Export,
+            TargetPercent = 10
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(960);   // 16:00
+        zones[0].EndMinutes.ShouldBe(1140);    // 19:00
+        zones[0].Action.ShouldBe(BatteryZoneAction.Export);
+        zones[0].TargetPercent.ShouldBe(10);
+    }
+
+    [TestMethod]
+    public void ResolveAllZones_CozyTariff_BothSmartRules_ProducesTwoZones()
+    {
+        // Full scenario: one rule for cheap import, one for expensive export
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "cheap-charge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                },
+                new BatteryZoneRule
+                {
+                    Id = "peak-discharge",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveImport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 10
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+
+        zones.Count.ShouldBe(2);
+        zones[0].RuleId.ShouldBe("cheap-charge");
+        zones[0].StartMinutes.ShouldBe(120);   // 02:00
+        zones[0].EndMinutes.ShouldBe(300);     // 05:00
+        zones[1].RuleId.ShouldBe("peak-discharge");
+        zones[1].StartMinutes.ShouldBe(960);   // 16:00
+        zones[1].EndMinutes.ShouldBe(1140);    // 19:00
+    }
+
+    // ========================================================================
+    // Cross-midnight cheap rate with extended data
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_CrossMidnightCheapRate_ProducesWrappedZone()
+    {
+        // Tariff: 23:30-05:30 at 7p, 05:30-23:30 at 29.9p
+        // Extended slots: today + tomorrow's first 2 shifted by +1440
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 330, ImportPrice = 29.9, ExportPrice = 15 },
+            new() { TimeMinutes = 1410, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 1440, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 1770, ImportPrice = 29.9, ExportPrice = 15 }
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "cross-midnight-charge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        // Should produce a zone starting at 1410 and ending at 1770
+        zones.Count.ShouldBe(1);
+        zones[0].StartMinutes.ShouldBe(1410);
+        zones[0].EndMinutes.ShouldBe(1770);
+        zones[0].Action.ShouldBe(BatteryZoneAction.Import);
+        zones[0].TargetPercent.ShouldBe(80);
+    }
+
+    [TestMethod]
+    public void EvaluateZoneRule_FiltersStartTimesToToday()
+    {
+        // Extended slots where tomorrow's data would produce a start at 1440+
+        // The filter should exclude start times >= 1440
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 330, ImportPrice = 20, ExportPrice = 10 },
+            new() { TimeMinutes = 1410, ImportPrice = 20, ExportPrice = 10 },
+            // Tomorrow's data shifted +1440: has its own minima
+            new() { TimeMinutes = 1440, ImportPrice = 30, ExportPrice = 15 },
+            new() { TimeMinutes = 1560, ImportPrice = 5, ExportPrice = 5 },
+            new() { TimeMinutes = 1680, ImportPrice = 30, ExportPrice = 15 }
+        ];
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "tomorrow-start-filtered",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 100
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
+
+        // The only minima region starts at 1560 (tomorrow's data) — filtered out as start >= 1440
+        // No today-starting zones should be produced
+        foreach (ResolvedZone zone in zones)
+        {
+            zone.StartMinutes.ShouldBeLessThan(1440);
+        }
+    }
+
+    // ========================================================================
     // Helpers
     // ========================================================================
 
@@ -737,6 +904,25 @@ public sealed class BatteryZoneResolverTests
                 >= 120 and < 300 => 7,   // 02:00-05:00 cheap
                 >= 960 and < 1140 => 34,  // 16:00-19:00 peak
                 _ => 20                    // standard
+            };
+            slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = 15 });
+        }
+        return slots;
+    }
+
+    private static List<PricingSlot> BuildCozyTariffSlots()
+    {
+        // Cozy/3-rate tariff: 0:00-2:00 27.5p, 2:00-5:00 16.5p, 5:00-16:00 27.5p, 16:00-19:00 38.5p, 19:00-0:00 27.5p
+        List<PricingSlot> slots = [];
+        for (int minutes = 0; minutes < 1440; minutes += 30)
+        {
+            double importPrice = minutes switch
+            {
+                >= 0 and < 120 => 27.5,      // 00:00-02:00 standard
+                >= 120 and < 300 => 16.5,     // 02:00-05:00 cheap
+                >= 300 and < 960 => 27.5,     // 05:00-16:00 standard
+                >= 960 and < 1140 => 38.5,    // 16:00-19:00 peak
+                _ => 27.5                      // 19:00-00:00 standard
             };
             slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = 15 });
         }

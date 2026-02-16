@@ -394,6 +394,144 @@ public sealed class PriceAnalysisTests
         boundaries.ShouldBeEmpty();
     }
 
+    [TestMethod]
+    public void FindMinimaRegionBoundaries_MaximaAtEdge_NotDetected()
+    {
+        // A maximum at the end doesn't have both neighbours
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 10 },
+            new() { TimeMinutes = 30, ImportPrice = 20 },
+            new() { TimeMinutes = 60, ImportPrice = 40 },  // high at end - no next
+        ];
+
+        List<PriceBoundary> boundaries = PriceAnalysis.FindMaximaRegionBoundaries(slots, s => s.ImportPrice);
+
+        boundaries.ShouldBeEmpty();
+    }
+
+    // ========================================================================
+    // Edge-of-data: no false positives (Cozy/3-rate tariff scenario)
+    // ========================================================================
+
+    [TestMethod]
+    public void FindTroughs_EdgePlateau_NotDetectedAsTrough()
+    {
+        // Tariff: standard 27.5 → cheap 16.5 → standard 27.5 → peak 38.5 → standard 27.5
+        // The final 27.5 plateau is at the end of data — should NOT be a trough
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        List<PricingSlot> troughs = PriceAnalysis.FindTroughs(slots, s => s.ImportPrice);
+
+        troughs.Count.ShouldBe(1);
+        // Only the genuine 16.5p trough (midpoint of 2:00-5:00)
+        troughs[0].ImportPrice.ShouldBe(16.5);
+    }
+
+    [TestMethod]
+    public void FindPeaks_EdgePlateau_NotDetectedAsPeak()
+    {
+        // The initial 27.5p plateau (higher than next 16.5p) should NOT be a peak
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        List<PricingSlot> peaks = PriceAnalysis.FindPeaks(slots, s => s.ImportPrice);
+
+        peaks.Count.ShouldBe(1);
+        // Only the genuine 38.5p peak (midpoint of 16:00-19:00)
+        peaks[0].ImportPrice.ShouldBe(38.5);
+    }
+
+    [TestMethod]
+    public void FindMinimaRegionBoundaries_CozyTariff_OnlyDetectsGenuineCheapPeriod()
+    {
+        // The 19:00-0:00 period at 27.5p follows the 38.5p peak but should NOT
+        // be detected as a minima — it's a return to standard rate, not a dip.
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        List<PriceBoundary> boundaries = PriceAnalysis.FindMinimaRegionBoundaries(slots, s => s.ImportPrice);
+
+        boundaries.Count.ShouldBe(2); // one start + one end
+        PriceBoundary start = boundaries.First(b => b.BoundaryType == "start");
+        PriceBoundary end = boundaries.First(b => b.BoundaryType == "end");
+
+        start.TimeMinutes.ShouldBe(120);  // 02:00
+        end.TimeMinutes.ShouldBe(300);    // 05:00
+    }
+
+    [TestMethod]
+    public void FindMaximaRegionBoundaries_CozyTariff_OnlyDetectsGenuinePeak()
+    {
+        // The 0:00-2:00 period at 27.5p is higher than the 16.5p that follows but
+        // should NOT be detected as a maxima — it's standard rate, not a spike.
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        List<PriceBoundary> boundaries = PriceAnalysis.FindMaximaRegionBoundaries(slots, s => s.ImportPrice);
+
+        boundaries.Count.ShouldBe(2); // one start + one end
+        PriceBoundary start = boundaries.First(b => b.BoundaryType == "start");
+        PriceBoundary end = boundaries.First(b => b.BoundaryType == "end");
+
+        start.TimeMinutes.ShouldBe(960);   // 16:00
+        end.TimeMinutes.ShouldBe(1140);    // 19:00
+    }
+
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+    /// <summary>
+    /// Cozy/3-rate tariff: 0:00-2:00 27.5p, 2:00-5:00 16.5p, 5:00-16:00 27.5p, 16:00-19:00 38.5p, 19:00-0:00 27.5p
+    /// </summary>
+    private static List<PricingSlot> BuildCozyTariffSlots()
+    {
+        List<PricingSlot> slots = [];
+        for (int minutes = 0; minutes < 1440; minutes += 30)
+        {
+            double importPrice = minutes switch
+            {
+                >= 0 and < 120 => 27.5,      // 00:00-02:00 standard
+                >= 120 and < 300 => 16.5,     // 02:00-05:00 cheap
+                >= 300 and < 960 => 27.5,     // 05:00-16:00 standard
+                >= 960 and < 1140 => 38.5,    // 16:00-19:00 peak
+                _ => 27.5                      // 19:00-00:00 standard
+            };
+            slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = 15 });
+        }
+        return slots;
+    }
+
+    // ========================================================================
+    // Cross-midnight detection with extended data
+    // ========================================================================
+
+    [TestMethod]
+    public void FindMinimaRegionBoundaries_ExtendedCrossMidnightCheapRate_DetectsMinima()
+    {
+        // Tariff: 23:30-05:30 at 7p, 05:30-23:30 at 29.9p
+        // Today's slots extended with tomorrow's first 2 slots shifted +1440
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 330, ImportPrice = 29.9, ExportPrice = 15 },
+            new() { TimeMinutes = 1410, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 1440, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 1770, ImportPrice = 29.9, ExportPrice = 15 }
+        ];
+
+        List<PriceBoundary> boundaries = PriceAnalysis.FindMinimaRegionBoundaries(slots, s => s.ImportPrice);
+
+        // Should detect 2 minima regions:
+        // 1) 0-330 (start-of-day cheap period, has prevVal from extended yesterday if present, but here prevVal is null → not detected)
+        //    Actually: slot 0 has no prev → not detected. Slot 1410 has prev=29.9, next=29.9 (via 1440 same value, then 1770 different)
+        // Let's check: the plateau at 1410-1440 (both 7p) has prev=29.9 and next=29.9 → detected as minima
+        // Region: starts at 1410, ends at 1770
+        boundaries.Count.ShouldBeGreaterThanOrEqualTo(2);
+        PriceBoundary start = boundaries.Last(b => b.BoundaryType == "start");
+        PriceBoundary end = boundaries.Last(b => b.BoundaryType == "end");
+        start.TimeMinutes.ShouldBe(1410);
+        end.TimeMinutes.ShouldBe(1770);
+    }
+
     // ========================================================================
     // Realistic day pattern
     // ========================================================================

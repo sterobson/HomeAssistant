@@ -5,7 +5,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
 import { getAvailableRuleTypes } from '../utils/priceAnalysis.js'
 import { useFormatting } from '../composables/useFormatting.js'
@@ -47,6 +47,10 @@ const props = defineProps({
   batteryHistory: {
     type: Array,
     default: () => []
+  },
+  pendingRuleIds: {
+    type: Set,
+    default: () => new Set()
   }
 })
 
@@ -75,6 +79,39 @@ onMounted(() => {
     gridColor: styles.getPropertyValue('--text-secondary').trim()
       ? `${styles.getPropertyValue('--text-secondary').trim()}33`
       : 'rgba(128, 128, 128, 0.1)'
+  }
+})
+
+// Force chart re-render when zones change (vue-chartjs only watches data/options)
+watch(() => props.zones, () => {
+  chartRef.value?.chart?.update('none')
+}, { deep: true })
+
+// Animated dashed borders for pending zones
+let pendingAnimationId = null
+
+function startPendingAnimation() {
+  if (pendingAnimationId) return
+  function tick() {
+    if (props.pendingRuleIds.size === 0) {
+      pendingAnimationId = null
+      return
+    }
+    chartRef.value?.chart?.update('none')
+    pendingAnimationId = requestAnimationFrame(tick)
+  }
+  pendingAnimationId = requestAnimationFrame(tick)
+}
+
+watch(() => props.pendingRuleIds, (ids) => {
+  if (ids.size > 0) {
+    startPendingAnimation()
+  }
+}, { deep: true })
+
+onUnmounted(() => {
+  if (pendingAnimationId) {
+    cancelAnimationFrame(pendingAnimationId)
   }
 })
 
@@ -221,11 +258,18 @@ const zoneRenderingPlugin = {
       }
 
       // Vertical borders matching zone color
+      const isPending = props.pendingRuleIds.has(seg.ruleId)
       ctx.strokeStyle = isImport
         ? 'rgba(231, 76, 60, 0.35)'
         : 'rgba(39, 174, 96, 0.35)'
       ctx.lineWidth = 1.5
-      ctx.setLineDash([])
+      if (isPending) {
+        const dashOffset = (Date.now() / 50) % 20
+        ctx.setLineDash([8, 4])
+        ctx.lineDashOffset = -dashOffset
+      } else {
+        ctx.setLineDash([])
+      }
       ctx.beginPath()
       if (isImport) {
         ctx.moveTo(startPx, targetY)
@@ -239,6 +283,33 @@ const zoneRenderingPlugin = {
         ctx.lineTo(endPx, targetY)
       }
       ctx.stroke()
+
+      // Animated dashed outline for pending zones
+      if (isPending) {
+        const dashOffset = (Date.now() / 50) % 20
+        ctx.strokeStyle = isImport
+          ? 'rgba(231, 76, 60, 0.5)'
+          : 'rgba(39, 174, 96, 0.5)'
+        ctx.lineWidth = 2
+        ctx.setLineDash([8, 4])
+        ctx.lineDashOffset = -dashOffset
+        ctx.beginPath()
+        if (isImport) {
+          ctx.moveTo(startPx, targetY)
+          ctx.lineTo(endPx, targetY)
+          ctx.lineTo(endPx, chartArea.bottom)
+          ctx.lineTo(startPx, chartArea.bottom)
+          ctx.closePath()
+        } else {
+          ctx.moveTo(startPx, chartArea.top)
+          ctx.lineTo(endPx, chartArea.top)
+          ctx.lineTo(endPx, targetY)
+          ctx.lineTo(startPx, targetY)
+          ctx.closePath()
+        }
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
 
     }
 
@@ -1194,8 +1265,9 @@ function getSmartSelection(clickMinutes) {
 }
 
 const chartData = computed(() => {
-  const importData = props.pricingData.map(d => ({ x: d.timeMinutes, y: d.importPrice }))
-  const exportData = props.pricingData.map(d => ({ x: d.timeMinutes, y: d.exportPrice }))
+  const todayOnly = props.pricingData.filter(d => d.timeMinutes <= 1440)
+  const importData = todayOnly.map(d => ({ x: d.timeMinutes, y: d.importPrice }))
+  const exportData = todayOnly.map(d => ({ x: d.timeMinutes, y: d.exportPrice }))
 
   const datasets = []
 
@@ -1251,7 +1323,7 @@ const chartData = computed(() => {
 
 const yCostMax = computed(() => {
   if (!props.pricingData || props.pricingData.length === 0) return undefined
-  const allPrices = props.pricingData.flatMap(d => [d.importPrice, d.exportPrice])
+  const allPrices = props.pricingData.filter(d => d.timeMinutes <= 1440).flatMap(d => [d.importPrice, d.exportPrice])
   const max = Math.max(...allPrices)
   const step = 5
   return Math.ceil(max / step) * step + step

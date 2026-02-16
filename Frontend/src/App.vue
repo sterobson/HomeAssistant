@@ -96,15 +96,24 @@ const pageTitle = computed(() => {
   }
 })
 
-// Dynamic favicon based on current route
+// Dynamic favicon, apple-touch-icon, manifest, and theme-color based on current route
 watchEffect(() => {
-  const link = document.querySelector("link[rel~='icon']")
-  if (!link) return
-  switch (route.name) {
-    case 'heating': link.href = '/favicon-heating.svg'; break
-    case 'battery': link.href = '/favicon-battery.svg'; break
-    default: link.href = '/favicon.svg'; break
+  const faviconLink = document.querySelector("link[rel~='icon']")
+  const touchIconLink = document.querySelector("link[rel='apple-touch-icon']")
+  const manifestLink = document.querySelector("link[rel='manifest']")
+  const themeColorMeta = document.querySelector("meta[name='theme-color']")
+
+  const config = {
+    heating: { favicon: '/favicon-heating.svg', touchIcon: '/icons/heating-180.png', manifest: '/manifest-heating.json', themeColor: '#ff6b35' },
+    battery: { favicon: '/favicon-battery.svg', touchIcon: '/icons/battery-180.png', manifest: '/manifest-battery.json', themeColor: '#4caf50' },
+    default: { favicon: '/favicon.svg', touchIcon: '/icons/home-180.png', manifest: '/manifest.json', themeColor: '#2196f3' }
   }
+
+  const current = config[route.name] || config.default
+  if (faviconLink) faviconLink.href = current.favicon
+  if (touchIconLink) touchIconLink.href = current.touchIcon
+  if (manifestLink) manifestLink.href = current.manifest
+  if (themeColorMeta) themeColorMeta.content = current.themeColor
 })
 
 // Cookie helpers
