@@ -70,11 +70,8 @@ export function findPeaks(data, priceKey) {
     const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
 
     // A plateau is a peak if it's higher than both neighbours.
-    // At endpoints, the missing side is not a constraint.
-    const higherThanPrev = prevVal === null || currVal > prevVal
-    const higherThanNext = nextVal === null || currVal > nextVal
-
-    if (higherThanPrev && higherThanNext && (prevVal !== null || nextVal !== null)) {
+    // Both neighbours must exist — edge-of-data plateaus are not peaks.
+    if (prevVal !== null && nextVal !== null && currVal > prevVal && currVal > nextVal) {
       const midIndex = Math.floor((i + j) / 2)
       peaks.push(data[midIndex])
     }
@@ -106,10 +103,9 @@ export function findTroughs(data, priceKey) {
     const prevVal = i > 0 ? data[i - 1][priceKey] : null
     const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
 
-    const lowerThanPrev = prevVal === null || currVal < prevVal
-    const lowerThanNext = nextVal === null || currVal < nextVal
-
-    if (lowerThanPrev && lowerThanNext && (prevVal !== null || nextVal !== null)) {
+    // A plateau is a trough if it's lower than both neighbours.
+    // Both neighbours must exist — edge-of-data plateaus are not troughs.
+    if (prevVal !== null && nextVal !== null && currVal < prevVal && currVal < nextVal) {
       const midIndex = Math.floor((i + j) / 2)
       troughs.push(data[midIndex])
     }
@@ -182,12 +178,8 @@ export function findMinimaRegionBoundaries(data, priceKey) {
     const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
 
     // A plateau is a minima if it's lower than both neighbours.
-    // At day edges, the missing side is not a constraint (allows detecting
-    // cheap regions that start at midnight or end at end of day).
-    const lowerThanPrev = prevVal === null || currVal < prevVal
-    const lowerThanNext = nextVal === null || currVal < nextVal
-
-    if (lowerThanPrev && lowerThanNext && (prevVal !== null || nextVal !== null)) {
+    // Both neighbours must exist — edge-of-data plateaus are not minima.
+    if (prevVal !== null && nextVal !== null && currVal < prevVal && currVal < nextVal) {
       boundaries.push({ ...data[i], boundaryType: 'start' })
       if (j < data.length - 1) {
         boundaries.push({ ...data[j + 1], boundaryType: 'end' })
@@ -223,11 +215,8 @@ export function findMaximaRegionBoundaries(data, priceKey) {
     const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
 
     // A plateau is a maxima if it's higher than both neighbours.
-    // At day edges, the missing side is not a constraint.
-    const higherThanPrev = prevVal === null || currVal > prevVal
-    const higherThanNext = nextVal === null || currVal > nextVal
-
-    if (higherThanPrev && higherThanNext && (prevVal !== null || nextVal !== null)) {
+    // Both neighbours must exist — edge-of-data plateaus are not maxima.
+    if (prevVal !== null && nextVal !== null && currVal > prevVal && currVal > nextVal) {
       boundaries.push({ ...data[i], boundaryType: 'start' })
       if (j < data.length - 1) {
         boundaries.push({ ...data[j + 1], boundaryType: 'end' })

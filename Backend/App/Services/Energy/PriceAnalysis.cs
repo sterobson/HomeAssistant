@@ -136,10 +136,7 @@ public static class PriceAnalysis
             double? prevVal = i > 0 ? priceSelector(data[i - 1]) : null;
             double? nextVal = j < data.Count - 1 ? priceSelector(data[j + 1]) : null;
 
-            bool higherThanPrev = prevVal == null || currVal > prevVal;
-            bool higherThanNext = nextVal == null || currVal > nextVal;
-
-            if (higherThanPrev && higherThanNext && (prevVal != null || nextVal != null))
+            if (prevVal != null && nextVal != null && currVal > prevVal && currVal > nextVal)
             {
                 int midIndex = (i + j) / 2;
                 peaks.Add(data[midIndex]);
@@ -170,10 +167,7 @@ public static class PriceAnalysis
             double? prevVal = i > 0 ? priceSelector(data[i - 1]) : null;
             double? nextVal = j < data.Count - 1 ? priceSelector(data[j + 1]) : null;
 
-            bool lowerThanPrev = prevVal == null || currVal < prevVal;
-            bool lowerThanNext = nextVal == null || currVal < nextVal;
-
-            if (lowerThanPrev && lowerThanNext && (prevVal != null || nextVal != null))
+            if (prevVal != null && nextVal != null && currVal < prevVal && currVal < nextVal)
             {
                 int midIndex = (i + j) / 2;
                 troughs.Add(data[midIndex]);

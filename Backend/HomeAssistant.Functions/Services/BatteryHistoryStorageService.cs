@@ -73,6 +73,51 @@ public class BatteryHistoryStorageService
         }
     }
 
+    /// <summary>
+    /// Gets the most recent point from a day's partition (first result due to inverted RowKey ordering).
+    /// </summary>
+    public async Task<BatteryHistoryPoint?> GetLastPointAsync(string houseId, string date)
+    {
+        try
+        {
+            string partitionKey = $"{houseId}_{date}";
+            await foreach (BatteryHistoryPoint point in _tableClient.QueryAsync<BatteryHistoryPoint>(
+                filter: $"PartitionKey eq '{partitionKey}'"))
+            {
+                return point; // First result is the most recent due to inverted RowKey
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get last battery history point for house {HouseId} on {Date}", houseId, date);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Gets the earliest point from a day's partition (last result due to inverted RowKey ordering).
+    /// </summary>
+    public async Task<BatteryHistoryPoint?> GetFirstPointAsync(string houseId, string date)
+    {
+        try
+        {
+            string partitionKey = $"{houseId}_{date}";
+            BatteryHistoryPoint? firstPoint = null;
+            await foreach (BatteryHistoryPoint point in _tableClient.QueryAsync<BatteryHistoryPoint>(
+                filter: $"PartitionKey eq '{partitionKey}'"))
+            {
+                firstPoint = point; // Keep overwriting — last iterated is the earliest
+            }
+            return firstPoint;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to get first battery history point for house {HouseId} on {Date}", houseId, date);
+            return null;
+        }
+    }
+
     public async Task CleanupOldHistoryAsync(string houseId, int retentionDays = 30)
     {
         try

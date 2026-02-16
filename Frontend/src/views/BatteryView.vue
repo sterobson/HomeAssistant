@@ -165,15 +165,53 @@ function requestBackfillIfNeeded() {
 
 // Battery history
 const batteryHistory = ref([])
+const previousDayLastPoint = ref(null)
+const nextDayFirstPoint = ref(null)
 
 const batteryChartData = computed(() => {
-  return batteryHistory.value
+  const points = batteryHistory.value
     .filter(point => point.batteryPercent != null && !isNaN(point.batteryPercent))
     .map(point => {
       const date = new Date(point.timestamp)
       const minutesFromMidnight = date.getHours() * 60 + date.getMinutes()
       return { x: minutesFromMidnight, y: point.batteryPercent }
     })
+
+  if (points.length === 0) return points
+
+  // Interpolate a point at x=0 (midnight start) from the previous day's last point
+  if (previousDayLastPoint.value && points[0].x > 0) {
+    const prev = previousDayLastPoint.value
+    const prevDate = new Date(prev.timestamp)
+    const prevMinutes = prevDate.getHours() * 60 + prevDate.getMinutes()
+    const first = points[0]
+    // Time gap: minutes from prev point to midnight + minutes from midnight to first point
+    const totalGapMinutes = (1440 - prevMinutes) + first.x
+    const midnightOffset = 1440 - prevMinutes
+    if (totalGapMinutes > 0) {
+      const ratio = midnightOffset / totalGapMinutes
+      const interpolatedY = prev.batteryPercent + (first.y - prev.batteryPercent) * ratio
+      points.unshift({ x: 0, y: Math.round(interpolatedY * 10) / 10 })
+    }
+  }
+
+  // Interpolate a point at x=1440 (midnight end) from the next day's first point
+  if (nextDayFirstPoint.value && points[points.length - 1].x < 1440) {
+    const next = nextDayFirstPoint.value
+    const nextDate = new Date(next.timestamp)
+    const nextMinutes = nextDate.getHours() * 60 + nextDate.getMinutes()
+    const last = points[points.length - 1]
+    // Time gap: minutes from last point to midnight + minutes from midnight to next point
+    const totalGapMinutes = (1440 - last.x) + nextMinutes
+    const midnightOffset = 1440 - last.x
+    if (totalGapMinutes > 0) {
+      const ratio = midnightOffset / totalGapMinutes
+      const interpolatedY = last.y + (next.batteryPercent - last.y) * ratio
+      points.push({ x: 1440, y: Math.round(interpolatedY * 10) / 10 })
+    }
+  }
+
+  return points
 })
 
 async function loadBatteryHistory() {
@@ -184,12 +222,18 @@ async function loadBatteryHistory() {
         timestamp: p.timestamp,
         batteryPercent: p.batteryPercent
       }))
+      previousDayLastPoint.value = response.previousDayLastPoint || null
+      nextDayFirstPoint.value = response.nextDayFirstPoint || null
     } else {
       batteryHistory.value = []
+      previousDayLastPoint.value = null
+      nextDayFirstPoint.value = null
       requestBackfillIfNeeded()
     }
   } catch {
     batteryHistory.value = []
+    previousDayLastPoint.value = null
+    nextDayFirstPoint.value = null
   }
 }
 

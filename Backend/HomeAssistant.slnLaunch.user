@@ -11,5 +11,14 @@
         "Action": "Start"
       }
     ]
+  },
+  {
+    "Name": "Functions only",
+    "Projects": [
+      {
+        "Path": "HomeAssistant.Functions\\HomeAssistant.Functions.csproj",
+        "Action": "Start"
+      }
+    ]
   }
 ]

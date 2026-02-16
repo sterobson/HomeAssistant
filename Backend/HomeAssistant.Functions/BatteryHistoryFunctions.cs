@@ -61,6 +61,18 @@ public class BatteryHistoryFunctions
         {
             List<BatteryHistoryPoint> history = await _historyService.GetHistoryAsync(houseId, date);
 
+            // Fetch boundary points from adjacent days for chart interpolation
+            DateOnly parsedDate = DateOnly.ParseExact(date, "yyyy-MM-dd");
+            string prevDate = parsedDate.AddDays(-1).ToString("yyyy-MM-dd");
+            string nextDate = parsedDate.AddDays(1).ToString("yyyy-MM-dd");
+
+            Task<BatteryHistoryPoint?> prevTask = _historyService.GetLastPointAsync(houseId, prevDate);
+            Task<BatteryHistoryPoint?> nextTask = _historyService.GetFirstPointAsync(houseId, nextDate);
+            await Task.WhenAll(prevTask, nextTask);
+
+            BatteryHistoryPoint? prevDayLastPoint = await prevTask;
+            BatteryHistoryPoint? nextDayFirstPoint = await nextTask;
+
             BatteryHistoryResponse response = new BatteryHistoryResponse
             {
                 Points = history.Select(p => new BatteryHistoryPointDto
@@ -68,7 +80,19 @@ public class BatteryHistoryFunctions
                     Timestamp = p.RecordedAt.ToString("O"),
                     BatteryPercent = p.BatteryPercent,
                     PowerWatts = p.PowerWatts
-                }).ToList()
+                }).ToList(),
+                PreviousDayLastPoint = prevDayLastPoint != null ? new BatteryHistoryPointDto
+                {
+                    Timestamp = prevDayLastPoint.RecordedAt.ToString("O"),
+                    BatteryPercent = prevDayLastPoint.BatteryPercent,
+                    PowerWatts = prevDayLastPoint.PowerWatts
+                } : null,
+                NextDayFirstPoint = nextDayFirstPoint != null ? new BatteryHistoryPointDto
+                {
+                    Timestamp = nextDayFirstPoint.RecordedAt.ToString("O"),
+                    BatteryPercent = nextDayFirstPoint.BatteryPercent,
+                    PowerWatts = nextDayFirstPoint.PowerWatts
+                } : null
             };
 
             _logger.LogInformation("Retrieved {Count} battery history points for house {HouseId} on {Date}",
@@ -317,6 +341,8 @@ public class BatteryStateRequest
 public class BatteryHistoryResponse
 {
     public List<BatteryHistoryPointDto> Points { get; set; } = [];
+    public BatteryHistoryPointDto? PreviousDayLastPoint { get; set; }
+    public BatteryHistoryPointDto? NextDayFirstPoint { get; set; }
 }
 
 public class BatteryHistoryPointDto
