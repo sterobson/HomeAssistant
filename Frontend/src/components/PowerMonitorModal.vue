@@ -18,6 +18,7 @@
           :batteryW="snapshot.batteryW"
           :houseW="snapshot.houseW"
           :gridW="snapshot.gridW"
+          :batterySoc="batterySoc"
         />
       </div>
 
@@ -51,6 +52,7 @@ const snapshot = ref({
   gridW: 0
 })
 
+const batterySoc = ref(null)
 const hasData = ref(false)
 const secondsRemaining = ref(DURATION_SECONDS)
 let countdownInterval = null
@@ -67,13 +69,20 @@ function handleSnapshot(data) {
   hasData.value = true
 }
 
+function handleBatteryState(data) {
+  if (data.batteryPercent != null) {
+    batterySoc.value = data.batteryPercent
+  }
+}
+
 function handleClose() {
   emit('close')
 }
 
 onMounted(async () => {
-  // Register SignalR listener
+  // Register SignalR listeners
   signalR.on('power-snapshot', handleSnapshot)
+  signalR.on('battery-state-changed', handleBatteryState)
 
   // Start countdown
   countdownInterval = setInterval(() => {
@@ -82,6 +91,20 @@ onMounted(async () => {
       handleClose()
     }
   }, 1000)
+
+  // Fetch latest battery SoC from today's history
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const response = await batteryApi.getHistory(today)
+    if (response && response.points && response.points.length > 0) {
+      const last = response.points[response.points.length - 1]
+      if (last.batteryPercent != null) {
+        batterySoc.value = last.batteryPercent
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch battery SoC:', err)
+  }
 
   // Tell backend to start monitoring
   try {
@@ -96,6 +119,7 @@ onUnmounted(() => {
     clearInterval(countdownInterval)
   }
   signalR.off('power-snapshot')
+  signalR.off('battery-state-changed')
 })
 </script>
 

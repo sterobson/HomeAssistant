@@ -7,7 +7,6 @@ namespace HomeAssistant.Services.Energy;
 internal class BatteryHistoryPushService
 {
     private static readonly TimeSpan MaxPushInterval = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
 
     private readonly IHomeBattery _homeBattery;
     private readonly IBatteryHistoryApiClient _historyApiClient;
@@ -16,6 +15,7 @@ internal class BatteryHistoryPushService
     private readonly ILogger<BatteryHistoryPushService> _logger;
 
     private DateTimeOffset _lastPushTime = DateTimeOffset.MinValue;
+    private CancellationTokenSource _delayCts = new();
 
     public BatteryHistoryPushService(
         IHomeBattery homeBattery,
@@ -43,19 +43,33 @@ internal class BatteryHistoryPushService
 
     private async Task RunPeriodicPushAsync()
     {
-        PeriodicTimer timer = new(CheckInterval);
-        while (await timer.WaitForNextTickAsync())
+        while (true)
         {
             DateTimeOffset now = _timeProvider.GetUtcNow();
-            if (now - _lastPushTime < MaxPushInterval)
-                continue;
+            TimeSpan sinceLastPush = now - _lastPushTime;
+            TimeSpan delay = MaxPushInterval - sinceLastPush;
+
+            if (delay > TimeSpan.Zero)
+            {
+                try
+                {
+                    await Task.Delay(delay, _delayCts.Token);
+                }
+                catch (TaskCanceledException)
+                {
+                    continue;
+                }
+            }
 
             double? currentPercent = _homeBattery.CurrentChargePercent;
             if (currentPercent == null)
+            {
+                await Task.Delay(TimeSpan.FromMinutes(1));
                 continue;
+            }
 
             _logger.LogDebug("No battery push in {Minutes} minutes, pushing current state",
-                (int)(now - _lastPushTime).TotalMinutes);
+                (int)(_timeProvider.GetUtcNow() - _lastPushTime).TotalMinutes);
             await PushBatteryStateAsync(currentPercent.Value);
         }
     }
@@ -84,6 +98,8 @@ internal class BatteryHistoryPushService
             string date = _timeProvider.GetLocalNow().DateTime.ToString("yyyy-MM-dd");
             await _historyApiClient.PostBatteryStateAsync(_configuration.HouseId, percent, null, date);
             _lastPushTime = _timeProvider.GetUtcNow();
+            _delayCts.Cancel();
+            _delayCts = new CancellationTokenSource();
             _logger.LogDebug("Pushed battery state {Percent}% for date {Date}", percent, date);
         }
         catch (Exception ex)

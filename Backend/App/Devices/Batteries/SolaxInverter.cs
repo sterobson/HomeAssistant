@@ -24,9 +24,10 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
     private NumericSensorEntity? _totalPvPowerSensor;
     private NumberEntity? _exportLimitW;
 
-    private Func<ValueChange<double?, NumericSensorEntity>, Task>? _batteryChargePercentCallback;
-    private Func<Task>? _batteryUseModeCallback;
+    private readonly List<Func<ValueChange<double?, NumericSensorEntity>, Task>> _batteryChargePercentCallbacks = [];
+    private readonly List<Func<Task>> _batteryUseModeCallbacks = [];
     private List<IDisposable> _subscriptions = [];
+    private bool _subscriptionsActive;
     private readonly object _rebindLock = new();
 
     public double? CurrentChargePercent => _batteryChargePercentSensor?.State;
@@ -120,41 +121,52 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public void OnBatteryChargePercentChanged(Func<ValueChange<double?, NumericSensorEntity>, Task> action)
     {
-        _batteryChargePercentCallback = action;
-        SubscribeToBatteryChargePercent();
+        _batteryChargePercentCallbacks.Add(action);
+        EnsureSubscribed();
     }
 
     public void OnBatteryUseModeChanged(Func<Task> action)
     {
-        _batteryUseModeCallback = action;
+        _batteryUseModeCallbacks.Add(action);
+        EnsureSubscribed();
+    }
+
+    private void EnsureSubscribed()
+    {
+        if (_subscriptionsActive) return;
+        _subscriptionsActive = true;
+        SubscribeToBatteryChargePercent();
         SubscribeToBatteryUseMode();
     }
 
     private void SubscribeToBatteryChargePercent()
     {
-        if (_batteryChargePercentCallback == null || _batteryChargePercentSensor == null) return;
+        if (_batteryChargePercentCallbacks.Count == 0 || _batteryChargePercentSensor == null) return;
 
         NumericSensorEntity sensor = _batteryChargePercentSensor;
-        Func<ValueChange<double?, NumericSensorEntity>, Task> callback = _batteryChargePercentCallback;
         IDisposable subscription = sensor.StateChanges().SubscribeAsync(async (value) =>
         {
             ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
-            await callback(valueChange);
+            foreach (Func<ValueChange<double?, NumericSensorEntity>, Task> callback in _batteryChargePercentCallbacks)
+            {
+                await callback(valueChange);
+            }
         });
         _subscriptions.Add(subscription);
     }
 
     private void SubscribeToBatteryUseMode()
     {
-        if (_batteryUseModeCallback == null) return;
-
-        Func<Task> callback = _batteryUseModeCallback;
+        if (_batteryUseModeCallbacks.Count == 0) return;
 
         if (_chargerUseMode != null)
         {
             IDisposable useModeSubscription = _chargerUseMode.StateChanges().SubscribeAsync(async (value) =>
             {
-                await callback();
+                foreach (Func<Task> callback in _batteryUseModeCallbacks)
+                {
+                    await callback();
+                }
             });
             _subscriptions.Add(useModeSubscription);
         }
@@ -163,7 +175,10 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
         {
             IDisposable manualModeSubscription = _chargerManualMode.StateChanges().SubscribeAsync(async (value) =>
             {
-                await callback();
+                foreach (Func<Task> callback in _batteryUseModeCallbacks)
+                {
+                    await callback();
+                }
             });
             _subscriptions.Add(manualModeSubscription);
         }

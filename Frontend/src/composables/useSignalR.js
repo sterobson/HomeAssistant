@@ -46,7 +46,7 @@ export function useSignalR(houseId) {
           accessTokenFactory: () => connectionInfo.accessToken
         })
         .withAutomaticReconnect()
-        .configureLogging(signalR.LogLevel.Information)
+        .configureLogging(signalR.LogLevel.Error)
         .build()
 
       // Set up event handlers
