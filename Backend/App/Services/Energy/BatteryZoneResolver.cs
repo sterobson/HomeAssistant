@@ -133,7 +133,7 @@ public static class BatteryZoneResolver
                     || rule.EndTime.Type != TimeDefinitionType.FixedTime;
 
         List<int> startTimes = ResolveTimeDefinition(rule.StartTime, slots);
-        startTimes = startTimes.Select(t => t >= 1440 ? t - 1440 : t).Distinct().ToList();
+        startTimes = startTimes.Select(t => t >= 1440 ? t - 1440 : (t < 0 ? t + 1440 : t)).Distinct().ToList();
         startTimes.Sort();
 
         List<int> endTimes = ResolveTimeDefinition(rule.EndTime, slots);

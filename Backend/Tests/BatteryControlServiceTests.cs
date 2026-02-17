@@ -352,8 +352,8 @@ public sealed class BatteryControlServiceTests
         // No cached rates - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(0.07);
 
-        // Assert: should have called the rates reader (full refresh path: today + tomorrow = 2 calls)
-        await ratesReader.Received(2).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
+        // Assert: should have called the rates reader (full refresh path: yesterday + today + tomorrow = 3 calls)
+        await ratesReader.Received(3).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
     }
 
     [TestMethod]
@@ -374,8 +374,8 @@ public sealed class BatteryControlServiceTests
         // Null rate - should fall back to full RefreshRatesAsync
         await sut.ReactToRateChangeAsync(null);
 
-        // Assert: should have called the rates reader (full refresh path: today + tomorrow = 2 calls)
-        await ratesReader.Received(2).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
+        // Assert: should have called the rates reader (full refresh path: yesterday + today + tomorrow = 3 calls)
+        await ratesReader.Received(3).GetElectricityImportRatesAsync(Arg.Any<DateTime>(), Arg.Any<DateTime>());
     }
 
     // ========================================================================

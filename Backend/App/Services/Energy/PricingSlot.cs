@@ -72,6 +72,31 @@ public class PricingSlot
         return slots;
     }
 
+    public static List<PricingSlot> ExtendWithPreviousDay(
+        List<PricingSlot> today, List<PricingSlot> yesterday)
+    {
+        List<PricingSlot> extended = [];
+
+        foreach (PricingSlot slot in yesterday)
+        {
+            extended.Add(new PricingSlot
+            {
+                TimeMinutes = slot.TimeMinutes - 1440,
+                ImportPrice = slot.ImportPrice,
+                ExportPrice = slot.ExportPrice
+            });
+        }
+
+        extended.AddRange(today.Select(s => new PricingSlot
+        {
+            TimeMinutes = s.TimeMinutes,
+            ImportPrice = s.ImportPrice,
+            ExportPrice = s.ExportPrice
+        }));
+
+        return extended;
+    }
+
     public static List<PricingSlot> ExtendWithNextDay(
         List<PricingSlot> today, List<PricingSlot> tomorrow)
     {

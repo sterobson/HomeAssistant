@@ -131,6 +131,26 @@ export const batteryApi = {
     }
   },
 
+  async startPowerMonitor() {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/power-monitor/start?houseId=${houseId}`, {
+        method: 'POST',
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to start power monitor: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error starting power monitor:', error)
+      reportApiError('Failed to start power monitor')
+      throw error
+    }
+  },
+
   async requestBackfill(date) {
     try {
       const houseId = getCurrentHouseId()

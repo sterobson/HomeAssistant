@@ -61,6 +61,18 @@ function entitiesByDomain(domain) {
   return computed(() => entities.value.filter(e => e.domain === domain))
 }
 
+const isPowerMonitorConfigured = computed(() => {
+  const rp = settings.value?.realtimePower
+  if (!rp) return false
+  return !!(
+    rp.gridImportPowerSensorId &&
+    rp.gridExportPowerSensorId &&
+    rp.solarPowerSensorId &&
+    rp.batteryPowerSensorId &&
+    rp.housePowerSensorId
+  )
+})
+
 export function useDeviceSettings() {
   return {
     settings,
@@ -70,6 +82,7 @@ export function useDeviceSettings() {
     loadEntities,
     loadSettings,
     saveSettings,
-    entitiesByDomain
+    entitiesByDomain,
+    isPowerMonitorConfigured
   }
 }

@@ -15,6 +15,16 @@
         <h1>{{ pageTitle }}</h1>
       </div>
       <div class="header-controls">
+        <button
+          v-if="route.name === 'battery' && isPowerMonitorConfigured"
+          class="power-monitor-btn"
+          title="Live power monitor"
+          @click="showPowerMonitor = true"
+        >
+          <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M5.52.359A.5.5 0 0 1 6 0h4a.5.5 0 0 1 .474.658L8.694 6H12.5a.5.5 0 0 1 .395.807l-7 9a.5.5 0 0 1-.873-.454L6.823 9.5H3.5a.5.5 0 0 1-.48-.641l2.5-8.5z"/>
+          </svg>
+        </button>
         <div v-if="route.name === 'heating'" class="occupancy-filter">
           <button
             class="filter-btn"
@@ -68,22 +78,32 @@
       :allow-cancel="hasHouseId"
       @submit="handleHouseIdSubmit"
     />
+
+    <!-- Power Monitor Modal -->
+    <PowerMonitorModal
+      v-if="showPowerMonitor"
+      @close="showPowerMonitor = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watchEffect } from 'vue'
+import { ref, computed, onMounted, watch, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
+import PowerMonitorModal from './components/PowerMonitorModal.vue'
 import { hasHouseId as checkHouseId, setHouseId, clearHouseId } from './utils/cookies.js'
 import { useApiErrors } from './composables/useApiErrors.js'
+import { useDeviceSettings } from './composables/useDeviceSettings.js'
 
 const route = useRoute()
 const { errors: apiErrors, dismissError: dismissApiError } = useApiErrors()
+const { isPowerMonitorConfigured, loadSettings } = useDeviceSettings()
 
 const showHouseIdModal = ref(false)
 const hasHouseId = ref(false)
+const showPowerMonitor = ref(false)
 const occupancyFilter = ref('occupied') // 'occupied', 'vacant', or null for all
 const currentHouseState = ref(0) // 0 = Home, 1 = Away
 const showEntitySettings = ref(false)
@@ -95,6 +115,13 @@ const pageTitle = computed(() => {
     default: return 'Home Assistant'
   }
 })
+
+// Load device settings when navigating to battery route (for power monitor button)
+watch(() => route.name, (name) => {
+  if (name === 'battery') {
+    loadSettings()
+  }
+}, { immediate: true })
 
 // Dynamic favicon, apple-touch-icon, manifest, and theme-color based on current route
 watchEffect(() => {
@@ -303,6 +330,29 @@ function handleDisconnect() {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.power-monitor-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-header);
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 6px;
+  transition: all 0.2s;
+  opacity: 0.8;
+}
+
+.power-monitor-btn:hover {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.power-monitor-btn:active {
+  transform: scale(0.95);
 }
 
 .occupancy-filter {

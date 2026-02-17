@@ -152,6 +152,54 @@
               />
             </div>
           </template>
+
+          <!-- Realtime power tab -->
+          <template v-if="activeTab === 'realtimePower'">
+            <div class="form-group">
+              <label>Grid import power sensor</label>
+              <SearchableSelect
+                v-model="form.gridImportPowerSensorId"
+                :options="powerSensorEntities"
+                placeholder="Select sensor..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Grid export power sensor</label>
+              <SearchableSelect
+                v-model="form.gridExportPowerSensorId"
+                :options="powerSensorEntities"
+                placeholder="Select sensor..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Solar power sensor</label>
+              <SearchableSelect
+                v-model="form.solarPowerSensorId"
+                :options="powerSensorEntities"
+                placeholder="Select sensor..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label>Battery power sensor</label>
+              <SearchableSelect
+                v-model="form.batteryPowerSensorId"
+                :options="powerSensorEntities"
+                placeholder="Select sensor..."
+              />
+            </div>
+
+            <div class="form-group">
+              <label>House power sensor</label>
+              <SearchableSelect
+                v-model="form.housePowerSensorId"
+                :options="powerSensorEntities"
+                placeholder="Select sensor..."
+              />
+            </div>
+          </template>
         </div>
       </template>
 
@@ -168,7 +216,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import SearchableSelect from './SearchableSelect.vue'
 import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 
@@ -185,12 +233,19 @@ const tabs = [
   { key: 'battery', label: 'Battery' },
   { key: 'solar', label: 'Solar' },
   { key: 'grid', label: 'Grid' },
-  { key: 'carCharger', label: 'Car charger' }
+  { key: 'carCharger', label: 'Car charger' },
+  { key: 'realtimePower', label: 'Realtime power' }
 ]
 
 const sensorEntities = entitiesByDomain('sensor')
 const selectEntities = entitiesByDomain('select')
 const numberEntities = entitiesByDomain('number')
+const powerSensorEntities = computed(() =>
+  sensorEntities.value.filter(e => {
+    const state = e.state || ''
+    return state.endsWith(' W') || state.endsWith(' kW')
+  })
+)
 
 const form = reactive({
   batteryChargePercentSensorId: '',
@@ -204,7 +259,12 @@ const form = reactive({
   exportRateSensorId: '',
   chargerCurrentSensorId: '',
   batteryCapacityKwh: null,
-  maxChargeCurrentAmps: null
+  maxChargeCurrentAmps: null,
+  gridImportPowerSensorId: '',
+  gridExportPowerSensorId: '',
+  solarPowerSensorId: '',
+  batteryPowerSensorId: '',
+  housePowerSensorId: ''
 })
 
 // Find an entity by exact ID, returning the ID if it exists
@@ -232,7 +292,12 @@ const defaults = {
   exportLimitNumberId: 'number.solax_inverter_export_control_user_limit',
   electricityRateSensorId: 'sensor.octopus_energy_electricity_*_current_rate',
   exportRateSensorId: 'sensor.octopus_energy_electricity_*_export_current_rate',
-  chargerCurrentSensorId: 'sensor.hypervolt_charger_current'
+  chargerCurrentSensorId: 'sensor.hypervolt_charger_current',
+  gridImportPowerSensorId: 'sensor.solax_inverter_grid_import',
+  gridExportPowerSensorId: 'sensor.solax_inverter_grid_export',
+  solarPowerSensorId: 'sensor.solax_inverter_pv_power_total',
+  batteryPowerSensorId: 'sensor.solax_inverter_total_battery_power_charge',
+  housePowerSensorId: 'sensor.hypervolt_house_power'
 }
 
 function resolveDefault(key) {
@@ -265,6 +330,15 @@ onMounted(async () => {
     if (settings.value?.carCharger) {
       const c = settings.value.carCharger
       form.chargerCurrentSensorId = c.chargerCurrentSensorId || ''
+    }
+
+    if (settings.value?.realtimePower) {
+      const rp = settings.value.realtimePower
+      form.gridImportPowerSensorId = rp.gridImportPowerSensorId || ''
+      form.gridExportPowerSensorId = rp.gridExportPowerSensorId || ''
+      form.solarPowerSensorId = rp.solarPowerSensorId || ''
+      form.batteryPowerSensorId = rp.batteryPowerSensorId || ''
+      form.housePowerSensorId = rp.housePowerSensorId || ''
     }
 
     // Auto-populate empty fields with defaults if matching entities exist
@@ -303,6 +377,13 @@ async function handleSave() {
       },
       carCharger: {
         chargerCurrentSensorId: form.chargerCurrentSensorId || null
+      },
+      realtimePower: {
+        gridImportPowerSensorId: form.gridImportPowerSensorId || null,
+        gridExportPowerSensorId: form.gridExportPowerSensorId || null,
+        solarPowerSensorId: form.solarPowerSensorId || null,
+        batteryPowerSensorId: form.batteryPowerSensorId || null,
+        housePowerSensorId: form.housePowerSensorId || null
       }
     }
 

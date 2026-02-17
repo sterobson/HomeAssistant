@@ -27,6 +27,7 @@ internal class BatteryControlService
     private List<EnergyRate> _cachedExportRates = [];
     private List<PricingSlot> _cachedPricingSlots = [];
     private List<PricingSlot> _cachedNextDayPricingSlots = [];
+    private List<PricingSlot> _cachedPreviousDayPricingSlots = [];
     private DateTime _lastRatesRefresh = DateTime.MinValue;
     private const int _ratesRefreshIntervalMinutes = 30;
     internal const int HysteresisPercent = 2;
@@ -149,7 +150,8 @@ internal class BatteryControlService
 
     private List<PricingSlot> GetExtendedPricingSlots()
     {
-        return PricingSlot.ExtendWithNextDay(_cachedPricingSlots, _cachedNextDayPricingSlots);
+        List<PricingSlot> withPrevious = PricingSlot.ExtendWithPreviousDay(_cachedPricingSlots, _cachedPreviousDayPricingSlots);
+        return PricingSlot.ExtendWithNextDay(withPrevious, _cachedNextDayPricingSlots);
     }
 
     internal async Task RefreshRatesAsync()
@@ -165,6 +167,20 @@ internal class BatteryControlService
             _cachedExportRates = await _ratesReader.GetElectricityExportRatesAsync(dayStart.ToUniversalTime(), dayEnd.ToUniversalTime());
             _cachedPricingSlots = PricingSlot.FromEnergyRatesExact(_cachedImportRates, _cachedExportRates, now);
             _lastRatesRefresh = DateTime.UtcNow;
+
+            // Fetch yesterday's rates for cross-midnight zone detection (start of cheap period before midnight)
+            try
+            {
+                DateTime previousDayStart = dayStart.AddDays(-1);
+                List<EnergyRate> previousDayImport = await _ratesReader.GetElectricityImportRatesAsync(previousDayStart.ToUniversalTime(), dayStart.ToUniversalTime());
+                List<EnergyRate> previousDayExport = await _ratesReader.GetElectricityExportRatesAsync(previousDayStart.ToUniversalTime(), dayStart.ToUniversalTime());
+                _cachedPreviousDayPricingSlots = PricingSlot.FromEnergyRatesExact(previousDayImport, previousDayExport, now.Date.AddDays(-1));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch previous-day rates for cross-midnight detection, continuing without");
+                _cachedPreviousDayPricingSlots = [];
+            }
 
             // Fetch tomorrow's rates for cross-midnight zone detection
             try
@@ -325,16 +341,6 @@ internal class BatteryControlService
                     isBatteryAtTarget = homeBatteryChargePct.Value <= effectiveTargetPercent;
                 }
             }
-
-            //if (currentUnitPriceRate == _previousUnitPriceRate
-            //    && homeBatteryChargePct == _previousHomeBatteryChargePct
-            //    && isCarCharging == _previousIsCarCharging
-            //    && currentHomeBatteryState == _previousBatteryState
-            //    && activeZoneRuleId == _previousActiveZoneRuleId
-            //    && isBatteryAtTarget)
-            //{
-            //    return;
-            //}
 
             BatteryState desiredHomeBatteryState;
 
@@ -565,6 +571,14 @@ internal class BatteryControlService
     internal void SetCachedNextDayPricingSlots(List<PricingSlot> slots)
     {
         _cachedNextDayPricingSlots = slots;
+    }
+
+    /// <summary>
+    /// Inject cached previous-day pricing slots for testing cross-midnight zone detection.
+    /// </summary>
+    internal void SetCachedPreviousDayPricingSlots(List<PricingSlot> slots)
+    {
+        _cachedPreviousDayPricingSlots = slots;
     }
 
     /// <summary>

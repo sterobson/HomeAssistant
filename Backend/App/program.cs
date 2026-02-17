@@ -148,6 +148,16 @@ try
                     }
                 })
                 .Services
+                .AddHttpClient<IPowerMonitorApiClient, PowerMonitorApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddScoped<PowerMonitorService>()
                 .AddSingleton<EntityPushCoordinator>()
                 .AddScoped<EntityPushService>()
                 .AddScoped<BatteryHistoryPushService>()

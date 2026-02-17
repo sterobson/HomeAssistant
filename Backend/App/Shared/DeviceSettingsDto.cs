@@ -4,6 +4,16 @@ public class DeviceSettingsDto
 {
     public BatterySettingsDto? Battery { get; set; }
     public CarChargerSettingsDto? CarCharger { get; set; }
+    public RealtimePowerSettingsDto? RealtimePower { get; set; }
+}
+
+public class RealtimePowerSettingsDto
+{
+    public string? GridImportPowerSensorId { get; set; }
+    public string? GridExportPowerSensorId { get; set; }
+    public string? SolarPowerSensorId { get; set; }
+    public string? BatteryPowerSensorId { get; set; }
+    public string? HousePowerSensorId { get; set; }
 }
 
 public class CarChargerSettingsDto

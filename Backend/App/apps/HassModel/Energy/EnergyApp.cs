@@ -14,13 +14,15 @@ internal class EnergyApp
         BatteryHistoryPushService batteryHistoryPushService,
         BatteryHistoryBackfillService batteryHistoryBackfillService,
         ElectricityRatePushService electricityRatePushService,
-        EntityPushService entityPushService)
+        EntityPushService entityPushService,
+        PowerMonitorService powerMonitorService)
     {
         Task.Delay(1000).ContinueWith(value => batteryControlService.Start());
 
         batteryHistoryPushService.Initialize();
         batteryHistoryBackfillService.Initialize();
         electricityRatePushService.Initialize();
+        powerMonitorService.Initialize();
 
         Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
             await entityPushService.PushEntitiesIfDueAsync());

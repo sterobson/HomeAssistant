@@ -890,6 +890,62 @@ public sealed class BatteryZoneResolverTests
     }
 
     // ========================================================================
+    // Cross-midnight with previous-day data
+    // ========================================================================
+
+    [TestMethod]
+    public void EvaluateZoneRule_CrossMidnightCheapRate_WithPreviousDayData_DetectsZoneAfterMidnight()
+    {
+        // Scenario: cheap rate 23:30→05:30 at 7p, standard 29p elsewhere.
+        // After midnight, rates refresh for the new day. Today's slots start at minute 0 with 7p.
+        // Without yesterday's data, FindMinimaRegionBoundaries can't detect minute 0 as a minimum
+        // because there's no preceding higher price. Prepending yesterday's trailing slots fixes this.
+        List<PricingSlot> yesterdaySlots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 },
+            new() { TimeMinutes = 1410, ImportPrice = 7, ExportPrice = 5 },
+        ];
+
+        List<PricingSlot> todaySlots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 },
+            new() { TimeMinutes = 1410, ImportPrice = 7, ExportPrice = 5 },
+        ];
+
+        List<PricingSlot> tomorrowSlots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
+            new() { TimeMinutes = 330, ImportPrice = 29, ExportPrice = 15 },
+        ];
+
+        // Build extended slots: yesterday (offset -1440) + today + tomorrow (offset +1440)
+        List<PricingSlot> extended = PricingSlot.ExtendWithPreviousDay(todaySlots, yesterdaySlots);
+        extended = PricingSlot.ExtendWithNextDay(extended, tomorrowSlots);
+
+        BatteryZoneRule rule = new()
+        {
+            Id = "cross-midnight-charge",
+            StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+            EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+            Action = BatteryZoneAction.Import,
+            TargetPercent = 80
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, extended);
+
+        // Should detect a zone covering the current cheap period that started yesterday at 23:30
+        // Start at 1410 (23:30, normalized from -30 + 1440), wrapping to end at 330 tomorrow (1770)
+        ResolvedZone? activeZone = zones.FirstOrDefault(z =>
+            BatteryZoneResolver.IsMinuteInZone(60, z.StartMinutes, z.EndMinutes));
+
+        activeZone.ShouldNotBeNull("Minute 60 (01:00) should be inside an active zone");
+        activeZone.Action.ShouldBe(BatteryZoneAction.Import);
+        activeZone.TargetPercent.ShouldBe(80);
+    }
+
+    // ========================================================================
     // Helpers
     // ========================================================================
 
