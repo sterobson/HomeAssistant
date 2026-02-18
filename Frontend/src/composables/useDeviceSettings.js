@@ -68,8 +68,7 @@ const isPowerMonitorConfigured = computed(() => {
     rp.gridImportPowerSensorId &&
     rp.gridExportPowerSensorId &&
     rp.solarPowerSensorId &&
-    rp.batteryPowerSensorId &&
-    rp.housePowerSensorId
+    rp.batteryPowerSensorId
   )
 })
 
