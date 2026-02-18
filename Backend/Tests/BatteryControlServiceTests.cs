@@ -1124,13 +1124,14 @@ public sealed class BatteryControlServiceTests
         FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
         timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 10, 0, 0, TimeSpan.Zero));
 
+        // Use broad date range so yesterday/tomorrow also get proper flat rates
         List<EnergyRate> importRates =
         [
-            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 14, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 17, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
         ];
         List<EnergyRate> exportRates =
         [
-            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 14, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 17, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
         ];
 
         IElectricityRatesReader ratesReader = serviceProvider.GetRequiredService<IElectricityRatesReader>();
@@ -1178,13 +1179,15 @@ public sealed class BatteryControlServiceTests
         FakeTimeProvider timeProvider = serviceProvider.GetRequiredService<FakeTimeProvider>();
         timeProvider.SetSpecificDateTime(new DateTimeOffset(2025, 1, 15, 10, 0, 0, TimeSpan.Zero));
 
+        // Use broad date range so yesterday/tomorrow also get proper flat rates
+        // (prevents 0-price ghost slots from being detected as cheap)
         List<EnergyRate> importRates =
         [
-            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 14, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 17, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 25.0 }
         ];
         List<EnergyRate> exportRates =
         [
-            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 15, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 16, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
+            new EnergyRate { StartTimeUtc = new DateTime(2025, 1, 14, 0, 0, 0, DateTimeKind.Utc), EndTimeUtc = new DateTime(2025, 1, 17, 0, 0, 0, DateTimeKind.Utc), RateIncVat = 15.0 }
         ];
 
         IElectricityRatesReader ratesReader = serviceProvider.GetRequiredService<IElectricityRatesReader>();

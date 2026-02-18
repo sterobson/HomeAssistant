@@ -1,6 +1,7 @@
 using HomeAssistant.Services;
 using HomeAssistant.Shared;
 using HomeAssistantGenerated;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.Meters;
@@ -15,7 +16,7 @@ internal class OctopusElectricityMeter : IElectricityMeter
 
     private Func<ValueChange<double?, NumericSensorEntity>, Task>? _currentRateCallback;
     private IDisposable? _subscription;
-    private readonly object _rebindLock = new();
+    private readonly SemaphoreSlim _rebindLock = new(1, 1);
 
     public double? CurrentRatePerKwh => _currentRateSensor?.State;
 
@@ -69,23 +70,34 @@ internal class OctopusElectricityMeter : IElectricityMeter
         Func<ValueChange<double?, NumericSensorEntity>, Task> callback = _currentRateCallback;
         _subscription = sensor.StateChanges().SubscribeAsyncConcurrent(async (value) =>
         {
-            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
-            await callback(valueChange);
+            try
+            {
+                ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
+                await callback(valueChange);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in electricity rate change callback");
+            }
         });
     }
 
     private async Task RebindEntitiesAsync()
     {
-        lock (_rebindLock)
+        await _rebindLock.WaitAsync();
+        try
         {
             _subscription?.Dispose();
             _subscription = null;
 
-            BindEntities(_settingsPersistence.GetSettingsAsync().GetAwaiter().GetResult());
+            DeviceSettingsDto settings = await _settingsPersistence.GetSettingsAsync();
+            BindEntities(settings);
 
             SubscribeToCurrentRate();
         }
-
-        await Task.CompletedTask;
+        finally
+        {
+            _rebindLock.Release();
+        }
     }
 }

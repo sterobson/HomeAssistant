@@ -7,7 +7,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
-import { getAvailableRuleTypes } from '../utils/priceAnalysis.js'
+import { getAvailableRuleTypes, calculateAveragePrice } from '../utils/priceAnalysis.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { isMinuteInZone, getElapsedMinutes } from '../composables/useBatteryRules.js'
 import {
@@ -113,6 +113,7 @@ onUnmounted(() => {
   if (pendingAnimationId) {
     cancelAnimationFrame(pendingAnimationId)
   }
+  cancelEdgeDragPending()
 })
 
 function formatMinutes(minutes) {
@@ -589,9 +590,45 @@ const edgeDragState = {
 let suppressNextClick = false
 let mouseDownX = null
 let mouseDownY = null
-const DRAG_THRESHOLD_PX = 5
+const DRAG_THRESHOLD_PX = 10
 const ARROW_HIT_RADIUS = 18
 const EDGE_HIT_PX = 8
+const EDGE_HOLD_DELAY_MS = 200
+
+// Pending edge drag — armed after a hold delay, only then promoted to active
+const edgeDragPending = {
+  active: false,
+  zone: null,
+  edge: null,
+  startX: 0,
+  timerId: null
+}
+
+function armEdgeDrag() {
+  if (!edgeDragPending.active) return
+  edgeDragState.active = true
+  edgeDragState.ruleId = edgeDragPending.zone.ruleId
+  edgeDragState.zone = edgeDragPending.zone
+  edgeDragState.edge = edgeDragPending.edge
+  edgeDragState.startX = edgeDragPending.startX
+  edgeDragState.currentX = edgeDragPending.startX
+  edgeDragState.currentMinutes = edgeDragPending.edge === 'start'
+    ? edgeDragPending.zone.startMinutes
+    : edgeDragPending.zone.endMinutes
+  edgeDragState.didMove = false
+  edgeDragPending.active = false
+  edgeDragPending.timerId = null
+}
+
+function cancelEdgeDragPending() {
+  if (edgeDragPending.timerId) {
+    clearTimeout(edgeDragPending.timerId)
+    edgeDragPending.timerId = null
+  }
+  edgeDragPending.active = false
+  edgeDragPending.zone = null
+  edgeDragPending.edge = null
+}
 
 /**
  * Check if a point is near a draggable edge of a zone (fixed-time only).
@@ -839,19 +876,14 @@ const zoneInteractionPlugin = {
       }
 
       // Check if mousedown is on a zone edge (fixed-time only)
+      // Don't activate immediately — require a hold delay to avoid accidental drags
       const hitEdge = hitTestZoneEdge(event.x, event.y, chart)
       if (hitEdge) {
-        edgeDragState.active = true
-        edgeDragState.ruleId = hitEdge.zone.ruleId
-        edgeDragState.zone = hitEdge.zone
-        edgeDragState.edge = hitEdge.edge
-        edgeDragState.startX = event.x
-        edgeDragState.currentX = event.x
-        edgeDragState.currentMinutes = hitEdge.edge === 'start'
-          ? hitEdge.zone.startMinutes
-          : hitEdge.zone.endMinutes
-        edgeDragState.didMove = false
-        chart.canvas.style.cursor = 'col-resize'
+        edgeDragPending.active = true
+        edgeDragPending.zone = hitEdge.zone
+        edgeDragPending.edge = hitEdge.edge
+        edgeDragPending.startX = event.x
+        edgeDragPending.timerId = setTimeout(() => armEdgeDrag(), EDGE_HOLD_DELAY_MS)
         return
       }
 
@@ -946,6 +978,12 @@ const zoneInteractionPlugin = {
         return
       }
 
+      // Cancel pending edge drag if mouseup before hold delay
+      if (edgeDragPending.active) {
+        cancelEdgeDragPending()
+        // Let the click event fire normally (will open zone editor)
+      }
+
       // Edge drag end
       if (edgeDragState.active) {
         chart.canvas.style.cursor = ''
@@ -971,6 +1009,7 @@ const zoneInteractionPlugin = {
     }
 
     if (event.type === 'mouseout') {
+      cancelEdgeDragPending()
       if (targetDragState.active) {
         chart.canvas.style.cursor = ''
         targetDragState.active = false
@@ -1183,16 +1222,23 @@ function analyzePriceRange(startMinutes, endMinutes) {
  * boundary transition to analyze.
  */
 function getActionFromLevels(currentImport, currentExport, pricingData) {
-  const allImport = pricingData.map(d => d.importPrice)
-  const allExport = pricingData.map(d => d.exportPrice)
-  const importRange = Math.max(...allImport) - Math.min(...allImport)
-  const exportRange = Math.max(...allExport) - Math.min(...allExport)
-  const importRel = importRange > 0 ? (currentImport - Math.min(...allImport)) / importRange : 0.5
-  const exportRel = exportRange > 0 ? (currentExport - Math.min(...allExport)) / exportRange : 0.5
+  const importAvg = calculateAveragePrice(pricingData, 'importPrice')
+  const exportAvg = calculateAveragePrice(pricingData, 'exportPrice')
 
-  if (exportRel > 0.6 && exportRel >= (1 - importRel)) {
-    return 'export'
+  const isCheapImport = importAvg !== null && currentImport <= importAvg * 0.75
+  const isExpensiveExport = exportAvg !== null && currentExport >= exportAvg * 1.25
+
+  if (isCheapImport && isExpensiveExport) {
+    // Both apply — prefer whichever is further from its threshold
+    const importDistance = (importAvg * 0.75 - currentImport) / importAvg
+    const exportDistance = (currentExport - exportAvg * 1.25) / exportAvg
+    return exportDistance >= importDistance ? 'export' : 'import'
   }
+  if (isExpensiveExport) return 'export'
+  if (isCheapImport) return 'import'
+
+  // Neither clearly cheap nor expensive — fall back to relative comparison
+  if (currentExport > currentImport) return 'export'
   return 'import'
 }
 

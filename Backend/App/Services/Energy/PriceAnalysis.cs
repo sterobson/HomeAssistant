@@ -1,5 +1,6 @@
 using HomeAssistant.apps.Energy;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace HomeAssistant.Services.Energy;
 
@@ -179,25 +180,52 @@ public static class PriceAnalysis
         return troughs;
     }
 
+    /// <summary>
+    /// Calculate duration-weighted average price across a full day (0–1440 minutes).
+    /// Each slot's price applies from its timeMinutes until the next slot starts.
+    /// The first slot's price back-fills to minute 0; the last forward-fills to 1440.
+    /// </summary>
+    public static double? CalculateAveragePrice(List<PricingSlot> data, Func<PricingSlot, double> priceSelector)
+    {
+        if (data == null || data.Count == 0) return null;
+
+        List<PricingSlot> slots = data
+            .Where(d => d.TimeMinutes >= 0 && d.TimeMinutes <= 1440)
+            .OrderBy(d => d.TimeMinutes)
+            .ToList();
+
+        if (slots.Count == 0) return null;
+
+        double weightedSum = 0;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            int start = i == 0 ? 0 : slots[i].TimeMinutes;
+            int end = i < slots.Count - 1 ? slots[i + 1].TimeMinutes : 1440;
+            int duration = end - start;
+            weightedSum += priceSelector(slots[i]) * duration;
+        }
+
+        return weightedSum / 1440.0;
+    }
+
+    /// <summary>
+    /// Find start/end of below-average price regions.
+    /// A region is "cheap" when price drops to 25%+ below the day's average (price &lt;= average × 0.75).
+    /// </summary>
     public static List<PriceBoundary> FindMinimaRegionBoundaries(
         List<PricingSlot> data, Func<PricingSlot, double> priceSelector)
     {
         List<PriceBoundary> boundaries = [];
-        int i = 0;
+        double? avg = CalculateAveragePrice(data, priceSelector);
+        if (avg == null) return boundaries;
 
-        while (i < data.Count)
+        double threshold = avg.Value * 0.75;
+        bool inRegion = false;
+
+        for (int i = 0; i < data.Count; i++)
         {
-            int j = i;
-            while (j < data.Count - 1 && priceSelector(data[j + 1]) == priceSelector(data[i]))
-            {
-                j++;
-            }
-
-            double currVal = priceSelector(data[i]);
-            double? prevVal = i > 0 ? priceSelector(data[i - 1]) : null;
-            double? nextVal = j < data.Count - 1 ? priceSelector(data[j + 1]) : null;
-
-            if (prevVal != null && nextVal != null && currVal < prevVal && currVal < nextVal)
+            bool cheap = priceSelector(data[i]) <= threshold;
+            if (cheap && !inRegion)
             {
                 boundaries.Add(new PriceBoundary
                 {
@@ -206,39 +234,54 @@ public static class PriceAnalysis
                     ExportPrice = data[i].ExportPrice,
                     BoundaryType = "start"
                 });
+                inRegion = true;
+            }
+            else if (!cheap && inRegion)
+            {
                 boundaries.Add(new PriceBoundary
                 {
-                    TimeMinutes = data[j + 1].TimeMinutes,
-                    ImportPrice = data[j + 1].ImportPrice,
-                    ExportPrice = data[j + 1].ExportPrice,
+                    TimeMinutes = data[i].TimeMinutes,
+                    ImportPrice = data[i].ImportPrice,
+                    ExportPrice = data[i].ExportPrice,
                     BoundaryType = "end"
                 });
+                inRegion = false;
             }
-
-            i = j + 1;
         }
+
+        if (inRegion)
+        {
+            PricingSlot last = data[^1];
+            boundaries.Add(new PriceBoundary
+            {
+                TimeMinutes = 1440,
+                ImportPrice = last.ImportPrice,
+                ExportPrice = last.ExportPrice,
+                BoundaryType = "end"
+            });
+        }
+
         return boundaries;
     }
 
+    /// <summary>
+    /// Find start/end of above-average price regions.
+    /// A region is "expensive" when price rises to 25%+ above the day's average (price &gt;= average × 1.25).
+    /// </summary>
     public static List<PriceBoundary> FindMaximaRegionBoundaries(
         List<PricingSlot> data, Func<PricingSlot, double> priceSelector)
     {
         List<PriceBoundary> boundaries = [];
-        int i = 0;
+        double? avg = CalculateAveragePrice(data, priceSelector);
+        if (avg == null) return boundaries;
 
-        while (i < data.Count)
+        double threshold = avg.Value * 1.25;
+        bool inRegion = false;
+
+        for (int i = 0; i < data.Count; i++)
         {
-            int j = i;
-            while (j < data.Count - 1 && priceSelector(data[j + 1]) == priceSelector(data[i]))
-            {
-                j++;
-            }
-
-            double currVal = priceSelector(data[i]);
-            double? prevVal = i > 0 ? priceSelector(data[i - 1]) : null;
-            double? nextVal = j < data.Count - 1 ? priceSelector(data[j + 1]) : null;
-
-            if (prevVal != null && nextVal != null && currVal > prevVal && currVal > nextVal)
+            bool expensive = priceSelector(data[i]) >= threshold;
+            if (expensive && !inRegion)
             {
                 boundaries.Add(new PriceBoundary
                 {
@@ -247,17 +290,33 @@ public static class PriceAnalysis
                     ExportPrice = data[i].ExportPrice,
                     BoundaryType = "start"
                 });
+                inRegion = true;
+            }
+            else if (!expensive && inRegion)
+            {
                 boundaries.Add(new PriceBoundary
                 {
-                    TimeMinutes = data[j + 1].TimeMinutes,
-                    ImportPrice = data[j + 1].ImportPrice,
-                    ExportPrice = data[j + 1].ExportPrice,
+                    TimeMinutes = data[i].TimeMinutes,
+                    ImportPrice = data[i].ImportPrice,
+                    ExportPrice = data[i].ExportPrice,
                     BoundaryType = "end"
                 });
+                inRegion = false;
             }
-
-            i = j + 1;
         }
+
+        if (inRegion)
+        {
+            PricingSlot last = data[^1];
+            boundaries.Add(new PriceBoundary
+            {
+                TimeMinutes = 1440,
+                ImportPrice = last.ImportPrice,
+                ExportPrice = last.ExportPrice,
+                BoundaryType = "end"
+            });
+        }
+
         return boundaries;
     }
 }

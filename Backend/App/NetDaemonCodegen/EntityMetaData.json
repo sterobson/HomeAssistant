@@ -182,12 +182,12 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": "Living Room TV",
+          "friendlyName": null,
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": "Main speakers",
+          "friendlyName": null,
           "cSharpName": "MainSpeakers"
         }
       ],
@@ -2707,28 +2707,53 @@
           "cSharpName": "SmA546bChargerType"
         },
         {
+          "id": "sensor.solax_energy_dashboard_inverter_count",
+          "friendlyName": "SolaX Energy Dashboard Inverter Count",
+          "cSharpName": "SolaxEnergyDashboardInverterCount"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_last_total_inverter_count",
+          "friendlyName": "SolaX Energy Dashboard Last Total Inverter Count",
+          "cSharpName": "SolaxEnergyDashboardLastTotalInverterCount"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_mapping_summary",
+          "friendlyName": "SolaX Energy Dashboard Mapping Summary",
+          "cSharpName": "SolaxEnergyDashboardMappingSummary"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_mode",
+          "friendlyName": "SolaX Energy Dashboard Mode",
+          "cSharpName": "SolaxEnergyDashboardMode"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_parallel_setting",
+          "friendlyName": "SolaX Energy Dashboard Parallel Setting",
+          "cSharpName": "SolaxEnergyDashboardParallelSetting"
+        },
+        {
           "id": "sensor.solax_inverter_bdc_status",
-          "friendlyName": "SolaX Inverter BDC Status",
+          "friendlyName": "SolaX BDC Status",
           "cSharpName": "SolaxInverterBdcStatus"
         },
         {
           "id": "sensor.solax_inverter_modbus_power_control",
-          "friendlyName": "SolaX Inverter Modbus Power Control",
+          "friendlyName": "SolaX Modbus Power Control",
           "cSharpName": "SolaxInverterModbusPowerControl"
         },
         {
           "id": "sensor.solax_inverter_mppt_count",
-          "friendlyName": "SolaX Inverter MPPT Count",
+          "friendlyName": "SolaX MPPT Count",
           "cSharpName": "SolaxInverterMpptCount"
         },
         {
           "id": "sensor.solax_inverter_run_mode",
-          "friendlyName": "SolaX Inverter Run Mode",
+          "friendlyName": "SolaX Run Mode",
           "cSharpName": "SolaxInverterRunMode"
         },
         {
           "id": "sensor.solax_inverter_target_finish_flag",
-          "friendlyName": "SolaX Inverter Target Finish Flag",
+          "friendlyName": "SolaX Target Finish Flag",
           "cSharpName": "SolaxInverterTargetFinishFlag"
         },
         {
@@ -3605,248 +3630,288 @@
           "cSharpName": "Smartplug01Voltage"
         },
         {
+          "id": "sensor.solax_energy_dashboard_solax_battery_charge_energy",
+          "friendlyName": "SolaX Energy Dashboard SolaX Battery Charge Energy",
+          "cSharpName": "SolaxEnergyDashboardSolaxBatteryChargeEnergy"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_battery_discharge_energy",
+          "friendlyName": "SolaX Energy Dashboard SolaX Battery Discharge Energy",
+          "cSharpName": "SolaxEnergyDashboardSolaxBatteryDischargeEnergy"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_battery_power",
+          "friendlyName": "SolaX Energy Dashboard SolaX Battery Power",
+          "cSharpName": "SolaxEnergyDashboardSolaxBatteryPower"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_grid_export_energy",
+          "friendlyName": "SolaX Energy Dashboard SolaX Grid Export Energy",
+          "cSharpName": "SolaxEnergyDashboardSolaxGridExportEnergy"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_grid_import_energy",
+          "friendlyName": "SolaX Energy Dashboard SolaX Grid Import Energy",
+          "cSharpName": "SolaxEnergyDashboardSolaxGridImportEnergy"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_grid_power",
+          "friendlyName": "SolaX Energy Dashboard SolaX Grid Power",
+          "cSharpName": "SolaxEnergyDashboardSolaxGridPower"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_solar_power",
+          "friendlyName": "SolaX Energy Dashboard SolaX Solar Power",
+          "cSharpName": "SolaxEnergyDashboardSolaxSolarPower"
+        },
+        {
+          "id": "sensor.solax_energy_dashboard_solax_solar_production_energy",
+          "friendlyName": "SolaX Energy Dashboard SolaX Solar Production Energy",
+          "cSharpName": "SolaxEnergyDashboardSolaxSolarProductionEnergy"
+        },
+        {
           "id": "sensor.solax_inverter_active_power_lower",
-          "friendlyName": "SolaX Inverter Active Power Lower",
+          "friendlyName": "SolaX Active Power Lower",
           "cSharpName": "SolaxInverterActivePowerLower"
         },
         {
           "id": "sensor.solax_inverter_active_power_real",
-          "friendlyName": "SolaX Inverter Active Power Real",
+          "friendlyName": "SolaX Active Power Real",
           "cSharpName": "SolaxInverterActivePowerReal"
         },
         {
           "id": "sensor.solax_inverter_active_power_target",
-          "friendlyName": "SolaX Inverter Active Power Target",
+          "friendlyName": "SolaX Active Power Target",
           "cSharpName": "SolaxInverterActivePowerTarget"
         },
         {
           "id": "sensor.solax_inverter_active_power_upper",
-          "friendlyName": "SolaX Inverter Active Power Upper",
+          "friendlyName": "SolaX Active Power Upper",
           "cSharpName": "SolaxInverterActivePowerUpper"
         },
         {
           "id": "sensor.solax_inverter_battery_1_capacity",
-          "friendlyName": "SolaX Inverter Battery 1 Capacity",
+          "friendlyName": "SolaX Battery 1 Capacity",
           "cSharpName": "SolaxInverterBattery1Capacity"
         },
         {
           "id": "sensor.solax_inverter_battery_1_current_charge",
-          "friendlyName": "SolaX Inverter Battery 1 Current Charge",
+          "friendlyName": "SolaX Battery 1 Current Charge",
           "cSharpName": "SolaxInverterBattery1CurrentCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_1_power_charge",
-          "friendlyName": "SolaX Inverter Battery 1 Power Charge",
+          "friendlyName": "SolaX Battery 1 Power Charge",
           "cSharpName": "SolaxInverterBattery1PowerCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_1_temperature",
-          "friendlyName": "SolaX Inverter Battery 1 Temperature",
+          "friendlyName": "SolaX Battery 1 Temperature",
           "cSharpName": "SolaxInverterBattery1Temperature"
         },
         {
           "id": "sensor.solax_inverter_battery_1_voltage_charge",
-          "friendlyName": "SolaX Inverter Battery 1 Voltage Charge",
+          "friendlyName": "SolaX Battery 1 Voltage Charge",
           "cSharpName": "SolaxInverterBattery1VoltageCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_2_capacity",
-          "friendlyName": "SolaX Inverter Battery 2 Capacity",
+          "friendlyName": "SolaX Battery 2 Capacity",
           "cSharpName": "SolaxInverterBattery2Capacity"
         },
         {
           "id": "sensor.solax_inverter_battery_2_current_charge",
-          "friendlyName": "SolaX Inverter Battery 2 Current Charge",
+          "friendlyName": "SolaX Battery 2 Current Charge",
           "cSharpName": "SolaxInverterBattery2CurrentCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_2_power_charge",
-          "friendlyName": "SolaX Inverter Battery 2 Power Charge",
+          "friendlyName": "SolaX Battery 2 Power Charge",
           "cSharpName": "SolaxInverterBattery2PowerCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_2_temperature",
-          "friendlyName": "SolaX Inverter Battery 2 Temperature",
+          "friendlyName": "SolaX Battery 2 Temperature",
           "cSharpName": "SolaxInverterBattery2Temperature"
         },
         {
           "id": "sensor.solax_inverter_battery_2_voltage_charge",
-          "friendlyName": "SolaX Inverter Battery 2 Voltage Charge",
+          "friendlyName": "SolaX Battery 2 Voltage Charge",
           "cSharpName": "SolaxInverterBattery2VoltageCharge"
         },
         {
           "id": "sensor.solax_inverter_battery_capacity",
-          "friendlyName": "SolaX Inverter Battery Capacity",
+          "friendlyName": "SolaX Battery Capacity",
           "cSharpName": "SolaxInverterBatteryCapacity"
         },
         {
           "id": "sensor.solax_inverter_battery_input_energy_today",
-          "friendlyName": "SolaX Inverter Battery Input Energy Today",
+          "friendlyName": "SolaX Battery Input Energy Today",
           "cSharpName": "SolaxInverterBatteryInputEnergyToday"
         },
         {
           "id": "sensor.solax_inverter_battery_output_energy_today",
-          "friendlyName": "SolaX Inverter Battery Output Energy Today",
+          "friendlyName": "SolaX Battery Output Energy Today",
           "cSharpName": "SolaxInverterBatteryOutputEnergyToday"
         },
         {
           "id": "sensor.solax_inverter_battery_total_capacity",
-          "friendlyName": "SolaX Inverter Battery Total Capacity",
+          "friendlyName": "SolaX Battery Total Capacity",
           "cSharpName": "SolaxInverterBatteryTotalCapacity"
         },
         {
           "id": "sensor.solax_inverter_grid_export",
-          "friendlyName": "SolaX Inverter Grid Export",
+          "friendlyName": "SolaX Grid Export",
           "cSharpName": "SolaxInverterGridExport"
         },
         {
           "id": "sensor.solax_inverter_grid_import",
-          "friendlyName": "SolaX Inverter Grid Import",
+          "friendlyName": "SolaX Grid Import",
           "cSharpName": "SolaxInverterGridImport"
         },
         {
           "id": "sensor.solax_inverter_house_load",
-          "friendlyName": "SolaX Inverter House Load",
+          "friendlyName": "SolaX House Load",
           "cSharpName": "SolaxInverterHouseLoad"
         },
         {
           "id": "sensor.solax_inverter_inverter_current",
-          "friendlyName": "SolaX Inverter Inverter Current",
+          "friendlyName": "SolaX Inverter Current",
           "cSharpName": "SolaxInverterInverterCurrent"
         },
         {
           "id": "sensor.solax_inverter_inverter_frequency",
-          "friendlyName": "SolaX Inverter Inverter Frequency",
+          "friendlyName": "SolaX Inverter Frequency",
           "cSharpName": "SolaxInverterInverterFrequency"
         },
         {
           "id": "sensor.solax_inverter_inverter_power",
-          "friendlyName": "SolaX Inverter Inverter Power",
+          "friendlyName": "SolaX Inverter Power",
           "cSharpName": "SolaxInverterInverterPower"
         },
         {
           "id": "sensor.solax_inverter_inverter_temperature",
-          "friendlyName": "SolaX Inverter Inverter Temperature",
+          "friendlyName": "SolaX Inverter Temperature",
           "cSharpName": "SolaxInverterInverterTemperature"
         },
         {
           "id": "sensor.solax_inverter_inverter_voltage",
-          "friendlyName": "SolaX Inverter Inverter Voltage",
+          "friendlyName": "SolaX Inverter Voltage",
           "cSharpName": "SolaxInverterInverterVoltage"
         },
         {
           "id": "sensor.solax_inverter_measured_power",
-          "friendlyName": "SolaX Inverter Measured Power",
+          "friendlyName": "SolaX Measured Power",
           "cSharpName": "SolaxInverterMeasuredPower"
         },
         {
           "id": "sensor.solax_inverter_pv_current_1",
-          "friendlyName": "SolaX Inverter PV Current 1",
+          "friendlyName": "SolaX PV Current 1",
           "cSharpName": "SolaxInverterPvCurrent1"
         },
         {
           "id": "sensor.solax_inverter_pv_current_2",
-          "friendlyName": "SolaX Inverter PV Current 2",
+          "friendlyName": "SolaX PV Current 2",
           "cSharpName": "SolaxInverterPvCurrent2"
         },
         {
           "id": "sensor.solax_inverter_pv_current_3",
-          "friendlyName": "SolaX Inverter PV Current 3",
+          "friendlyName": "SolaX PV Current 3",
           "cSharpName": "SolaxInverterPvCurrent3"
         },
         {
           "id": "sensor.solax_inverter_pv_power_1",
-          "friendlyName": "SolaX Inverter PV Power 1",
+          "friendlyName": "SolaX PV Power 1",
           "cSharpName": "SolaxInverterPvPower1"
         },
         {
           "id": "sensor.solax_inverter_pv_power_2",
-          "friendlyName": "SolaX Inverter PV Power 2",
+          "friendlyName": "SolaX PV Power 2",
           "cSharpName": "SolaxInverterPvPower2"
         },
         {
           "id": "sensor.solax_inverter_pv_power_3",
-          "friendlyName": "SolaX Inverter PV Power 3",
+          "friendlyName": "SolaX PV Power 3",
           "cSharpName": "SolaxInverterPvPower3"
         },
         {
           "id": "sensor.solax_inverter_pv_power_total",
-          "friendlyName": "SolaX Inverter PV Power Total",
+          "friendlyName": "SolaX PV Power Total",
           "cSharpName": "SolaxInverterPvPowerTotal"
         },
         {
           "id": "sensor.solax_inverter_pv_voltage_1",
-          "friendlyName": "SolaX Inverter PV Voltage 1",
+          "friendlyName": "SolaX PV Voltage 1",
           "cSharpName": "SolaxInverterPvVoltage1"
         },
         {
           "id": "sensor.solax_inverter_pv_voltage_2",
-          "friendlyName": "SolaX Inverter PV Voltage 2",
+          "friendlyName": "SolaX PV Voltage 2",
           "cSharpName": "SolaxInverterPvVoltage2"
         },
         {
           "id": "sensor.solax_inverter_pv_voltage_3",
-          "friendlyName": "SolaX Inverter PV Voltage 3",
+          "friendlyName": "SolaX PV Voltage 3",
           "cSharpName": "SolaxInverterPvVoltage3"
         },
         {
           "id": "sensor.solax_inverter_reactive_power_lower",
-          "friendlyName": "SolaX Inverter Reactive Power Lower",
+          "friendlyName": "SolaX Reactive Power Lower",
           "cSharpName": "SolaxInverterReactivePowerLower"
         },
         {
           "id": "sensor.solax_inverter_reactive_power_real",
-          "friendlyName": "SolaX Inverter Reactive Power Real",
+          "friendlyName": "SolaX Reactive Power Real",
           "cSharpName": "SolaxInverterReactivePowerReal"
         },
         {
           "id": "sensor.solax_inverter_reactive_power_target",
-          "friendlyName": "SolaX Inverter Reactive Power Target",
+          "friendlyName": "SolaX Reactive Power Target",
           "cSharpName": "SolaxInverterReactivePowerTarget"
         },
         {
           "id": "sensor.solax_inverter_reactive_power_upper",
-          "friendlyName": "SolaX Inverter Reactive Power Upper",
+          "friendlyName": "SolaX Reactive Power Upper",
           "cSharpName": "SolaxInverterReactivePowerUpper"
         },
         {
           "id": "sensor.solax_inverter_remotecontrol_autorepeat_remaining",
-          "friendlyName": "SolaX Inverter Remotecontrol Autorepeat Remaining",
+          "friendlyName": "SolaX Remotecontrol Autorepeat Remaining",
           "cSharpName": "SolaxInverterRemotecontrolAutorepeatRemaining"
         },
         {
           "id": "sensor.solax_inverter_today_s_export_energy",
-          "friendlyName": "SolaX Inverter Today\u0027s Export Energy",
+          "friendlyName": "SolaX Today\u0027s Export Energy",
           "cSharpName": "SolaxInverterTodaySExportEnergy"
         },
         {
           "id": "sensor.solax_inverter_today_s_import_energy",
-          "friendlyName": "SolaX Inverter Today\u0027s Import Energy",
+          "friendlyName": "SolaX Today\u0027s Import Energy",
           "cSharpName": "SolaxInverterTodaySImportEnergy"
         },
         {
           "id": "sensor.solax_inverter_today_s_solar_energy",
-          "friendlyName": "SolaX Inverter Today\u0027s Solar Energy",
+          "friendlyName": "SolaX Today\u0027s Solar Energy",
           "cSharpName": "SolaxInverterTodaySSolarEnergy"
         },
         {
           "id": "sensor.solax_inverter_today_s_yield",
-          "friendlyName": "SolaX Inverter Today\u0027s Yield",
+          "friendlyName": "SolaX Today\u0027s Yield",
           "cSharpName": "SolaxInverterTodaySYield"
         },
         {
           "id": "sensor.solax_inverter_total_battery_power_charge",
-          "friendlyName": "SolaX Inverter Total Battery Power Charge",
+          "friendlyName": "SolaX Total Battery Power Charge",
           "cSharpName": "SolaxInverterTotalBatteryPowerCharge"
         },
         {
           "id": "sensor.solax_inverter_total_solar_energy",
-          "friendlyName": "SolaX Inverter Total Solar Energy",
+          "friendlyName": "SolaX Total Solar Energy",
           "cSharpName": "SolaxInverterTotalSolarEnergy"
         },
         {
           "id": "sensor.solax_inverter_total_yield",
-          "friendlyName": "SolaX Inverter Total Yield",
+          "friendlyName": "SolaX Total Yield",
           "cSharpName": "SolaxInverterTotalYield"
         },
         {
@@ -4407,6 +4472,21 @@
           "id": "switch.dining_room_radiator_switch",
           "friendlyName": "Dining Room - Radiator Switch",
           "cSharpName": "DiningRoomRadiatorSwitch"
+        },
+        {
+          "id": "switch.enable_grid_to_battery_sensors",
+          "friendlyName": "Enable Grid to Battery Sensors",
+          "cSharpName": "EnableGridToBatterySensors"
+        },
+        {
+          "id": "switch.enable_home_consumption_sensor",
+          "friendlyName": "Enable Home Consumption Sensor",
+          "cSharpName": "EnableHomeConsumptionSensor"
+        },
+        {
+          "id": "switch.enable_pv_variant_detail_sensors",
+          "friendlyName": "Enable PV Variant Detail Sensors",
+          "cSharpName": "EnablePvVariantDetailSensors"
         },
         {
           "id": "switch.games_room_desk_plug",

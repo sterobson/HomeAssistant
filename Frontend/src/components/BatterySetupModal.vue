@@ -191,14 +191,6 @@
               />
             </div>
 
-            <div class="form-group">
-              <label>House power sensor</label>
-              <SearchableSelect
-                v-model="form.housePowerSensorId"
-                :options="powerSensorEntities"
-                placeholder="Select sensor..."
-              />
-            </div>
           </template>
         </div>
       </template>
@@ -263,8 +255,7 @@ const form = reactive({
   gridImportPowerSensorId: '',
   gridExportPowerSensorId: '',
   solarPowerSensorId: '',
-  batteryPowerSensorId: '',
-  housePowerSensorId: ''
+  batteryPowerSensorId: ''
 })
 
 // Find an entity by exact ID, returning the ID if it exists
@@ -296,8 +287,7 @@ const defaults = {
   gridImportPowerSensorId: 'sensor.solax_inverter_grid_import',
   gridExportPowerSensorId: 'sensor.solax_inverter_grid_export',
   solarPowerSensorId: 'sensor.solax_inverter_pv_power_total',
-  batteryPowerSensorId: 'sensor.solax_inverter_total_battery_power_charge',
-  housePowerSensorId: 'sensor.hypervolt_house_power'
+  batteryPowerSensorId: 'sensor.solax_inverter_total_battery_power_charge'
 }
 
 function resolveDefault(key) {
@@ -338,7 +328,6 @@ onMounted(async () => {
       form.gridExportPowerSensorId = rp.gridExportPowerSensorId || ''
       form.solarPowerSensorId = rp.solarPowerSensorId || ''
       form.batteryPowerSensorId = rp.batteryPowerSensorId || ''
-      form.housePowerSensorId = rp.housePowerSensorId || ''
     }
 
     // Auto-populate empty fields with defaults if matching entities exist
@@ -382,8 +371,7 @@ async function handleSave() {
         gridImportPowerSensorId: form.gridImportPowerSensorId || null,
         gridExportPowerSensorId: form.gridExportPowerSensorId || null,
         solarPowerSensorId: form.solarPowerSensorId || null,
-        batteryPowerSensorId: form.batteryPowerSensorId || null,
-        housePowerSensorId: form.housePowerSensorId || null
+        batteryPowerSensorId: form.batteryPowerSensorId || null
       }
     }
 

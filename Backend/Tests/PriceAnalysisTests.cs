@@ -337,19 +337,26 @@ public sealed class PriceAnalysisTests
     }
 
     [TestMethod]
-    public void FindMinimaRegionBoundaries_MinimaAtEdge_NotDetected()
+    public void FindMinimaRegionBoundaries_LowPriceAtEdge_DetectedWhenBelowAverage()
     {
-        // A minimum at the very start or end doesn't have both neighbours
+        // With the average-based algorithm, a low price at the edge IS detected
+        // because it falls below 75% of the day's average.
+        // Average = (30*5 + 30*20 + (1440-60)*30) / 1440 ≈ 29.27, threshold ≈ 21.95
+        // Both 5p and 20p are below the threshold → both are in the cheap region
         List<PricingSlot> slots =
         [
-            new() { TimeMinutes = 0, ImportPrice = 5 },   // low at start - no prev
+            new() { TimeMinutes = 0, ImportPrice = 5 },
             new() { TimeMinutes = 30, ImportPrice = 20 },
             new() { TimeMinutes = 60, ImportPrice = 30 },
         ];
 
         List<PriceBoundary> boundaries = PriceAnalysis.FindMinimaRegionBoundaries(slots, s => s.ImportPrice);
 
-        boundaries.ShouldBeEmpty();
+        boundaries.Count.ShouldBe(2);
+        PriceBoundary start = boundaries.First(b => b.BoundaryType == "start");
+        PriceBoundary end = boundaries.First(b => b.BoundaryType == "end");
+        start.TimeMinutes.ShouldBe(0);
+        end.TimeMinutes.ShouldBe(60);
     }
 
     // ========================================================================
@@ -411,6 +418,70 @@ public sealed class PriceAnalysisTests
     }
 
     // ========================================================================
+    // ========================================================================
+    // CalculateAveragePrice
+    // ========================================================================
+
+    [TestMethod]
+    public void CalculateAveragePrice_CozyTariff_ReturnsWeightedAverage()
+    {
+        // Cozy: 0:00-2:00 27.5p, 2:00-5:00 16.5p, 5:00-16:00 27.5p, 16:00-19:00 38.5p, 19:00-0:00 27.5p
+        // Weighted: (120×27.5 + 180×16.5 + 660×27.5 + 180×38.5 + 300×27.5) / 1440 = 27.5
+        List<PricingSlot> slots = BuildCozyTariffSlots();
+
+        double? avg = PriceAnalysis.CalculateAveragePrice(slots, s => s.ImportPrice);
+
+        avg.ShouldNotBeNull();
+        avg.Value.ShouldBe(27.5, 0.01);
+    }
+
+    [TestMethod]
+    public void CalculateAveragePrice_CozyTariffWithExport_ReturnsCorrectExportAverage()
+    {
+        // Export prices: 0:00-2:00 9.7, 2:00-5:00 4.2, 5:00-16:00 9.7, 16:00-19:00 27.7, 19:00-0:00 9.7
+        // Weighted: (120×9.7 + 180×4.2 + 660×9.7 + 180×27.7 + 300×9.7) / 1440 ≈ 11.2625
+        List<PricingSlot> slots = [];
+        for (int minutes = 0; minutes < 1440; minutes += 30)
+        {
+            (double importPrice, double exportPrice) = minutes switch
+            {
+                >= 0 and < 120 => (27.5, 9.7),
+                >= 120 and < 300 => (16.5, 4.2),
+                >= 300 and < 960 => (27.5, 9.7),
+                >= 960 and < 1140 => (38.5, 27.7),
+                _ => (27.5, 9.7)
+            };
+            slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = exportPrice });
+        }
+
+        double? avg = PriceAnalysis.CalculateAveragePrice(slots, s => s.ExportPrice);
+
+        avg.ShouldNotBeNull();
+        avg.Value.ShouldBe(11.2625, 0.01);
+    }
+
+    [TestMethod]
+    public void CalculateAveragePrice_FlatPricing_ReturnsExactValue()
+    {
+        List<PricingSlot> slots =
+        [
+            new() { TimeMinutes = 0, ImportPrice = 20 },
+            new() { TimeMinutes = 720, ImportPrice = 20 },
+        ];
+
+        double? avg = PriceAnalysis.CalculateAveragePrice(slots, s => s.ImportPrice);
+
+        avg.ShouldBe(20.0);
+    }
+
+    [TestMethod]
+    public void CalculateAveragePrice_EmptyData_ReturnsNull()
+    {
+        double? avg = PriceAnalysis.CalculateAveragePrice([], s => s.ImportPrice);
+
+        avg.ShouldBeNull();
+    }
+
     // Edge-of-data: no false positives (Cozy/3-rate tariff scenario)
     // ========================================================================
 

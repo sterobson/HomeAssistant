@@ -16,6 +16,7 @@ internal class BatteryHistoryPushService
 
     private DateTimeOffset _lastPushTime = DateTimeOffset.MinValue;
     private CancellationTokenSource _delayCts = new();
+    private readonly object _ctsLock = new();
 
     public BatteryHistoryPushService(
         IHomeBattery homeBattery,
@@ -45,32 +46,46 @@ internal class BatteryHistoryPushService
     {
         while (true)
         {
-            DateTimeOffset now = _timeProvider.GetUtcNow();
-            TimeSpan sinceLastPush = now - _lastPushTime;
-            TimeSpan delay = MaxPushInterval - sinceLastPush;
-
-            if (delay > TimeSpan.Zero)
+            try
             {
-                try
+                DateTimeOffset now = _timeProvider.GetUtcNow();
+                TimeSpan sinceLastPush = now - _lastPushTime;
+                TimeSpan delay = MaxPushInterval - sinceLastPush;
+
+                if (delay > TimeSpan.Zero)
                 {
-                    await Task.Delay(delay, _delayCts.Token);
+                    CancellationToken token;
+                    lock (_ctsLock)
+                    {
+                        token = _delayCts.Token;
+                    }
+
+                    try
+                    {
+                        await Task.Delay(delay, token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        continue;
+                    }
                 }
-                catch (TaskCanceledException)
+
+                double? currentPercent = _homeBattery.CurrentChargePercent;
+                if (currentPercent == null)
                 {
+                    await Task.Delay(TimeSpan.FromMinutes(1));
                     continue;
                 }
-            }
 
-            double? currentPercent = _homeBattery.CurrentChargePercent;
-            if (currentPercent == null)
+                _logger.LogDebug("No battery push in {Minutes} minutes, pushing current state",
+                    (int)(_timeProvider.GetUtcNow() - _lastPushTime).TotalMinutes);
+                await PushBatteryStateAsync(currentPercent.Value);
+            }
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Unexpected error in periodic battery push loop, will retry");
                 await Task.Delay(TimeSpan.FromMinutes(1));
-                continue;
             }
-
-            _logger.LogDebug("No battery push in {Minutes} minutes, pushing current state",
-                (int)(_timeProvider.GetUtcNow() - _lastPushTime).TotalMinutes);
-            await PushBatteryStateAsync(currentPercent.Value);
         }
     }
 
@@ -98,8 +113,11 @@ internal class BatteryHistoryPushService
             string date = _timeProvider.GetLocalNow().DateTime.ToString("yyyy-MM-dd");
             await _historyApiClient.PostBatteryStateAsync(_configuration.HouseId, percent, null, date);
             _lastPushTime = _timeProvider.GetUtcNow();
-            _delayCts.Cancel();
-            _delayCts = new CancellationTokenSource();
+            lock (_ctsLock)
+            {
+                _delayCts.Cancel();
+                _delayCts = new CancellationTokenSource();
+            }
             _logger.LogDebug("Pushed battery state {Percent}% for date {Date}", percent, date);
         }
         catch (Exception ex)

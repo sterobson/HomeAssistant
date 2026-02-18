@@ -42,7 +42,12 @@
       "Bash(findstr:*)",
       "Bash(dotnet-ildasm:*)",
       "WebFetch(domain:netdaemon.xyz)",
-      "Bash(node scripts/generate-icons.js:*)"
+      "Bash(node scripts/generate-icons.js:*)",
+      "Bash(dir:*)",
+      "Bash(test:*)",
+      "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" ls-files -- \"*PriceAnalysis*\")",
+      "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" show HEAD:Backend/App/Services/Energy/PriceAnalysis.cs)",
+      "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" show HEAD:\"Backend/App/Services/Energy/PriceAnalysis.cs\")"
     ],
     "deny": [],
     "ask": []

@@ -157,76 +157,95 @@ export function findDecreaseBoundaries(data, priceKey) {
 }
 
 /**
- * Find start/end of local minima regions (price dips).
- * A minima region is a contiguous plateau of equal values that is strictly
- * lower than both the preceding and following price levels.
- * Start = first slot of the dip; End = first slot after the dip.
+ * Calculate duration-weighted average price across a full day (0–1440 minutes).
+ * Each slot's price applies from its timeMinutes until the next slot starts.
+ * The first slot's price back-fills to minute 0; the last slot's price forward-fills to 1440.
+ * Returns null if data is empty.
+ */
+export function calculateAveragePrice(data, priceKey) {
+  if (!data || data.length === 0) return null
+
+  // Filter to today-only slots (0–1440) and sort by time
+  const slots = data
+    .filter(d => d.timeMinutes >= 0 && d.timeMinutes <= 1440)
+    .sort((a, b) => a.timeMinutes - b.timeMinutes)
+
+  if (slots.length === 0) return null
+
+  let weightedSum = 0
+  for (let i = 0; i < slots.length; i++) {
+    const start = i === 0 ? 0 : slots[i].timeMinutes
+    const end = i < slots.length - 1 ? slots[i + 1].timeMinutes : 1440
+    const duration = end - start
+    weightedSum += slots[i][priceKey] * duration
+  }
+
+  return weightedSum / 1440
+}
+
+/**
+ * Find start/end of below-average price regions.
+ * A region is "cheap" when the price drops to 25%+ below the day's average
+ * (i.e. price <= average × 0.75).
+ * Returns pairs of { ...slot, boundaryType: 'start'|'end' } boundaries.
  */
 export function findMinimaRegionBoundaries(data, priceKey) {
+  const avg = calculateAveragePrice(data, priceKey)
+  if (avg === null) return []
+
+  const threshold = avg * 0.75
   const boundaries = []
-  let i = 0
+  let inRegion = false
 
-  while (i < data.length) {
-    // Find end of current plateau
-    let j = i
-    while (j < data.length - 1 && data[j + 1][priceKey] === data[i][priceKey]) {
-      j++
-    }
-
-    const currVal = data[i][priceKey]
-    const prevVal = i > 0 ? data[i - 1][priceKey] : null
-    const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
-
-    // A plateau is a minima if it's lower than both neighbours.
-    // Both neighbours must exist — edge-of-data plateaus are not minima.
-    if (prevVal !== null && nextVal !== null && currVal < prevVal && currVal < nextVal) {
+  for (let i = 0; i < data.length; i++) {
+    const cheap = data[i][priceKey] <= threshold
+    if (cheap && !inRegion) {
       boundaries.push({ ...data[i], boundaryType: 'start' })
-      if (j < data.length - 1) {
-        boundaries.push({ ...data[j + 1], boundaryType: 'end' })
-      } else {
-        // Region extends to end of day — synthesize an end boundary at 1440
-        boundaries.push({ ...data[j], timeMinutes: 1440, boundaryType: 'end' })
-      }
+      inRegion = true
+    } else if (!cheap && inRegion) {
+      boundaries.push({ ...data[i], boundaryType: 'end' })
+      inRegion = false
     }
-
-    i = j + 1
   }
+
+  // If still in a cheap region at end of data, synthesize end at 1440
+  if (inRegion) {
+    boundaries.push({ ...data[data.length - 1], timeMinutes: 1440, boundaryType: 'end' })
+  }
+
   return boundaries
 }
 
 /**
- * Find start/end of local maxima regions (price spikes).
- * A maxima region is a contiguous plateau of equal values that is strictly
- * higher than both the preceding and following price levels.
- * Start = first slot of the spike; End = first slot after the spike.
+ * Find start/end of above-average price regions.
+ * A region is "expensive" when the price rises to 25%+ above the day's average
+ * (i.e. price >= average × 1.25).
+ * Returns pairs of { ...slot, boundaryType: 'start'|'end' } boundaries.
  */
 export function findMaximaRegionBoundaries(data, priceKey) {
+  const avg = calculateAveragePrice(data, priceKey)
+  if (avg === null) return []
+
+  const threshold = avg * 1.25
   const boundaries = []
-  let i = 0
+  let inRegion = false
 
-  while (i < data.length) {
-    let j = i
-    while (j < data.length - 1 && data[j + 1][priceKey] === data[i][priceKey]) {
-      j++
-    }
-
-    const currVal = data[i][priceKey]
-    const prevVal = i > 0 ? data[i - 1][priceKey] : null
-    const nextVal = j < data.length - 1 ? data[j + 1][priceKey] : null
-
-    // A plateau is a maxima if it's higher than both neighbours.
-    // Both neighbours must exist — edge-of-data plateaus are not maxima.
-    if (prevVal !== null && nextVal !== null && currVal > prevVal && currVal > nextVal) {
+  for (let i = 0; i < data.length; i++) {
+    const expensive = data[i][priceKey] >= threshold
+    if (expensive && !inRegion) {
       boundaries.push({ ...data[i], boundaryType: 'start' })
-      if (j < data.length - 1) {
-        boundaries.push({ ...data[j + 1], boundaryType: 'end' })
-      } else {
-        boundaries.push({ ...data[j], timeMinutes: 1440, boundaryType: 'end' })
-      }
+      inRegion = true
+    } else if (!expensive && inRegion) {
+      boundaries.push({ ...data[i], boundaryType: 'end' })
+      inRegion = false
     }
-
-    i = j + 1
   }
+
+  // If still in an expensive region at end of data, synthesize end at 1440
+  if (inRegion) {
+    boundaries.push({ ...data[data.length - 1], timeMinutes: 1440, boundaryType: 'end' })
+  }
+
   return boundaries
 }
 

@@ -826,6 +826,7 @@ public sealed class BatteryZoneResolverTests
     {
         // Tariff: 23:30-05:30 at 7p, 05:30-23:30 at 29.9p
         // Extended slots: today + tomorrow's first 2 shifted by +1440
+        // Average-based detection finds TWO cheap regions: 0-330 (morning) and 1410-1770 (cross-midnight)
         List<PricingSlot> slots =
         [
             new() { TimeMinutes = 0, ImportPrice = 7, ExportPrice = 5 },
@@ -846,12 +847,15 @@ public sealed class BatteryZoneResolverTests
 
         List<ResolvedZone> zones = BatteryZoneResolver.EvaluateZoneRule(rule, slots);
 
-        // Should produce a zone starting at 1410 and ending at 1770
-        zones.Count.ShouldBe(1);
-        zones[0].StartMinutes.ShouldBe(1410);
-        zones[0].EndMinutes.ShouldBe(1770);
+        // Two cheap regions: morning (0-330) and cross-midnight (1410-1770)
+        zones.Count.ShouldBe(2);
+        zones[0].StartMinutes.ShouldBe(0);
+        zones[0].EndMinutes.ShouldBe(330);
         zones[0].Action.ShouldBe(BatteryZoneAction.Import);
-        zones[0].TargetPercent.ShouldBe(80);
+        zones[1].StartMinutes.ShouldBe(1410);
+        zones[1].EndMinutes.ShouldBe(1770);
+        zones[1].Action.ShouldBe(BatteryZoneAction.Import);
+        zones[1].TargetPercent.ShouldBe(80);
     }
 
     [TestMethod]
@@ -946,8 +950,189 @@ public sealed class BatteryZoneResolverTests
     }
 
     // ========================================================================
+    // Average-based detection: Cozy tariff with export prices
+    // ========================================================================
+
+    [TestMethod]
+    public void CozyTariffWithExport_HighExportAndCheapImportRules_ResolvesExactlyTwoZones()
+    {
+        // Pricing: 0:00→2:00 (27.5/9.7), 2:00→5:00 (16.5/4.2), 5:00→16:00 (27.5/9.7),
+        //          16:00→19:00 (38.5/27.7), 19:00→24:00 (27.5/9.7)
+        // Import avg = 27.5, export avg ≈ 11.26
+        // Cheap import threshold: 27.5 × 0.75 = 20.625 → 16.5 qualifies (2:00-5:00)
+        // High export threshold: 11.26 × 1.25 ≈ 14.08 → 27.7 qualifies (16:00-19:00)
+        List<PricingSlot> slots = BuildCozyTariffWithExportSlots();
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "high-export",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveExport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveExport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 10
+                },
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+
+        zones.Count.ShouldBe(2);
+
+        ResolvedZone importZone = zones.First(z => z.Action == BatteryZoneAction.Import);
+        importZone.StartMinutes.ShouldBe(120);   // 02:00
+        importZone.EndMinutes.ShouldBe(300);     // 05:00
+        importZone.TargetPercent.ShouldBe(100);
+
+        ResolvedZone exportZone = zones.First(z => z.Action == BatteryZoneAction.Export);
+        exportZone.StartMinutes.ShouldBe(960);   // 16:00
+        exportZone.EndMinutes.ShouldBe(1140);    // 19:00
+        exportZone.TargetPercent.ShouldBe(10);
+    }
+
+    [TestMethod]
+    // Import zone: 2:00 (120) to 5:00 (300)
+    [DataRow(119, false, "1:59 - before import zone → normal use")]
+    [DataRow(120, true, "2:00 - at import zone start → force charge")]
+    [DataRow(299, true, "4:59 - last minute of import zone → force charge")]
+    [DataRow(301, false, "5:01 - after import zone → normal use")]
+    // Export zone: 16:00 (960) to 19:00 (1140)
+    [DataRow(960, true, "16:00 - at export zone start → force export")]
+    [DataRow(1139, true, "18:59 - last minute of export zone → force export")]
+    [DataRow(1141, false, "19:01 - after export zone → normal use")]
+    public void CozyTariffWithExport_BatteryModeAtSpecificTimes(int currentMinutes, bool expectActiveZone, string reason)
+    {
+        List<PricingSlot> slots = BuildCozyTariffWithExportSlots();
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "high-export",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveExport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveExport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 10
+                },
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+        ResolvedZone? activeZone = BatteryControlService.FindBestZone(zones, currentMinutes);
+
+        if (expectActiveZone)
+        {
+            activeZone.ShouldNotBeNull(reason);
+        }
+        else
+        {
+            activeZone.ShouldBeNull(reason);
+        }
+    }
+
+    [TestMethod]
+    // Battery at 50%, import zone target 100% → should force charge (50 < 100-2)
+    [DataRow(120, "Import", "2:00 at 50% → force charge")]
+    [DataRow(299, "Import", "4:59 at 50% → force charge")]
+    // Battery at 50%, export zone target 10% → should force export (50 > 10+2)
+    [DataRow(960, "Export", "16:00 at 50% → force export")]
+    [DataRow(1139, "Export", "18:59 at 50% → force export")]
+    // Outside zones → normal use
+    [DataRow(119, "NormalTOU", "1:59 → normal use")]
+    [DataRow(301, "NormalTOU", "5:01 → normal use")]
+    [DataRow(1141, "NormalTOU", "19:01 → normal use")]
+    public void CozyTariffWithExport_BatteryStateAt50Percent(int currentMinutes, string expectedAction, string reason)
+    {
+        List<PricingSlot> slots = BuildCozyTariffWithExportSlots();
+
+        BatteryZoneRules rules = new()
+        {
+            Rules =
+            [
+                new BatteryZoneRule
+                {
+                    Id = "high-export",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfExpensiveExport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfExpensiveExport },
+                    Action = BatteryZoneAction.Export,
+                    TargetPercent = 10
+                },
+                new BatteryZoneRule
+                {
+                    Id = "cheap-import",
+                    StartTime = new TimeDefinition { Type = TimeDefinitionType.StartOfCheapImport },
+                    EndTime = new TimeDefinition { Type = TimeDefinitionType.EndOfCheapImport },
+                    Action = BatteryZoneAction.Import,
+                    TargetPercent = 100
+                }
+            ]
+        };
+
+        List<ResolvedZone> zones = BatteryZoneResolver.ResolveAllZones(rules, slots);
+        ResolvedZone? activeZone = BatteryControlService.FindBestZone(zones, currentMinutes);
+
+        switch (expectedAction)
+        {
+            case "Import":
+                activeZone.ShouldNotBeNull(reason);
+                activeZone.Action.ShouldBe(BatteryZoneAction.Import, reason);
+                break;
+            case "Export":
+                activeZone.ShouldNotBeNull(reason);
+                activeZone.Action.ShouldBe(BatteryZoneAction.Export, reason);
+                break;
+            case "NormalTOU":
+                activeZone.ShouldBeNull(reason);
+                break;
+        }
+    }
+
+    // ========================================================================
     // Helpers
     // ========================================================================
+
+    private static List<PricingSlot> BuildCozyTariffWithExportSlots()
+    {
+        // Cozy tariff with export prices:
+        // 0:00-2:00 import 27.5/export 9.7, 2:00-5:00 import 16.5/export 4.2,
+        // 5:00-16:00 import 27.5/export 9.7, 16:00-19:00 import 38.5/export 27.7,
+        // 19:00-0:00 import 27.5/export 9.7
+        List<PricingSlot> slots = [];
+        for (int minutes = 0; minutes < 1440; minutes += 30)
+        {
+            (double importPrice, double exportPrice) = minutes switch
+            {
+                >= 0 and < 120 => (27.5, 9.7),
+                >= 120 and < 300 => (16.5, 4.2),
+                >= 300 and < 960 => (27.5, 9.7),
+                >= 960 and < 1140 => (38.5, 27.7),
+                _ => (27.5, 9.7)
+            };
+            slots.Add(new PricingSlot { TimeMinutes = minutes, ImportPrice = importPrice, ExportPrice = exportPrice });
+        }
+        return slots;
+    }
 
     private static List<PricingSlot> BuildFluxDaySlots()
     {

@@ -17,7 +17,6 @@ internal class PowerMonitorService
 
     private NumericSensorEntity? _solarPowerSensor;
     private NumericSensorEntity? _batteryPowerSensor;
-    private NumericSensorEntity? _housePowerSensor;
     private NumericSensorEntity? _gridImportPowerSensor;
     private NumericSensorEntity? _gridExportPowerSensor;
 
@@ -74,7 +73,6 @@ internal class PowerMonitorService
 
         _solarPowerSensor = BindSensor(power?.SolarPowerSensorId, "Solar power sensor");
         _batteryPowerSensor = BindSensor(power?.BatteryPowerSensorId, "Battery power sensor");
-        _housePowerSensor = BindSensor(power?.HousePowerSensorId, "House power sensor");
         _gridImportPowerSensor = BindSensor(power?.GridImportPowerSensorId, "Grid import power sensor");
         _gridExportPowerSensor = BindSensor(power?.GridExportPowerSensorId, "Grid export power sensor");
     }
@@ -102,8 +100,7 @@ internal class PowerMonitorService
         CancellationToken token = _monitorCts!.Token;
 
         if (_solarPowerSensor == null || _batteryPowerSensor == null ||
-            _housePowerSensor == null || _gridImportPowerSensor == null ||
-            _gridExportPowerSensor == null)
+            _gridImportPowerSensor == null || _gridExportPowerSensor == null)
         {
             _logger.LogWarning("Power monitor cannot start — not all sensors are configured");
             return;
@@ -127,10 +124,12 @@ internal class PowerMonitorService
             {
                 double solarW = _solarPowerSensor.State ?? 0;
                 double batteryW = _batteryPowerSensor.State ?? 0;
-                double houseW = _housePowerSensor.State ?? 0;
                 double gridImportW = _gridImportPowerSensor.State ?? 0;
                 double gridExportW = _gridExportPowerSensor.State ?? 0;
                 double gridW = gridImportW - gridExportW;
+                // Calculate house consumption from energy balance:
+                // house = solar + grid(net) - battery(charging)
+                double houseW = Math.Max(0, solarW + gridW - batteryW);
 
                 try
                 {

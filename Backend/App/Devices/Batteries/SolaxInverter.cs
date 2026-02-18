@@ -4,6 +4,7 @@ using HomeAssistant.Shared;
 using HomeAssistantGenerated;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.Batteries;
@@ -28,7 +29,7 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
     private readonly List<Func<Task>> _batteryUseModeCallbacks = [];
     private List<IDisposable> _subscriptions = [];
     private bool _subscriptionsActive;
-    private readonly object _rebindLock = new();
+    private readonly SemaphoreSlim _rebindLock = new(1, 1);
 
     public double? CurrentChargePercent => _batteryChargePercentSensor?.State;
 
@@ -149,7 +150,14 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
             foreach (Func<ValueChange<double?, NumericSensorEntity>, Task> callback in _batteryChargePercentCallbacks)
             {
-                await callback(valueChange);
+                try
+                {
+                    await callback(valueChange);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error in battery charge percent callback");
+                }
             }
         });
         _subscriptions.Add(subscription);
@@ -165,7 +173,14 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             {
                 foreach (Func<Task> callback in _batteryUseModeCallbacks)
                 {
-                    await callback();
+                    try
+                    {
+                        await callback();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in battery use mode callback");
+                    }
                 }
             });
             _subscriptions.Add(useModeSubscription);
@@ -177,7 +192,14 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             {
                 foreach (Func<Task> callback in _batteryUseModeCallbacks)
                 {
-                    await callback();
+                    try
+                    {
+                        await callback();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in battery manual mode callback");
+                    }
                 }
             });
             _subscriptions.Add(manualModeSubscription);
@@ -186,7 +208,8 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     private async Task RebindEntitiesAsync()
     {
-        lock (_rebindLock)
+        await _rebindLock.WaitAsync();
+        try
         {
             foreach (IDisposable subscription in _subscriptions)
             {
@@ -194,13 +217,16 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
             }
             _subscriptions = [];
 
-            BindEntities(_settingsPersistence.GetSettingsAsync().GetAwaiter().GetResult());
+            DeviceSettingsDto settings = await _settingsPersistence.GetSettingsAsync();
+            BindEntities(settings);
 
             SubscribeToBatteryChargePercent();
             SubscribeToBatteryUseMode();
         }
-
-        await Task.CompletedTask;
+        finally
+        {
+            _rebindLock.Release();
+        }
     }
 
     public BatteryState GetHomeBatteryState()

@@ -3,6 +3,7 @@ using HomeAssistant.Services;
 using HomeAssistant.Shared;
 using HomeAssistantGenerated;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Devices.CarChargers;
@@ -17,7 +18,7 @@ internal class HypervoltPro3 : ICarCharger
     private NumericSensorEntity? _chargerCurrentSensor;
     private Func<ValueChange<double?, NumericSensorEntity>, Task>? _chargerCurrentCallback;
     private List<IDisposable> _subscriptions = [];
-    private readonly object _rebindLock = new();
+    private readonly SemaphoreSlim _rebindLock = new(1, 1);
 
     public double? ChargerCurrent => _chargerCurrentSensor?.State;
 
@@ -72,15 +73,23 @@ internal class HypervoltPro3 : ICarCharger
         Func<ValueChange<double?, NumericSensorEntity>, Task> callback = _chargerCurrentCallback;
         IDisposable subscription = sensor.StateChanges().SubscribeAsync(async value =>
         {
-            ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
-            await callback(valueChange);
+            try
+            {
+                ValueChange<double?, NumericSensorEntity> valueChange = new(value.Old?.State, value.New?.State, sensor);
+                await callback(valueChange);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in charger current change callback");
+            }
         });
         _subscriptions.Add(subscription);
     }
 
     private async Task RebindEntitiesAsync()
     {
-        lock (_rebindLock)
+        await _rebindLock.WaitAsync();
+        try
         {
             foreach (IDisposable subscription in _subscriptions)
             {
@@ -88,12 +97,15 @@ internal class HypervoltPro3 : ICarCharger
             }
             _subscriptions = [];
 
-            BindEntities(_settingsPersistence.GetSettingsAsync().GetAwaiter().GetResult());
+            DeviceSettingsDto settings = await _settingsPersistence.GetSettingsAsync();
+            BindEntities(settings);
 
             SubscribeToChargerCurrent();
         }
-
-        await Task.CompletedTask;
+        finally
+        {
+            _rebindLock.Release();
+        }
     }
 
     public async Task<IReadOnlyList<NumericHistoryEntry>> GetChargerCurrentHistoryEntriesAsync(DateTime from, DateTime to)
