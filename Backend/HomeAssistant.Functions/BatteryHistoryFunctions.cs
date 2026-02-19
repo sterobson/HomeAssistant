@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Primitives;
-using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace HomeAssistant.Functions;
@@ -16,15 +15,6 @@ public class BatteryHistoryFunctions
     private readonly ILogger<BatteryHistoryFunctions> _logger;
     private readonly BatteryHistoryStorageService _historyService;
     private readonly SignalRService _signalRService;
-
-    private static readonly ConcurrentDictionary<string, LastBatteryState> _lastStates = new();
-
-    private class LastBatteryState
-    {
-        public double BatteryPercent { get; set; }
-        public double? PowerWatts { get; set; }
-        public DateTimeOffset RecordedAt { get; set; }
-    }
 
     public BatteryHistoryFunctions(ILogger<BatteryHistoryFunctions> logger, SignalRService signalRService)
     {
@@ -131,78 +121,33 @@ public class BatteryHistoryFunctions
             }
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
-            bool shouldRecord = false;
-            string reason = string.Empty;
 
-            if (_lastStates.TryGetValue(houseId, out LastBatteryState? lastState))
+            await _historyService.SaveHistoryPointAsync(
+                houseId,
+                stateRequest.Date,
+                stateRequest.BatteryPercent,
+                stateRequest.PowerWatts,
+                now
+            );
+
+            _logger.LogDebug("Recorded battery state for house {HouseId}", houseId);
+
+            // Send SignalR notification
+            try
             {
-                // Record if battery% changed by >= 1%
-                double percentDiff = Math.Abs(stateRequest.BatteryPercent - lastState.BatteryPercent);
-                if (percentDiff >= 1.0)
+                await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "battery-state-changed", new
                 {
-                    shouldRecord = true;
-                    reason = $"battery percent changed by {percentDiff:F1}%";
-                }
-
-                // Record if powerWatts sign changed (import/export/idle)
-                int currentSign = GetPowerSign(stateRequest.PowerWatts);
-                int lastSign = GetPowerSign(lastState.PowerWatts);
-                if (currentSign != lastSign)
-                {
-                    shouldRecord = true;
-                    reason = "power direction changed";
-                }
-
-                // Record if 5 minutes elapsed since last recording
-                TimeSpan elapsed = now - lastState.RecordedAt;
-                if (elapsed.TotalMinutes >= 5)
-                {
-                    shouldRecord = true;
-                    reason = $"5-minute fallback ({elapsed.TotalMinutes:F0} minutes elapsed)";
-                }
-            }
-            else
-            {
-                shouldRecord = true;
-                reason = "first recording for house";
-            }
-
-            if (shouldRecord)
-            {
-                await _historyService.SaveHistoryPointAsync(
                     houseId,
-                    stateRequest.Date,
-                    stateRequest.BatteryPercent,
-                    stateRequest.PowerWatts,
-                    now
-                );
-
-                _lastStates[houseId] = new LastBatteryState
-                {
-                    BatteryPercent = stateRequest.BatteryPercent,
-                    PowerWatts = stateRequest.PowerWatts,
-                    RecordedAt = now
-                };
-
-                _logger.LogDebug("Recorded battery state for house {HouseId}: {Reason}", houseId, reason);
-
-                // Send SignalR notification
-                try
-                {
-                    await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "battery-state-changed", new
-                    {
-                        houseId,
-                        batteryPercent = stateRequest.BatteryPercent,
-                        powerWatts = stateRequest.PowerWatts
-                    });
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send SignalR message for battery-state-changed to house {HouseId}", houseId);
-                }
+                    batteryPercent = stateRequest.BatteryPercent,
+                    powerWatts = stateRequest.PowerWatts
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR message for battery-state-changed to house {HouseId}", houseId);
             }
 
-            return new OkObjectResult(new { success = true, recorded = shouldRecord });
+            return new OkObjectResult(new { success = true, recorded = true });
         }
         catch (JsonException ex)
         {
@@ -324,11 +269,6 @@ public class BatteryHistoryFunctions
         }
     }
 
-    private static int GetPowerSign(double? watts)
-    {
-        if (watts == null || Math.Abs(watts.Value) < 0.1) return 0; // idle
-        return watts.Value > 0 ? 1 : -1; // +ve = importing, -ve = exporting
-    }
 }
 
 public class BatteryStateRequest

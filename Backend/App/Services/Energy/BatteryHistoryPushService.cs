@@ -6,7 +6,7 @@ namespace HomeAssistant.Services.Energy;
 
 internal class BatteryHistoryPushService
 {
-    private static readonly TimeSpan MaxPushInterval = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan MaxPushInterval = TimeSpan.FromMinutes(10);
 
     private readonly IHomeBattery _homeBattery;
     private readonly IBatteryHistoryApiClient _historyApiClient;

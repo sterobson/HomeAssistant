@@ -48,68 +48,7 @@ internal class BinCollections
                 _logger.LogInformation("Upcoming collection: {WasteType} on {NextCollection}", collection.WasteType, collection.NextCollection);
             }
 
-            _notificationService.SendNotificationToGroups(GetRandomTitle(), string.Join(Environment.NewLine, tomorrowCollections.Select(c => " * " + c.WasteType)), [.. property.NotificationLabels]);
+            _notificationService.SendNotificationToGroups("Bins tomorrow", string.Join(Environment.NewLine, tomorrowCollections.Select(c => " * " + c.WasteType)), [.. property.NotificationLabels]);
         }
-    }
-
-    private static string GetRandomTitle()
-    {
-        List<string> titles = [];
-        titles.Add("Bag it, drag it");
-        titles.Add("Bin ballet");
-        titles.Add("Bin it to win it");
-        titles.Add("Bin parade incoming");
-        titles.Add("Bin‑anza");
-        titles.Add("Bin‑credible bash");
-        titles.Add("Bin‑credible bash night");
-        titles.Add("Bin‑credible evening");
-        titles.Add("Bin‑credible moment");
-        titles.Add("Bin‑credible moment night");
-        titles.Add("Bin‑credible roll‑out");
-        titles.Add("Bin‑credible roll‑out night");
-        titles.Add("Bin‑spirational");
-        titles.Add("Can‑do night");
-        titles.Add("Garbage gala");
-        titles.Add("Garbage gala groove");
-        titles.Add("Garbage gala groove night");
-        titles.Add("Garbage gig");
-        titles.Add("Garbage gig gala");
-        titles.Add("Garbage groove");
-        titles.Add("Garbage groove gala");
-        titles.Add("Garbage groove gala");
-        titles.Add("Garbage groove night");
-        titles.Add("Lids up, folks");
-        titles.Add("Refuse fiesta");
-        titles.Add("Refuse fiesta fun");
-        titles.Add("Refuse rally");
-        titles.Add("Refuse rally roll‑out");
-        titles.Add("Refuse rendezvous");
-        titles.Add("Refuse revue");
-        titles.Add("Refuse ritual");
-        titles.Add("Refuse ritual roll‑out");
-        titles.Add("Refuse roll‑call");
-        titles.Add("Rubbish relay");
-        titles.Add("Rubbish roll‑out");
-        titles.Add("Rubbish roundup");
-        titles.Add("The great wheel‑out");
-        titles.Add("Trash dash");
-        titles.Add("Trash talk");
-        titles.Add("Trash tradition");
-        titles.Add("Trash trek");
-        titles.Add("Trash triumph");
-        titles.Add("Trash triumph time");
-        titles.Add("Waste wake‑up");
-        titles.Add("Waste walk");
-        titles.Add("Waste waltz");
-        titles.Add("Waste waltz night");
-        titles.Add("Waste warriors assemble");
-        titles.Add("Waste watch");
-        titles.Add("Wheelie time");
-        titles.Add("Wheelie wonder");
-        titles.Add("Wheelie wonderland");
-        titles.Add("Wheelie workout");
-        titles.Add("Wheelie workout night");
-
-        return titles[Random.Shared.Next(0, titles.Count)];
     }
 }

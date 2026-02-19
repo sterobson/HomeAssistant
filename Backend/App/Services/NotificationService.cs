@@ -30,11 +30,13 @@ internal class NotificationService
     {
         HashSet<string> recipients = new(StringComparer.OrdinalIgnoreCase);
 
+        Dictionary<string, List<string>> configGroups = _config.Groups.ToDictionary(g => g.Key.ToLowerInvariant().Trim(), g => g.Value);
+
         foreach (string name in groups)
         {
             string key = name.Trim().ToLowerInvariant();
 
-            if (_config.Groups.TryGetValue(key, out List<string>? members))
+            if (configGroups.TryGetValue(key, out List<string>? members))
             {
                 foreach (string member in members)
                 {
@@ -51,9 +53,12 @@ internal class NotificationService
             }
         }
 
+        recipients = [.. recipients.Select(r => r.ToLowerInvariant().Trim()).Distinct()];
+        Dictionary<string, string> configRecipients = _config.Recipients.ToDictionary(g => g.Key.ToLowerInvariant().Trim(), g => g.Value);
+
         foreach (string recipient in recipients)
         {
-            if (_config.Recipients.TryGetValue(recipient, out string? serviceName))
+            if (configRecipients.TryGetValue(recipient, out string? serviceName))
             {
                 _ha.CallService("notify", serviceName, data: new { message, title });
             }

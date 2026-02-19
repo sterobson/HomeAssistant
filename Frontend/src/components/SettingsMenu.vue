@@ -158,21 +158,58 @@
             <transition name="accordion">
               <div v-show="expandedSection === 'house'" class="accordion-content">
                 <div class="house-list">
-                  <button
+                  <div
                     v-for="house in savedHouses"
                     :key="house.id"
-                    class="house-item"
-                    :class="{ active: house.id === houseId }"
-                    @click="house.id !== houseId && handleSwitchHouse(house.id)"
+                    class="house-item-wrapper"
                   >
-                    <div class="house-item-info">
-                      <span class="house-item-name">{{ house.name || house.id }}</span>
-                      <span v-if="house.id === houseId" class="house-active-badge">Active</span>
+                    <!-- Inline rename editor -->
+                    <div v-if="editingHouseId === house.id" class="house-rename-row">
+                      <input
+                        ref="renameInput"
+                        v-model="editingHouseName"
+                        class="house-rename-input"
+                        placeholder="House name"
+                        @keyup.enter="saveHouseName"
+                        @keyup.escape="cancelRename"
+                      />
+                      <button class="house-rename-btn save" @click="saveHouseName" title="Save" :disabled="isSavingName">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/>
+                        </svg>
+                      </button>
+                      <button class="house-rename-btn cancel" @click="cancelRename" title="Cancel">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
+                        </svg>
+                      </button>
                     </div>
-                    <svg v-if="house.id !== houseId" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="house-item-arrow">
-                      <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753l5.48-4.796a1 1 0 000-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 001.659.753z"/>
-                    </svg>
-                  </button>
+                    <!-- Normal house item -->
+                    <button
+                      v-else
+                      class="house-item"
+                      :class="{ active: house.id === houseId }"
+                      @click="house.id !== houseId && handleSwitchHouse(house.id)"
+                    >
+                      <div class="house-item-info">
+                        <span class="house-item-name">{{ house.name || house.id }}</span>
+                        <span v-if="house.id === houseId" class="house-active-badge">Active</span>
+                      </div>
+                      <button
+                        v-if="house.id === houseId"
+                        class="house-edit-btn"
+                        title="Rename house"
+                        @click.stop="startRename(house)"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 01.5.5v.5h.5a.5.5 0 01.5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 015 12.5V12h-.5a.5.5 0 01-.5-.5V11h-.5a.5.5 0 01-.468-.325z"/>
+                        </svg>
+                      </button>
+                      <svg v-if="house.id !== houseId" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="house-item-arrow">
+                        <path d="M6 12.796V3.204L11.481 8 6 12.796zm.659.753l5.48-4.796a1 1 0 000-1.506L6.66 2.451C6.011 1.885 5 2.345 5 3.204v9.592a1 1 0 001.659.753z"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <div class="house-actions">
                   <button class="add-house-button" @click="handleAddHouse">
@@ -209,7 +246,7 @@
 </template>
 
 <script setup>
-import { ref, h, onMounted, watch, computed } from 'vue'
+import { ref, h, onMounted, watch, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSettings } from '../composables/useSettings.js'
 import ConfirmModal from './ConfirmModal.vue'
@@ -286,6 +323,47 @@ const toggleSection = (section) => {
 const handleEntitySettingsClick = () => {
   closeMenu()
   emit('open-entity-settings')
+}
+
+const editingHouseId = ref(null)
+const editingHouseName = ref('')
+const isSavingName = ref(false)
+const renameInput = ref(null)
+
+const startRename = (house) => {
+  editingHouseId.value = house.id
+  editingHouseName.value = house.name || ''
+  nextTick(() => {
+    if (renameInput.value) {
+      const input = Array.isArray(renameInput.value) ? renameInput.value[0] : renameInput.value
+      input?.focus()
+      input?.select()
+    }
+  })
+}
+
+const cancelRename = () => {
+  editingHouseId.value = null
+  editingHouseName.value = ''
+}
+
+const saveHouseName = async () => {
+  const name = editingHouseName.value.trim()
+  if (!name || isSavingName.value) return
+
+  isSavingName.value = true
+  try {
+    await heatingApi.setHouseDetails({ name })
+    updateSavedHouseName(editingHouseId.value, name)
+    houseName.value = name
+    savedHouses.value = getSavedHouses()
+    editingHouseId.value = null
+    editingHouseName.value = ''
+  } catch (error) {
+    console.error('Failed to save house name:', error)
+  } finally {
+    isSavingName.value = false
+  }
 }
 
 const handleSwitchHouse = (id) => {
@@ -770,6 +848,83 @@ if (typeof window !== 'undefined') {
   border-radius: 999px;
   background: var(--color-primary);
   color: white;
+}
+
+.house-edit-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--icon-color);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.house-edit-btn:hover {
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.house-rename-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--color-primary);
+  border-radius: 8px;
+}
+
+.house-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.house-rename-input:focus {
+  border-color: var(--color-primary);
+}
+
+.house-rename-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.house-rename-btn.save {
+  color: var(--color-success, #43a047);
+}
+
+.house-rename-btn.save:hover {
+  background: rgba(67, 160, 71, 0.1);
+}
+
+.house-rename-btn.save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.house-rename-btn.cancel {
+  color: var(--color-danger, #e74c3c);
+}
+
+.house-rename-btn.cancel:hover {
+  background: rgba(231, 76, 60, 0.1);
 }
 
 .house-item-arrow {
