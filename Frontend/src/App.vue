@@ -49,6 +49,8 @@
         </div>
         <SettingsMenu
           @disconnect="handleDisconnect"
+          @switch-house="handleSwitchHouse"
+          @add-house="handleAddHouse"
           @open-entity-settings="handleOpenEntitySettings"
         />
       </div>
@@ -93,7 +95,7 @@ import { useRoute } from 'vue-router'
 import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
 import PowerMonitorModal from './components/PowerMonitorModal.vue'
-import { hasHouseId as checkHouseId, setHouseId, clearHouseId } from './utils/cookies.js'
+import { hasHouseId as checkHouseId, setHouseId, getHouseId, clearHouseId, addSavedHouse, removeSavedHouse, getSavedHouses } from './utils/cookies.js'
 import { useApiErrors } from './composables/useApiErrors.js'
 import { useDeviceSettings } from './composables/useDeviceSettings.js'
 
@@ -205,6 +207,13 @@ onMounted(() => {
   if (!hasHouseId.value) {
     // Show modal if no house ID is set
     showHouseIdModal.value = true
+  } else {
+    // Migrate existing cookie-only house into saved houses list
+    const currentId = getHouseId()
+    const saved = getSavedHouses()
+    if (currentId && !saved.some(h => h.id === currentId)) {
+      addSavedHouse(currentId, currentId)
+    }
   }
 
   // Load occupancy filter from cookie
@@ -236,6 +245,16 @@ async function handleHouseIdSubmit(houseId) {
     if (!schedulesResponse || !Array.isArray(schedulesResponse.rooms)) {
       throw new Error('Invalid response from server')
     }
+
+    // Fetch house name and save to multi-house list
+    let houseName = houseId
+    try {
+      const details = await heatingApi.getHouseDetails()
+      if (details.name) houseName = details.name
+    } catch {
+      // Name fetch failed — use the ID as fallback
+    }
+    addSavedHouse(houseId, houseName)
 
     // Valid house ID - keep it and reload
     hasHouseId.value = true
@@ -269,11 +288,33 @@ function handleOpenEntitySettings() {
 
 // Handle disconnect from house
 function handleDisconnect() {
-  clearHouseId()
-  hasHouseId.value = false
-  showHouseIdModal.value = true
-  // Reload to clear all data
+  const currentId = getHouseId()
+  if (currentId) {
+    removeSavedHouse(currentId)
+  }
+
+  // Check if there are other saved houses to switch to
+  const remaining = getSavedHouses()
+  if (remaining.length > 0) {
+    setHouseId(remaining[0].id)
+  } else {
+    clearHouseId()
+    hasHouseId.value = false
+    showHouseIdModal.value = true
+  }
+
   window.location.reload()
+}
+
+// Handle switching to a different saved house
+function handleSwitchHouse(id) {
+  setHouseId(id)
+  window.location.reload()
+}
+
+// Handle adding a new house
+function handleAddHouse() {
+  showHouseIdModal.value = true
 }
 </script>
 
