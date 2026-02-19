@@ -90,6 +90,7 @@ function markSaving(ruleId) {
 }
 
 async function loadFromApi() {
+  if (!cachedHouseId) return
   try {
     loading.value = true
     const response = await batteryApi.getRules()
@@ -110,6 +111,7 @@ async function loadFromApi() {
 }
 
 function saveToApi() {
+  if (!cachedHouseId) return
   clearTimeout(saveTimeout)
   saveTimeout = setTimeout(async () => {
     const snapshot = _preChangeSnapshot
@@ -140,8 +142,9 @@ function saveToApi() {
   }, 500)
 }
 
-// Auto-save on changes
+// Auto-save on changes (skip saves triggered by API load)
 watch(rules, () => {
+  if (loading.value) return
   saveToApi()
 }, { deep: true })
 

@@ -183,6 +183,8 @@ function mergePricingPoints(response) {
 }
 
 async function loadPricing() {
+  if (!houseId) return
+
   const date = dateString.value
 
   // Show cached data immediately
@@ -221,6 +223,7 @@ async function loadPricing() {
 const backfillRequestedForDate = ref(null)
 
 function requestBackfillIfNeeded() {
+  if (!houseId) return
   if (backfillRequestedForDate.value === dateString.value) return
   backfillRequestedForDate.value = dateString.value
   batteryApi.requestBackfill(dateString.value).catch(err => {
@@ -289,6 +292,8 @@ function applyHistoryResponse(response) {
 }
 
 async function loadBatteryHistory() {
+  if (!houseId) return
+
   const date = dateString.value
 
   // Show cached data immediately
