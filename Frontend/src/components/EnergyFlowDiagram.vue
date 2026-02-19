@@ -13,7 +13,7 @@
 
     <!-- Solar (top centre) -->
     <g class="node">
-      <circle cx="150" cy="32" r="28" fill="none" :stroke="colors.solar" stroke-width="2" />
+      <circle cx="150" cy="28" r="28" fill="none" :stroke="colors.solar" stroke-width="2" />
       <circle cx="150" cy="28" r="8" :fill="colors.solar" />
       <line v-for="i in 8" :key="'ray-'+i"
         :x1="150 + 12 * Math.cos(i * Math.PI / 4)"
@@ -72,8 +72,12 @@
     <!-- House (bottom centre) -->
     <g class="node">
       <circle cx="150" cy="268" r="28" fill="none" :stroke="colors.house" stroke-width="2" />
-      <path d="M138 270 L150 254 L162 270 Z" fill="none" :stroke="colors.house" stroke-width="2" stroke-linejoin="round" />
-      <rect x="143" y="266" width="14" height="11" fill="none" :stroke="colors.house" stroke-width="2" />
+      <!-- Roof -->
+      <path d="M133 266 L150 252 L167 266" fill="none" :stroke="colors.house" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+      <!-- Walls -->
+      <rect x="137" y="266" width="26" height="16" fill="none" :stroke="colors.house" stroke-width="2" stroke-linejoin="round" />
+      <!-- Door -->
+      <rect x="147" y="273" width="7" height="9" fill="none" :stroke="colors.house" stroke-width="1.5" />
     </g>
 
     <!-- Flow arrows: Solar → Inverter -->

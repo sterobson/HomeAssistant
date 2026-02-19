@@ -354,11 +354,13 @@ function buildThreshold(thresholdType, absoluteVal, percentVal) {
   }
 }
 
+const todayPricingData = computed(() => props.pricingData.filter(d => d.timeMinutes < 1440))
+
 function getCrossoverCount(ruleTypeKey, threshold) {
   if (ruleTypeKey === 'export-exceeds-import:export') {
-    return findExportExceedsImportCrossovers(props.pricingData, threshold).length
+    return findExportExceedsImportCrossovers(todayPricingData.value, threshold).length
   }
-  return findImportExceedsExportCrossovers(props.pricingData, threshold).length
+  return findImportExceedsExportCrossovers(todayPricingData.value, threshold).length
 }
 
 const startEffectiveMatchCount = computed(() => {

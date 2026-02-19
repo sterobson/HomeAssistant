@@ -409,7 +409,11 @@ export function getAllRuleTypes(data) {
     { type: 'fixed-time', label: 'Fixed time', description: 'Trigger at a specific time every day', matchCount: 1 }
   ]
 
-  const exportCrossovers = findExportExceedsImportCrossovers(data)
+  // Filter to today only (timeMinutes < 1440) so match counts aren't inflated
+  // by the duplicated next-day data appended for cross-midnight zone detection.
+  const todayData = data.filter(d => d.timeMinutes < 1440)
+
+  const exportCrossovers = findExportExceedsImportCrossovers(todayData)
   ruleTypes.push({
     type: 'export-exceeds-import',
     label: 'Export exceeds import',
@@ -418,7 +422,7 @@ export function getAllRuleTypes(data) {
     priceType: 'export'
   })
 
-  const importCrossovers = findImportExceedsExportCrossovers(data)
+  const importCrossovers = findImportExceedsExportCrossovers(todayData)
   ruleTypes.push({
     type: 'import-exceeds-export',
     label: 'Import exceeds export',
@@ -427,7 +431,7 @@ export function getAllRuleTypes(data) {
     priceType: 'import'
   })
 
-  const importMinimaRegions = findMinimaRegionBoundaries(data, 'importPrice')
+  const importMinimaRegions = findMinimaRegionBoundaries(todayData, 'importPrice')
   ruleTypes.push({
     type: 'local-extrema-boundary', label: 'Start of cheap import',
     description: 'Trigger at the start of each below-average import price region',
@@ -441,7 +445,7 @@ export function getAllRuleTypes(data) {
     priceType: 'import', regionType: 'minima', extremaType: 'end'
   })
 
-  const importMaximaRegions = findMaximaRegionBoundaries(data, 'importPrice')
+  const importMaximaRegions = findMaximaRegionBoundaries(todayData, 'importPrice')
   ruleTypes.push({
     type: 'local-extrema-boundary', label: 'Start of expensive import',
     description: 'Trigger at the start of each above-average import price region',
@@ -455,7 +459,7 @@ export function getAllRuleTypes(data) {
     priceType: 'import', regionType: 'maxima', extremaType: 'end'
   })
 
-  const exportMinimaRegions = findMinimaRegionBoundaries(data, 'exportPrice')
+  const exportMinimaRegions = findMinimaRegionBoundaries(todayData, 'exportPrice')
   ruleTypes.push({
     type: 'local-extrema-boundary', label: 'Start of low export',
     description: 'Trigger at the start of each below-average export price region',
@@ -469,7 +473,7 @@ export function getAllRuleTypes(data) {
     priceType: 'export', regionType: 'minima', extremaType: 'end'
   })
 
-  const exportMaximaRegions = findMaximaRegionBoundaries(data, 'exportPrice')
+  const exportMaximaRegions = findMaximaRegionBoundaries(todayData, 'exportPrice')
   ruleTypes.push({
     type: 'local-extrema-boundary', label: 'Start of high export',
     description: 'Trigger at the start of each above-average export price region',

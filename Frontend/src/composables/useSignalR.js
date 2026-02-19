@@ -5,8 +5,14 @@ const connection = ref(null)
 const isConnected = ref(false)
 const connectionError = ref(null)
 
+// Module-level map of all registered listeners across all useSignalR instances.
+// When the connection is (re-)established, every handler here gets attached.
+const allListeners = new Map()
+
 export function useSignalR(houseId) {
-  const listeners = new Map()
+  // Track which event names this instance owns, so off() / cleanup only
+  // removes this instance's registrations.
+  const ownedEvents = new Set()
   const lastHiddenTime = ref(null)
 
   async function connect() {
@@ -84,6 +90,12 @@ export function useSignalR(houseId) {
         }
       })
 
+      // Attach all pending listeners before starting so they're ready
+      // when the first messages arrive
+      allListeners.forEach((handler, eventName) => {
+        connection.value.on(eventName, handler)
+      })
+
       await connection.value.start()
       isConnected.value = true
       connectionError.value = null
@@ -105,11 +117,6 @@ export function useSignalR(houseId) {
         console.error('Error adding to house group:', groupError)
         // Don't fail the connection if group add fails
       }
-
-      // Re-attach any existing listeners
-      listeners.forEach((handler, eventName) => {
-        connection.value.on(eventName, handler)
-      })
     } catch (error) {
       console.error('Error connecting to SignalR:', error)
       connectionError.value = error
@@ -119,23 +126,31 @@ export function useSignalR(houseId) {
 
 
   function on(eventName, handler) {
-    if (connection.value && isConnected.value) {
+    // Register on the connection if it exists (SignalR allows registering
+    // handlers regardless of connection state)
+    if (connection.value) {
       connection.value.on(eventName, handler)
     }
-    // Store the listener for when we reconnect
-    listeners.set(eventName, handler)
+    // Store globally so any future connect/reconnect will re-attach
+    allListeners.set(eventName, handler)
+    ownedEvents.add(eventName)
   }
 
   function off(eventName) {
     if (connection.value) {
       connection.value.off(eventName)
     }
-    listeners.delete(eventName)
+    allListeners.delete(eventName)
+    ownedEvents.delete(eventName)
   }
 
   async function disconnect() {
     if (connection.value) {
-      listeners.clear()
+      // Only clear this instance's listeners from the shared map
+      ownedEvents.forEach(eventName => {
+        allListeners.delete(eventName)
+      })
+      ownedEvents.clear()
       await connection.value.stop()
       connection.value = null
       isConnected.value = false
