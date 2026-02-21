@@ -133,7 +133,6 @@ public static class BatteryZoneResolver
                     || rule.EndTime.Type != TimeDefinitionType.FixedTime;
 
         List<int> startTimes = ResolveTimeDefinition(rule.StartTime, slots);
-        startTimes = startTimes.Select(t => t >= 1440 ? t - 1440 : (t < 0 ? t + 1440 : t)).Distinct().ToList();
         startTimes.Sort();
 
         List<int> endTimes = ResolveTimeDefinition(rule.EndTime, slots);
@@ -141,7 +140,10 @@ public static class BatteryZoneResolver
 
         if (startTimes.Count == 0 || endTimes.Count == 0) return [];
 
-        // Greedy pairing: for each start, find the nearest forward end (each end used once)
+        // Greedy pairing on raw (un-normalized) times so natural start/end pairs are preserved.
+        // Boundary-detection methods return starts and ends in chronological order across
+        // yesterday/today/tomorrow slots. Pairing on raw times keeps (-1440,-480) together
+        // rather than letting a normalized yesterday-start steal today's end.
         HashSet<int> usedEnds = [];
         List<ResolvedZone> zones = [];
 
@@ -215,7 +217,30 @@ public static class BatteryZoneResolver
             }
         }
 
-        return zones;
+        // Normalize zones to today's range: discard zones entirely in the past or
+        // entirely in tomorrow, clip zones that started yesterday but extend into today.
+        List<ResolvedZone> normalizedZones = [];
+        foreach (ResolvedZone zone in zones)
+        {
+            if (zone.EndMinutes <= 0)
+                continue; // entirely yesterday — discard
+            if (zone.StartMinutes >= 1440)
+                continue; // entirely tomorrow — discard
+
+            int clippedStart = zone.StartMinutes < 0 ? 0 : zone.StartMinutes;
+            normalizedZones.Add(new ResolvedZone
+            {
+                RuleId = zone.RuleId,
+                StartMinutes = clippedStart,
+                EndMinutes = zone.EndMinutes,
+                Action = zone.Action,
+                TargetPercent = zone.TargetPercent,
+                IsSmart = zone.IsSmart,
+                GraduatedTarget = zone.GraduatedTarget
+            });
+        }
+
+        return normalizedZones;
     }
 
     public static List<ResolvedZone> ResolveAllZones(BatteryZoneRules rules, List<PricingSlot> slots)

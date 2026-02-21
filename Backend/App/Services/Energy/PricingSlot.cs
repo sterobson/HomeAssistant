@@ -61,6 +61,11 @@ public class PricingSlot
             EnergyRate? exportRate = exportRates
                 .FirstOrDefault(r => r.StartTimeUtc <= slotUtcStart && r.EndTimeUtc > slotUtcStart);
 
+            // Skip slots with no rate data — this avoids phantom 0-price entries
+            // when historical rates are no longer available from the API
+            if (importRate == null && exportRate == null)
+                continue;
+
             slots.Add(new PricingSlot
             {
                 TimeMinutes = minutes,

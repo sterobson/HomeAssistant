@@ -1,6 +1,7 @@
 using HomeAssistant.Services;
 using HomeAssistant.Services.Energy;
 using System.Reactive.Concurrency;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.apps.HassModel.Energy;
@@ -15,19 +16,27 @@ internal class EnergyApp
         BatteryHistoryBackfillService batteryHistoryBackfillService,
         ElectricityRatePushService electricityRatePushService,
         EntityPushService entityPushService,
-        PowerMonitorService powerMonitorService)
+        PowerMonitorService powerMonitorService,
+        IGracefulShutdownService shutdownService)
     {
-        Task.Delay(1000).ContinueWith(value => batteryControlService.Start());
+        CancellationToken shutdownToken = shutdownService.ShutdownToken;
+
+        Task.Delay(1000, shutdownToken).ContinueWith(value => batteryControlService.Start(),
+            TaskContinuationOptions.NotOnCanceled);
 
         batteryHistoryPushService.Initialize();
         batteryHistoryBackfillService.Initialize();
         electricityRatePushService.Initialize();
         powerMonitorService.Initialize();
 
-        Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(async _ =>
-            await entityPushService.PushEntitiesIfDueAsync());
+        Task.Delay(TimeSpan.FromSeconds(30), shutdownToken).ContinueWith(async _ =>
+            await entityPushService.PushEntitiesIfDueAsync(),
+            TaskContinuationOptions.NotOnCanceled);
 
         scheduler.SchedulePeriodic(TimeSpan.FromHours(6), async () =>
-            await entityPushService.PushEntitiesIfDueAsync());
+        {
+            if (shutdownToken.IsCancellationRequested) return;
+            await entityPushService.PushEntitiesIfDueAsync();
+        });
     }
 }

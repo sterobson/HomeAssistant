@@ -61,11 +61,17 @@ internal class BatteryHistoryBackfillService
                 return;
             }
 
-            string todayDate = _timeProvider.GetLocalNow().DateTime.ToString("yyyy-MM-dd");
-            _logger.LogInformation("Pushing today's battery history on startup for house {HouseId} on {Date}",
-                _configuration.HouseId, todayDate);
+            DateTime now = _timeProvider.GetLocalNow().DateTime;
+            _logger.LogInformation("Pushing battery history on startup for house {HouseId} (last 7 days)",
+                _configuration.HouseId);
 
-            await BackfillDateAsync(_configuration.HouseId, todayDate);
+            // Send unsimplified data for the last 7 days so the chart has full resolution.
+            // The daily Azure Function handles simplification for older data.
+            for (int daysAgo = 6; daysAgo >= 0; daysAgo--)
+            {
+                string date = now.AddDays(-daysAgo).ToString("yyyy-MM-dd");
+                await BackfillDateAsync(_configuration.HouseId, date, simplify: false);
+            }
         }
         catch (Exception ex)
         {
@@ -106,7 +112,7 @@ internal class BatteryHistoryBackfillService
         }
     }
 
-    private async Task BackfillDateAsync(string houseId, string date)
+    private async Task BackfillDateAsync(string houseId, string date, bool simplify = true)
     {
         _logger.LogInformation("Processing backfill for house {HouseId} on {Date}", houseId, date);
 
@@ -138,13 +144,14 @@ internal class BatteryHistoryBackfillService
 
         // Backfill battery history for just the requested date
         // (this triggers the "battery-history-replaced" notification which makes the frontend reload)
-        await BackfillBatteryHistoryAsync(houseId, date, settings, fromUtc, toUtc, localMidnight, localTimeZone, protectedMinutes);
+        await BackfillBatteryHistoryAsync(houseId, date, settings, fromUtc, toUtc, localMidnight, localTimeZone, protectedMinutes, simplify);
     }
 
     private async Task BackfillBatteryHistoryAsync(
         string houseId, string date, Shared.DeviceSettingsDto settings,
         DateTime fromUtc, DateTime toUtc,
-        DateTime localMidnight, TimeZoneInfo localTimeZone, HashSet<int> protectedMinutes)
+        DateTime localMidnight, TimeZoneInfo localTimeZone, HashSet<int> protectedMinutes,
+        bool simplify = true)
     {
         string? batteryEntityId = settings.Battery?.BatteryChargePercentSensorId;
 
@@ -180,24 +187,42 @@ internal class BatteryHistoryBackfillService
         _logger.LogInformation("Retrieved {Count} valid HA battery history points on {Date} ({Count2} raw, {Skipped} skipped)",
             haHistory.Count, date, haTextHistory.Count, haTextHistory.Count - haHistory.Count);
 
-        List<(DateTimeOffset Timestamp, double BatteryPercent)> simplified =
-            BatteryHistorySimplifier.Simplify(
-                haHistory,
-                tolerancePercent: 1.0,
-                protectedMinutes: protectedMinutes.Count > 0 ? protectedMinutes : null,
-                localMidnight: localMidnight,
-                localTimeZone: localTimeZone);
+        List<BackfillPoint> backfillPoints;
 
-        _logger.LogInformation("Simplified battery history {Original} → {Simplified} points for {Date}",
-            haHistory.Count, simplified.Count, date);
+        if (simplify)
+        {
+            List<(DateTimeOffset Timestamp, double BatteryPercent)> simplified =
+                BatteryHistorySimplifier.Simplify(
+                    haHistory,
+                    tolerancePercent: 1.0,
+                    protectedMinutes: protectedMinutes.Count > 0 ? protectedMinutes : null,
+                    localMidnight: localMidnight,
+                    localTimeZone: localTimeZone);
 
-        List<BackfillPoint> backfillPoints = simplified
-            .Select(p => new BackfillPoint
-            {
-                BatteryPercent = p.BatteryPercent,
-                RecordedAtUtc = p.Timestamp
-            })
-            .ToList();
+            _logger.LogInformation("Simplified battery history {Original} → {Simplified} points for {Date}",
+                haHistory.Count, simplified.Count, date);
+
+            backfillPoints = simplified
+                .Select(p => new BackfillPoint
+                {
+                    BatteryPercent = p.BatteryPercent,
+                    RecordedAtUtc = p.Timestamp
+                })
+                .ToList();
+        }
+        else
+        {
+            _logger.LogInformation("Sending unsimplified battery history ({Count} points) for {Date}",
+                haHistory.Count, date);
+
+            backfillPoints = haHistory
+                .Select(e => new BackfillPoint
+                {
+                    BatteryPercent = e.State,
+                    RecordedAtUtc = e.LastChanged
+                })
+                .ToList();
+        }
 
         await _historyApiClient.ReplaceBatteryHistoryAsync(houseId, date, backfillPoints);
 

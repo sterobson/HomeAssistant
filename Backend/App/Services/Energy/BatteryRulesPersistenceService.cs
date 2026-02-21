@@ -45,6 +45,7 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
     public BatteryRulesPersistenceService(
         ILogger<BatteryRulesPersistenceService> logger,
         WebSynchronisationConfiguration configuration,
+        IGracefulShutdownService shutdownService,
         IBatteryRulesApiClient? apiClient = null,
         ISignalRConnectionService? signalRConnection = null)
     {
@@ -52,6 +53,12 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
         _configuration = configuration;
         _apiClient = apiClient;
         _signalRConnection = signalRConnection;
+
+        shutdownService.ShutdownToken.Register(() =>
+        {
+            _periodicRefreshTimer?.Dispose();
+            _logger.LogDebug("Battery rules periodic refresh timer disposed due to shutdown");
+        });
 
         // Set up local storage path
         string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);

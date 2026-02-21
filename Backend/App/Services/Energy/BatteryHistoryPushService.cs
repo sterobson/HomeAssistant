@@ -13,6 +13,7 @@ internal class BatteryHistoryPushService
     private readonly WebSynchronisationConfiguration _configuration;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<BatteryHistoryPushService> _logger;
+    private readonly IGracefulShutdownService _shutdownService;
 
     private DateTimeOffset _lastPushTime = DateTimeOffset.MinValue;
     private CancellationTokenSource _delayCts = new();
@@ -23,13 +24,15 @@ internal class BatteryHistoryPushService
         IBatteryHistoryApiClient historyApiClient,
         WebSynchronisationConfiguration configuration,
         TimeProvider timeProvider,
-        ILogger<BatteryHistoryPushService> logger)
+        ILogger<BatteryHistoryPushService> logger,
+        IGracefulShutdownService shutdownService)
     {
         _homeBattery = homeBattery;
         _historyApiClient = historyApiClient;
         _configuration = configuration;
         _timeProvider = timeProvider;
         _logger = logger;
+        _shutdownService = shutdownService;
     }
 
     public void Initialize()
@@ -44,7 +47,9 @@ internal class BatteryHistoryPushService
 
     private async Task RunPeriodicPushAsync()
     {
-        while (true)
+        CancellationToken shutdownToken = _shutdownService.ShutdownToken;
+
+        while (!shutdownToken.IsCancellationRequested)
         {
             try
             {
@@ -54,26 +59,33 @@ internal class BatteryHistoryPushService
 
                 if (delay > TimeSpan.Zero)
                 {
-                    CancellationToken token;
+                    CancellationTokenSource linkedCts;
                     lock (_ctsLock)
                     {
-                        token = _delayCts.Token;
+                        linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_delayCts.Token, shutdownToken);
                     }
 
                     try
                     {
-                        await Task.Delay(delay, token);
+                        await Task.Delay(delay, linkedCts.Token);
                     }
                     catch (TaskCanceledException)
                     {
+                        if (shutdownToken.IsCancellationRequested)
+                            break;
                         continue;
+                    }
+                    finally
+                    {
+                        linkedCts.Dispose();
                     }
                 }
 
                 double? currentPercent = _homeBattery.CurrentChargePercent;
                 if (currentPercent == null)
                 {
-                    await Task.Delay(TimeSpan.FromMinutes(1));
+                    try { await Task.Delay(TimeSpan.FromMinutes(1), shutdownToken); }
+                    catch (TaskCanceledException) { break; }
                     continue;
                 }
 
@@ -84,9 +96,12 @@ internal class BatteryHistoryPushService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error in periodic battery push loop, will retry");
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                try { await Task.Delay(TimeSpan.FromMinutes(1), shutdownToken); }
+                catch (TaskCanceledException) { break; }
             }
         }
+
+        _logger.LogInformation("Battery history push service stopped due to shutdown");
     }
 
     private async Task HandleBatteryPercentChangedAsync(double? newPercent)

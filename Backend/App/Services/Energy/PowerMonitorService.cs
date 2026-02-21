@@ -20,6 +20,8 @@ internal class PowerMonitorService
     private NumericSensorEntity? _gridImportPowerSensor;
     private NumericSensorEntity? _gridExportPowerSensor;
 
+    private readonly IGracefulShutdownService _shutdownService;
+
     private CancellationTokenSource? _monitorCts;
     private readonly object _lock = new();
 
@@ -29,7 +31,8 @@ internal class PowerMonitorService
         ISignalRConnectionService signalRConnection,
         IPowerMonitorApiClient apiClient,
         WebSynchronisationConfiguration configuration,
-        ILogger<PowerMonitorService> logger)
+        ILogger<PowerMonitorService> logger,
+        IGracefulShutdownService shutdownService)
     {
         _ha = ha;
         _settingsPersistence = settingsPersistence;
@@ -37,6 +40,7 @@ internal class PowerMonitorService
         _apiClient = apiClient;
         _configuration = configuration;
         _logger = logger;
+        _shutdownService = shutdownService;
     }
 
     public void Initialize()
@@ -94,7 +98,7 @@ internal class PowerMonitorService
         {
             _monitorCts?.Cancel();
             _monitorCts?.Dispose();
-            _monitorCts = new CancellationTokenSource();
+            _monitorCts = CancellationTokenSource.CreateLinkedTokenSource(_shutdownService.ShutdownToken);
         }
 
         CancellationToken token = _monitorCts!.Token;

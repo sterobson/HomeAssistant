@@ -49,6 +49,11 @@ builder.Services
         string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
         return new DeviceSettingsStorageService(connectionString);
     })
+    .AddSingleton<AppReleaseStorageService>(serviceProvider =>
+    {
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
+        return new AppReleaseStorageService(connectionString);
+    })
     .AddSingleton<SignalRService>();
 
 builder.Build().Run();

@@ -147,6 +147,49 @@
             </transition>
           </div>
 
+          <!-- System configuration -->
+          <div class="setting-group">
+            <button class="accordion-header" :class="{ expanded: expandedSection === 'system' }" @click="toggleSection('system')">
+              <span>System configuration</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="chevron">
+                <path d="M4 6l4 4 4-4H4z"/>
+              </svg>
+            </button>
+            <transition name="accordion">
+              <div v-show="expandedSection === 'system'" class="accordion-content">
+                <div v-if="updateLoading" class="system-loading">Loading version info...</div>
+                <div v-else class="version-info">
+                  <div class="version-row">
+                    <span class="version-label">Running version</span>
+                    <span class="version-value">{{ formatVersion(runningVersion) }}</span>
+                  </div>
+                  <div class="version-row">
+                    <span class="version-label">Latest version</span>
+                    <span class="version-value">{{ formatVersion(latestVersion) }}</span>
+                  </div>
+                  <div class="version-row">
+                    <span class="version-label">Status</span>
+                    <span class="status-badge" :class="updateStatusClass">{{ updateStatusLabel }}</span>
+                  </div>
+                  <div v-if="reportedAtFormatted" class="version-row">
+                    <span class="version-label">Last reported</span>
+                    <span class="version-value">{{ reportedAtFormatted }}</span>
+                  </div>
+                  <button
+                    v-if="updateStatus === 'update-available'"
+                    class="update-button"
+                    @click="handleUpdate"
+                  >
+                    Update now
+                  </button>
+                  <div v-if="updateStatus === 'update-pending'" class="pending-message">
+                    Update signal sent. Waiting for the app to apply the update...
+                  </div>
+                </div>
+              </div>
+            </transition>
+          </div>
+
           <!-- Houses -->
           <div class="setting-group">
             <button class="accordion-header" :class="{ expanded: expandedSection === 'house' }" @click="toggleSection('house')">
@@ -246,14 +289,29 @@
 </template>
 
 <script setup>
-import { ref, h, onMounted, watch, computed, nextTick } from 'vue'
+import { ref, h, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSettings } from '../composables/useSettings.js'
+import { useAppUpdate } from '../composables/useAppUpdate.js'
+import { useSignalR } from '../composables/useSignalR.js'
 import ConfirmModal from './ConfirmModal.vue'
 import { getHouseId, getSavedHouses, updateSavedHouseName } from '../utils/cookies.js'
 import { heatingApi } from '../services/heatingApi.js'
 
 const { settings, setTheme, setTemperatureUnit, setTimeFormat, THEMES, TEMP_UNITS, TIME_FORMATS } = useSettings()
+
+// App update
+const {
+  runningVersion,
+  runningReportedAt,
+  latestVersion,
+  loading: updateLoading,
+  status: updateStatus,
+  formatVersion,
+  refresh: refreshUpdate,
+  requestUpdate,
+  handleVersionReport
+} = useAppUpdate()
 
 const route = useRoute()
 const isBatteryPage = computed(() => route.name === 'battery')
@@ -288,15 +346,57 @@ const loadHouseDetails = async () => {
   }
 }
 
+// App update computed
+const updateStatusClass = computed(() => {
+  switch (updateStatus.value) {
+    case 'up-to-date': return 'status-ok'
+    case 'update-available': return 'status-update'
+    case 'update-pending': return 'status-pending'
+    default: return 'status-unknown'
+  }
+})
+
+const updateStatusLabel = computed(() => {
+  switch (updateStatus.value) {
+    case 'up-to-date': return 'Up to date'
+    case 'update-available': return 'Update available'
+    case 'update-pending': return 'Update pending'
+    default: return 'Unknown'
+  }
+})
+
+const reportedAtFormatted = computed(() => {
+  if (!runningReportedAt.value) return null
+  return new Date(runningReportedAt.value).toLocaleString()
+})
+
+async function handleUpdate() {
+  await requestUpdate()
+}
+
+// SignalR for version updates
+const signalRHouseId = getHouseId()
+const { connect: connectSignalR, on: onSignalR, off: offSignalR } = useSignalR(signalRHouseId)
+
 // Load house details when component mounts
-onMounted(() => {
+onMounted(async () => {
   loadHouseDetails()
+  await refreshUpdate()
+  await connectSignalR()
+  onSignalR('version-report', (data) => {
+    handleVersionReport(data)
+  })
+})
+
+onUnmounted(() => {
+  offSignalR('version-report')
 })
 
 // Reload house details when menu opens
 watch(isOpen, (newValue) => {
   if (newValue) {
     loadHouseDetails()
+    refreshUpdate()
   }
 })
 
@@ -986,6 +1086,87 @@ if (typeof window !== 'undefined') {
 
 .disconnect-button:active {
   transform: translateY(0);
+}
+
+/* System configuration */
+.system-loading {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.version-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.version-label {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.version-value {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  font-family: monospace;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-ok {
+  background: color-mix(in srgb, var(--color-success, #22c55e) 15%, transparent);
+  color: var(--color-success, #22c55e);
+}
+
+.status-update {
+  background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+  color: var(--color-warning, #f59e0b);
+}
+
+.status-pending {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  color: var(--color-primary);
+}
+
+.status-unknown {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.update-button {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.update-button:hover {
+  opacity: 0.9;
+}
+
+.pending-message {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 /* Transitions */

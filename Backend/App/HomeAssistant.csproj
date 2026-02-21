@@ -36,6 +36,13 @@
     <Target Name="AfterPublishMessage" AfterTargets="Publish">
         <Message Text="Publish done! Copy all content in directory: $(PublishDir) to the `/config/netdaemon6' folder for add-on or your custom folder to deploy." Importance="high" />
     </Target>
+    <Target Name="GenerateVersionFile" AfterTargets="Publish">
+        <PropertyGroup>
+            <VersionTimestamp>$([System.DateTime]::UtcNow.ToString("yyyyMMddHHmmss"))</VersionTimestamp>
+        </PropertyGroup>
+        <WriteLinesToFile File="$(PublishDir)version.txt" Lines="$(VersionTimestamp)" Overwrite="true" />
+        <Message Text="Generated version.txt: $(VersionTimestamp)" Importance="high" />
+    </Target>
         
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />

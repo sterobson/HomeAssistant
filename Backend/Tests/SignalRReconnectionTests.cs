@@ -76,6 +76,7 @@ public sealed class SignalRReconnectionTests
         BatteryRulesPersistenceService service = new(
             Substitute.For<ILogger<BatteryRulesPersistenceService>>(),
             config,
+            Substitute.For<IGracefulShutdownService>(),
             apiClient,
             fakeSignalR);
 
@@ -101,6 +102,7 @@ public sealed class SignalRReconnectionTests
         BatteryRulesPersistenceService service = new(
             Substitute.For<ILogger<BatteryRulesPersistenceService>>(),
             config,
+            Substitute.For<IGracefulShutdownService>(),
             apiClient,
             fakeSignalR);
 
@@ -132,6 +134,7 @@ public sealed class SignalRReconnectionTests
         BatteryRulesPersistenceService service = new(
             Substitute.For<ILogger<BatteryRulesPersistenceService>>(),
             config,
+            Substitute.For<IGracefulShutdownService>(),
             apiClient,
             fakeSignalR);
 

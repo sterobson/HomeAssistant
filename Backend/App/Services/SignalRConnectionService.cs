@@ -36,6 +36,7 @@ internal class SignalRConnectionService : ISignalRConnectionService
     private readonly ILogger<SignalRConnectionService> _logger;
     private readonly WebSynchronisationConfiguration _configuration;
     private readonly HttpClient _httpClient;
+    private readonly CancellationToken _shutdownToken;
     private readonly SemaphoreSlim _startLock = new(1, 1);
     private readonly List<Action<HubConnection>> _handlerRegistry = new();
     private readonly object _handlerLock = new();
@@ -51,11 +52,13 @@ internal class SignalRConnectionService : ISignalRConnectionService
     public SignalRConnectionService(
         ILogger<SignalRConnectionService> logger,
         WebSynchronisationConfiguration configuration,
-        HttpClient httpClient)
+        HttpClient httpClient,
+        CancellationToken shutdownToken = default)
     {
         _logger = logger;
         _configuration = configuration;
         _httpClient = httpClient;
+        _shutdownToken = shutdownToken;
     }
 
     public void On<T>(string methodName, Func<T, Task> handler)
@@ -239,14 +242,22 @@ internal class SignalRConnectionService : ISignalRConnectionService
         {
             _logger.LogWarning("Starting resilient reconnect loop for house {HouseId}", _configuration.HouseId);
 
-            while (true)
+            while (!_shutdownToken.IsCancellationRequested)
             {
                 int backoffIndex = Math.Min(attempt, ReconnectBackoffSeconds.Length - 1);
                 int delaySeconds = ReconnectBackoffSeconds[backoffIndex];
                 attempt++;
 
                 _logger.LogInformation("Reconnect attempt {Attempt} in {Delay}s", attempt, delaySeconds);
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds), _shutdownToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogInformation("Reconnect loop cancelled due to shutdown");
+                    return;
+                }
 
                 try
                 {

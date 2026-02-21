@@ -120,15 +120,12 @@ public sealed class PricingSlotTests
     // ========================================================================
 
     [TestMethod]
-    public void FromEnergyRatesExact_EmptyRates_ProducesSingleSlotAtZeroWithZeroPrices()
+    public void FromEnergyRatesExact_EmptyRates_ProducesNoSlots()
     {
         List<PricingSlot> slots = PricingSlot.FromEnergyRatesExact([], [], _testDate);
 
-        // Always includes minute 0
-        slots.Count.ShouldBe(1);
-        slots[0].TimeMinutes.ShouldBe(0);
-        slots[0].ImportPrice.ShouldBe(0);
-        slots[0].ExportPrice.ShouldBe(0);
+        // No rate data means no slots — avoids phantom 0-price entries
+        slots.Count.ShouldBe(0);
     }
 
     [TestMethod]
@@ -325,16 +322,14 @@ public sealed class PricingSlotTests
         // localTime = June 15 01:00 BST, minutes = 60
         // The 29p rate starts at 05:30 UTC = 06:30 BST, minutes = 390
 
-        slots.Count.ShouldBe(3); // minute 0, minute 60, minute 390
+        // Minute 0 (00:00-01:00 BST) has no rate coverage — skipped to avoid phantom 0-price entry
+        slots.Count.ShouldBe(2); // minute 60, minute 390
 
-        slots[0].TimeMinutes.ShouldBe(0);
-        slots[0].ImportPrice.ShouldBe(0); // no rate covers 00:00-01:00 BST (23:00-00:00 UTC previous day)
+        slots[0].TimeMinutes.ShouldBe(60); // 01:00 BST
+        slots[0].ImportPrice.ShouldBe(7.0);
 
-        slots[1].TimeMinutes.ShouldBe(60); // 01:00 BST
-        slots[1].ImportPrice.ShouldBe(7.0);
-
-        slots[2].TimeMinutes.ShouldBe(390); // 06:30 BST
-        slots[2].ImportPrice.ShouldBe(29.0);
+        slots[1].TimeMinutes.ShouldBe(390); // 06:30 BST
+        slots[1].ImportPrice.ShouldBe(29.0);
     }
 
     [TestMethod]

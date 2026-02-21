@@ -20,9 +20,6 @@ internal class MilkBottles
         _logger = logger;
         _notificationService = notificationService;
 
-
-        SendMilkBottlesOutReminder().GetAwaiter().GetResult();
-
         // Bottles out at 21:15 on Sunday nights, before we go to bed.
         scheduler.ScheduleCron("15 21 * * 0", async () => await SendMilkBottlesOutReminder());
 

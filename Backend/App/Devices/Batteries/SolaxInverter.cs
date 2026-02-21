@@ -231,7 +231,11 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public BatteryState GetHomeBatteryState()
     {
-        if (_chargerUseMode == null || _chargerManualMode == null) return BatteryState.Unknown;
+        if (_chargerUseMode == null || _chargerManualMode == null)
+        {
+            _logger.LogWarning("Cannot get battery state: charger use mode or manual mode entity not configured");
+            return BatteryState.Unknown;
+        }
 
         string? chargerUseMode = _chargerUseMode.State;
         string? chargerManualMode = _chargerManualMode.State;
@@ -318,7 +322,11 @@ public class SolaxInverter : IHomeBattery, ISolarPanels
 
     public void SetHomeBatteryState(BatteryState desiredHomeBatteryState)
     {
-        if (_chargerUseMode == null || _chargerManualMode == null) return;
+        if (_chargerUseMode == null || _chargerManualMode == null)
+        {
+            _logger.LogWarning("Cannot set battery state to {DesiredState}: charger use mode or manual mode entity not configured", desiredHomeBatteryState);
+            return;
+        }
 
         BatteryState currentHomeBatteryState = GetHomeBatteryState();
 

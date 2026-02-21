@@ -46,6 +46,7 @@ try
                 .AddNetDaemonStateManager()
                 .AddNetDaemonScheduler()
                 .AddHomeAssistantGenerated()
+                .AddSingleton<IGracefulShutdownService, GracefulShutdownService>()
                 .AddConfiguration<OctopusConfiguration>(context, "Octopus")
                 .AddScoped<IElectricityRatesReader, OctopusReader>()
                 .AddScoped<IElectricityMeter, OctopusElectricityMeter>()
@@ -81,10 +82,12 @@ try
                 {
                     IHttpClientFactory httpClientFactory = serviceProvider.GetRequiredService<IHttpClientFactory>();
                     HttpClient httpClient = httpClientFactory.CreateClient("SignalR");
+                    IGracefulShutdownService shutdownService = serviceProvider.GetRequiredService<IGracefulShutdownService>();
                     return new SignalRConnectionService(
                         serviceProvider.GetRequiredService<ILogger<SignalRConnectionService>>(),
                         serviceProvider.GetRequiredService<WebSynchronisationConfiguration>(),
-                        httpClient);
+                        httpClient,
+                        shutdownService.ShutdownToken);
                 });
 
             services
@@ -157,6 +160,16 @@ try
                     }
                 })
                 .Services
+                .AddHttpClient<IAppUpdateApiClient, AppUpdateApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
+                .AddScoped<AppUpdateService>()
                 .AddScoped<PowerMonitorService>()
                 .AddSingleton<EntityPushCoordinator>()
                 .AddScoped<EntityPushService>()

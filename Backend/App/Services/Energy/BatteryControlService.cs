@@ -21,6 +21,7 @@ internal class BatteryControlService
     private readonly IBatteryRulesPersistenceService _rulesPersistence;
     private readonly IElectricityRatesReader _ratesReader;
     private readonly IDeviceSettingsPersistenceService _deviceSettingsPersistence;
+    private readonly IGracefulShutdownService _shutdownService;
 
     private BatteryZoneRules _currentRules = new();
     private List<EnergyRate> _cachedImportRates = [];
@@ -52,7 +53,8 @@ internal class BatteryControlService
                                  ILogger<BatteryControlService> logger, TimeProvider timeProvider,
                                  IBatteryRulesPersistenceService rulesPersistence,
                                  IElectricityRatesReader ratesReader,
-                                 IDeviceSettingsPersistenceService deviceSettingsPersistence)
+                                 IDeviceSettingsPersistenceService deviceSettingsPersistence,
+                                 IGracefulShutdownService shutdownService)
     {
         _scheduler = scheduler;
         _electricityMeter = electricityMeter;
@@ -63,6 +65,7 @@ internal class BatteryControlService
         _rulesPersistence = rulesPersistence;
         _ratesReader = ratesReader;
         _deviceSettingsPersistence = deviceSettingsPersistence;
+        _shutdownService = shutdownService;
     }
 
     public void Start()
@@ -70,8 +73,15 @@ internal class BatteryControlService
         // Start the persistence service and load rules
         _scheduler.Schedule(TimeSpan.FromSeconds(new Random().Next(10, 60)), async () =>
         {
-            await EnsureInitializedAsync();
-            await SetBatteryState("app startup");
+            try
+            {
+                await EnsureInitializedAsync();
+                await SetBatteryState("app startup");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during battery control startup");
+            }
         });
 
         // Listen for rule changes from the UI via SignalR
@@ -92,8 +102,16 @@ internal class BatteryControlService
         // Run every 10 minutes, in case there's been a state change we somehow missed.
         _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(10), async () =>
         {
-            await RefreshRatesIfStaleAsync();
-            await SetBatteryState("periodic check");
+            if (_shutdownService.ShutdownToken.IsCancellationRequested) return;
+            try
+            {
+                await RefreshRatesIfStaleAsync();
+                await SetBatteryState("periodic check");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in periodic battery state check");
+            }
         });
 
         // Car battery has changed current
@@ -284,10 +302,9 @@ internal class BatteryControlService
 
     public async Task SetBatteryState(string trigger)
     {
-        await EnsureInitializedAsync();
-
         try
         {
+            await EnsureInitializedAsync();
             await _setBatteryStateSemaphore.WaitAsync();
 
             double? currentUnitPriceRate = _electricityMeter.CurrentRatePerKwh;
@@ -297,9 +314,6 @@ internal class BatteryControlService
             DateTime now = _timeProvider.GetLocalNow().DateTime;
             int currentMinutes = now.Hour * 60 + now.Minute;
             BatteryState currentHomeBatteryState = _homeBattery.GetHomeBatteryState();
-
-            bool isBatteryCharging = currentHomeBatteryState == BatteryState.ForceCharging;
-            bool isBatterySelling = currentHomeBatteryState == BatteryState.ForceDischarging;
 
             // Set the battery's max charging current, which is 50A minus whatever the car is drawing
             double hypervoltCurrent = _carCharger.ChargerCurrent ?? 0;
@@ -353,7 +367,7 @@ internal class BatteryControlService
                     // At or above target - stop charging
                     desiredHomeBatteryState = isCarCharging ? BatteryState.Stopped : BatteryState.NormalTOU;
                 }
-                else if (isBatteryCharging)
+                else if (currentHomeBatteryState == BatteryState.ForceCharging)
                 {
                     // Already charging and below target - keep charging
                     desiredHomeBatteryState = BatteryState.ForceCharging;
@@ -377,7 +391,7 @@ internal class BatteryControlService
                     // At or below target - stop discharging
                     desiredHomeBatteryState = isCarCharging ? BatteryState.Stopped : BatteryState.NormalTOU;
                 }
-                else if (isBatterySelling)
+                else if (currentHomeBatteryState == BatteryState.ForceDischarging)
                 {
                     // Already discharging and above target - keep discharging
                     desiredHomeBatteryState = BatteryState.ForceDischarging;

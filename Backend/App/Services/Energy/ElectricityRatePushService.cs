@@ -19,6 +19,7 @@ internal class ElectricityRatePushService
     private readonly IDeviceSettingsPersistenceService _settingsPersistence;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ElectricityRatePushService> _logger;
+    private readonly IGracefulShutdownService _shutdownService;
 
     public ElectricityRatePushService(
         IScheduler scheduler,
@@ -29,7 +30,8 @@ internal class ElectricityRatePushService
         HistoryService historyService,
         IDeviceSettingsPersistenceService settingsPersistence,
         TimeProvider timeProvider,
-        ILogger<ElectricityRatePushService> logger)
+        ILogger<ElectricityRatePushService> logger,
+        IGracefulShutdownService shutdownService)
     {
         _scheduler = scheduler;
         _ratesReader = ratesReader;
@@ -40,6 +42,7 @@ internal class ElectricityRatePushService
         _settingsPersistence = settingsPersistence;
         _timeProvider = timeProvider;
         _logger = logger;
+        _shutdownService = shutdownService;
     }
 
     public void Initialize()
@@ -53,6 +56,7 @@ internal class ElectricityRatePushService
         // Re-push every hour
         _scheduler.SchedulePeriodic(TimeSpan.FromHours(1), async () =>
         {
+            if (_shutdownService.ShutdownToken.IsCancellationRequested) return;
             await PushScheduledPricingAsync();
         });
 
@@ -135,6 +139,8 @@ internal class ElectricityRatePushService
     private async Task<List<PricingSlot>> MergeSensorHistoryWithApiSlotsAsync(
         List<PricingSlot> apiSlots, DateTime dayStart, DateTime dayStartUtc, DateTime now)
     {
+        return [.. apiSlots];
+
         try
         {
             DeviceSettingsDto settings = await _settingsPersistence.GetSettingsAsync();
@@ -213,10 +219,11 @@ internal class ElectricityRatePushService
         List<NumericHistoryEntry> sortedExport = exportHistory.OrderBy(e => e.LastChanged).ToList();
 
         // Build a map of minute → (importRate, exportRate) from sensor change times
-        SortedDictionary<int, (double? ImportRate, double? ExportRate)> rateChanges = new();
-
-        // Always seed minute 0 so midnight is present
-        rateChanges[0] = (null, null);
+        SortedDictionary<int, (double? ImportRate, double? ExportRate)> rateChanges = new()
+        {
+            // Always seed minute 0 so midnight is present
+            [0] = (null, null)
+        };
 
         // Record import rate changes within today up to currentMinute
         foreach (NumericHistoryEntry entry in sortedImport)

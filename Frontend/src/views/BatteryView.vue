@@ -372,15 +372,30 @@ async function initializeSignalR() {
 
 onMounted(() => {
   initializeSignalR()
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(async () => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
   if (signalR) {
     signalR.off('battery-state-changed')
     signalR.off('battery-history-replaced')
     await signalR.disconnect()
   }
 })
+
+async function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') return
+
+  // Reconnect SignalR if the connection dropped while dormant
+  if (signalR) {
+    await signalR.ensureConnected()
+  }
+
+  // Reload data to catch up on anything missed
+  loadPricing()
+  loadBatteryHistory()
+}
 
 // Zone rules
 const { getResolvedZones, addRule, updateRule, deleteRule, getRuleById, hasOverlap, savingRuleIds, saveError } = useBatteryRules()

@@ -15,7 +15,7 @@ const routes = [
     path: '/battery',
     name: 'battery',
     component: () => import('./views/BatteryView.vue')
-  }
+  },
 ]
 
 const router = createRouter({

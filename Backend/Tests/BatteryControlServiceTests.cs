@@ -1522,6 +1522,7 @@ public sealed class BatteryControlServiceTests
         services.AddSingleton(Substitute.For<IBatteryRulesPersistenceService>());
         services.AddSingleton(Substitute.For<IElectricityRatesReader>());
         services.AddSingleton(Substitute.For<IDeviceSettingsPersistenceService>());
+        services.AddSingleton(Substitute.For<IGracefulShutdownService>());
         services.AddSingleton<FakeTimeProvider>();
         services.AddSingleton<TimeProvider>(provider => provider.GetRequiredService<FakeTimeProvider>());
         services.AddSingleton<BatteryControlService>();
