@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { appReleaseApi } from '../services/appReleaseApi.js'
+import { getHouseId } from '../utils/cookies.js'
 
 const runningVersion = ref(null)
 const runningReportedAt = ref(null)
@@ -29,6 +30,14 @@ function formatVersion(version) {
 }
 
 async function refresh() {
+  if (!getHouseId()) {
+    runningVersion.value = null
+    latestVersion.value = null
+    runningReportedAt.value = null
+    updateRequested.value = false
+    return
+  }
+
   loading.value = true
   try {
     const [latestResult, runningResult] = await Promise.all([

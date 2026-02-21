@@ -6,6 +6,7 @@
         <path v-if="!isOpen" d="M0 3h16v2H0V3zm0 4h16v2H0V7zm0 4h16v2H0v-2z"/>
         <path v-else d="M2.146 2.854a.5.5 0 11.708-.708L8 7.293l5.146-5.147a.5.5 0 01.708.708L8.707 8l5.147 5.146a.5.5 0 01-.708.708L8 8.707l-5.146 5.147a.5.5 0 01-.708-.708L7.293 8 2.146 2.854z"/>
       </svg>
+      <span v-if="hasUpdateNotification" class="notification-dot"></span>
     </button>
 
     <!-- Menu Overlay -->
@@ -151,6 +152,7 @@
           <div class="setting-group">
             <button class="accordion-header" :class="{ expanded: expandedSection === 'system' }" @click="toggleSection('system')">
               <span>System configuration</span>
+              <span v-if="hasUpdateNotification" class="accordion-badge">Update</span>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="chevron">
                 <path d="M4 6l4 4 4-4H4z"/>
               </svg>
@@ -363,6 +365,10 @@ const updateStatusLabel = computed(() => {
     case 'update-pending': return 'Update pending'
     default: return 'Unknown'
   }
+})
+
+const hasUpdateNotification = computed(() => {
+  return updateStatus.value === 'update-available' || updateStatus.value === 'update-pending'
 })
 
 const reportedAtFormatted = computed(() => {
@@ -623,6 +629,7 @@ if (typeof window !== 'undefined') {
 }
 
 .hamburger-btn {
+  position: relative;
   background: none;
   border: none;
   color: var(--text-header);
@@ -641,6 +648,17 @@ if (typeof window !== 'undefined') {
 
 .hamburger-btn:active {
   transform: scale(0.95);
+}
+
+.notification-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning, #f59e0b);
+  pointer-events: none;
 }
 
 .menu-overlay {
@@ -732,6 +750,17 @@ if (typeof window !== 'undefined') {
 
 .accordion-header:hover {
   color: var(--color-primary);
+}
+
+.accordion-badge {
+  margin-left: auto;
+  margin-right: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--color-warning, #f59e0b) 15%, transparent);
+  color: var(--color-warning, #f59e0b);
 }
 
 .accordion-header .chevron {

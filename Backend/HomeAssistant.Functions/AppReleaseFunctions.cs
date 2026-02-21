@@ -190,15 +190,28 @@ public class AppReleaseFunctions
             return new BadRequestObjectResult(new { error = "Invalid or missing version query parameter" });
         }
 
+        string houseId = houseIdStr.ToString();
+        string version = versionStr.ToString();
+
         try
         {
-            await _storageService.SetRunningVersionAsync(houseIdStr.ToString(), versionStr.ToString());
-            _logger.LogInformation("House {HouseId} reported running version {Version}", houseIdStr.ToString(), versionStr.ToString());
+            await _storageService.SetRunningVersionAsync(houseId, version);
+            _logger.LogInformation("House {HouseId} reported running version {Version}", houseId, version);
+
+            try
+            {
+                await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "version-report", new { version });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send SignalR version-report message to house {HouseId}", houseId);
+            }
+
             return new OkObjectResult(new { success = true });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error setting running app version for house {HouseId}", houseIdStr.ToString());
+            _logger.LogError(ex, "Error setting running app version for house {HouseId}", houseId);
             return new StatusCodeResult(StatusCodes.Status500InternalServerError);
         }
     }
