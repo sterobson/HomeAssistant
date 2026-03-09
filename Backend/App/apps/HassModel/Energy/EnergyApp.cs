@@ -14,6 +14,8 @@ internal class EnergyApp
         BatteryControlService batteryControlService,
         BatteryHistoryPushService batteryHistoryPushService,
         BatteryHistoryBackfillService batteryHistoryBackfillService,
+        EnergyHistoryPushService energyHistoryPushService,
+        EnergyHistoryBackfillService energyHistoryBackfillService,
         ElectricityRatePushService electricityRatePushService,
         EntityPushService entityPushService,
         PowerMonitorService powerMonitorService,
@@ -26,6 +28,8 @@ internal class EnergyApp
 
         batteryHistoryPushService.Initialize();
         batteryHistoryBackfillService.Initialize();
+        energyHistoryPushService.Initialize();
+        energyHistoryBackfillService.Initialize();
         electricityRatePushService.Initialize();
         powerMonitorService.Initialize();
 

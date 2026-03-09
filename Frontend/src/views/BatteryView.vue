@@ -1,9 +1,9 @@
 <template>
   <div class="battery-view">
     <div class="date-nav">
-      <button class="date-nav-btn" @click="goToPreviousDay">&lt;</button>
-      <span class="date-label">{{ displayDate }}</span>
-      <button class="date-nav-btn" @click="goToNextDay" :disabled="isToday">&gt;</button>
+      <button class="date-nav-btn" @click="chartMode === 'daily' || chartMode === 'cost-daily' ? goToPreviousMonth() : goToPreviousDay()">&lt;</button>
+      <span class="date-label">{{ chartMode === 'daily' || chartMode === 'cost-daily' ? displayMonth : displayDate }}</span>
+      <button class="date-nav-btn" @click="chartMode === 'daily' || chartMode === 'cost-daily' ? goToNextMonth() : goToNextDay()" :disabled="chartMode === 'daily' || chartMode === 'cost-daily' ? isCurrentMonth : isToday">&gt;</button>
     </div>
 
     <div class="chart-wrapper">
@@ -11,12 +11,18 @@
         :pricing-data="pricingData"
         :zones="resolvedZones"
         :date="selectedDate"
+        :month="selectedMonth"
         :battery-history="batteryChartData"
+        :energy-history="energyHistory"
+        :daily-energy="dailyEnergy"
+        :days-in-month="daysInMonth"
+        :chart-mode="chartMode"
         :pending-rule-ids="savingRuleIds"
         @create-zone="handleCreateZone"
         @edit-zone="handleEditZone"
         @update-target="handleUpdateTarget"
         @update-edge-time="handleUpdateEdgeTime"
+        @update:chart-mode="chartMode = $event"
       />
     </div>
 
@@ -103,6 +109,25 @@ const isToday = computed(() => {
     && sel.getDate() === today.getDate()
 })
 
+const selectedMonth = ref(new Date())
+
+const displayMonth = computed(() => {
+  const d = selectedMonth.value
+  return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+})
+
+const isCurrentMonth = computed(() => {
+  const today = new Date()
+  const sel = selectedMonth.value
+  return sel.getFullYear() === today.getFullYear()
+    && sel.getMonth() === today.getMonth()
+})
+
+const daysInMonth = computed(() => {
+  const d = selectedMonth.value
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+})
+
 function goToPreviousDay() {
   const d = new Date(selectedDate.value)
   d.setDate(d.getDate() - 1)
@@ -114,6 +139,19 @@ function goToNextDay() {
   const d = new Date(selectedDate.value)
   d.setDate(d.getDate() + 1)
   selectedDate.value = d
+}
+
+function goToPreviousMonth() {
+  const d = new Date(selectedMonth.value)
+  d.setMonth(d.getMonth() - 1)
+  selectedMonth.value = d
+}
+
+function goToNextMonth() {
+  if (isCurrentMonth.value) return
+  const d = new Date(selectedMonth.value)
+  d.setMonth(d.getMonth() + 1)
+  selectedMonth.value = d
 }
 
 // House ID (needed early for cache operations)
@@ -207,15 +245,12 @@ async function loadPricing() {
         setCache(houseId, 'pricing', date, response)
         pruneDateCache('pricing')
       }
-    } else if (!pricingData.value.length) {
+    } else {
       pricingData.value = []
       requestBackfillIfNeeded()
     }
   } catch {
-    // Keep showing cached data if available, otherwise clear
-    if (!pricingData.value.length) {
-      pricingData.value = []
-    }
+    // Keep showing cached data if available
   }
 }
 
@@ -230,6 +265,143 @@ function requestBackfillIfNeeded() {
     console.error('Failed to request backfill:', err)
   })
 }
+
+// Track which dates/months we've already requested energy backfill for
+const energyBackfillRequested = new Set()
+
+function requestEnergyBackfillIfNeeded(date) {
+  if (!houseId) return
+  if (energyBackfillRequested.has(date)) return
+  energyBackfillRequested.add(date)
+  batteryApi.requestEnergyBackfill(date).catch(err => {
+    console.error('Failed to request energy backfill:', err)
+  })
+}
+
+const energyBackfillMonthsRequested = new Set()
+
+function requestEnergyBackfillForMonth(year, month, missingDates) {
+  if (!houseId || missingDates.length === 0) return
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`
+  if (energyBackfillMonthsRequested.has(monthKey)) return
+  energyBackfillMonthsRequested.add(monthKey)
+  // Mark individual dates as requested too
+  for (const d of missingDates) {
+    energyBackfillRequested.add(d)
+  }
+  const fromDate = missingDates[0]
+  const toDate = missingDates[missingDates.length - 1]
+  batteryApi.requestEnergyBackfillRange(fromDate, toDate).catch(err => {
+    console.error('Failed to request energy backfill range:', err)
+  })
+}
+
+// Chart mode toggle (persisted)
+const chartMode = ref(localStorage.getItem('battery-chart-mode') || 'battery')
+watch(chartMode, (mode) => localStorage.setItem('battery-chart-mode', mode))
+
+// Energy history
+const energyHistory = ref([])
+
+async function loadEnergyHistory() {
+  if (!houseId) return
+
+  const date = dateString.value
+
+  // Show cached data immediately
+  if (houseId) {
+    const cached = getCache(houseId, 'energyHistory', date)
+    if (cached && cached.points && cached.points.length > 0) {
+      energyHistory.value = cached.points
+    }
+  }
+
+  // Fetch fresh data in background
+  try {
+    const response = await batteryApi.getEnergyHistory(date)
+    if (response && response.points && response.points.length > 0) {
+      energyHistory.value = response.points
+      if (houseId) {
+        setCache(houseId, 'energyHistory', date, response)
+        pruneDateCache('energyHistory')
+      }
+    } else {
+      energyHistory.value = []
+      requestEnergyBackfillIfNeeded(date)
+    }
+  } catch {
+    // Keep showing cached data if available
+  }
+}
+
+// Daily energy (monthly aggregation)
+const dailyEnergy = ref([])
+const dailyEnergyLoading = ref(false)
+
+async function loadDailyEnergy() {
+  if (!houseId) return
+  dailyEnergyLoading.value = true
+
+  const d = selectedMonth.value
+  const year = d.getFullYear()
+  const month = d.getMonth()
+  const numDays = new Date(year, month + 1, 0).getDate()
+
+  // Determine how many days to fetch (don't fetch future days)
+  const today = new Date()
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
+  const maxDay = isCurrentMonth ? today.getDate() : numDays
+
+  const results = []
+
+  // Fetch all days in parallel
+  const missingDates = []
+  const fetches = []
+  for (let day = 1; day <= maxDay; day++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    fetches.push(
+      batteryApi.getEnergyHistory(dateStr)
+        .then(response => {
+          if (response && response.points && response.points.length > 0) {
+            const totals = { day, gridKwh: 0, batteryKwh: 0, solarKwh: 0, houseKwh: 0, importCostPence: 0, exportCostPence: 0 }
+            for (const p of response.points) {
+              totals.gridKwh += p.gridKwh
+              totals.batteryKwh += p.batteryKwh
+              totals.solarKwh += p.solarKwh
+              totals.houseKwh += p.houseKwh
+              totals.importCostPence += p.importCostPence || 0
+              totals.exportCostPence += p.exportCostPence || 0
+            }
+            return totals
+          }
+          missingDates.push(dateStr)
+          return null
+        })
+        .catch(() => null)
+    )
+  }
+
+  const allResults = await Promise.all(fetches)
+  for (const r of allResults) {
+    if (r) results.push(r)
+  }
+
+  // Request backfill for all missing dates in one call
+  if (missingDates.length > 0) {
+    missingDates.sort()
+    requestEnergyBackfillForMonth(year, month, missingDates)
+  }
+
+  results.sort((a, b) => a.day - b.day)
+  dailyEnergy.value = results
+  dailyEnergyLoading.value = false
+}
+
+watch([() => chartMode.value, selectedMonth], ([mode]) => {
+  if (mode === 'daily' || mode === 'cost-daily') {
+    loadDailyEnergy()
+  }
+}, { immediate: true })
 
 // Battery history
 const batteryHistory = ref([])
@@ -313,19 +485,14 @@ async function loadBatteryHistory() {
         setCache(houseId, 'history', date, response)
         pruneDateCache('history')
       }
-    } else if (!batteryHistory.value.length) {
+    } else {
       batteryHistory.value = []
       previousDayLastPoint.value = null
       nextDayFirstPoint.value = null
       requestBackfillIfNeeded()
     }
   } catch {
-    // Keep showing cached data if available, otherwise clear
-    if (!batteryHistory.value.length) {
-      batteryHistory.value = []
-      previousDayLastPoint.value = null
-      nextDayFirstPoint.value = null
-    }
+    // Keep showing cached data if available
   }
 }
 
@@ -333,6 +500,7 @@ watch(dateString, () => {
   backfillRequestedForDate.value = null
   loadPricing()
   loadBatteryHistory()
+  loadEnergyHistory()
 }, { immediate: true })
 
 // SignalR connection for real-time battery updates
@@ -365,6 +533,24 @@ async function initializeSignalR() {
         loadPricing()
       }
     })
+
+    signalR.on('energy-history-changed', (data) => {
+      if (data.date === dateString.value) {
+        loadEnergyHistory()
+      }
+      if (chartMode.value === 'daily' || chartMode.value === 'cost-daily') {
+        loadDailyEnergy()
+      }
+    })
+
+    signalR.on('energy-history-replaced', (data) => {
+      if (data.date === dateString.value) {
+        loadEnergyHistory()
+      }
+      if (chartMode.value === 'daily' || chartMode.value === 'cost-daily') {
+        loadDailyEnergy()
+      }
+    })
   } catch (err) {
     console.error('Failed to connect to SignalR for battery updates:', err)
   }
@@ -380,6 +566,8 @@ onUnmounted(async () => {
   if (signalR) {
     signalR.off('battery-state-changed')
     signalR.off('battery-history-replaced')
+    signalR.off('energy-history-changed')
+    signalR.off('energy-history-replaced')
     await signalR.disconnect()
   }
 })
@@ -395,6 +583,7 @@ async function handleVisibilityChange() {
   // Reload data to catch up on anything missed
   loadPricing()
   loadBatteryHistory()
+  loadEnergyHistory()
 }
 
 // Zone rules
@@ -511,7 +700,7 @@ function handleDelete(ruleId) {
 .battery-view {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
+  height: calc(100dvh - 60px);
   width: 100%;
   position: relative;
 }

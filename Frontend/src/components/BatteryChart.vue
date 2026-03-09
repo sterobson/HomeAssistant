@@ -1,5 +1,41 @@
 <template>
   <div class="battery-chart-container">
+    <div class="chart-mode-toggles">
+      <div class="chart-mode-toggle">
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'battery' }]"
+          @click="emit('update:chart-mode', 'battery')"
+        >Battery %</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'energy' || props.chartMode === 'daily' }]"
+          @click="emit('update:chart-mode', isDaily ? 'daily' : 'energy')"
+        >Energy</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'cost-hourly' || props.chartMode === 'cost-daily' }]"
+          @click="emit('update:chart-mode', isDaily ? 'cost-daily' : 'cost-hourly')"
+        >Cost</button>
+      </div>
+      <div v-if="props.chartMode === 'energy' || props.chartMode === 'daily'" class="chart-mode-toggle sub-toggle">
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'energy' }]"
+          @click="emit('update:chart-mode', 'energy')"
+        >Hourly</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'daily' }]"
+          @click="emit('update:chart-mode', 'daily')"
+        >Daily</button>
+      </div>
+      <div v-if="props.chartMode === 'cost-hourly' || props.chartMode === 'cost-daily'" class="chart-mode-toggle sub-toggle">
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'cost-hourly' }]"
+          @click="emit('update:chart-mode', 'cost-hourly')"
+        >Hourly</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'cost-daily' }]"
+          @click="emit('update:chart-mode', 'cost-daily')"
+        >Daily</button>
+      </div>
+    </div>
     <Line ref="chartRef" :data="chartData" :options="chartOptions" :plugins="[zoneRenderingPlugin, zoneInteractionPlugin]" />
   </div>
 </template>
@@ -15,6 +51,8 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
+  BarController,
   Title,
   Tooltip,
   Legend,
@@ -25,6 +63,8 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
+  BarController,
   Title,
   Tooltip,
   Legend,
@@ -44,9 +84,29 @@ const props = defineProps({
     type: Date,
     required: true
   },
+  month: {
+    type: Date,
+    default: () => new Date()
+  },
   batteryHistory: {
     type: Array,
     default: () => []
+  },
+  energyHistory: {
+    type: Array,
+    default: () => []
+  },
+  dailyEnergy: {
+    type: Array,
+    default: () => []
+  },
+  daysInMonth: {
+    type: Number,
+    default: 31
+  },
+  chartMode: {
+    type: String,
+    default: 'battery'
   },
   pendingRuleIds: {
     type: Set,
@@ -54,7 +114,9 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['create-zone', 'edit-zone', 'update-target', 'update-edge-time'])
+const emit = defineEmits(['create-zone', 'edit-zone', 'update-target', 'update-edge-time', 'update:chart-mode'])
+
+const isDaily = computed(() => props.chartMode === 'daily' || props.chartMode === 'cost-daily')
 
 const chartRef = ref(null)
 const { formatTimeDisplay, currentTimeFormat } = useFormatting()
@@ -149,6 +211,8 @@ const zoneRenderingPlugin = {
 
   // Zone fill rectangles and vertical borders: drawn BEHIND dataset lines
   beforeDatasetsDraw(chart) {
+    if (props.chartMode !== 'battery') return
+
     const zones = props.zones
     const ctx = chart.ctx
     const chartArea = chart.chartArea
@@ -319,6 +383,8 @@ const zoneRenderingPlugin = {
 
   // Target lines, arrows, and labels: drawn IN FRONT of dataset lines
   afterDatasetsDraw(chart) {
+    if (props.chartMode !== 'battery') return
+
     const zones = props.zones
     const ctx = chart.ctx
     const chartArea = chart.chartArea
@@ -732,6 +798,8 @@ const zoneInteractionPlugin = {
   id: 'zoneInteraction',
 
   afterDraw(chart) {
+    if (props.chartMode !== 'battery') return
+
     const ctx = chart.ctx
     const chartArea = chart.chartArea
     if (!chartArea) return
@@ -844,6 +912,7 @@ const zoneInteractionPlugin = {
   },
 
   afterEvent(chart, args) {
+    if (props.chartMode !== 'battery') return
     if (isUpdating) return
     const event = args.event
     const chartArea = chart.chartArea
@@ -1317,52 +1386,224 @@ const chartData = computed(() => {
 
   const datasets = []
 
-  // Only include battery dataset if we have history data
-  if (props.batteryHistory.length > 0) {
-    datasets.push({
-      label: 'Battery (%)',
-      data: props.batteryHistory,
-      borderColor: '#3498db',
-      borderWidth: 3,
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      fill: false,
-      tension: 0,
-      yAxisID: 'yCharge',
-      order: 1
-    })
-  }
+  if (props.chartMode === 'energy') {
+    // Stacked energy bar datasets — positive stack up, negative stack down.
+    // Grid and Battery are split into positive/negative datasets.
+    if (props.energyHistory.length > 0) {
+      const barBase = { type: 'bar', yAxisID: 'yEnergy', barPercentage: 1.0, categoryPercentage: 1.0, borderWidth: 1 }
+      const toXY = (p, val) => ({ x: p.hour * 60 + 30, y: val })
+      const pos = v => v > 0 ? v : 0
+      const neg = v => v < 0 ? v : 0
 
-  datasets.push(
-    {
-      label: 'Import (p/kWh)',
-      data: importData,
-      borderColor: '#e74c3c',
-      backgroundColor: 'rgba(231, 76, 60, 0.05)',
-      borderWidth: 2,
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      fill: false,
-      tension: 0,
-      stepped: 'before',
-      yAxisID: 'yCost',
-      order: 2
-    },
-    {
-      label: 'Export (p/kWh)',
-      data: exportData,
-      borderColor: '#27ae60',
-      backgroundColor: 'rgba(39, 174, 96, 0.05)',
-      borderWidth: 2,
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      fill: false,
-      tension: 0,
-      stepped: 'before',
-      yAxisID: 'yCost',
-      order: 3
+      datasets.push(
+        {
+          ...barBase,
+          label: 'Solar',
+          data: props.energyHistory.map(p => toXY(p, p.solarKwh)),
+          backgroundColor: 'rgba(241, 196, 15, 0.7)',
+          borderColor: '#f1c40f',
+          stack: 'energy',
+          order: 2
+        },
+        {
+          ...barBase,
+          label: 'House',
+          data: props.energyHistory.map(p => toXY(p, -p.houseKwh)),
+          backgroundColor: 'rgba(155, 89, 182, 0.7)',
+          borderColor: '#9b59b6',
+          stack: 'energy',
+          order: 3
+        },
+        {
+          ...barBase,
+          label: 'Import',
+          data: props.energyHistory.map(p => toXY(p, pos(p.gridKwh))),
+          backgroundColor: 'rgba(231, 76, 60, 0.7)',
+          borderColor: '#e74c3c',
+          stack: 'energy',
+          order: 4
+        },
+        {
+          ...barBase,
+          label: 'Export',
+          data: props.energyHistory.map(p => toXY(p, neg(p.gridKwh))),
+          backgroundColor: 'rgba(39, 174, 96, 0.7)',
+          borderColor: '#27ae60',
+          stack: 'energy',
+          order: 5
+        },
+        {
+          ...barBase,
+          label: 'Discharge',
+          data: props.energyHistory.map(p => toXY(p, pos(-p.batteryKwh))),
+          backgroundColor: 'rgba(230, 126, 34, 0.7)',
+          borderColor: '#e67e22',
+          stack: 'energy',
+          order: 6
+        },
+        {
+          ...barBase,
+          label: 'Charge',
+          data: props.energyHistory.map(p => toXY(p, neg(-p.batteryKwh))),
+          backgroundColor: 'rgba(52, 152, 219, 0.7)',
+          borderColor: '#3498db',
+          stack: 'energy',
+          order: 7
+        }
+      )
     }
-  )
+  } else if (props.chartMode === 'daily') {
+    // Daily energy bar datasets — same structure as hourly but x = day number
+    if (props.dailyEnergy.length > 0) {
+      const barBase = { type: 'bar', yAxisID: 'yEnergy', barPercentage: 1.0, categoryPercentage: 1.0, borderWidth: 1 }
+      const toXY = (p, val) => ({ x: p.day, y: val })
+      const pos = v => v > 0 ? v : 0
+      const neg = v => v < 0 ? v : 0
+
+      datasets.push(
+        {
+          ...barBase,
+          label: 'Solar',
+          data: props.dailyEnergy.map(p => toXY(p, p.solarKwh)),
+          backgroundColor: 'rgba(241, 196, 15, 0.7)',
+          borderColor: '#f1c40f',
+          stack: 'energy',
+          order: 2
+        },
+        {
+          ...barBase,
+          label: 'House',
+          data: props.dailyEnergy.map(p => toXY(p, -p.houseKwh)),
+          backgroundColor: 'rgba(155, 89, 182, 0.7)',
+          borderColor: '#9b59b6',
+          stack: 'energy',
+          order: 3
+        },
+        {
+          ...barBase,
+          label: 'Import',
+          data: props.dailyEnergy.map(p => toXY(p, pos(p.gridKwh))),
+          backgroundColor: 'rgba(231, 76, 60, 0.7)',
+          borderColor: '#e74c3c',
+          stack: 'energy',
+          order: 4
+        },
+        {
+          ...barBase,
+          label: 'Export',
+          data: props.dailyEnergy.map(p => toXY(p, neg(p.gridKwh))),
+          backgroundColor: 'rgba(39, 174, 96, 0.7)',
+          borderColor: '#27ae60',
+          stack: 'energy',
+          order: 5
+        },
+        {
+          ...barBase,
+          label: 'Discharge',
+          data: props.dailyEnergy.map(p => toXY(p, pos(-p.batteryKwh))),
+          backgroundColor: 'rgba(230, 126, 34, 0.7)',
+          borderColor: '#e67e22',
+          stack: 'energy',
+          order: 6
+        },
+        {
+          ...barBase,
+          label: 'Charge',
+          data: props.dailyEnergy.map(p => toXY(p, neg(-p.batteryKwh))),
+          backgroundColor: 'rgba(52, 152, 219, 0.7)',
+          borderColor: '#3498db',
+          stack: 'energy',
+          order: 7
+        }
+      )
+    }
+  } else if (props.chartMode === 'cost-hourly') {
+    // Hourly net cost bar chart — red if positive (cost), green if negative (income)
+    if (props.energyHistory.length > 0) {
+      const netData = props.energyHistory.map(p => {
+        const net = ((p.importCostPence || 0) - (p.exportCostPence || 0)) / 100
+        return { x: p.hour * 60 + 30, y: net }
+      })
+      datasets.push({
+        type: 'bar',
+        label: 'Net cost',
+        data: netData,
+        backgroundColor: netData.map(d => d.y >= 0 ? 'rgba(231, 76, 60, 0.7)' : 'rgba(39, 174, 96, 0.7)'),
+        borderColor: netData.map(d => d.y >= 0 ? '#e74c3c' : '#27ae60'),
+        borderWidth: 1,
+        barPercentage: 1.0,
+        categoryPercentage: 1.0,
+        yAxisID: 'yCostDaily',
+        order: 2
+      })
+    }
+  } else if (props.chartMode === 'cost-daily') {
+    // Daily net cost bar chart
+    if (props.dailyEnergy.length > 0) {
+      const netData = props.dailyEnergy.map(p => {
+        const net = ((p.importCostPence || 0) - (p.exportCostPence || 0)) / 100
+        return { x: p.day, y: net }
+      })
+      datasets.push({
+        type: 'bar',
+        label: 'Net cost',
+        data: netData,
+        backgroundColor: netData.map(d => d.y >= 0 ? 'rgba(231, 76, 60, 0.7)' : 'rgba(39, 174, 96, 0.7)'),
+        borderColor: netData.map(d => d.y >= 0 ? '#e74c3c' : '#27ae60'),
+        borderWidth: 1,
+        barPercentage: 1.0,
+        categoryPercentage: 1.0,
+        yAxisID: 'yCostDaily',
+        order: 2
+      })
+    }
+  } else {
+    // Battery mode — show battery % line and price lines
+    if (props.batteryHistory.length > 0) {
+      datasets.push({
+        label: 'Battery (%)',
+        data: props.batteryHistory,
+        borderColor: '#3498db',
+        borderWidth: 3,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
+        yAxisID: 'yCharge',
+        order: 1
+      })
+    }
+    datasets.push(
+      {
+        label: 'Import (p/kWh)',
+        data: importData,
+        borderColor: '#e74c3c',
+        backgroundColor: 'rgba(231, 76, 60, 0.05)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
+        stepped: 'before',
+        yAxisID: 'yCost',
+        order: 10
+      },
+      {
+        label: 'Export (p/kWh)',
+        data: exportData,
+        borderColor: '#27ae60',
+        backgroundColor: 'rgba(39, 174, 96, 0.05)',
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        tension: 0,
+        stepped: 'before',
+        yAxisID: 'yCost',
+        order: 11
+      }
+    )
+  }
 
   return { datasets }
 })
@@ -1375,86 +1616,118 @@ const yCostMax = computed(() => {
   return Math.ceil(max / step) * step + step
 })
 
+const yEnergyBounds = computed(() => {
+  const data = props.chartMode === 'daily' ? props.dailyEnergy : props.energyHistory
+  if (!data || data.length === 0) return { min: -1, max: 1 }
+  // Calculate stacked totals per period (positive up, negative down)
+  let maxPos = 0
+  let minNeg = 0
+  for (const p of data) {
+    const pos = v => v > 0 ? v : 0
+    const neg = v => v < 0 ? v : 0
+    // Match the dataset values from chartData
+    const values = [p.solarKwh, -p.houseKwh, pos(p.gridKwh), neg(p.gridKwh), pos(-p.batteryKwh), neg(-p.batteryKwh)]
+    const posSum = values.reduce((s, v) => s + pos(v), 0)
+    const negSum = values.reduce((s, v) => s + neg(v), 0)
+    maxPos = Math.max(maxPos, posSum)
+    minNeg = Math.min(minNeg, negSum)
+  }
+  return {
+    min: Math.floor(minNeg),
+    max: Math.ceil(maxPos)
+  }
+})
+
+const yCostDailyBounds = computed(() => {
+  const data = props.chartMode === 'cost-daily' ? props.dailyEnergy
+    : props.chartMode === 'cost-hourly' ? props.energyHistory
+    : []
+  if (!data || data.length === 0) return { min: -1, max: 1 }
+  let maxVal = 0
+  let minVal = 0
+  for (const p of data) {
+    const net = ((p.importCostPence || 0) - (p.exportCostPence || 0)) / 100
+    maxVal = Math.max(maxVal, net)
+    minVal = Math.min(minVal, net)
+  }
+  if (maxVal === 0 && minVal === 0) return { min: -0.5, max: 0.5 }
+  const absMax = Math.max(Math.abs(minVal), Math.abs(maxVal))
+  if (absMax < 0.5) return { min: -0.5, max: 0.5 }
+  return {
+    min: Math.floor(minVal),
+    max: Math.ceil(maxVal)
+  }
+})
+
 const chartOptions = computed(() => {
   // Access timeFormat so Vue tracks it as a dependency and recomputes when it changes
   void currentTimeFormat.value
 
-  return {
-  responsive: true,
-  maintainAspectRatio: false,
-  events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend', 'mousedown', 'mouseup'],
-  interaction: {
-    mode: 'nearest',
-    intersect: false
-  },
-  plugins: {
-    legend: {
-      display: true,
-      position: 'bottom',
-      labels: {
-        color: themeColors.value.textPrimary,
-        usePointStyle: true,
-        padding: 15
-      }
-    },
-    tooltip: {
-      enabled: true,
-      backgroundColor: themeColors.value.bgTertiary,
-      titleColor: themeColors.value.textPrimary,
-      bodyColor: themeColors.value.textSecondary,
-      borderColor: themeColors.value.borderColor,
-      borderWidth: 1,
-      padding: 12,
-      displayColors: true,
-      callbacks: {
-        title: function (items) {
-          if (items.length === 0) return ''
-          const minutes = items[0].parsed.x
-          return formatMinutes(minutes)
-        },
-        label: function (context) {
-          let label = context.dataset.label || ''
-          if (label) label += ': '
-          if (context.dataset.yAxisID === 'yCharge') {
-            label += Math.round(context.parsed.y) + '%'
-          } else {
-            label += context.parsed.y.toFixed(1) + 'p'
+  const isEnergyMode = props.chartMode === 'energy'
+  const isDailyMode = props.chartMode === 'daily'
+  const isCostHourly = props.chartMode === 'cost-hourly'
+  const isCostDaily = props.chartMode === 'cost-daily'
+  const isCostMode = isCostHourly || isCostDaily
+  const isBarMode = isEnergyMode || isDailyMode || isCostMode
+  const isDayXAxis = isDailyMode || isCostDaily
+
+  const xScale = isDayXAxis
+    ? {
+        type: 'linear',
+        min: 0.5,
+        max: props.daysInMonth + 0.5,
+        offset: false,
+        afterBuildTicks: function (axis) {
+          axis.ticks = []
+          for (let d = 1; d <= props.daysInMonth; d++) {
+            axis.ticks.push({ value: d })
           }
-          return label
+        },
+        grid: {
+          color: themeColors.value.gridColor,
+          drawBorder: true,
+          lineWidth: 1
+        },
+        ticks: {
+          color: themeColors.value.textSecondary,
+          maxRotation: 0,
+          autoSkip: true
         }
       }
-    }
-  },
-  scales: {
-    x: {
-      type: 'linear',
-      min: 0,
-      max: 1440,
-      grid: {
-        color: themeColors.value.gridColor,
-        drawBorder: true,
-        lineWidth: 1
-      },
-      ticks: {
-        color: themeColors.value.textSecondary,
-        maxRotation: 0,
-        autoSkip: true,
-        stepSize: 120,
-        callback: function (value) {
-          const h = Math.floor(value / 60)
-          const time24 = `${h.toString().padStart(2, '0')}:00`
-          return formatTimeDisplay(time24)
+    : {
+        type: 'linear',
+        min: 0,
+        max: 1440,
+        offset: false,
+        grid: {
+          color: themeColors.value.gridColor,
+          drawBorder: true,
+          lineWidth: 1
+        },
+        ticks: {
+          color: themeColors.value.textSecondary,
+          maxRotation: 0,
+          autoSkip: true,
+          stepSize: 120,
+          callback: function (value) {
+            const h = Math.floor(value / 60)
+            const time24 = `${h.toString().padStart(2, '0')}:00`
+            return formatTimeDisplay(time24)
+          }
         }
       }
-    },
+
+  const scales = {
+    x: xScale,
     yCharge: {
       type: 'linear',
+      display: !isBarMode,
       position: 'left',
       min: 0,
       max: 100,
       grid: {
         color: themeColors.value.gridColor,
-        drawOnChartArea: true,
+        drawOnChartArea: !isBarMode,
         lineWidth: 1
       },
       ticks: {
@@ -1465,9 +1738,48 @@ const chartOptions = computed(() => {
         }
       }
     },
+    yEnergy: {
+      type: 'linear',
+      position: 'left',
+      display: isEnergyMode || isDailyMode,
+      stacked: true,
+      min: yEnergyBounds.value.min,
+      max: yEnergyBounds.value.max,
+      grid: {
+        color: themeColors.value.gridColor,
+        drawOnChartArea: isEnergyMode || isDailyMode,
+        lineWidth: 1
+      },
+      ticks: {
+        color: themeColors.value.textSecondary,
+        stepSize: 1,
+        callback: function (value) {
+          return value + ' kWh'
+        }
+      }
+    },
+    yCostDaily: {
+      type: 'linear',
+      position: 'left',
+      display: isCostMode,
+      min: yCostDailyBounds.value.min,
+      max: yCostDailyBounds.value.max,
+      grid: {
+        color: themeColors.value.gridColor,
+        drawOnChartArea: isCostMode,
+        lineWidth: 1
+      },
+      ticks: {
+        color: themeColors.value.textSecondary,
+        callback: function (value) {
+          return '£' + value.toFixed(2)
+        }
+      }
+    },
     yCost: {
       type: 'linear',
       position: 'right',
+      display: !isBarMode,
       min: 0,
       max: yCostMax.value,
       grid: {
@@ -1482,6 +1794,78 @@ const chartOptions = computed(() => {
       }
     }
   }
+
+  return {
+  responsive: true,
+  maintainAspectRatio: false,
+  events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove', 'touchend', 'mousedown', 'mouseup'],
+  interaction: {
+    mode: 'nearest',
+    intersect: false
+  },
+  plugins: {
+    legend: {
+      display: !isCostMode,
+      position: 'bottom',
+      labels: {
+        color: themeColors.value.textPrimary,
+        usePointStyle: true,
+        padding: window.innerWidth <= 600 ? 8 : 15,
+        font: {
+          size: window.innerWidth <= 600 ? 10 : 12
+        },
+        boxWidth: window.innerWidth <= 600 ? 8 : 40
+      },
+      onClick: function () {
+        // Legend toggling disabled
+      }
+    },
+    tooltip: {
+      enabled: true,
+      backgroundColor: themeColors.value.bgTertiary,
+      titleColor: themeColors.value.textPrimary,
+      bodyColor: themeColors.value.textSecondary,
+      borderColor: themeColors.value.borderColor,
+      borderWidth: 1,
+      padding: 12,
+      displayColors: true,
+      callbacks: {
+        title: function (items) {
+          if (items.length === 0) return ''
+          if (props.chartMode === 'daily' || props.chartMode === 'cost-daily') {
+            const day = Math.round(items[0].parsed.x + 0.5)
+            const d = new Date(props.month.getFullYear(), props.month.getMonth(), day)
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+          }
+          const minutes = items[0].parsed.x
+          if (props.chartMode === 'energy' || props.chartMode === 'cost-hourly') {
+            const hour = Math.round((minutes - 30) / 60)
+            return formatMinutes(hour * 60) + ' to ' + formatMinutes((hour + 1) * 60)
+          }
+          return formatMinutes(minutes)
+        },
+        label: function (context) {
+          // Hide zero-value energy bars from tooltip
+          if ((context.dataset.yAxisID === 'yEnergy' || context.dataset.yAxisID === 'yCostDaily') && context.parsed.y === 0) {
+            return null
+          }
+          let label = context.dataset.label || ''
+          if (label) label += ': '
+          if (context.dataset.yAxisID === 'yCharge') {
+            label += Math.round(context.parsed.y) + '%'
+          } else if (context.dataset.yAxisID === 'yEnergy') {
+            label += Math.abs(context.parsed.y).toFixed(3) + ' kWh'
+          } else if (context.dataset.yAxisID === 'yCostDaily') {
+            label = (context.parsed.y >= 0 ? 'Net cost: ' : 'Net income: ') + '£' + Math.abs(context.parsed.y).toFixed(2)
+          } else {
+            label += context.parsed.y.toFixed(1) + 'p'
+          }
+          return label
+        }
+      }
+    }
+  },
+  scales
 }})
 </script>
 
@@ -1490,8 +1874,57 @@ const chartOptions = computed(() => {
   position: relative;
   width: 100%;
   height: 100%;
+  max-height: calc(100dvh - 160px);
   min-height: 300px;
   padding: 8px;
+}
+
+.chart-mode-toggles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 4px;
+}
+
+.chart-mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+}
+
+
+.toggle-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.toggle-btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.toggle-btn + .toggle-btn {
+  border-left: none;
+}
+
+.toggle-btn:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.toggle-btn.active {
+  background: var(--color-primary);
+  color: var(--text-header);
+  border-color: var(--color-primary);
+}
+
+.toggle-btn:hover:not(.active) {
+  background: var(--bg-secondary, var(--bg-tertiary));
 }
 
 @media (max-width: 600px) {

@@ -28,9 +28,10 @@ internal class NotificationService
 
     public void SendNotificationToGroups(string title, string message, params string[] groups)
     {
-        HashSet<string> recipients = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> recipients = [];
 
         Dictionary<string, List<string>> configGroups = _config.Groups.ToDictionary(g => g.Key.ToLowerInvariant().Trim(), g => g.Value);
+        Dictionary<string, string> configRecipients = _config.Recipients.ToDictionary(g => g.Key.ToLowerInvariant().Trim(), g => g.Value);
 
         foreach (string name in groups)
         {
@@ -43,7 +44,7 @@ internal class NotificationService
                     recipients.Add(member);
                 }
             }
-            else if (_config.Recipients.ContainsKey(key))
+            else if (configRecipients.ContainsKey(key))
             {
                 recipients.Add(key);
             }
@@ -54,7 +55,6 @@ internal class NotificationService
         }
 
         recipients = [.. recipients.Select(r => r.ToLowerInvariant().Trim()).Distinct()];
-        Dictionary<string, string> configRecipients = _config.Recipients.ToDictionary(g => g.Key.ToLowerInvariant().Trim(), g => g.Value);
 
         foreach (string recipient in recipients)
         {

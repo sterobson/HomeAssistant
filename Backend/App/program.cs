@@ -160,6 +160,15 @@ try
                     }
                 })
                 .Services
+                .AddHttpClient<IEnergyHistoryApiClient, EnergyHistoryApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
                 .AddHttpClient<IAppUpdateApiClient, AppUpdateApiClient>((serviceProvider, client) =>
                 {
                     WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
@@ -175,6 +184,8 @@ try
                 .AddScoped<EntityPushService>()
                 .AddScoped<BatteryHistoryPushService>()
                 .AddScoped<BatteryHistoryBackfillService>()
+                .AddScoped<EnergyHistoryPushService>()
+                .AddScoped<EnergyHistoryBackfillService>()
                 .AddScoped<ElectricityRatePushService>()
                 .AddSingleton<TimeProvider>(provider => TimeProvider.System);
 

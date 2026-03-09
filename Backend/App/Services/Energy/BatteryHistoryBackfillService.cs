@@ -1,6 +1,7 @@
 using HomeAssistant.Services;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -70,12 +71,39 @@ internal class BatteryHistoryBackfillService
             for (int daysAgo = 6; daysAgo >= 0; daysAgo--)
             {
                 string date = now.AddDays(-daysAgo).ToString("yyyy-MM-dd");
-                await BackfillDateAsync(_configuration.HouseId, date, simplify: false);
+                await BackfillDateWithRetryAsync(_configuration.HouseId, date, simplify: false);
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error pushing today's battery history on startup");
+        }
+    }
+
+    private async Task BackfillDateWithRetryAsync(string houseId, string date, bool simplify = true, int maxRetries = 3)
+    {
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                await BackfillDateAsync(houseId, date, simplify);
+                return;
+            }
+            catch (HttpRequestException ex)
+            {
+                if (attempt < maxRetries)
+                {
+                    int delaySeconds = (int)Math.Pow(2, attempt + 1); // 2s, 4s, 8s
+                    _logger.LogWarning(ex, "Backfill for {Date} failed (attempt {Attempt}/{Max}), retrying in {Delay}s",
+                        date, attempt + 1, maxRetries + 1, delaySeconds);
+                    await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                }
+                else
+                {
+                    _logger.LogError(ex, "Backfill for {Date} failed after {Max} attempts, giving up",
+                        date, maxRetries + 1);
+                }
+            }
         }
     }
 

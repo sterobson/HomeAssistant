@@ -169,5 +169,64 @@ export const batteryApi = {
       reportApiError('Failed to request history backfill')
       throw error
     }
+  },
+
+  async getEnergyHistory(date) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history?houseId=${houseId}&date=${date}`, {
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch energy history: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching energy history:', error)
+      reportApiError('Failed to load energy history')
+      throw error
+    }
+  },
+
+  async requestEnergyBackfill(date) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history-backfill?houseId=${houseId}&date=${date}`, {
+        method: 'POST',
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to request energy history backfill: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error requesting energy history backfill:', error)
+      reportApiError('Failed to request energy backfill')
+      throw error
+    }
+  },
+
+  async requestEnergyBackfillRange(fromDate, toDate) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history-backfill?houseId=${houseId}&fromDate=${fromDate}&toDate=${toDate}`, {
+        method: 'POST',
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to request energy history backfill: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error requesting energy history backfill range:', error)
+      reportApiError('Failed to request energy backfill')
+      throw error
+    }
   }
 }
