@@ -48,7 +48,9 @@
       "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" ls-files -- \"*PriceAnalysis*\")",
       "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" show HEAD:Backend/App/Services/Energy/PriceAnalysis.cs)",
       "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" show HEAD:\"Backend/App/Services/Energy/PriceAnalysis.cs\")",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(xargs:*)",
+      "Bash(dotnet:*)"
     ],
     "deny": [],
     "ask": []
