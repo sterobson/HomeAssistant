@@ -37,6 +37,21 @@ internal class EnergyHistoryBackfillService
 
     public void Initialize()
     {
+        // Hard guard: energy backfill is destructive — it can write 24 hours of
+        // values per day and the storage path (without per-hour upsert) used to
+        // delete-then-insert entire partitions. We must never run this from a
+        // dev or test instance that's accidentally pointed at production
+        // storage. Require an explicit opt-in env var on the production
+        // deployment; everything else is a no-op.
+        string? enabled = Environment.GetEnvironmentVariable("EnergyBackfillEnabled");
+        if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning(
+                "Energy backfill disabled: EnergyBackfillEnabled env var is not 'true'. " +
+                "Set it only on the production instance to enable startup + SignalR backfill.");
+            return;
+        }
+
         _signalRConnection.On<JsonElement>("backfill-energy-history", HandleBackfillRequestAsync);
 
         _ = BackfillOnStartupAsync();
@@ -78,14 +93,28 @@ internal class EnergyHistoryBackfillService
                 ? houseIdElement.GetString()
                 : null;
 
-            // Support date range (fromDate/toDate) or single date for backward compatibility
+            // Preferred shape: explicit list of dates. Prevents the "from-first-
+            // missing to last-missing" expansion that would otherwise pull in
+            // intermediate dates the caller never asked for.
+            List<string> dates = [];
+            if (payload.TryGetProperty("dates", out JsonElement datesElement) &&
+                datesElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement element in datesElement.EnumerateArray())
+                {
+                    string? d = element.GetString();
+                    if (!string.IsNullOrWhiteSpace(d)) dates.Add(d);
+                }
+            }
+
+            // Backwards-compatible fallbacks
             string? fromDate = payload.TryGetProperty("fromDate", out JsonElement fromDateElement)
                 ? fromDateElement.GetString()
                 : null;
             string? toDate = payload.TryGetProperty("toDate", out JsonElement toDateElement)
                 ? toDateElement.GetString()
                 : null;
-            string? date = payload.TryGetProperty("date", out JsonElement dateElement)
+            string? singleDate = payload.TryGetProperty("date", out JsonElement dateElement)
                 ? dateElement.GetString()
                 : null;
 
@@ -102,24 +131,121 @@ internal class EnergyHistoryBackfillService
                 return;
             }
 
-            if (!string.IsNullOrEmpty(fromDate) && !string.IsNullOrEmpty(toDate))
+            if (dates.Count > 0)
+            {
+                await BackfillSpecificDatesAsync(houseId, dates);
+            }
+            else if (!string.IsNullOrEmpty(fromDate) && !string.IsNullOrEmpty(toDate))
             {
                 await BackfillDateRangeAsync(houseId, fromDate, toDate);
             }
-            else if (!string.IsNullOrEmpty(date))
+            else if (!string.IsNullOrEmpty(singleDate))
             {
-                // Backward compatibility: single date
-                await BackfillDateRangeAsync(houseId, date, date);
+                await BackfillDateRangeAsync(houseId, singleDate, singleDate);
             }
             else
             {
-                _logger.LogWarning("Received energy backfill request with missing date range");
+                _logger.LogWarning("Received energy backfill request with no dates or date range");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing energy history backfill");
         }
+    }
+
+    private async Task BackfillSpecificDatesAsync(string houseId, List<string> dateStrings)
+    {
+        DeviceSettingsDto settings = await _deviceSettings.GetSettingsAsync();
+        if (!TryGetSensorIds(settings, out string solarId, out string batteryId,
+                out string gridImportId, out string gridExportId,
+                out string? importRateId, out string? exportRateId))
+        {
+            return;
+        }
+
+        _logger.LogInformation("Backfilling energy history for house {HouseId} ({Count} specific dates)",
+            houseId, dateStrings.Count);
+
+        List<EnergyBackfillDateEntry> allEntries = [];
+        foreach (string dateStr in dateStrings)
+        {
+            if (!DateOnly.TryParse(dateStr, out DateOnly date))
+            {
+                _logger.LogWarning("Skipping unparseable backfill date '{Date}'", dateStr);
+                continue;
+            }
+            try
+            {
+                List<EnergyBackfillPoint>? points = await BuildDayPointsAsync(
+                    date, solarId, batteryId, gridImportId, gridExportId,
+                    importRateId, exportRateId);
+                if (points != null && points.Count > 0)
+                {
+                    allEntries.Add(new EnergyBackfillDateEntry { Date = dateStr, Points = points });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error building backfill data for {Date}", date);
+            }
+        }
+
+        if (allEntries.Count == 0)
+        {
+            _logger.LogInformation("No energy data to backfill for house {HouseId} ({Count} dates produced no points)",
+                houseId, dateStrings.Count);
+            return;
+        }
+
+        try
+        {
+            await _apiClient.BulkReplaceEnergyHistoryAsync(houseId, allEntries);
+            int totalPoints = allEntries.Sum(e => e.Points.Count);
+            _logger.LogInformation(
+                "Successfully backfilled energy history for house {HouseId} ({DateCount} dates, {PointCount} hours)",
+                houseId, allEntries.Count, totalPoints);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading backfill data for house {HouseId}", houseId);
+        }
+    }
+
+    private bool TryGetSensorIds(DeviceSettingsDto settings,
+        out string solarId, out string batteryId, out string gridImportId, out string gridExportId,
+        out string? importRateId, out string? exportRateId)
+    {
+        solarId = string.Empty;
+        batteryId = string.Empty;
+        gridImportId = string.Empty;
+        gridExportId = string.Empty;
+        importRateId = null;
+        exportRateId = null;
+
+        RealtimePowerSettingsDto? power = settings.RealtimePower;
+        if (power == null)
+        {
+            _logger.LogWarning("Cannot backfill energy history - RealtimePower settings not configured");
+            return false;
+        }
+
+        if (string.IsNullOrEmpty(power.SolarPowerSensorId) ||
+            string.IsNullOrEmpty(power.BatteryPowerSensorId) ||
+            string.IsNullOrEmpty(power.GridImportPowerSensorId) ||
+            string.IsNullOrEmpty(power.GridExportPowerSensorId))
+        {
+            _logger.LogWarning("Cannot backfill energy history - not all power sensor IDs configured");
+            return false;
+        }
+
+        solarId = power.SolarPowerSensorId;
+        batteryId = power.BatteryPowerSensorId;
+        gridImportId = power.GridImportPowerSensorId;
+        gridExportId = power.GridExportPowerSensorId;
+        importRateId = settings.Battery?.ElectricityRateSensorId;
+        exportRateId = settings.Battery?.ExportRateSensorId;
+        return true;
     }
 
     private async Task BackfillDateRangeAsync(string houseId, string fromDateStr, string toDateStr)
@@ -133,29 +259,12 @@ internal class EnergyHistoryBackfillService
         }
 
         DeviceSettingsDto settings = await _deviceSettings.GetSettingsAsync();
-        RealtimePowerSettingsDto? power = settings.RealtimePower;
-
-        if (power == null)
+        if (!TryGetSensorIds(settings, out string solarId, out string batteryId,
+                out string gridImportId, out string gridExportId,
+                out string? importRateId, out string? exportRateId))
         {
-            _logger.LogWarning("Cannot backfill energy history - RealtimePower settings not configured");
             return;
         }
-
-        string? solarId = power.SolarPowerSensorId;
-        string? batteryId = power.BatteryPowerSensorId;
-        string? gridImportId = power.GridImportPowerSensorId;
-        string? gridExportId = power.GridExportPowerSensorId;
-
-        if (string.IsNullOrEmpty(solarId) || string.IsNullOrEmpty(batteryId) ||
-            string.IsNullOrEmpty(gridImportId) || string.IsNullOrEmpty(gridExportId))
-        {
-            _logger.LogWarning("Cannot backfill energy history - not all power sensor IDs configured");
-            return;
-        }
-
-        BatterySettingsDto? battery = settings.Battery;
-        string? importRateId = battery?.ElectricityRateSensorId;
-        string? exportRateId = battery?.ExportRateSensorId;
 
         _logger.LogInformation("Backfilling energy history for house {HouseId} from {FromDate} to {ToDate}",
             houseId, fromDateStr, toDateStr);
@@ -255,7 +364,7 @@ internal class EnergyHistoryBackfillService
         IReadOnlyList<NumericHistoryEntry>? exportRateHistory = exportRateTask != null ? await exportRateTask : null;
 
         List<EnergyBackfillPoint> points = [];
-        bool anySensorActivity = false;
+        int skippedEmptyHours = 0;
 
         for (int hour = 0; hour < maxHour; hour++)
         {
@@ -273,9 +382,15 @@ internal class EnergyHistoryBackfillService
             double gridExportKwh = EnergyHistoryPushService.IntegrateToKwh(
                 FilterToWindow(gridExportHistory, hourFromUtc, hourToUtc), hourFromUtc, hourToUtc);
 
-            if (solarKwh != 0 || batteryKwh != 0 || gridImportKwh != 0 || gridExportKwh != 0)
+            // Per-hour skip: if every sensor integrates to exactly zero, HA had
+            // no data for this hour. Real homes always have some idle draw on
+            // at least one sensor, so all-zero means "missing", not "quiet".
+            // Skipping leaves any existing stored hour untouched rather than
+            // overwriting it with bogus zeros.
+            if (solarKwh == 0 && batteryKwh == 0 && gridImportKwh == 0 && gridExportKwh == 0)
             {
-                anySensorActivity = true;
+                skippedEmptyHours++;
+                continue;
             }
 
             double gridKwh = gridImportKwh - gridExportKwh;
@@ -310,18 +425,22 @@ internal class EnergyHistoryBackfillService
             });
         }
 
-        // Refuse to emit an all-zero day. A real installation always has some
-        // idle draw on at least one sensor, so all-zero across every hour is a
-        // strong signal that Home Assistant returned no usable history (e.g.
-        // wrong entity IDs, dev pointing at the wrong instance, recorder
-        // hadn't started). Returning null skips the bulk-replace and protects
-        // existing data from being overwritten with empties.
-        if (!anySensorActivity)
+        // After per-hour filtering, if nothing survived we have nothing to
+        // write. Log at info — already-detailed warnings would have logged
+        // per-hour skips if anyone cares to count them.
+        if (points.Count == 0)
         {
             _logger.LogWarning(
-                "Skipping backfill for {Date}: all integrated sensor values are zero across every hour, refusing to overwrite existing data",
-                localDate);
+                "No backfill data for {Date}: {Skipped}/{Max} hours had no sensor activity",
+                localDate, skippedEmptyHours, maxHour);
             return null;
+        }
+
+        if (skippedEmptyHours > 0)
+        {
+            _logger.LogInformation(
+                "Backfill {Date}: {Kept} hours, {Skipped} skipped (no sensor activity)",
+                localDate, points.Count, skippedEmptyHours);
         }
 
         return points;

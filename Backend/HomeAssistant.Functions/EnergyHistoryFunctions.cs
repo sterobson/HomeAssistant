@@ -311,34 +311,63 @@ public class EnergyHistoryFunctions
 
         string houseId = houseIdStr.ToString();
 
-        // Support date range (fromDate/toDate) or single date for backward compatibility
+        // Preferred: explicit list of dates via the request body, so the
+        // caller asks for exactly what's missing rather than triggering a
+        // span-expansion on the daemon side. Falls back to fromDate/toDate
+        // (range) or date (single) query params for backwards compatibility.
+        List<string>? dates = null;
+        try
+        {
+            if (req.ContentLength > 0)
+            {
+                using StreamReader bodyReader = new(req.Body);
+                string body = await bodyReader.ReadToEndAsync();
+                if (!string.IsNullOrWhiteSpace(body))
+                {
+                    EnergyBackfillRequestBody? parsed = JsonSerializer.Deserialize<EnergyBackfillRequestBody>(
+                        body, JsonConfiguration.CreateOptions());
+                    if (parsed?.Dates != null && parsed.Dates.Count > 0)
+                    {
+                        dates = parsed.Dates.Where(d => !string.IsNullOrWhiteSpace(d)).ToList();
+                    }
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Ignoring unparseable backfill request body for house {HouseId}", houseId);
+        }
+
         string? fromDate = req.Query.TryGetValue("fromDate", out StringValues fromDateStr) ? fromDateStr.ToString() : null;
         string? toDate = req.Query.TryGetValue("toDate", out StringValues toDateStr) ? toDateStr.ToString() : null;
         string? date = req.Query.TryGetValue("date", out StringValues dateStr) ? dateStr.ToString() : null;
 
-        if (string.IsNullOrWhiteSpace(fromDate) || string.IsNullOrWhiteSpace(toDate))
+        object signalRPayload;
+        if (dates != null && dates.Count > 0)
         {
-            // Fall back to single date
-            if (string.IsNullOrWhiteSpace(date))
-            {
-                return new BadRequestObjectResult(new { error = "Provide fromDate/toDate or date query parameters" });
-            }
-            fromDate = date;
-            toDate = date;
+            _logger.LogInformation("Requesting energy history backfill for house {HouseId} ({Count} specific dates)",
+                houseId, dates.Count);
+            signalRPayload = new { houseId, dates };
         }
-
-        _logger.LogInformation("Requesting energy history backfill for house {HouseId} from {FromDate} to {ToDate}",
-            houseId, fromDate, toDate);
+        else
+        {
+            if (string.IsNullOrWhiteSpace(fromDate) || string.IsNullOrWhiteSpace(toDate))
+            {
+                if (string.IsNullOrWhiteSpace(date))
+                {
+                    return new BadRequestObjectResult(new { error = "Provide a dates array in the body, or fromDate/toDate, or date query parameters" });
+                }
+                fromDate = date;
+                toDate = date;
+            }
+            _logger.LogInformation("Requesting energy history backfill for house {HouseId} from {FromDate} to {ToDate}",
+                houseId, fromDate, toDate);
+            signalRPayload = new { houseId, fromDate, toDate };
+        }
 
         try
         {
-            await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "backfill-energy-history", new
-            {
-                houseId,
-                fromDate,
-                toDate
-            });
-
+            await _signalRService.SendMessageToGroupAsync($"house-{houseId}", "backfill-energy-history", signalRPayload);
             return new AcceptedResult(string.Empty, new { success = true, message = "Backfill request sent" });
         }
         catch (Exception ex)
@@ -467,6 +496,11 @@ public class EnergyHistoryReplacePoint
     public double HouseKwh { get; set; }
     public double ImportCostPence { get; set; }
     public double ExportCostPence { get; set; }
+}
+
+public class EnergyBackfillRequestBody
+{
+    public List<string>? Dates { get; set; }
 }
 
 public class EnergyHistoryRangeResponse

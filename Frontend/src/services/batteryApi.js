@@ -247,5 +247,31 @@ export const batteryApi = {
       reportApiError('Failed to request energy backfill')
       throw error
     }
+  },
+
+  // Preferred over requestEnergyBackfillRange: sends the exact list of dates
+  // the caller wants backfilled, so the daemon only evaluates those dates
+  // rather than every date in [first, last] (which used to amplify damage
+  // when a few scattered gaps existed).
+  async requestEnergyBackfillDates(dates) {
+    if (!dates || dates.length === 0) return null
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history-backfill?houseId=${houseId}`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify({ dates })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to request energy history backfill: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error requesting energy history backfill dates:', error)
+      reportApiError('Failed to request energy backfill')
+      throw error
+    }
   }
 }

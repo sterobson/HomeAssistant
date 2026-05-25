@@ -87,57 +87,36 @@ public class EnergyHistoryStorageService
         }
     }
 
+    /// <summary>
+    /// Per-hour upsert. Each incoming point overwrites the matching hour in the
+    /// partition; hours that aren't in <paramref name="newPoints"/> are left
+    /// alone. Intentionally non-destructive: a backfill that only produces
+    /// some hours of the day (because Home Assistant had partial data, or
+    /// because the daemon skipped empty hours) will only touch those hours.
+    /// The historic delete-then-insert behaviour was the root cause of the
+    /// May 2026 data-loss incident.
+    /// </summary>
     public async Task ReplaceHistoryAsync(string houseId, string date, List<EnergyHistoryPoint> newPoints)
     {
         try
         {
             string partitionKey = $"{houseId}_{date}";
 
-            // Read existing first so we can apply the shrink safeguard before
-            // any destructive writes.
-            List<EnergyHistoryPoint> existingPoints = [];
-            await foreach (EnergyHistoryPoint point in _tableClient.QueryAsync<EnergyHistoryPoint>(
-                filter: $"PartitionKey eq '{partitionKey}'"))
-            {
-                existingPoints.Add(point);
-            }
-
-            // Refuse to replace when the incoming payload has fewer points
-            // than what's already stored. Backfill is supposed to produce a
-            // full-day set; a smaller payload almost always means the source
-            // ran short of data (e.g. HA offline, wrong sensors, dev instance
-            // pointing at prod storage). Real-time pushes use SaveHourAsync,
-            // not this path, so they're unaffected.
-            if (newPoints.Count < existingPoints.Count)
-            {
-                _logger.LogWarning(
-                    "Refusing to replace energy history for house {HouseId} on {Date}: incoming {NewCount} points is fewer than existing {OldCount} points",
-                    houseId, date, newPoints.Count, existingPoints.Count);
-                return;
-            }
-
-            // Delete existing points
-            foreach (EnergyHistoryPoint point in existingPoints)
-            {
-                await _tableClient.DeleteEntityAsync(point.PartitionKey, point.RowKey);
-            }
-
-            // Save new points
             foreach (EnergyHistoryPoint point in newPoints)
             {
                 point.PartitionKey = partitionKey;
                 point.RowKey = point.Hour.ToString("D2");
                 point.HouseId = houseId;
                 point.Date = date;
-                await _tableClient.AddEntityAsync(point);
+                await _tableClient.UpsertEntityAsync(point);
             }
 
-            _logger.LogInformation("Replaced energy history for house {HouseId} on {Date}: {OldCount} → {NewCount} points",
-                houseId, date, existingPoints.Count, newPoints.Count);
+            _logger.LogInformation("Upserted {Count} energy history points for house {HouseId} on {Date}",
+                newPoints.Count, houseId, date);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to replace energy history for house {HouseId} on {Date}", houseId, date);
+            _logger.LogError(ex, "Failed to upsert energy history for house {HouseId} on {Date}", houseId, date);
             throw;
         }
     }

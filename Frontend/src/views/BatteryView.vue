@@ -303,10 +303,11 @@ function requestEnergyBackfillForMonth(year, month, missingDates) {
   for (const d of missingDates) {
     energyBackfillRequested.add(d)
   }
-  const fromDate = missingDates[0]
-  const toDate = missingDates[missingDates.length - 1]
-  batteryApi.requestEnergyBackfillRange(fromDate, toDate).catch(err => {
-    console.error('Failed to request energy backfill range:', err)
+  // Send only the specific missing dates — the daemon used to expand
+  // [first..last] into every intermediate day, which corrupted unrelated dates
+  // during the May 2026 incident.
+  batteryApi.requestEnergyBackfillDates(missingDates).catch(err => {
+    console.error('Failed to request energy backfill dates:', err)
   })
 }
 
