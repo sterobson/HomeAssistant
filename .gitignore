@@ -17,3 +17,6 @@ appsettings.Production.json
 deploy.secrets.ps1
 /publish
 /.deployment
+
+# Local Azurite emulator state — contains serialized Azure Function host keys
+.azurite/

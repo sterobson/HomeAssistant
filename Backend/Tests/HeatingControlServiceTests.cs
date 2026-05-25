@@ -316,6 +316,7 @@ public sealed class HeatingControlServiceTests
         services.AddSingleton(Substitute.For<ILogger<ISchedulePersistenceService>>());
         services.AddSingleton(Substitute.For<ISchedulePersistenceService>());
         services.AddSingleton(Substitute.For<IRoomStatePersistenceService>());
+        services.AddSingleton(Substitute.For<IBoilerVerificationService>());
 
         return services.BuildServiceProvider();
     }

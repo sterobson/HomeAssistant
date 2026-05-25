@@ -61,6 +61,32 @@ public class EnergyHistoryStorageService
         }
     }
 
+    public async Task<List<EnergyHistoryPoint>> GetHistoryRangeAsync(string houseId, string fromDate, string toDate)
+    {
+        try
+        {
+            string fromKey = $"{houseId}_{fromDate}";
+            string toKey = $"{houseId}_{toDate}";
+            List<EnergyHistoryPoint> results = [];
+
+            await foreach (EnergyHistoryPoint point in _tableClient.QueryAsync<EnergyHistoryPoint>(
+                filter: $"PartitionKey ge '{fromKey}' and PartitionKey le '{toKey}'"))
+            {
+                results.Add(point);
+            }
+
+            _logger.LogDebug("Retrieved {Count} energy history points for house {HouseId} between {FromDate} and {ToDate}",
+                results.Count, houseId, fromDate, toDate);
+            return results;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve energy history range for house {HouseId} between {FromDate} and {ToDate}",
+                houseId, fromDate, toDate);
+            throw;
+        }
+    }
+
     public async Task ReplaceHistoryAsync(string houseId, string date, List<EnergyHistoryPoint> newPoints)
     {
         try

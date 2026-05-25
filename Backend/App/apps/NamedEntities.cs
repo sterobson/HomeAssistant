@@ -123,6 +123,9 @@ public interface INamedEntities
 
     // Upstairs bathroom
     ICustomNumericSensorEntity UpstairsBathroomTemperature { get; }
+
+    // Boiler
+    ICustomSwitchEntity BoilerFingerbot { get; }
 }
 
 public class NamedEntities : INamedEntities
@@ -192,6 +195,9 @@ public class NamedEntities : INamedEntities
 
     // Upstairs bathroom
     private readonly ICustomNumericSensorEntity _upstairsBathroomTemperature;
+
+    // Boiler
+    private readonly ICustomSwitchEntity _boilerFingerbot;
 
     // Porch
     private readonly LightEntity _porchLight;
@@ -265,6 +271,9 @@ public class NamedEntities : INamedEntities
         // Upstairs bathroom
         _upstairsBathroomTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bathroom_temperature"));
 
+        // Boiler
+        _boilerFingerbot = new CustomSwitchEntity(new SwitchEntity(ha, "switch.tz3210_j4pdtz9v_ts0001"));
+
         // Porch
         _porchLight = new LightEntity(ha, "light.porch_light");
         _porchMotionSensor = new BinarySensorEntity(ha, "binary_sensor.ewelink_snzb_03p_occupancy");
@@ -329,6 +338,9 @@ public class NamedEntities : INamedEntities
 
     // Upstairs bathroom
     public ICustomNumericSensorEntity UpstairsBathroomTemperature => _upstairsBathroomTemperature;
+
+    // Boiler
+    public ICustomSwitchEntity BoilerFingerbot => _boilerFingerbot;
 
     // Porch
     public LightEntity PorchLight => _porchLight;

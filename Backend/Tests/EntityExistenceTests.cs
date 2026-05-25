@@ -211,12 +211,13 @@ public sealed class EntityExistenceTests
         FakeTimeProvider timeProvider = new();
         ISchedulePersistenceService schedulePersistence = Substitute.For<ISchedulePersistenceService>();
         IRoomStatePersistenceService statePersistence = Substitute.For<IRoomStatePersistenceService>();
+        IBoilerVerificationService boilerVerification = Substitute.For<IBoilerVerificationService>();
 
         // Act & Assert - constructor should not throw
-        HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence);
+        HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence, boilerVerification);
 
-        // Verify warnings were logged for the 21 validated entities
-        logger.Received(21).Log(
+        // Verify warnings were logged for the 22 validated entities
+        logger.Received(22).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
             Arg.Any<object>(),

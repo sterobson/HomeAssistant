@@ -76,6 +76,86 @@ public class EnergyHistoryFunctions
         }
     }
 
+    [Function("GetEnergyHistoryRange")]
+    public async Task<IActionResult> GetEnergyHistoryRange(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "energy-history-range")] HttpRequest req)
+    {
+        if (!req.Query.TryGetValue("houseId", out StringValues houseIdStr) ||
+            string.IsNullOrWhiteSpace(houseIdStr))
+        {
+            return new BadRequestObjectResult(new { error = "Invalid or missing houseId query parameter" });
+        }
+
+        if (!req.Query.TryGetValue("fromDate", out StringValues fromDateStr) ||
+            string.IsNullOrWhiteSpace(fromDateStr))
+        {
+            return new BadRequestObjectResult(new { error = "Invalid or missing fromDate query parameter" });
+        }
+
+        if (!req.Query.TryGetValue("toDate", out StringValues toDateStr) ||
+            string.IsNullOrWhiteSpace(toDateStr))
+        {
+            return new BadRequestObjectResult(new { error = "Invalid or missing toDate query parameter" });
+        }
+
+        string houseId = houseIdStr.ToString();
+        string fromDate = fromDateStr.ToString();
+        string toDate = toDateStr.ToString();
+
+        if (string.Compare(fromDate, toDate, StringComparison.Ordinal) > 0)
+        {
+            return new BadRequestObjectResult(new { error = "fromDate must be on or before toDate" });
+        }
+
+        _logger.LogInformation("Getting energy history range for house {HouseId} between {FromDate} and {ToDate}",
+            houseId, fromDate, toDate);
+
+        try
+        {
+            List<EnergyHistoryPoint> rawPoints = await _storageService.GetHistoryRangeAsync(houseId, fromDate, toDate);
+
+            Dictionary<string, EnergyHistoryDailyTotalsDto> byDate = new();
+            foreach (EnergyHistoryPoint point in rawPoints)
+            {
+                string date = point.Date;
+                if (string.IsNullOrEmpty(date))
+                {
+                    int sep = point.PartitionKey.IndexOf('_');
+                    if (sep < 0) continue;
+                    date = point.PartitionKey[(sep + 1)..];
+                }
+
+                if (!byDate.TryGetValue(date, out EnergyHistoryDailyTotalsDto? totals))
+                {
+                    totals = new EnergyHistoryDailyTotalsDto { Date = date };
+                    byDate[date] = totals;
+                }
+
+                totals.GridKwh += point.GridKwh;
+                totals.BatteryKwh += point.BatteryKwh;
+                totals.SolarKwh += point.SolarKwh;
+                totals.HouseKwh += point.HouseKwh;
+                totals.ImportCostPence += point.ImportCostPence;
+                totals.ExportCostPence += point.ExportCostPence;
+            }
+
+            EnergyHistoryRangeResponse response = new EnergyHistoryRangeResponse
+            {
+                Days = byDate.Values.OrderBy(d => d.Date, StringComparer.Ordinal).ToList()
+            };
+
+            _logger.LogInformation("Retrieved {DayCount} days ({PointCount} hourly points) for house {HouseId} between {FromDate} and {ToDate}",
+                response.Days.Count, rawPoints.Count, houseId, fromDate, toDate);
+            return new OkObjectResult(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting energy history range for house {HouseId} between {FromDate} and {ToDate}",
+                houseId, fromDate, toDate);
+            return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+        }
+    }
+
     [Function("PostEnergyHour")]
     public async Task<IActionResult> PostEnergyHour(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "energy-history")] HttpRequest req)
@@ -381,6 +461,22 @@ public class EnergyHistoryPointDto
 public class EnergyHistoryReplacePoint
 {
     public int Hour { get; set; }
+    public double GridKwh { get; set; }
+    public double BatteryKwh { get; set; }
+    public double SolarKwh { get; set; }
+    public double HouseKwh { get; set; }
+    public double ImportCostPence { get; set; }
+    public double ExportCostPence { get; set; }
+}
+
+public class EnergyHistoryRangeResponse
+{
+    public List<EnergyHistoryDailyTotalsDto> Days { get; set; } = [];
+}
+
+public class EnergyHistoryDailyTotalsDto
+{
+    public string Date { get; set; } = string.Empty;
     public double GridKwh { get; set; }
     public double BatteryKwh { get; set; }
     public double SolarKwh { get; set; }

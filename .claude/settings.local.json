@@ -50,7 +50,8 @@
       "Bash(git -C \"C:/Users/stero/source/repos/HomeAssistant\" show HEAD:\"Backend/App/Services/Energy/PriceAnalysis.cs\")",
       "Bash(ls:*)",
       "Bash(xargs:*)",
-      "Bash(dotnet:*)"
+      "Bash(dotnet:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

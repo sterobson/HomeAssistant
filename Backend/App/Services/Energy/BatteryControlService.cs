@@ -117,27 +117,55 @@ internal class BatteryControlService
         // Car battery has changed current
         _carCharger.OnChargerCurrentChanged(async _ =>
         {
-            await SetBatteryState("car charger current changed");
+            try
+            {
+                await SetBatteryState("car charger current changed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling car charger current change");
+            }
         });
 
         // Home battery capacity has changed
         _homeBattery.OnBatteryChargePercentChanged(async _ =>
         {
-            await SetBatteryState("battery percent changed");
+            try
+            {
+                await SetBatteryState("battery percent changed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling battery percent change");
+            }
         });
 
         // The battery use mode has changed, possibly by the battery's own management logic,
         // or entering TOU mode according to a schedule.
         _homeBattery.OnBatteryUseModeChanged(async () =>
         {
-            await SetBatteryState("battery use mode changed");
+            try
+            {
+                await SetBatteryState("battery use mode changed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling battery use mode change");
+            }
         });
 
         // Listen for the import unit rate changing
         _electricityMeter.OnCurrentRatePerKwhChanged(async change =>
         {
-            await ReactToRateChangeAsync(change.New);
-            await SetBatteryState("import rate changed");
+            try
+            {
+                await ReactToRateChangeAsync(change.New);
+                await SetBatteryState("import rate changed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling import rate change");
+            }
         });
     }
 

@@ -190,6 +190,25 @@ export const batteryApi = {
     }
   },
 
+  async getEnergyHistoryRange(fromDate, toDate) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history-range?houseId=${houseId}&fromDate=${fromDate}&toDate=${toDate}`, {
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch energy history range: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching energy history range:', error)
+      reportApiError('Failed to load energy history range')
+      throw error
+    }
+  },
+
   async requestEnergyBackfill(date) {
     try {
       const houseId = getCurrentHouseId()

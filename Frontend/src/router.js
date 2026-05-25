@@ -16,6 +16,11 @@ const routes = [
     name: 'battery',
     component: () => import('./views/BatteryView.vue')
   },
+  {
+    path: '/heating2',
+    name: 'heating2',
+    component: () => import('./views/Heating2View.vue')
+  },
 ]
 
 const router = createRouter({

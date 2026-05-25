@@ -1,9 +1,9 @@
 <template>
   <div class="battery-view">
     <div class="date-nav">
-      <button class="date-nav-btn" @click="chartMode === 'daily' || chartMode === 'cost-daily' ? goToPreviousMonth() : goToPreviousDay()">&lt;</button>
-      <span class="date-label">{{ chartMode === 'daily' || chartMode === 'cost-daily' ? displayMonth : displayDate }}</span>
-      <button class="date-nav-btn" @click="chartMode === 'daily' || chartMode === 'cost-daily' ? goToNextMonth() : goToNextDay()" :disabled="chartMode === 'daily' || chartMode === 'cost-daily' ? isCurrentMonth : isToday">&gt;</button>
+      <button class="date-nav-btn" @click="goToPrevious">&lt;</button>
+      <span class="date-label">{{ navLabel }}</span>
+      <button class="date-nav-btn" @click="goToNext" :disabled="atRangeEnd">&gt;</button>
     </div>
 
     <div class="chart-wrapper">
@@ -12,9 +12,11 @@
         :zones="resolvedZones"
         :date="selectedDate"
         :month="selectedMonth"
+        :year="selectedYear"
         :battery-history="batteryChartData"
         :energy-history="energyHistory"
         :daily-energy="dailyEnergy"
+        :monthly-energy="monthlyEnergy"
         :days-in-month="daysInMonth"
         :chart-mode="chartMode"
         :pending-rule-ids="savingRuleIds"
@@ -23,6 +25,7 @@
         @update-target="handleUpdateTarget"
         @update-edge-time="handleUpdateEdgeTime"
         @update:chart-mode="chartMode = $event"
+        @show-zones-list="showZonesList = true"
       />
     </div>
 
@@ -34,6 +37,15 @@
       Failed to save, changes reverted
     </div>
 
+    <ZonesListModal
+      v-if="showZonesList"
+      :rules="rules"
+      :resolved-zones="resolvedZones"
+      :z-index="1000"
+      @edit="handleEditZoneFromList"
+      @cancel="showZonesList = false"
+    />
+
     <ZoneEditorModal
       v-if="showModal"
       :start-minutes="modalStartMinutes"
@@ -44,6 +56,7 @@
       :suggested-target-percent="modalSuggestedTargetPercent"
       :suggested-start-rule-type-key="modalSuggestedStartRuleTypeKey"
       :suggested-end-rule-type-key="modalSuggestedEndRuleTypeKey"
+      :z-index="editorZIndex"
       @save="handleSave"
       @delete="handleDelete"
       @cancel="closeModal"
@@ -61,6 +74,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import BatteryChart from '../components/BatteryChart.vue'
 import ZoneEditorModal from '../components/ZoneEditorModal.vue'
+import ZonesListModal from '../components/ZonesListModal.vue'
 import BatterySetupModal from '../components/BatterySetupModal.vue'
 import { batteryApi } from '../services/batteryApi.js'
 import { useBatteryRules } from '../composables/useBatteryRules.js'
@@ -338,6 +352,10 @@ async function loadEnergyHistory() {
 const dailyEnergy = ref([])
 const dailyEnergyLoading = ref(false)
 
+function formatDateString(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 async function loadDailyEnergy() {
   if (!houseId) return
   dailyEnergyLoading.value = true
@@ -352,49 +370,120 @@ async function loadDailyEnergy() {
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
   const maxDay = isCurrentMonth ? today.getDate() : numDays
 
-  const results = []
+  const fromDate = formatDateString(year, month, 1)
+  const toDate = formatDateString(year, month, maxDay)
 
-  // Fetch all days in parallel
-  const missingDates = []
-  const fetches = []
-  for (let day = 1; day <= maxDay; day++) {
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    fetches.push(
-      batteryApi.getEnergyHistory(dateStr)
-        .then(response => {
-          if (response && response.points && response.points.length > 0) {
-            const totals = { day, gridKwh: 0, batteryKwh: 0, solarKwh: 0, houseKwh: 0, importCostPence: 0, exportCostPence: 0 }
-            for (const p of response.points) {
-              totals.gridKwh += p.gridKwh
-              totals.batteryKwh += p.batteryKwh
-              totals.solarKwh += p.solarKwh
-              totals.houseKwh += p.houseKwh
-              totals.importCostPence += p.importCostPence || 0
-              totals.exportCostPence += p.exportCostPence || 0
-            }
-            return totals
-          }
-          missingDates.push(dateStr)
-          return null
+  try {
+    const response = await batteryApi.getEnergyHistoryRange(fromDate, toDate)
+    const days = (response && response.days) || []
+
+    const byDate = new Map()
+    for (const entry of days) {
+      byDate.set(entry.date, entry)
+    }
+
+    const results = []
+    const missingDates = []
+    for (let day = 1; day <= maxDay; day++) {
+      const dateStr = formatDateString(year, month, day)
+      const entry = byDate.get(dateStr)
+      if (entry) {
+        results.push({
+          day,
+          gridKwh: entry.gridKwh,
+          batteryKwh: entry.batteryKwh,
+          solarKwh: entry.solarKwh,
+          houseKwh: entry.houseKwh,
+          importCostPence: entry.importCostPence || 0,
+          exportCostPence: entry.exportCostPence || 0
         })
-        .catch(() => null)
-    )
-  }
+      } else {
+        missingDates.push(dateStr)
+      }
+    }
 
-  const allResults = await Promise.all(fetches)
-  for (const r of allResults) {
-    if (r) results.push(r)
-  }
+    if (missingDates.length > 0) {
+      requestEnergyBackfillForMonth(year, month, missingDates)
+    }
 
-  // Request backfill for all missing dates in one call
-  if (missingDates.length > 0) {
-    missingDates.sort()
-    requestEnergyBackfillForMonth(year, month, missingDates)
+    dailyEnergy.value = results
+  } catch {
+    dailyEnergy.value = []
+  } finally {
+    dailyEnergyLoading.value = false
   }
+}
 
-  results.sort((a, b) => a.day - b.day)
-  dailyEnergy.value = results
-  dailyEnergyLoading.value = false
+// Monthly energy (yearly aggregation)
+const monthlyEnergy = ref([])
+const monthlyEnergyLoading = ref(false)
+const selectedYear = ref(new Date().getFullYear())
+
+const displayYear = computed(() => String(selectedYear.value))
+
+const isCurrentYear = computed(() => selectedYear.value === new Date().getFullYear())
+
+function goToPreviousYear() {
+  selectedYear.value -= 1
+}
+
+function goToNextYear() {
+  if (isCurrentYear.value) return
+  selectedYear.value += 1
+}
+
+async function loadMonthlyEnergy() {
+  if (!houseId) return
+  monthlyEnergyLoading.value = true
+
+  const year = selectedYear.value
+  const today = new Date()
+  const isThisYear = year === today.getFullYear()
+  const lastMonth = isThisYear ? today.getMonth() : 11
+  const lastDayOfLastMonth = new Date(year, lastMonth + 1, 0).getDate()
+  const maxDay = isThisYear ? today.getDate() : lastDayOfLastMonth
+
+  const fromDate = formatDateString(year, 0, 1)
+  const toDate = isThisYear
+    ? formatDateString(year, today.getMonth(), maxDay)
+    : `${year}-12-31`
+
+  try {
+    const response = await batteryApi.getEnergyHistoryRange(fromDate, toDate)
+    const days = (response && response.days) || []
+
+    const buckets = new Array(12).fill(null).map((_, i) => ({
+      month: i + 1,
+      gridKwh: 0,
+      batteryKwh: 0,
+      solarKwh: 0,
+      houseKwh: 0,
+      importCostPence: 0,
+      exportCostPence: 0,
+      hasData: false
+    }))
+
+    for (const entry of days) {
+      const parts = entry.date.split('-')
+      if (parts.length < 2) continue
+      const monthIndex = parseInt(parts[1], 10) - 1
+      if (monthIndex < 0 || monthIndex > 11) continue
+      const b = buckets[monthIndex]
+      b.gridKwh += entry.gridKwh
+      b.batteryKwh += entry.batteryKwh
+      b.solarKwh += entry.solarKwh
+      b.houseKwh += entry.houseKwh
+      b.importCostPence += entry.importCostPence || 0
+      b.exportCostPence += entry.exportCostPence || 0
+      b.hasData = true
+    }
+
+    monthlyEnergy.value = buckets.filter(b => b.hasData)
+  } catch {
+    monthlyEnergy.value = []
+  } finally {
+    monthlyEnergyLoading.value = false
+  }
 }
 
 watch([() => chartMode.value, selectedMonth], ([mode]) => {
@@ -402,6 +491,39 @@ watch([() => chartMode.value, selectedMonth], ([mode]) => {
     loadDailyEnergy()
   }
 }, { immediate: true })
+
+watch([() => chartMode.value, selectedYear], ([mode]) => {
+  if (mode === 'monthly' || mode === 'cost-monthly') {
+    loadMonthlyEnergy()
+  }
+}, { immediate: true })
+
+const isMonthlyMode = computed(() => chartMode.value === 'daily' || chartMode.value === 'cost-daily')
+const isYearlyMode = computed(() => chartMode.value === 'monthly' || chartMode.value === 'cost-monthly')
+
+const navLabel = computed(() => {
+  if (isYearlyMode.value) return displayYear.value
+  if (isMonthlyMode.value) return displayMonth.value
+  return displayDate.value
+})
+
+const atRangeEnd = computed(() => {
+  if (isYearlyMode.value) return isCurrentYear.value
+  if (isMonthlyMode.value) return isCurrentMonth.value
+  return isToday.value
+})
+
+function goToPrevious() {
+  if (isYearlyMode.value) goToPreviousYear()
+  else if (isMonthlyMode.value) goToPreviousMonth()
+  else goToPreviousDay()
+}
+
+function goToNext() {
+  if (isYearlyMode.value) goToNextYear()
+  else if (isMonthlyMode.value) goToNextMonth()
+  else goToNextDay()
+}
 
 // Battery history
 const batteryHistory = ref([])
@@ -541,6 +663,9 @@ async function initializeSignalR() {
       if (chartMode.value === 'daily' || chartMode.value === 'cost-daily') {
         loadDailyEnergy()
       }
+      if (chartMode.value === 'monthly' || chartMode.value === 'cost-monthly') {
+        loadMonthlyEnergy()
+      }
     })
 
     signalR.on('energy-history-replaced', (data) => {
@@ -549,6 +674,9 @@ async function initializeSignalR() {
       }
       if (chartMode.value === 'daily' || chartMode.value === 'cost-daily') {
         loadDailyEnergy()
+      }
+      if (chartMode.value === 'monthly' || chartMode.value === 'cost-monthly') {
+        loadMonthlyEnergy()
       }
     })
   } catch (err) {
@@ -587,9 +715,20 @@ async function handleVisibilityChange() {
 }
 
 // Zone rules
-const { getResolvedZones, addRule, updateRule, deleteRule, getRuleById, hasOverlap, savingRuleIds, saveError } = useBatteryRules()
+const { rules, getResolvedZones, addRule, updateRule, deleteRule, getRuleById, hasOverlap, savingRuleIds, saveError } = useBatteryRules()
 
 const resolvedZones = getResolvedZones(pricingData)
+
+// Zones list modal
+const showZonesList = ref(false)
+
+// Editor sits above the list when it was opened from the list (so list stays
+// visible underneath and the user can pick another zone after closing it).
+const editorZIndex = computed(() => showZonesList.value ? 1100 : 1000)
+
+function handleEditZoneFromList(ruleId) {
+  handleEditZone(ruleId)
+}
 
 // Setup modal state
 const showSetupModal = ref(false)

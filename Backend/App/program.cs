@@ -102,6 +102,7 @@ try
                 .Services
                 .AddScoped<ISchedulePersistenceService, SchedulePersistenceService>()
                 .AddScoped<IRoomStatePersistenceService, RoomStatePersistenceService>()
+                .AddScoped<IBoilerVerificationService, BoilerVerificationService>()
                 .AddScoped<HeatingControlService>()
                 .AddScoped<BatteryControlService>()
                 .AddHttpClient<IBatteryRulesApiClient, BatteryRulesApiClient>((serviceProvider, client) =>

@@ -7,15 +7,15 @@
           @click="emit('update:chart-mode', 'battery')"
         >Battery %</button>
         <button
-          :class="['toggle-btn', { active: props.chartMode === 'energy' || props.chartMode === 'daily' }]"
-          @click="emit('update:chart-mode', isDaily ? 'daily' : 'energy')"
+          :class="['toggle-btn', { active: isEnergyGroup }]"
+          @click="emit('update:chart-mode', energyTargetMode)"
         >Energy</button>
         <button
-          :class="['toggle-btn', { active: props.chartMode === 'cost-hourly' || props.chartMode === 'cost-daily' }]"
-          @click="emit('update:chart-mode', isDaily ? 'cost-daily' : 'cost-hourly')"
+          :class="['toggle-btn', { active: isCostGroup }]"
+          @click="emit('update:chart-mode', costTargetMode)"
         >Cost</button>
       </div>
-      <div v-if="props.chartMode === 'energy' || props.chartMode === 'daily'" class="chart-mode-toggle sub-toggle">
+      <div v-if="isEnergyGroup" class="chart-mode-toggle sub-toggle">
         <button
           :class="['toggle-btn', { active: props.chartMode === 'energy' }]"
           @click="emit('update:chart-mode', 'energy')"
@@ -24,8 +24,12 @@
           :class="['toggle-btn', { active: props.chartMode === 'daily' }]"
           @click="emit('update:chart-mode', 'daily')"
         >Daily</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'monthly' }]"
+          @click="emit('update:chart-mode', 'monthly')"
+        >Monthly</button>
       </div>
-      <div v-if="props.chartMode === 'cost-hourly' || props.chartMode === 'cost-daily'" class="chart-mode-toggle sub-toggle">
+      <div v-if="isCostGroup" class="chart-mode-toggle sub-toggle">
         <button
           :class="['toggle-btn', { active: props.chartMode === 'cost-hourly' }]"
           @click="emit('update:chart-mode', 'cost-hourly')"
@@ -34,15 +38,62 @@
           :class="['toggle-btn', { active: props.chartMode === 'cost-daily' }]"
           @click="emit('update:chart-mode', 'cost-daily')"
         >Daily</button>
+        <button
+          :class="['toggle-btn', { active: props.chartMode === 'cost-monthly' }]"
+          @click="emit('update:chart-mode', 'cost-monthly')"
+        >Monthly</button>
       </div>
+      <button
+        v-if="isEnergyGroup || isCostGroup"
+        class="view-mode-btn"
+        :title="viewMode === 'chart' ? 'Show as table' : 'Show as chart'"
+        @click="toggleViewMode"
+      >
+        <svg v-if="viewMode === 'chart'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="1"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="3" y1="14" x2="21" y2="14"/>
+          <line x1="12" y1="4" x2="12" y2="20"/>
+        </svg>
+        <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="20" x2="5" y2="11"/>
+          <line x1="12" y1="20" x2="12" y2="4"/>
+          <line x1="19" y1="20" x2="19" y2="14"/>
+          <line x1="3" y1="20" x2="21" y2="20"/>
+        </svg>
+      </button>
+      <button
+        v-if="props.chartMode === 'battery'"
+        class="view-mode-btn"
+        title="Show zones list"
+        @click="emit('show-zones-list')"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <circle cx="4" cy="6" r="1"/>
+          <circle cx="4" cy="12" r="1"/>
+          <circle cx="4" cy="18" r="1"/>
+        </svg>
+      </button>
     </div>
-    <Line ref="chartRef" :data="chartData" :options="chartOptions" :plugins="[zoneRenderingPlugin, zoneInteractionPlugin]" />
+    <EnergyTable
+      v-if="showTable"
+      :mode="tableMode"
+      :variant="tableVariant"
+      :data="tableData"
+      :month="props.month"
+      :year="props.year"
+    />
+    <Line v-else ref="chartRef" :data="chartData" :options="chartOptions" :plugins="[zoneRenderingPlugin, zoneInteractionPlugin]" />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Line } from 'vue-chartjs'
+import EnergyTable from './EnergyTable.vue'
 import { getAvailableRuleTypes, calculateAveragePrice } from '../utils/priceAnalysis.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { isMinuteInZone, getElapsedMinutes } from '../composables/useBatteryRules.js'
@@ -100,6 +151,14 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  monthlyEnergy: {
+    type: Array,
+    default: () => []
+  },
+  year: {
+    type: Number,
+    default: () => new Date().getFullYear()
+  },
   daysInMonth: {
     type: Number,
     default: 31
@@ -114,9 +173,49 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['create-zone', 'edit-zone', 'update-target', 'update-edge-time', 'update:chart-mode'])
+const emit = defineEmits(['create-zone', 'edit-zone', 'update-target', 'update-edge-time', 'update:chart-mode', 'show-zones-list'])
 
 const isDaily = computed(() => props.chartMode === 'daily' || props.chartMode === 'cost-daily')
+const isMonthly = computed(() => props.chartMode === 'monthly' || props.chartMode === 'cost-monthly')
+const isEnergyGroup = computed(() =>
+  props.chartMode === 'energy' || props.chartMode === 'daily' || props.chartMode === 'monthly'
+)
+const isCostGroup = computed(() =>
+  props.chartMode === 'cost-hourly' || props.chartMode === 'cost-daily' || props.chartMode === 'cost-monthly'
+)
+const energyTargetMode = computed(() => {
+  if (props.chartMode === 'daily' || props.chartMode === 'cost-daily') return 'daily'
+  if (props.chartMode === 'monthly' || props.chartMode === 'cost-monthly') return 'monthly'
+  return 'energy'
+})
+const costTargetMode = computed(() => {
+  if (props.chartMode === 'daily' || props.chartMode === 'cost-daily') return 'cost-daily'
+  if (props.chartMode === 'monthly' || props.chartMode === 'cost-monthly') return 'cost-monthly'
+  return 'cost-hourly'
+})
+
+const viewMode = ref(localStorage.getItem('battery-view-mode') === 'table' ? 'table' : 'chart')
+watch(viewMode, (v) => localStorage.setItem('battery-view-mode', v))
+
+function toggleViewMode() {
+  viewMode.value = viewMode.value === 'chart' ? 'table' : 'chart'
+}
+
+const showTable = computed(() => viewMode.value === 'table' && (isEnergyGroup.value || isCostGroup.value))
+
+const tableVariant = computed(() => isCostGroup.value ? 'cost' : 'energy')
+
+const tableMode = computed(() => {
+  if (props.chartMode === 'energy' || props.chartMode === 'cost-hourly') return 'hourly'
+  if (props.chartMode === 'daily' || props.chartMode === 'cost-daily') return 'daily'
+  return 'monthly'
+})
+
+const tableData = computed(() => {
+  if (tableMode.value === 'hourly') return props.energyHistory
+  if (tableMode.value === 'daily') return props.dailyEnergy
+  return props.monthlyEnergy
+})
 
 const chartRef = ref(null)
 const { formatTimeDisplay, currentTimeFormat } = useFormatting()
@@ -1517,6 +1616,71 @@ const chartData = computed(() => {
         }
       )
     }
+  } else if (props.chartMode === 'monthly') {
+    // Monthly energy bar datasets — same structure as daily but x = month number (1-12)
+    if (props.monthlyEnergy.length > 0) {
+      const barBase = { type: 'bar', yAxisID: 'yEnergy', barPercentage: 1.0, categoryPercentage: 1.0, borderWidth: 1 }
+      const toXY = (p, val) => ({ x: p.month, y: val })
+      const pos = v => v > 0 ? v : 0
+      const neg = v => v < 0 ? v : 0
+
+      datasets.push(
+        {
+          ...barBase,
+          label: 'Solar',
+          data: props.monthlyEnergy.map(p => toXY(p, p.solarKwh)),
+          backgroundColor: 'rgba(241, 196, 15, 0.7)',
+          borderColor: '#f1c40f',
+          stack: 'energy',
+          order: 2
+        },
+        {
+          ...barBase,
+          label: 'House',
+          data: props.monthlyEnergy.map(p => toXY(p, -p.houseKwh)),
+          backgroundColor: 'rgba(155, 89, 182, 0.7)',
+          borderColor: '#9b59b6',
+          stack: 'energy',
+          order: 3
+        },
+        {
+          ...barBase,
+          label: 'Import',
+          data: props.monthlyEnergy.map(p => toXY(p, pos(p.gridKwh))),
+          backgroundColor: 'rgba(231, 76, 60, 0.7)',
+          borderColor: '#e74c3c',
+          stack: 'energy',
+          order: 4
+        },
+        {
+          ...barBase,
+          label: 'Export',
+          data: props.monthlyEnergy.map(p => toXY(p, neg(p.gridKwh))),
+          backgroundColor: 'rgba(39, 174, 96, 0.7)',
+          borderColor: '#27ae60',
+          stack: 'energy',
+          order: 5
+        },
+        {
+          ...barBase,
+          label: 'Discharge',
+          data: props.monthlyEnergy.map(p => toXY(p, pos(-p.batteryKwh))),
+          backgroundColor: 'rgba(230, 126, 34, 0.7)',
+          borderColor: '#e67e22',
+          stack: 'energy',
+          order: 6
+        },
+        {
+          ...barBase,
+          label: 'Charge',
+          data: props.monthlyEnergy.map(p => toXY(p, neg(-p.batteryKwh))),
+          backgroundColor: 'rgba(52, 152, 219, 0.7)',
+          borderColor: '#3498db',
+          stack: 'energy',
+          order: 7
+        }
+      )
+    }
   } else if (props.chartMode === 'cost-hourly') {
     // Hourly net cost bar chart — red if positive (cost), green if negative (income)
     if (props.energyHistory.length > 0) {
@@ -1543,6 +1707,26 @@ const chartData = computed(() => {
       const netData = props.dailyEnergy.map(p => {
         const net = ((p.importCostPence || 0) - (p.exportCostPence || 0)) / 100
         return { x: p.day, y: net }
+      })
+      datasets.push({
+        type: 'bar',
+        label: 'Net cost',
+        data: netData,
+        backgroundColor: netData.map(d => d.y >= 0 ? 'rgba(231, 76, 60, 0.7)' : 'rgba(39, 174, 96, 0.7)'),
+        borderColor: netData.map(d => d.y >= 0 ? '#e74c3c' : '#27ae60'),
+        borderWidth: 1,
+        barPercentage: 1.0,
+        categoryPercentage: 1.0,
+        yAxisID: 'yCostDaily',
+        order: 2
+      })
+    }
+  } else if (props.chartMode === 'cost-monthly') {
+    // Monthly net cost bar chart
+    if (props.monthlyEnergy.length > 0) {
+      const netData = props.monthlyEnergy.map(p => {
+        const net = ((p.importCostPence || 0) - (p.exportCostPence || 0)) / 100
+        return { x: p.month, y: net }
       })
       datasets.push({
         type: 'bar',
@@ -1617,7 +1801,9 @@ const yCostMax = computed(() => {
 })
 
 const yEnergyBounds = computed(() => {
-  const data = props.chartMode === 'daily' ? props.dailyEnergy : props.energyHistory
+  const data = props.chartMode === 'monthly' ? props.monthlyEnergy
+    : props.chartMode === 'daily' ? props.dailyEnergy
+    : props.energyHistory
   if (!data || data.length === 0) return { min: -1, max: 1 }
   // Calculate stacked totals per period (positive up, negative down)
   let maxPos = 0
@@ -1639,7 +1825,8 @@ const yEnergyBounds = computed(() => {
 })
 
 const yCostDailyBounds = computed(() => {
-  const data = props.chartMode === 'cost-daily' ? props.dailyEnergy
+  const data = props.chartMode === 'cost-monthly' ? props.monthlyEnergy
+    : props.chartMode === 'cost-daily' ? props.dailyEnergy
     : props.chartMode === 'cost-hourly' ? props.energyHistory
     : []
   if (!data || data.length === 0) return { min: -1, max: 1 }
@@ -1665,13 +1852,45 @@ const chartOptions = computed(() => {
 
   const isEnergyMode = props.chartMode === 'energy'
   const isDailyMode = props.chartMode === 'daily'
+  const isMonthlyMode = props.chartMode === 'monthly'
   const isCostHourly = props.chartMode === 'cost-hourly'
   const isCostDaily = props.chartMode === 'cost-daily'
-  const isCostMode = isCostHourly || isCostDaily
-  const isBarMode = isEnergyMode || isDailyMode || isCostMode
+  const isCostMonthly = props.chartMode === 'cost-monthly'
+  const isCostMode = isCostHourly || isCostDaily || isCostMonthly
+  const isBarMode = isEnergyMode || isDailyMode || isMonthlyMode || isCostMode
   const isDayXAxis = isDailyMode || isCostDaily
+  const isMonthXAxis = isMonthlyMode || isCostMonthly
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  const xScale = isDayXAxis
+  const xScale = isMonthXAxis
+    ? {
+        type: 'linear',
+        min: 0.5,
+        max: 12.5,
+        offset: false,
+        afterBuildTicks: function (axis) {
+          axis.ticks = []
+          for (let m = 1; m <= 12; m++) {
+            axis.ticks.push({ value: m })
+          }
+        },
+        grid: {
+          color: themeColors.value.gridColor,
+          drawBorder: true,
+          lineWidth: 1
+        },
+        ticks: {
+          color: themeColors.value.textSecondary,
+          maxRotation: 0,
+          autoSkip: false,
+          callback: function (value) {
+            const m = Math.round(value)
+            if (m < 1 || m > 12) return ''
+            return monthNames[m - 1]
+          }
+        }
+      }
+    : isDayXAxis
     ? {
         type: 'linear',
         min: 0.5,
@@ -1741,18 +1960,18 @@ const chartOptions = computed(() => {
     yEnergy: {
       type: 'linear',
       position: 'left',
-      display: isEnergyMode || isDailyMode,
+      display: isEnergyMode || isDailyMode || isMonthlyMode,
       stacked: true,
       min: yEnergyBounds.value.min,
       max: yEnergyBounds.value.max,
       grid: {
         color: themeColors.value.gridColor,
-        drawOnChartArea: isEnergyMode || isDailyMode,
+        drawOnChartArea: isEnergyMode || isDailyMode || isMonthlyMode,
         lineWidth: 1
       },
       ticks: {
         color: themeColors.value.textSecondary,
-        stepSize: 1,
+        stepSize: isMonthlyMode ? undefined : 1,
         callback: function (value) {
           return value + ' kWh'
         }
@@ -1833,9 +2052,15 @@ const chartOptions = computed(() => {
         title: function (items) {
           if (items.length === 0) return ''
           if (props.chartMode === 'daily' || props.chartMode === 'cost-daily') {
-            const day = Math.round(items[0].parsed.x + 0.5)
+            const day = Math.round(items[0].parsed.x)
             const d = new Date(props.month.getFullYear(), props.month.getMonth(), day)
             return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+          }
+          if (props.chartMode === 'monthly' || props.chartMode === 'cost-monthly') {
+            const monthIndex = Math.round(items[0].parsed.x) - 1
+            if (monthIndex < 0 || monthIndex > 11) return ''
+            const d = new Date(props.year, monthIndex, 1)
+            return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
           }
           const minutes = items[0].parsed.x
           if (props.chartMode === 'energy' || props.chartMode === 'cost-hourly') {
@@ -1880,6 +2105,7 @@ const chartOptions = computed(() => {
 }
 
 .chart-mode-toggles {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1927,9 +2153,49 @@ const chartOptions = computed(() => {
   background: var(--bg-secondary, var(--bg-tertiary));
 }
 
+.view-mode-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.view-mode-btn:hover {
+  background: var(--bg-secondary, var(--bg-tertiary));
+  color: var(--text-primary);
+}
+
 @media (max-width: 600px) {
   .battery-chart-container {
     padding: 2px 0;
+  }
+
+  .chart-mode-toggles {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+  }
+
+  /* Sub-toggle (Hourly/Daily/Monthly) wraps to its own row on mobile so the
+     icon button on the right doesn't clip the last button. */
+  .chart-mode-toggle.sub-toggle {
+    flex-basis: 100%;
+  }
+
+  /* Anchor icon to the first toggle row rather than vertical-centring across
+     both wrapped rows. */
+  .view-mode-btn {
+    top: 0;
+    transform: none;
   }
 }
 </style>

@@ -53,6 +53,8 @@ internal class FakeNamedEntities : INamedEntities
     public ICustomClimateControlEntity Bedroom3RadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(Bedroom3RadiatorThermostat) };
 
     public ICustomNumericSensorEntity UpstairsBathroomTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(UpstairsBathroomTemperature) };
+
+    public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot) };
 }
 
 public class FakeCustomNumericSensorEntity : ICustomNumericSensorEntity

@@ -21,10 +21,13 @@ internal class HeatingControlService
     private readonly INamedEntities _namedEntities;
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
+    private readonly IBoilerVerificationService _boilerVerification;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
+    internal const int BoilerScoreThreshold = 3;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
+    private bool _boilerOn = false;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
     private readonly CustomSwitchWithConditions _gamesRoomHeaterSmartPlugOnOffWithConditions;
@@ -43,7 +46,8 @@ internal class HeatingControlService
         IPresenceService presenceService,
         TimeProvider timeProvider,
         ISchedulePersistenceService schedulePersistence,
-        IRoomStatePersistenceService statePersistence)
+        IRoomStatePersistenceService statePersistence,
+        IBoilerVerificationService boilerVerification)
     {
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -54,6 +58,7 @@ internal class HeatingControlService
         _timeProvider = timeProvider;
         _schedulePersistence = schedulePersistence;
         _statePersistence = statePersistence;
+        _boilerVerification = boilerVerification;
 
         // Entities which depend on other entities.
         _gamesRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.GamesRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(GamesRoomHeaterConditions));
@@ -88,7 +93,8 @@ internal class HeatingControlService
             namedEntities.LivingRoomRadiatorThermostat.EntityId,
             namedEntities.Bedroom1RadiatorThermostat.EntityId,
             namedEntities.Bedroom2RadiatorThermostat.EntityId,
-            namedEntities.Bedroom3RadiatorThermostat.EntityId);
+            namedEntities.Bedroom3RadiatorThermostat.EntityId,
+            namedEntities.BoilerFingerbot.EntityId);
     }
 
     public void Start()
@@ -209,6 +215,8 @@ internal class HeatingControlService
             {
                 hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
             }
+
+            await EvaluateBoilerState(schedules, trigger);
 
             if (hasStateChanged)
             {
@@ -684,6 +692,111 @@ internal class HeatingControlService
         {
             // Wrap to next day: add 24h
             return (int)((to - from + TimeSpan.FromDays(1)).TotalMinutes);
+        }
+    }
+
+    private async Task EvaluateBoilerState(RoomSchedules schedules, string trigger)
+    {
+        // Find rooms with radiator valves that are actively calling for heat and calculate priority score
+        List<(RoomSchedule Schedule, RoomState State, int Score)> roomsCallingForHeat = [];
+        List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves = [];
+        int totalScore = 0;
+
+        foreach (RoomSchedule roomSchedule in schedules.Rooms)
+        {
+            object[] devices = GetSwitchesForRoom(roomSchedule);
+            List<ICustomClimateControlEntity> radiatorValves = devices.OfType<ICustomClimateControlEntity>().ToList();
+
+            if (radiatorValves.Count == 0)
+                continue;
+
+            if (_roomStates.TryGetValue(roomSchedule.Id, out RoomState? state) && state.HeatingActive)
+            {
+                int roomScore = GetRoomBoilerPriority(roomSchedule);
+                roomsCallingForHeat.Add((roomSchedule, state, roomScore));
+                totalScore += roomScore;
+
+                foreach (ICustomClimateControlEntity valve in radiatorValves)
+                {
+                    activeValves.Add((roomSchedule.Name, valve));
+                    _boilerVerification.NotifyValveStartedHeating(roomSchedule.Name, valve);
+                }
+            }
+            else
+            {
+                _boilerVerification.NotifyValveStopped(roomSchedule.Name);
+            }
+        }
+
+        // Check if a previous verification has failed and we need to correct the boiler state
+        bool? verifiedState = _boilerVerification.GetVerifiedBoilerState();
+        if (verifiedState.HasValue && verifiedState.Value != _boilerOn)
+        {
+            _logger.LogWarning(
+                "Boiler verification detected state mismatch: we thought boiler was {Expected}, but it appears to be {Actual}. Correcting by toggling fingerbot",
+                _boilerOn ? "ON" : "OFF", verifiedState.Value ? "ON" : "OFF");
+
+            _boilerOn = verifiedState.Value;
+            ToggleBoilerFingerbot();
+            _boilerOn = !verifiedState.Value;
+
+            _boilerVerification.NotifyBoilerToggled(_boilerOn, activeValves);
+        }
+
+        if (!_boilerOn)
+        {
+            // Boiler is OFF - should we turn it ON?
+            if (totalScore >= BoilerScoreThreshold)
+            {
+                ToggleBoilerFingerbot();
+                _boilerOn = true;
+                _logger.LogInformation(
+                    "Boiler turned ON (score {Score}/{Threshold}). Triggered by {Trigger}. Rooms: {Rooms}",
+                    totalScore, BoilerScoreThreshold, trigger,
+                    string.Join(", ", roomsCallingForHeat.Select(r => $"{r.Schedule.Name} ({r.Score})")));
+
+                _boilerVerification.NotifyBoilerToggled(true, activeValves);
+            }
+        }
+        else
+        {
+            // Boiler is ON - should we turn it OFF?
+            if (totalScore == 0)
+            {
+                ToggleBoilerFingerbot();
+                _boilerOn = false;
+                _logger.LogInformation("Boiler turned OFF (no radiator valves calling for heat). Triggered by {Trigger}", trigger);
+
+                _boilerVerification.NotifyBoilerToggled(false, activeValves);
+            }
+        }
+
+        // Run the verification check
+        await _boilerVerification.CheckAsync();
+    }
+
+    private static int GetRoomBoilerPriority(RoomSchedule schedule)
+    {
+        return schedule.Name.Trim().ToLower() switch
+        {
+            "dining room" => 2,    // Medium
+            "living room" => 2,    // Medium
+            "bedroom 1" => 2,      // Medium
+            "bedroom 2" => 2,      // Medium
+            "bedroom 3" => 1,      // Low
+            _ => 0
+        };
+    }
+
+    private void ToggleBoilerFingerbot()
+    {
+        if (_namedEntities.BoilerFingerbot.IsOn())
+        {
+            _namedEntities.BoilerFingerbot.TurnOff();
+        }
+        else
+        {
+            _namedEntities.BoilerFingerbot.TurnOn();
         }
     }
 

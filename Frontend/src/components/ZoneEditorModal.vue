@@ -1,5 +1,5 @@
 <template>
-  <div class="zone-overlay" @click.self="handleCancel">
+  <div class="zone-overlay" :style="{ zIndex: props.zIndex }" @click.self="handleCancel">
     <div class="zone-modal">
       <div class="zone-header">
         <h3>{{ isEditing ? 'Edit zone' : 'Add zone' }}</h3>
@@ -290,6 +290,10 @@ const props = defineProps({
   suggestedEndRuleTypeKey: {
     type: String,
     default: null
+  },
+  zIndex: {
+    type: Number,
+    default: 1000
   }
 })
 
