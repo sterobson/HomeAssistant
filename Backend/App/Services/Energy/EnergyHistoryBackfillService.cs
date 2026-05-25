@@ -255,6 +255,7 @@ internal class EnergyHistoryBackfillService
         IReadOnlyList<NumericHistoryEntry>? exportRateHistory = exportRateTask != null ? await exportRateTask : null;
 
         List<EnergyBackfillPoint> points = [];
+        bool anySensorActivity = false;
 
         for (int hour = 0; hour < maxHour; hour++)
         {
@@ -271,6 +272,11 @@ internal class EnergyHistoryBackfillService
                 FilterToWindow(gridImportHistory, hourFromUtc, hourToUtc), hourFromUtc, hourToUtc);
             double gridExportKwh = EnergyHistoryPushService.IntegrateToKwh(
                 FilterToWindow(gridExportHistory, hourFromUtc, hourToUtc), hourFromUtc, hourToUtc);
+
+            if (solarKwh != 0 || batteryKwh != 0 || gridImportKwh != 0 || gridExportKwh != 0)
+            {
+                anySensorActivity = true;
+            }
 
             double gridKwh = gridImportKwh - gridExportKwh;
             double houseKwh = Math.Max(0, solarKwh + gridKwh - batteryKwh);
@@ -302,6 +308,20 @@ internal class EnergyHistoryBackfillService
                 ImportCostPence = Math.Round(importCostPence, 2),
                 ExportCostPence = Math.Round(exportCostPence, 2)
             });
+        }
+
+        // Refuse to emit an all-zero day. A real installation always has some
+        // idle draw on at least one sensor, so all-zero across every hour is a
+        // strong signal that Home Assistant returned no usable history (e.g.
+        // wrong entity IDs, dev pointing at the wrong instance, recorder
+        // hadn't started). Returning null skips the bulk-replace and protects
+        // existing data from being overwritten with empties.
+        if (!anySensorActivity)
+        {
+            _logger.LogWarning(
+                "Skipping backfill for {Date}: all integrated sensor values are zero across every hour, refusing to overwrite existing data",
+                localDate);
+            return null;
         }
 
         return points;

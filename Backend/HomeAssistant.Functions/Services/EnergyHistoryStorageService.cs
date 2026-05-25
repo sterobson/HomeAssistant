@@ -93,7 +93,8 @@ public class EnergyHistoryStorageService
         {
             string partitionKey = $"{houseId}_{date}";
 
-            // Delete existing points
+            // Read existing first so we can apply the shrink safeguard before
+            // any destructive writes.
             List<EnergyHistoryPoint> existingPoints = [];
             await foreach (EnergyHistoryPoint point in _tableClient.QueryAsync<EnergyHistoryPoint>(
                 filter: $"PartitionKey eq '{partitionKey}'"))
@@ -101,6 +102,21 @@ public class EnergyHistoryStorageService
                 existingPoints.Add(point);
             }
 
+            // Refuse to replace when the incoming payload has fewer points
+            // than what's already stored. Backfill is supposed to produce a
+            // full-day set; a smaller payload almost always means the source
+            // ran short of data (e.g. HA offline, wrong sensors, dev instance
+            // pointing at prod storage). Real-time pushes use SaveHourAsync,
+            // not this path, so they're unaffected.
+            if (newPoints.Count < existingPoints.Count)
+            {
+                _logger.LogWarning(
+                    "Refusing to replace energy history for house {HouseId} on {Date}: incoming {NewCount} points is fewer than existing {OldCount} points",
+                    houseId, date, newPoints.Count, existingPoints.Count);
+                return;
+            }
+
+            // Delete existing points
             foreach (EnergyHistoryPoint point in existingPoints)
             {
                 await _tableClient.DeleteEntityAsync(point.PartitionKey, point.RowKey);
