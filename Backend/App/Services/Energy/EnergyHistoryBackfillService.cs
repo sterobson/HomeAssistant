@@ -37,21 +37,6 @@ internal class EnergyHistoryBackfillService
 
     public void Initialize()
     {
-        // Hard guard: energy backfill is destructive — it can write 24 hours of
-        // values per day and the storage path (without per-hour upsert) used to
-        // delete-then-insert entire partitions. We must never run this from a
-        // dev or test instance that's accidentally pointed at production
-        // storage. Require an explicit opt-in env var on the production
-        // deployment; everything else is a no-op.
-        string? enabled = Environment.GetEnvironmentVariable("EnergyBackfillEnabled");
-        if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning(
-                "Energy backfill disabled: EnergyBackfillEnabled env var is not 'true'. " +
-                "Set it only on the production instance to enable startup + SignalR backfill.");
-            return;
-        }
-
         _signalRConnection.On<JsonElement>("backfill-energy-history", HandleBackfillRequestAsync);
 
         _ = BackfillOnStartupAsync();
