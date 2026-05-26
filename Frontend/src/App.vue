@@ -114,6 +114,7 @@ const pageTitle = computed(() => {
   switch (route.name) {
     case 'heating': return 'Heating Control'
     case 'battery': return 'Battery Management'
+    case 'manualImport': return 'Manual energy import'
     default: return 'Home Assistant'
   }
 })

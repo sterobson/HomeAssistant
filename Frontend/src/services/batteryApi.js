@@ -209,6 +209,29 @@ export const batteryApi = {
     }
   },
 
+  // Per-hour upsert for a single day. Used by the manual-import page to push
+  // a reconstructed 24-hour set. Hours not in the array are left untouched.
+  async replaceEnergyHistoryDay(date, points) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/energy-history-replace?houseId=${houseId}&date=${date}`, {
+        method: 'POST',
+        headers: getApiHeaders(),
+        body: JSON.stringify(points)
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to save energy history: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error saving energy history:', error)
+      reportApiError('Failed to save energy history')
+      throw error
+    }
+  },
+
   async requestEnergyBackfill(date) {
     try {
       const houseId = getCurrentHouseId()

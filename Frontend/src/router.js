@@ -21,6 +21,14 @@ const routes = [
     name: 'heating2',
     component: () => import('./views/Heating2View.vue')
   },
+  {
+    // Power-user / recovery page, not linked from anywhere — accessible only
+    // by typing the URL. Used for manually restoring missing daily energy
+    // data by distributing a total across hours using another day's shape.
+    path: '/manual-import',
+    name: 'manualImport',
+    component: () => import('./views/ManualImportView.vue')
+  },
 ]
 
 const router = createRouter({
