@@ -6,7 +6,19 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DeploymentVersion>local</DeploymentVersion>
   </PropertyGroup>
+
+  <!-- Embed the deployment version into the assembly at build time so the
+       /api/version endpoint can report it without depending on a runtime
+       app-setting / env var. Pass /p:DeploymentVersion=... from the deploy
+       script to set it; defaults to "local" for dev builds. -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>DeploymentVersion</_Parameter1>
+      <_Parameter2>$(DeploymentVersion)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\App\Shared\Climate\HeatingControlTypes.cs" Link="Shared\Climate\HeatingControlTypes.cs" />
