@@ -15,12 +15,12 @@
         },
         {
           "id": "light.lamperion_bane_of_shadows",
-          "friendlyName": "Lamperion Bane of Shadows",
+          "friendlyName": null,
           "cSharpName": "LamperionBaneOfShadows"
         },
         {
           "id": "light.loft_shelf",
-          "friendlyName": "Loft shelf",
+          "friendlyName": null,
           "cSharpName": "LoftShelf"
         },
         {
@@ -722,6 +722,11 @@
       "domain": "button",
       "entities": [
         {
+          "id": "button.bedroom_1_climate_identify",
+          "friendlyName": "Bedroom 1 - Climate  Identify",
+          "cSharpName": "Bedroom1ClimateIdentify"
+        },
+        {
           "id": "button.bedroom_1_plug_heater_identify",
           "friendlyName": "Bedroom 1 plug - Heater Identify",
           "cSharpName": "Bedroom1PlugHeaterIdentify"
@@ -970,6 +975,11 @@
     {
       "domain": "device_tracker",
       "entities": [
+        {
+          "id": "device_tracker.ellie_s_phone",
+          "friendlyName": "Ellie\u0027s phone",
+          "cSharpName": "EllieSPhone"
+        },
         {
           "id": "device_tracker.kevins_iphone",
           "friendlyName": "Kevin\u0027s Phone",
@@ -1356,6 +1366,36 @@
       "isNumeric": true,
       "entities": [
         {
+          "id": "number.bedroom_1_climate_comfort_humidity_max",
+          "friendlyName": "Bedroom 1 - Climate  Comfort humidity max",
+          "cSharpName": "Bedroom1ClimateComfortHumidityMax"
+        },
+        {
+          "id": "number.bedroom_1_climate_comfort_humidity_min",
+          "friendlyName": "Bedroom 1 - Climate  Comfort humidity min",
+          "cSharpName": "Bedroom1ClimateComfortHumidityMin"
+        },
+        {
+          "id": "number.bedroom_1_climate_comfort_temperature_max",
+          "friendlyName": "Bedroom 1 - Climate  Comfort temperature max",
+          "cSharpName": "Bedroom1ClimateComfortTemperatureMax"
+        },
+        {
+          "id": "number.bedroom_1_climate_comfort_temperature_min",
+          "friendlyName": "Bedroom 1 - Climate  Comfort temperature min",
+          "cSharpName": "Bedroom1ClimateComfortTemperatureMin"
+        },
+        {
+          "id": "number.bedroom_1_climate_humidity_offset",
+          "friendlyName": "Bedroom 1 - Climate  Humidity offset",
+          "cSharpName": "Bedroom1ClimateHumidityOffset"
+        },
+        {
+          "id": "number.bedroom_1_climate_temperature_offset",
+          "friendlyName": "Bedroom 1 - Climate  Temperature offset",
+          "cSharpName": "Bedroom1ClimateTemperatureOffset"
+        },
+        {
           "id": "number.bedroom_1_radiator_external_temperature_sensor_value",
           "friendlyName": "Bedroom 1 - Radiator External temperature sensor value",
           "cSharpName": "Bedroom1RadiatorExternalTemperatureSensorValue"
@@ -1577,7 +1617,7 @@
         },
         {
           "id": "number.lamperion_bane_of_shadows_effect_speed",
-          "friendlyName": "Lamperion Bane of Shadows Effect speed",
+          "friendlyName": "Effect speed",
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
@@ -1968,6 +2008,11 @@
       "domain": "person",
       "entities": [
         {
+          "id": "person.ellie",
+          "friendlyName": "Ellie",
+          "cSharpName": "Ellie"
+        },
+        {
           "id": "person.kevin",
           "friendlyName": "Kevin",
           "cSharpName": "Kevin"
@@ -2034,6 +2079,11 @@
     {
       "domain": "select",
       "entities": [
+        {
+          "id": "select.bedroom_1_climate_display_unit",
+          "friendlyName": "Bedroom 1 - Climate  Display unit",
+          "cSharpName": "Bedroom1ClimateDisplayUnit"
+        },
         {
           "id": "select.bedroom_1_plug_heater_start_up_behaviour",
           "friendlyName": "Bedroom 1 plug - Heater Start-up behaviour",
@@ -2497,6 +2547,16 @@
           "cSharpName": "DiningRoomRadiatorTimestamp"
         },
         {
+          "id": "sensor.ellie_s_phone_battery_state",
+          "friendlyName": "Ellie\u0027s phone Battery state",
+          "cSharpName": "EllieSPhoneBatteryState"
+        },
+        {
+          "id": "sensor.ellie_s_phone_charger_type",
+          "friendlyName": "Ellie\u0027s phone Charger type",
+          "cSharpName": "EllieSPhoneChargerType"
+        },
+        {
           "id": "sensor.hypervolt_charging_readiness",
           "friendlyName": "Hypervolt Charging Readiness",
           "cSharpName": "HypervoltChargingReadiness"
@@ -2905,6 +2965,21 @@
           "cSharpName": "BathroomTemperature"
         },
         {
+          "id": "sensor.bedroom_1_climate_battery",
+          "friendlyName": "Bedroom 1 - Climate  Battery",
+          "cSharpName": "Bedroom1ClimateBattery"
+        },
+        {
+          "id": "sensor.bedroom_1_climate_humidity",
+          "friendlyName": "Bedroom 1 - Climate  Humidity",
+          "cSharpName": "Bedroom1ClimateHumidity"
+        },
+        {
+          "id": "sensor.bedroom_1_climate_temperature",
+          "friendlyName": "Bedroom 1 - Climate  Temperature",
+          "cSharpName": "Bedroom1ClimateTemperature"
+        },
+        {
           "id": "sensor.bedroom_1_plug_heater_current",
           "friendlyName": "Bedroom 1 plug - Heater Current",
           "cSharpName": "Bedroom1PlugHeaterCurrent"
@@ -3038,6 +3113,11 @@
           "id": "sensor.diningroom_temperature",
           "friendlyName": "Dining room",
           "cSharpName": "DiningroomTemperature"
+        },
+        {
+          "id": "sensor.ellie_s_phone_battery_level",
+          "friendlyName": "Ellie\u0027s phone Battery level",
+          "cSharpName": "EllieSPhoneBatteryLevel"
         },
         {
           "id": "sensor.energy_current_hour",
@@ -3231,7 +3311,7 @@
         },
         {
           "id": "sensor.lamperion_bane_of_shadows_power",
-          "friendlyName": "Lamperion Bane of Shadows Power",
+          "friendlyName": "Power",
           "cSharpName": "LamperionBaneOfShadowsPower"
         },
         {
@@ -4728,6 +4808,11 @@
           "id": "update.auto_entities_update",
           "friendlyName": "auto-entities update",
           "cSharpName": "AutoEntitiesUpdate"
+        },
+        {
+          "id": "update.bedroom_1_climate_firmware",
+          "friendlyName": "Bedroom 1 - Climate  Firmware",
+          "cSharpName": "Bedroom1ClimateFirmware"
         },
         {
           "id": "update.bedroom_1_plug_heater_firmware",

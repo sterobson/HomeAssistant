@@ -54,7 +54,13 @@
       "Bash(grep:*)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(cd \"C:/Users/stero/source/repos\" && ls -d Deployment SimpleBridgeAi 2>/dev/null && echo \"---DEPLOY-DIR---\" && ls Deployment/Modules 2>/dev/null | head -20 && echo \"---SBA-DIR---\" && find SimpleBridgeAi -maxdepth 3 -name \"*.csproj\" -o -name \"VersionFunctions.cs\" -o -name \"version*\" 2>/dev/null | head -10)",
+      "Bash(ls modules/TaskExecutors/)",
+      "Bash(grep -l \"DEPLOYMENT_VERSION\\\\|expectedVersion\\\\|version\" modules/TaskExecutors/*.ps1)",
+      "Bash(python3 -c \"import json; data=json.load\\(open\\('C:/Users/stero/source/repos/aquarium/src/data/species.json'\\)\\); print\\([d['id'] for d in data]\\)\")",
+      "Bash(node -e \"const d=require\\('C:/Users/stero/source/repos/aquarium/src/data/species.json'\\); console.log\\(d.map\\(x=>x.id\\)\\)\")",
+      "Bash(mkdir -p \"C:/Users/stero/source/repos/aquarium/.claude\")"
     ],
     "deny": [],
     "ask": []

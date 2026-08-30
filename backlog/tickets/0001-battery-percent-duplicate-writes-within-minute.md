@@ -4,6 +4,7 @@
 **Priority**: Medium
 **Type**: Spike
 **Tags**: Battery, Storage, Data quality
+**Epic**: Battery monitoring
 
 ## Description
 

@@ -32,11 +32,11 @@ internal class MilkBottles
 
     private async Task SendMilkBottlesOutReminder()
     {
-        _notificationService.SendNotificationToGroups("Milk Bottles 🍶", "Put the milk bottles out", "robson");
+        _notificationService.SendNotificationToGroups("Milk Bottles 🍶", "Put the milk bottles out", "kebleparksouth");
     }
 
     private async Task SendMilkBottlesInReminder()
     {
-        _notificationService.SendNotificationToGroups("Get the milk in 🐮", "The milk should be outside, so remember to get it in", "robson");
+        _notificationService.SendNotificationToGroups("Get the milk in 🐮", "The milk should be outside, so remember to get it in", "kebleparksouth");
     }
 }

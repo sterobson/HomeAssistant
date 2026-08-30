@@ -4,7 +4,28 @@
       <button class="date-nav-btn" @click="goToPrevious">&lt;</button>
       <span class="date-label">{{ navLabel }}</span>
       <button class="date-nav-btn" @click="goToNext" :disabled="atRangeEnd">&gt;</button>
+      <button
+        v-if="!isYearlyMode && !isMonthlyMode"
+        class="date-nav-btn recalc-btn"
+        :disabled="!canRecalculate || recalculating"
+        :title="recalcTooltip"
+        @click="recalculateSelectedDay"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"
+          :class="{ 'recalc-spinner': recalculating }">
+          <path d="M13.5 2.5v3h-3M2.5 13.5v-3h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12.5 5.5A5 5 0 003.2 6.5M3.5 10.5A5 5 0 0012.8 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
+
+    <Toast
+      v-if="recalcToast"
+      :key="recalcToast.key"
+      :message="recalcToast.message"
+      :type="recalcToast.type"
+      @close="recalcToast = null"
+    />
 
     <div class="chart-wrapper">
       <BatteryChart
@@ -76,6 +97,7 @@ import BatteryChart from '../components/BatteryChart.vue'
 import ZoneEditorModal from '../components/ZoneEditorModal.vue'
 import ZonesListModal from '../components/ZonesListModal.vue'
 import BatterySetupModal from '../components/BatterySetupModal.vue'
+import Toast from '../components/Toast.vue'
 import { batteryApi } from '../services/batteryApi.js'
 import { useBatteryRules } from '../composables/useBatteryRules.js'
 import { useSignalR } from '../composables/useSignalR.js'
@@ -309,6 +331,51 @@ function requestEnergyBackfillForMonth(year, month, missingDates) {
   batteryApi.requestEnergyBackfillDates(missingDates).catch(err => {
     console.error('Failed to request energy backfill dates:', err)
   })
+}
+
+// Manual recalculate for the selected day. Offered for the previous 7 days
+// (yesterday back to 7 days ago) — the same window the daemon backfills on
+// startup, and the practical limit of Home Assistant recorder history for
+// most setups. Today is excluded because the hourly push service is still
+// actively writing it.
+const recalculating = ref(false)
+const recalcToast = ref(null)
+let recalcToastKey = 0
+
+const canRecalculate = computed(() => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const sel = new Date(selectedDate.value)
+  sel.setHours(0, 0, 0, 0)
+  const daysAgo = Math.round((today - sel) / 86_400_000)
+  return daysAgo >= 1 && daysAgo <= 7
+})
+
+const recalcTooltip = computed(() => {
+  if (!canRecalculate.value) return 'Recalculate is only available for the previous 7 days'
+  if (recalculating.value) return 'Recalculation in progress…'
+  return 'Recalculate this day from Home Assistant history'
+})
+
+function showRecalcToast(message, type) {
+  recalcToast.value = { key: ++recalcToastKey, message, type }
+}
+
+async function recalculateSelectedDay() {
+  if (!canRecalculate.value || recalculating.value) return
+  const date = dateString.value
+  recalculating.value = true
+  try {
+    await batteryApi.requestEnergyBackfillDates([date])
+    // The daemon reads entity history, recomputes hourly totals, and posts them
+    // back. When it lands, the existing `energy-history-replaced` SignalR
+    // handler re-fetches the day and refreshes the chart.
+    showRecalcToast(`Recalculation requested for ${date}. This may take a moment.`, 'info')
+  } catch {
+    showRecalcToast('Failed to request recalculation', 'error')
+  } finally {
+    recalculating.value = false
+  }
 }
 
 // Chart mode toggle (persisted)
@@ -877,6 +944,27 @@ function handleDelete(ruleId) {
 .date-nav-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+.recalc-btn {
+  margin-left: 0.25rem;
+  padding: 0.4rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recalc-btn svg {
+  display: block;
+}
+
+.recalc-spinner {
+  animation: recalc-spin 1s linear infinite;
+}
+
+@keyframes recalc-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .date-label {
