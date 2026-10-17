@@ -23,6 +23,8 @@
     <Compile Include="..\HomeAssistant.Functions\JsonConverters\FlexibleEnumConverter.cs" Link="JsonConverters\FlexibleEnumConverter.cs" />
     <Compile Include="..\HomeAssistant.Functions\JsonConfiguration.cs" Link="JsonConfiguration.cs" />
     <Compile Include="..\HomeAssistant.Functions\Models\TemperatureHistoryPoint.cs" Link="Models\TemperatureHistoryPoint.cs" />
+    <Compile Include="..\HomeAssistant.Functions\Models\DeviceBatteryRecord.cs" Link="Models\DeviceBatteryRecord.cs" />
+    <Compile Include="..\HomeAssistant.Functions\Services\DeviceBatteryStorageService.cs" Link="Services\DeviceBatteryStorageService.cs" />
   </ItemGroup>
 
   <ItemGroup>
