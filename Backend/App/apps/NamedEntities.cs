@@ -123,6 +123,7 @@ public interface INamedEntities
 
     // Upstairs bathroom
     ICustomNumericSensorEntity UpstairsBathroomTemperature { get; }
+    ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; }
 
     // Boiler
     ICustomSwitchEntity BoilerFingerbot { get; }
@@ -195,6 +196,7 @@ public class NamedEntities : INamedEntities
 
     // Upstairs bathroom
     private readonly ICustomNumericSensorEntity _upstairsBathroomTemperature;
+    private readonly ICustomSwitchEntity _upstairsBathroomDummyPlugOnOff;
 
     // Boiler
     private readonly ICustomSwitchEntity _boilerFingerbot;
@@ -256,7 +258,7 @@ public class NamedEntities : INamedEntities
         _gamesRoomDeskButton = new SonoffButton(ha, "D4:48:67:FF:FE:0C:12:00");
 
         // Bedroom 1
-        _bedroom1Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.clock_temperature_and_humidity_temperature"));
+        _bedroom1Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bedroom_1_climate_temperature"));
         _bedroom1RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_1_radiator_thermostat"));
 
         // Bedroom 2
@@ -270,6 +272,7 @@ public class NamedEntities : INamedEntities
 
         // Upstairs bathroom
         _upstairsBathroomTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bathroom_temperature"));
+        _upstairsBathroomDummyPlugOnOff = new DummySwitchEntity(false);
 
         // Boiler
         _boilerFingerbot = new CustomSwitchEntity(new SwitchEntity(ha, "switch.tz3210_j4pdtz9v_ts0001"));
@@ -338,6 +341,7 @@ public class NamedEntities : INamedEntities
 
     // Upstairs bathroom
     public ICustomNumericSensorEntity UpstairsBathroomTemperature => _upstairsBathroomTemperature;
+    public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff => _upstairsBathroomDummyPlugOnOff;
 
     // Boiler
     public ICustomSwitchEntity BoilerFingerbot => _boilerFingerbot;
@@ -646,6 +650,53 @@ public class CustomSwitchEntity : ICustomSwitchEntity
     public void SubscribeToStateChangesAsync(Func<ICustomSwitchEntity, Task> observer)
     {
         _switchEntity.StateChanges().SubscribeAsync(async value => await observer(this));
+    }
+}
+
+public class DummySwitchEntity : ICustomSwitchEntity
+{
+    private bool _state = false;
+    private readonly List<Func<ICustomSwitchEntity, Task>> _observers;
+    private readonly string _entityId = Guid.NewGuid().ToString(); // Generate a unique entity ID for the dummy switch;
+
+    public string EntityId => _entityId;
+
+    public DummySwitchEntity(bool initialState)
+    {
+        _state = initialState;
+        _observers = [];
+    }
+
+    public bool IsOn() => _state;
+    public bool IsOff() => _state;
+
+    public void TurnOn()
+    {
+        if (!_state)
+        {
+            _state = true;
+            foreach (Func<ICustomSwitchEntity, Task> observer in _observers)
+            {
+                observer(this).GetAwaiter().GetResult();
+            }
+        }
+    }
+
+    public void TurnOff()
+    {
+        if (_state)
+        {
+            _state = false;
+            foreach (Func<ICustomSwitchEntity, Task> observer in _observers)
+            {
+                observer(this).GetAwaiter().GetResult();
+            }
+        }
+    }
+
+    public void SubscribeToStateChangesAsync(Func<ICustomSwitchEntity, Task> observer)
+    {
+        _observers.Add(observer);
     }
 }
 

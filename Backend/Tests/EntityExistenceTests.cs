@@ -212,9 +212,10 @@ public sealed class EntityExistenceTests
         ISchedulePersistenceService schedulePersistence = Substitute.For<ISchedulePersistenceService>();
         IRoomStatePersistenceService statePersistence = Substitute.For<IRoomStatePersistenceService>();
         IBoilerVerificationService boilerVerification = Substitute.For<IBoilerVerificationService>();
+        IDeviceSettingsPersistenceService deviceSettings = Substitute.For<IDeviceSettingsPersistenceService>();
 
         // Act & Assert - constructor should not throw
-        HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence, boilerVerification);
+        HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence, boilerVerification, deviceSettings);
 
         // Verify warnings were logged for the 22 validated entities
         logger.Received(22).Log(

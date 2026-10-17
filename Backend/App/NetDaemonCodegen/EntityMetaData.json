@@ -19,6 +19,11 @@
           "cSharpName": "LamperionBaneOfShadows"
         },
         {
+          "id": "light.living_room_lamp",
+          "friendlyName": null,
+          "cSharpName": "LivingRoomLamp"
+        },
+        {
           "id": "light.loft_shelf",
           "friendlyName": null,
           "cSharpName": "LoftShelf"
@@ -182,13 +187,18 @@
         },
         {
           "id": "media_player.living_room_tv",
-          "friendlyName": "Living Room TV",
+          "friendlyName": null,
           "cSharpName": "LivingRoomTv"
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": "Main speakers",
+          "friendlyName": null,
           "cSharpName": "MainSpeakers"
+        },
+        {
+          "id": "media_player.s85h7764",
+          "friendlyName": "65\u0022 OLED",
+          "cSharpName": "S85h7764"
         }
       ],
       "attributes": [
@@ -348,6 +358,16 @@
       "domain": "automation",
       "entities": [
         {
+          "id": "automation.bedroom_3_shelf_off",
+          "friendlyName": "Bedroom 3 shelf off",
+          "cSharpName": "Bedroom3ShelfOff"
+        },
+        {
+          "id": "automation.bedroom_3_turn_on_shelf",
+          "friendlyName": "Bedroom 3 turn on shelf",
+          "cSharpName": "Bedroom3TurnOnShelf"
+        },
+        {
           "id": "automation.dining_room_desk_button_toggles_plug",
           "friendlyName": "Dining Room - Desk - Button Toggles Plug",
           "cSharpName": "DiningRoomDeskButtonTogglesPlug"
@@ -366,6 +386,16 @@
           "id": "automation.living_room_charging_dock_completion",
           "friendlyName": "Living room charging dock completion",
           "cSharpName": "LivingRoomChargingDockCompletion"
+        },
+        {
+          "id": "automation.living_room_light_tree_off",
+          "friendlyName": "Living room light tree off",
+          "cSharpName": "LivingRoomLightTreeOff"
+        },
+        {
+          "id": "automation.loving_room_light_tree_on",
+          "friendlyName": "Living room light tree on",
+          "cSharpName": "LovingRoomLightTreeOn"
         },
         {
           "id": "automation.porch_light_motion_sensing",
@@ -590,11 +620,6 @@
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportOffPeak"
         },
         {
-          "id": "binary_sensor.octopus_energy_electricity_24j0494691_1591015382045_off_peak",
-          "friendlyName": "Off Peak Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045OffPeak"
-        },
-        {
           "id": "binary_sensor.sonoff_snzb_05p",
           "friendlyName": "Flood detector",
           "cSharpName": "SonoffSnzb05p"
@@ -762,6 +787,16 @@
           "cSharpName": "Bedroom3TemperatureAndHumidityIdentify"
         },
         {
+          "id": "button.bedroom3lampplug_identify",
+          "friendlyName": "Bedroom3LampPlug Identify",
+          "cSharpName": "Bedroom3lampplugIdentify"
+        },
+        {
+          "id": "button.bedroom3shelfplug_identify",
+          "friendlyName": "Bedroom3ShelfPlug Identify",
+          "cSharpName": "Bedroom3shelfplugIdentify"
+        },
+        {
           "id": "button.bookcase_light_strip_identify",
           "friendlyName": "Bookcase Light Strip Identify",
           "cSharpName": "BookcaseLightStripIdentify"
@@ -830,6 +865,11 @@
           "id": "button.living_room_radiator_identify",
           "friendlyName": "Living Room - Radiator Identify",
           "cSharpName": "LivingRoomRadiatorIdentify"
+        },
+        {
+          "id": "button.livingroomlighttreeplug_identify",
+          "friendlyName": "LivingRoomLightTreePlug Identify",
+          "cSharpName": "LivingroomlighttreeplugIdentify"
         },
         {
           "id": "button.loving_room_charging_dock_identify",
@@ -1051,6 +1091,16 @@
           "jsonName": "battery_level",
           "cSharpName": "BatteryLevel",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
+        },
+        {
+          "jsonName": "supported_features",
+          "cSharpName": "SupportedFeatures",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -1081,21 +1131,6 @@
           "id": "event.octopus_energy_electricity_24j0494691_1574300576548_export_previous_day_rates",
           "friendlyName": "Previous Day Rates Export Electricity (24J0494691/1574300576548)",
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousDayRates"
-        },
-        {
-          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_current_day_rates",
-          "friendlyName": "Current Day Rates Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDayRates"
-        },
-        {
-          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_next_day_rates",
-          "friendlyName": "Next Day Rates Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextDayRates"
-        },
-        {
-          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_previous_day_rates",
-          "friendlyName": "Previous Day Rates Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousDayRates"
         },
         {
           "id": "event.octopus_energy_gas_e6s12951182562_1902909205_current_day_rates",
@@ -1621,6 +1656,11 @@
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
+          "id": "number.living_room_lamp_effect_speed",
+          "friendlyName": "Effect speed",
+          "cSharpName": "LivingRoomLampEffectSpeed"
+        },
+        {
           "id": "number.living_room_radiator_external_temperature_sensor_value",
           "friendlyName": "Living Room - Radiator External temperature sensor value",
           "cSharpName": "LivingRoomRadiatorExternalTemperatureSensorValue"
@@ -2100,6 +2140,16 @@
           "cSharpName": "Bedroom3ClimateDisplayUnit"
         },
         {
+          "id": "select.bedroom3lampplug_start_up_behaviour",
+          "friendlyName": "Bedroom3LampPlug Start-up behaviour",
+          "cSharpName": "Bedroom3lampplugStartUpBehaviour"
+        },
+        {
+          "id": "select.bedroom3shelfplug_start_up_behaviour",
+          "friendlyName": "Bedroom3ShelfPlug Start-up behaviour",
+          "cSharpName": "Bedroom3shelfplugStartUpBehaviour"
+        },
+        {
           "id": "select.dining_room_desk_plug_start_up_behaviour",
           "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
           "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
@@ -2163,6 +2213,11 @@
           "id": "select.kitchen_temperature_and_humidity_display_unit",
           "friendlyName": "Kitchen temperature and humidity Display unit",
           "cSharpName": "KitchenTemperatureAndHumidityDisplayUnit"
+        },
+        {
+          "id": "select.livingroomlighttreeplug_start_up_behaviour",
+          "friendlyName": "LivingRoomLightTreePlug Start-up behaviour",
+          "cSharpName": "LivingroomlighttreeplugStartUpBehaviour"
         },
         {
           "id": "select.loving_room_charging_dock_start_up_behaviour",
@@ -3050,6 +3105,46 @@
           "cSharpName": "Bedroom3TemperatureAndHumidityBattery"
         },
         {
+          "id": "sensor.bedroom3lampplug_current",
+          "friendlyName": "Bedroom3LampPlug Current",
+          "cSharpName": "Bedroom3lampplugCurrent"
+        },
+        {
+          "id": "sensor.bedroom3lampplug_power",
+          "friendlyName": "Bedroom3LampPlug Power",
+          "cSharpName": "Bedroom3lampplugPower"
+        },
+        {
+          "id": "sensor.bedroom3lampplug_summation_delivered",
+          "friendlyName": "Bedroom3LampPlug Summation delivered",
+          "cSharpName": "Bedroom3lampplugSummationDelivered"
+        },
+        {
+          "id": "sensor.bedroom3lampplug_voltage",
+          "friendlyName": "Bedroom3LampPlug Voltage",
+          "cSharpName": "Bedroom3lampplugVoltage"
+        },
+        {
+          "id": "sensor.bedroom3shelfplug_current",
+          "friendlyName": "Bedroom3ShelfPlug Current",
+          "cSharpName": "Bedroom3shelfplugCurrent"
+        },
+        {
+          "id": "sensor.bedroom3shelfplug_power",
+          "friendlyName": "Bedroom3ShelfPlug Power",
+          "cSharpName": "Bedroom3shelfplugPower"
+        },
+        {
+          "id": "sensor.bedroom3shelfplug_summation_delivered",
+          "friendlyName": "Bedroom3ShelfPlug Summation delivered",
+          "cSharpName": "Bedroom3shelfplugSummationDelivered"
+        },
+        {
+          "id": "sensor.bedroom3shelfplug_voltage",
+          "friendlyName": "Bedroom3ShelfPlug Voltage",
+          "cSharpName": "Bedroom3shelfplugVoltage"
+        },
+        {
           "id": "sensor.clock_temperature_and_humidity_humidity",
           "friendlyName": "Bedroom 1",
           "cSharpName": "ClockTemperatureAndHumidityHumidity"
@@ -3350,6 +3445,11 @@
           "cSharpName": "LivingRoomChristmasTreeButtonBattery"
         },
         {
+          "id": "sensor.living_room_lamp_power",
+          "friendlyName": "Power",
+          "cSharpName": "LivingRoomLampPower"
+        },
+        {
           "id": "sensor.living_room_radiator_battery",
           "friendlyName": "Living Room - Radiator Battery",
           "cSharpName": "LivingRoomRadiatorBattery"
@@ -3363,6 +3463,26 @@
           "id": "sensor.livingroom_climate_temperature",
           "friendlyName": "Living Room Temperature",
           "cSharpName": "LivingroomClimateTemperature"
+        },
+        {
+          "id": "sensor.livingroomlighttreeplug_current",
+          "friendlyName": "LivingRoomLightTreePlug Current",
+          "cSharpName": "LivingroomlighttreeplugCurrent"
+        },
+        {
+          "id": "sensor.livingroomlighttreeplug_power",
+          "friendlyName": "LivingRoomLightTreePlug Power",
+          "cSharpName": "LivingroomlighttreeplugPower"
+        },
+        {
+          "id": "sensor.livingroomlighttreeplug_summation_delivered",
+          "friendlyName": "LivingRoomLightTreePlug Summation delivered",
+          "cSharpName": "LivingroomlighttreeplugSummationDelivered"
+        },
+        {
+          "id": "sensor.livingroomlighttreeplug_voltage",
+          "friendlyName": "LivingRoomLightTreePlug Voltage",
+          "cSharpName": "LivingroomlighttreeplugVoltage"
         },
         {
           "id": "sensor.loving_room_charging_dock_current",
@@ -3565,59 +3685,9 @@
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousRate"
         },
         {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption",
-          "friendlyName": "Current Accumulative Consumption Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumption"
-        },
-        {
           "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption_cost",
           "friendlyName": "sensor Cost",
           "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumptionCost"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_cost",
-          "friendlyName": "Current Accumulative Cost Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeCost"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_demand",
-          "friendlyName": "Live demand",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDemand"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_rate",
-          "friendlyName": "Current Rate Electricity (24J0494691 1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentRate"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_standing_charge",
-          "friendlyName": "Current Standing Charge Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentStandingCharge"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_total_consumption",
-          "friendlyName": "Current Total Consumption Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentTotalConsumption"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_next_rate",
-          "friendlyName": "Next Rate Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextRate"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_consumption",
-          "friendlyName": "Previous Accumulative Consumption Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeConsumption"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_cost",
-          "friendlyName": "Previous Accumulative Cost Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeCost"
-        },
-        {
-          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_rate",
-          "friendlyName": "Previous Rate Electricity (24J0494691/1591015382045)",
-          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousRate"
         },
         {
           "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_accumulative_consumption_kwh",
@@ -4539,6 +4609,16 @@
           "cSharpName": "Bedroom3RadiatorSwitch"
         },
         {
+          "id": "switch.bedroom3lampplug",
+          "friendlyName": "Bedroom3LampPlug",
+          "cSharpName": "Bedroom3lampplug"
+        },
+        {
+          "id": "switch.bedroom3shelfplug",
+          "friendlyName": "Bedroom3ShelfPlug",
+          "cSharpName": "Bedroom3shelfplug"
+        },
+        {
           "id": "switch.christmas_tree",
           "friendlyName": null,
           "cSharpName": "ChristmasTree"
@@ -4652,6 +4732,11 @@
           "id": "switch.living_room_radiator_switch",
           "friendlyName": "Living Room - Radiator Switch",
           "cSharpName": "LivingRoomRadiatorSwitch"
+        },
+        {
+          "id": "switch.livingroomlighttreeplug",
+          "friendlyName": "LivingRoomLightTreePlug",
+          "cSharpName": "Livingroomlighttreeplug"
         },
         {
           "id": "switch.mg_mg4_electric_battery_heating",
@@ -4850,6 +4935,16 @@
           "cSharpName": "Bedroom3TemperatureAndHumidityFirmware"
         },
         {
+          "id": "update.bedroom3lampplug_firmware",
+          "friendlyName": "Bedroom3LampPlug Firmware",
+          "cSharpName": "Bedroom3lampplugFirmware"
+        },
+        {
+          "id": "update.bedroom3shelfplug_firmware",
+          "friendlyName": "Bedroom3ShelfPlug Firmware",
+          "cSharpName": "Bedroom3shelfplugFirmware"
+        },
+        {
           "id": "update.bookcase_light_strip_firmware",
           "friendlyName": "Bookcase Light Strip Firmware",
           "cSharpName": "BookcaseLightStripFirmware"
@@ -4948,6 +5043,11 @@
           "id": "update.living_room_radiator_firmware",
           "friendlyName": "Living Room - Radiator Firmware",
           "cSharpName": "LivingRoomRadiatorFirmware"
+        },
+        {
+          "id": "update.livingroomlighttreeplug_firmware",
+          "friendlyName": "LivingRoomLightTreePlug Firmware",
+          "cSharpName": "LivingroomlighttreeplugFirmware"
         },
         {
           "id": "update.loving_room_charging_dock_firmware",
@@ -5567,6 +5667,11 @@
           "jsonName": "system_mode",
           "cSharpName": "SystemMode",
           "clrType": "System.String"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
         }
       ]
     },
@@ -5599,6 +5704,11 @@
           "jsonName": "supported_features",
           "cSharpName": "SupportedFeatures",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "restored",
+          "cSharpName": "Restored",
+          "clrType": "System.Boolean"
         }
       ]
     }
