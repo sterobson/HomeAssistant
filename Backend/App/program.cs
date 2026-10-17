@@ -48,7 +48,13 @@ try
                 .AddHomeAssistantGenerated()
                 .AddSingleton<IGracefulShutdownService, GracefulShutdownService>()
                 .AddConfiguration<OctopusConfiguration>(context, "Octopus")
-                .AddScoped<IElectricityRatesReader, OctopusReader>()
+                .AddScoped<OctopusReader>()
+                .AddScoped<IHomeAssistantImportRates, HomeAssistantImportRates>()
+                .AddScoped<IElectricityRatesReader>(provider => new FallbackElectricityRatesReader(
+                    provider.GetRequiredService<OctopusReader>(),
+                    provider.GetRequiredService<IHomeAssistantImportRates>(),
+                    provider.GetRequiredService<TimeProvider>(),
+                    provider.GetRequiredService<ILogger<FallbackElectricityRatesReader>>()))
                 .AddScoped<IElectricityMeter, OctopusElectricityMeter>()
                 .AddScoped<OctopusElectricityMeter>()
                 .AddScoped<SolaxInverter>()
@@ -124,6 +130,15 @@ try
                     }
                 })
                 .Services
+                .AddHttpClient<IDeviceBatteryApiClient, DeviceBatteryApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
                 .AddHttpClient<IDeviceSettingsApiClient, DeviceSettingsApiClient>((serviceProvider, client) =>
                 {
                     WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
@@ -183,6 +198,12 @@ try
                 .AddScoped<PowerMonitorService>()
                 .AddSingleton<EntityPushCoordinator>()
                 .AddScoped<EntityPushService>()
+                // Scoped, like EntityPushService: it takes IHaContext, which NetDaemon scopes per
+                // app, so a singleton cannot be resolved ("Cannot resolve scoped service
+                // AppScopedHaContextProvider from root provider"). The "already pushed today" guard
+                // still holds: DeviceBatteryApp is built once per app lifetime and keeps this one
+                // instance for every scheduled check.
+                .AddScoped<DeviceBatteryPushService>()
                 .AddScoped<BatteryHistoryPushService>()
                 .AddScoped<BatteryHistoryBackfillService>()
                 .AddScoped<EnergyHistoryPushService>()
