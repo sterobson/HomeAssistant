@@ -116,6 +116,48 @@
             </transition>
           </div>
 
+          <!-- Boiler control setting (Heating page only) -->
+          <div v-if="route.name === 'heating'" class="setting-group">
+            <button class="accordion-header" :class="{ expanded: expandedSection === 'boiler' }" @click="toggleSection('boiler')">
+              <span>Boiler control</span>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="chevron">
+                <path d="M4 6l4 4 4-4H4z"/>
+              </svg>
+            </button>
+            <transition name="accordion">
+              <div v-show="expandedSection === 'boiler'" class="accordion-content">
+                <p class="setting-description">
+                  Set this to match the physical switch at the boiler. Nothing can check it, so if
+                  this is wrong the app will be heating a boiler it isn't connected to.
+                </p>
+                <div class="setting-options">
+                  <button
+                    class="setting-btn"
+                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER }"
+                    :disabled="savingBoilerPath"
+                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER)"
+                  >
+                    <span>External scheduler</span>
+                  </button>
+                  <button
+                    class="setting-btn"
+                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.FINGERBOT }"
+                    :disabled="savingBoilerPath"
+                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.FINGERBOT)"
+                  >
+                    <span>Fingerbot</span>
+                  </button>
+                </div>
+                <p class="setting-description">
+                  On the external scheduler the boiler's button is dead, so the app leaves the
+                  boiler alone and only controls radiator valves and heater plugs. On fingerbot
+                  the app presses the boiler's button itself.
+                </p>
+                <div v-if="boilerPathError" class="pending-message">{{ boilerPathError }}</div>
+              </div>
+            </transition>
+          </div>
+
           <!-- Time Format Setting -->
           <div class="setting-group">
             <button class="accordion-header" :class="{ expanded: expandedSection === 'time' }" @click="toggleSection('time')">
@@ -296,6 +338,7 @@ import { useRoute } from 'vue-router'
 import { useSettings } from '../composables/useSettings.js'
 import { useAppUpdate } from '../composables/useAppUpdate.js'
 import { useSignalR } from '../composables/useSignalR.js'
+import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import ConfirmModal from './ConfirmModal.vue'
 import { getHouseId, getSavedHouses, updateSavedHouseName } from '../utils/cookies.js'
 import { heatingApi } from '../services/heatingApi.js'
@@ -317,6 +360,32 @@ const {
 
 const route = useRoute()
 const isBatteryPage = computed(() => route.name === 'battery')
+
+// Boiler control path - which of the boiler's two control paths the house is wired to
+const {
+  boilerControlPath,
+  saveBoilerControlPath,
+  reloadSettings: reloadDeviceSettings,
+  BOILER_CONTROL_PATHS
+} = useDeviceSettings()
+
+const savingBoilerPath = ref(false)
+const boilerPathError = ref(null)
+
+const setBoilerControlPath = async (path) => {
+  if (savingBoilerPath.value || path === boilerControlPath.value) return
+
+  savingBoilerPath.value = true
+  boilerPathError.value = null
+  try {
+    await saveBoilerControlPath(path)
+  } catch (error) {
+    console.error('Failed to save the boiler control path:', error)
+    boilerPathError.value = 'Could not save the boiler control path. Nothing has changed.'
+  } finally {
+    savingBoilerPath.value = false
+  }
+}
 
 const emit = defineEmits(['disconnect', 'switch-house', 'add-house', 'open-entity-settings'])
 
@@ -403,6 +472,10 @@ watch(isOpen, (newValue) => {
   if (newValue) {
     loadHouseDetails()
     refreshUpdate()
+    if (route.name === 'heating') {
+      // Someone else may have changed the boiler control path since this page loaded.
+      reloadDeviceSettings().catch(error => console.error('Failed to load device settings:', error))
+    }
   }
 })
 
@@ -1189,6 +1262,22 @@ if (typeof window !== 'undefined') {
 
 .update-button:hover {
   opacity: 0.9;
+}
+
+.setting-description {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.setting-description:last-child {
+  margin: 0.75rem 0 0;
+}
+
+.setting-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
 
 .pending-message {

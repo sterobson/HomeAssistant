@@ -27,7 +27,11 @@ internal class PresenceService : IPresenceService
         DateTime now = DateTime.Now;
         switch (roomName.ToLower().Trim())
         {
-            case "games room":
+            // Presence is measured from desk plug power draw, so it belongs to the desk
+            // zones only. The radiator zones that share their thermometer ("dining room",
+            // "den") deliberately have no presence: a person at the desk should not make
+            // the whole room's radiator come on.
+            case "games desk":
                 if (_namedEntities.GamesRoomDeskPlugOnOff.IsOn())
                 {
                     // Get the power over the last 5 minutes.
@@ -39,7 +43,7 @@ internal class PresenceService : IPresenceService
                 }
                 break;
 
-            case "dining room":
+            case "dining desk":
                 if (_namedEntities.DiningRoomDeskPlugOnOff.IsOn())
                 {
                     // Get the power over the last 5 minutes.
@@ -59,8 +63,8 @@ internal class PresenceService : IPresenceService
     {
         return roomName.ToLower().Trim() switch
         {
-            "games room" => true,
-            "dining room" => true,
+            "games desk" => true,
+            "dining desk" => true,
             _ => false
         };
     }

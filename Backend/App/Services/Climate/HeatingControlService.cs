@@ -1,6 +1,7 @@
 ﻿using HomeAssistant.apps;
 using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
+using HomeAssistant.Shared;
 using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,12 +23,14 @@ internal class HeatingControlService
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
     private readonly IBoilerVerificationService _boilerVerification;
+    private readonly IDeviceSettingsPersistenceService _deviceSettings;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     internal const int BoilerScoreThreshold = 3;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
     private bool _boilerOn = false;
+    private BoilerControlPath? _lastSeenBoilerControlPath = null;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
     private readonly CustomSwitchWithConditions _gamesRoomHeaterSmartPlugOnOffWithConditions;
@@ -47,7 +50,8 @@ internal class HeatingControlService
         TimeProvider timeProvider,
         ISchedulePersistenceService schedulePersistence,
         IRoomStatePersistenceService statePersistence,
-        IBoilerVerificationService boilerVerification)
+        IBoilerVerificationService boilerVerification,
+        IDeviceSettingsPersistenceService deviceSettings)
     {
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -59,6 +63,7 @@ internal class HeatingControlService
         _schedulePersistence = schedulePersistence;
         _statePersistence = statePersistence;
         _boilerVerification = boilerVerification;
+        _deviceSettings = deviceSettings;
 
         // Entities which depend on other entities.
         _gamesRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.GamesRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(GamesRoomHeaterConditions));
@@ -103,6 +108,14 @@ internal class HeatingControlService
         _schedulePersistence.SchedulesUpdated += async () =>
         {
             await EvaluateAllSchedules("SignalR schedules updated notification");
+        };
+
+        // Pick up a boiler control path change as soon as the UI saves one, rather than waiting
+        // for the next periodic recheck. Delivered over the existing "device-settings-changed"
+        // SignalR path.
+        _deviceSettings.SettingsUpdated += async () =>
+        {
+            await EvaluateAllSchedules("device settings updated notification");
         };
 
         // Start the schedule persistence service (loads from local storage and connects to SignalR)
@@ -604,14 +617,26 @@ internal class HeatingControlService
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
             "kitchen" => [_kitchenHeaterSmartPlugOnOffWithConditions],
-            "games room" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
-            "dining room" => [_diningRoomHeaterSmartPlugOnOffWithConditions, _namedEntities.DiningRoomRadiatorThermostat],
+
+            // The dining room and the den each split into two independently scheduled
+            // zones that share one thermometer: a desk (heater plug, presence-aware) and
+            // the room itself (radiator). See the Heating section of CLAUDE.md.
+            "dining desk" => [_diningRoomHeaterSmartPlugOnOffWithConditions],
+            "dining room" => [_namedEntities.DiningRoomRadiatorThermostat],
+            "games desk" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
+
+            // The den's TRVs are not fitted yet. This arm is deliberate, not a gap: it
+            // keeps the zone visible and unbound rather than falling through to the
+            // default, so its capabilities read as "no controls" instead of "unknown
+            // room". Add the valves here when they are installed.
+            "den" => [],
+
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
             "bedroom 1" => [_bedroom1HeaterSmartPlugOnOffWithConditions, _namedEntities.Bedroom1RadiatorThermostat],
             "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
-            "upstairs bathroom" => [],
+            "upstairs bathroom" => [_namedEntities.UpstairsBathroomDummyPlugOnOff],
             _ => []
         };
     }
@@ -621,8 +646,14 @@ internal class HeatingControlService
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
             "kitchen" => _namedEntities.KitchenTemperature.State,
-            "games room" => _namedEntities.GamesRoomDeskTemperature.State,
+
+            // Both zones of a split room read the same physical thermometer — there is
+            // only one per room. They differ in what they drive, not in what they sense.
+            "dining desk" => _namedEntities.DiningRoomClimateTemperature.State,
             "dining room" => _namedEntities.DiningRoomClimateTemperature.State,
+            "games desk" => _namedEntities.GamesRoomDeskTemperature.State,
+            "den" => _namedEntities.GamesRoomDeskTemperature.State,
+
             "living room" => _namedEntities.LivingRoomClimateTemperature.State,
             "downstairs bathroom" => null,
             "bedroom 1" => _namedEntities.Bedroom1Temperature.State,
@@ -697,6 +728,36 @@ internal class HeatingControlService
 
     private async Task EvaluateBoilerState(RoomSchedules schedules, string trigger)
     {
+        BoilerControlPath controlPath = await GetBoilerControlPathAsync();
+        bool pathChanged = controlPath != _lastSeenBoilerControlPath;
+        _lastSeenBoilerControlPath = controlPath;
+
+        if (controlPath == BoilerControlPath.ExternalScheduler)
+        {
+            if (pathChanged)
+            {
+                // Logged once per transition: this runs on every evaluation cycle.
+                _logger.LogInformation(
+                    "Boiler control is DISABLED: the house is on its external scheduler, which leaves the boiler's button dead, so a fingerbot press would do nothing. Room-level control (valves and heater plugs) continues as normal. Change this in device settings when the switch at the boiler is flipped. Triggered by {Trigger}",
+                    trigger);
+
+                // Drop anything left over from fingerbot mode so a stale verification cannot
+                // resurface and provoke a corrective press later.
+                _boilerVerification.Reset();
+            }
+
+            // We have no belief about the boiler to hold while something else is driving it.
+            _boilerOn = false;
+            return;
+        }
+
+        if (pathChanged)
+        {
+            _logger.LogInformation(
+                "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Assuming the boiler is currently OFF. Triggered by {Trigger}",
+                trigger);
+        }
+
         // Find rooms with radiator valves that are actively calling for heat and calculate priority score
         List<(RoomSchedule Schedule, RoomState State, int Score)> roomsCallingForHeat = [];
         List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves = [];
@@ -775,15 +836,42 @@ internal class HeatingControlService
         await _boilerVerification.CheckAsync();
     }
 
-    private static int GetRoomBoilerPriority(RoomSchedule schedule)
+    /// <summary>
+    /// Which control path the boiler is wired to, according to device settings. Nothing in Home
+    /// Assistant can read the physical switch at the boiler, so this is configuration, not a
+    /// reading, and anything unset means "leave the boiler alone".
+    /// </summary>
+    private async Task<BoilerControlPath> GetBoilerControlPathAsync()
+    {
+        try
+        {
+            DeviceSettingsDto? settings = await _deviceSettings.GetSettingsAsync();
+            return settings?.Heating?.BoilerControlPath ?? BoilerControlPath.ExternalScheduler;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading the boiler control path from device settings - leaving the boiler alone");
+            return BoilerControlPath.ExternalScheduler;
+        }
+    }
+
+    // Internal so a test can pin every room name to a score: a name that matches no arm scores 0
+    // silently, which is exactly how "upstairsbathroom" (no space) went unnoticed.
+    internal static int GetRoomBoilerPriority(RoomSchedule schedule)
     {
         return schedule.Name.Trim().ToLower() switch
         {
-            "dining room" => 2,    // Medium
-            "living room" => 2,    // Medium
-            "bedroom 1" => 2,      // Medium
-            "bedroom 2" => 2,      // Medium
-            "bedroom 3" => 1,      // Low
+            "dining room" => 2,         // Medium
+            "dining desk" => 2,         // Medium — inherits the dining room's score
+            "living room" => 2,         // Medium
+            "bedroom 1" => 2,           // Medium
+            "bedroom 2" => 2,           // Medium
+            "bedroom 3" => 1,           // Low
+            "games desk" => 1,          // Low — was "games room" before the den split
+            "den" => 1,                 // Low
+            "upstairs bathroom" => 1,   // Low
+            "downstairs bathroom" => 1, // Low
+            "kitchen" => 1,             // Low
             _ => 0
         };
     }

@@ -13,6 +13,13 @@ internal interface IBoilerVerificationService
     void NotifyValveStopped(string roomName);
     Task CheckAsync();
     bool? GetVerifiedBoilerState();
+
+    /// <summary>
+    /// Discards any pending verification and valve history. Called when boiler control is
+    /// handed to the external scheduler, so a verification left over from fingerbot mode
+    /// cannot resurface later and provoke a corrective press.
+    /// </summary>
+    void Reset();
 }
 
 internal class BoilerVerificationService : IBoilerVerificationService
@@ -209,6 +216,17 @@ internal class BoilerVerificationService : IBoilerVerificationService
         {
             _checkSemaphore.Release();
         }
+    }
+
+    public void Reset()
+    {
+        if (_pendingVerification != null)
+        {
+            _logger.LogInformation("Boiler verification: discarding the pending verification of a boiler turn-{Direction}", _pendingVerification.BoilerTurnedOn ? "ON" : "OFF");
+        }
+
+        _pendingVerification = null;
+        _valveHeatingRecords.Clear();
     }
 
     public bool? GetVerifiedBoilerState()

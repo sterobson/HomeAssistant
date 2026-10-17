@@ -1,6 +1,14 @@
 import { ref, computed } from 'vue'
 import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
 
+// Which control path the boiler is physically wired to. A switch at the boiler selects between
+// the fingerbot and the house's own scheduler, and nothing can read it, so this is a statement of
+// what someone saw at the boiler. Values match the BoilerControlPath enum in the API.
+export const BOILER_CONTROL_PATHS = {
+  EXTERNAL_SCHEDULER: 0,
+  FINGERBOT: 1
+}
+
 // Singleton reactive state
 const settings = ref(null)
 const entities = ref([])
@@ -24,6 +32,11 @@ async function loadEntities() {
   } finally {
     loading.value = false
   }
+}
+
+async function reloadSettings() {
+  settingsLoaded = false
+  await loadSettings()
 }
 
 async function loadSettings() {
@@ -61,6 +74,26 @@ function entitiesByDomain(domain) {
   return computed(() => entities.value.filter(e => e.domain === domain))
 }
 
+const boilerControlPath = computed(() => {
+  const path = settings.value?.heating?.boilerControlPath
+  return path === BOILER_CONTROL_PATHS.FINGERBOT
+    ? BOILER_CONTROL_PATHS.FINGERBOT
+    : BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER
+})
+
+// Saves only the boiler control path, keeping everything else in the device settings blob.
+async function saveBoilerControlPath(path) {
+  await loadSettings()
+
+  await saveSettings({
+    ...(settings.value || {}),
+    heating: {
+      ...(settings.value?.heating || {}),
+      boilerControlPath: path
+    }
+  })
+}
+
 const isPowerMonitorConfigured = computed(() => {
   const rp = settings.value?.realtimePower
   if (!rp) return false
@@ -80,8 +113,12 @@ export function useDeviceSettings() {
     error,
     loadEntities,
     loadSettings,
+    reloadSettings,
     saveSettings,
     entitiesByDomain,
-    isPowerMonitorConfigured
+    isPowerMonitorConfigured,
+    boilerControlPath,
+    saveBoilerControlPath,
+    BOILER_CONTROL_PATHS
   }
 }

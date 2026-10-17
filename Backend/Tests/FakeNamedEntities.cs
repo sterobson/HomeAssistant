@@ -54,6 +54,8 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomNumericSensorEntity UpstairsBathroomTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(UpstairsBathroomTemperature) };
 
+    public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(UpstairsBathroomDummyPlugOnOff) };
+
     public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot) };
 }
 
@@ -86,6 +88,16 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
     private bool? _state;
     public required string EntityId { get; init; }
 
+    /// <summary>
+    /// How many times this switch has actually been driven. For the boiler fingerbot each one
+    /// is a physical press of the boiler's button, so tests count them rather than reading state.
+    /// </summary>
+    public int TurnOnCount { get; private set; }
+
+    public int TurnOffCount { get; private set; }
+
+    public int ToggleCount => TurnOnCount + TurnOffCount;
+
     public bool IsOff() => _state == false;
 
     public bool IsOn() => _state == true;
@@ -97,6 +109,8 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
 
     public void TurnOff()
     {
+        TurnOffCount++;
+
         if (_state != false)
         {
             _state = false;
@@ -106,6 +120,8 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
 
     public void TurnOn()
     {
+        TurnOnCount++;
+
         if (_state != true)
         {
             _state = true;
