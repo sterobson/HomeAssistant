@@ -22,20 +22,43 @@
         <p>No rooms configured yet</p>
       </div>
 
-      <RoomCard
-        v-for="room in rooms"
-        :key="room.id"
-        :room="room"
-        :is-expanded="expandedRoomId === room.id"
-        :occupancy-filter="occupancyFilter"
-        @update-schedule="handleUpdateSchedule"
-        @delete-schedule="handleDeleteSchedule"
-        @add-schedule="handleAddSchedule"
-        @boost="handleBoost"
-        @cancel-boost="handleCancelBoost"
-        @toggle-expand="handleToggleExpand"
-      />
+      <div v-if="rooms.length > 0" class="layout-toolbar">
+        <button v-if="editLayout" class="btn-layout" title="Add an empty group at the top level" @click="openAddGroup">
+          Add group
+        </button>
+        <button
+          class="btn-layout"
+          :class="{ active: editLayout }"
+          :title="editLayout ? 'Finish editing the layout' : 'Reorder rooms, choose icons, and make groups'"
+          @click="editLayout = !editLayout"
+        >
+          {{ editLayout ? 'Done' : 'Edit layout' }}
+        </button>
+      </div>
+
+      <!-- The layout is a tree of any depth; LayoutNode renders itself for each group's children. -->
+      <LayoutNode v-for="node in layoutTree" :key="node.key" :node="node" />
     </div>
+
+    <IconPickerModal
+      v-if="iconTarget"
+      :title="iconTarget.title"
+      :current-icon="iconTarget.current"
+      :editable-name="iconTarget.kind !== 'room'"
+      :current-name="iconTarget.name ?? ''"
+      :deletable="iconTarget.kind === 'group'"
+      @save="handleIconSave"
+      @delete="handleDeleteGroup"
+      @cancel="iconTarget = null"
+    />
+
+    <MoveToModal
+      v-if="moveTarget"
+      :title="moveTarget.title"
+      :targets="moveTarget.targets"
+      @select="handleMoveTo"
+      @cancel="moveTarget = null"
+    />
 
     <Toast
       v-if="toast.visible"
@@ -48,12 +71,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, reactive, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, computed, watch, provide, toRef } from 'vue'
 import RoomCard from '../components/RoomCard.vue'
+import LayoutNode from '../components/LayoutNode.vue'
+import MoveToModal from '../components/MoveToModal.vue'
+import IconPickerModal from '../components/IconPickerModal.vue'
 import Toast from '../components/Toast.vue'
 import { heatingApi } from '../services/heatingApi.js'
 import { useSignalR } from '../composables/useSignalR.js'
 import { getHouseId } from '../utils/cookies.js'
+import { roomLabel } from '../utils/rooms.js'
+import {
+  fromLayoutDto, toLayoutDto, canMove, move, moveTo, moveTargets, addGroup, updateGroup, deleteGroup,
+  newGroupId, normaliseIcon
+} from '../utils/roomLayout.js'
+import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
 const props = defineProps({
   occupancyFilter: {
@@ -71,6 +103,17 @@ const loading = ref(true)
 const error = ref(null)
 const statePollingInterval = ref(null)
 const expandedRoomId = ref(null)
+// Groups open independently, any number at once (a nested group needs its parents open too).
+const expandedGroupIds = ref(new Set())
+
+// How the rooms are arranged: a tree of rooms and groups to any depth. See utils/roomLayout.js.
+const layoutTree = ref([])
+const roomsById = computed(() => new Map(rooms.value.map(room => [room.id, room])))
+
+// Layout editing: reorder, move into groups, choose icons, make and delete groups.
+const editLayout = ref(false)
+const iconTarget = ref(null) // { kind: 'room' | 'group' | 'new-group', id?, name?, title, current }
+const moveTarget = ref(null) // { key, title, targets }
 const lastHiddenTime = ref(null)
 const toast = reactive({
   visible: false,
@@ -320,9 +363,17 @@ const mergeSchedulesWithStates = (schedules, states) => {
 const cleanRoomsForApi = (rooms) => {
   return {
     houseOccupancyState: houseOccupancyState.value,
+    // The arrangement of rooms and groups. Like every other field it must be sent, because this payload
+    // replaces the stored blob: leaving it out would reset everyone's layout on the next save.
+    layout: toLayoutDto(layoutTree.value),
     rooms: rooms.map(room => ({
       id: room.id,
       name: room.name,
+      // Must be round-tripped: this whitelist is the whole payload, so omitting
+      // displayName here would wipe every room's display name on the next save.
+      displayName: room.displayName ?? null,
+      group: room.group ?? null,
+      icon: room.icon ?? null,
       boost: room.boost,
       schedules: room.schedules.map(schedule => ({
         id: schedule.id,
@@ -368,6 +419,7 @@ const loadSchedules = async (silent = false) => {
 
     // Merge schedules with states
     rooms.value = mergeSchedulesWithStates(data.rooms, roomStates.value)
+    layoutTree.value = fromLayoutDto(data.layout, rooms.value)
   } catch (err) {
     if (!silent) {
       error.value = 'Failed to load schedules. Please try again.'
@@ -498,7 +550,7 @@ const handleBoost = async (roomId, boostData) => {
         durationText = `${hourText} ${minutes} minutes`
       }
 
-      showToast(`Boost activated for ${room.name} (${boostData.temperature}°C for ${durationText})`, 'success')
+      showToast(`Boost activated for ${roomLabel(room)} (${boostData.temperature}°C for ${durationText})`, 'success')
     } catch (err) {
       console.error('Error saving boost:', err)
       showToast('Failed to activate boost', 'error')
@@ -515,12 +567,155 @@ const handleCancelBoost = async (roomId) => {
     try {
       const cleanedData = cleanRoomsForApi(rooms.value)
       await heatingApi.setSchedules(cleanedData)
-      showToast(`Boost cancelled for ${room.name}`, 'info')
+      showToast(`Boost cancelled for ${roomLabel(room)}`, 'info')
     } catch (err) {
       console.error('Error saving boost cancellation:', err)
       showToast('Failed to cancel boost', 'error')
     }
   }
+}
+
+// Rename is display-only: it sets room.displayName and never touches room.name, which is
+// the join key the NetDaemon app uses to find the room's radiator, plugs and sensors.
+const handleRenameRoom = async (roomId, displayName) => {
+  const room = rooms.value.find(r => r.id === roomId)
+  if (!room) {
+    return
+  }
+
+  const trimmed = displayName?.trim() ?? ''
+  const newDisplayName = trimmed.length > 0 ? trimmed : null
+  const previousDisplayName = room.displayName ?? null
+
+  if (newDisplayName === previousDisplayName) {
+    return
+  }
+
+  room.displayName = newDisplayName
+
+  try {
+    const cleanedData = cleanRoomsForApi(rooms.value)
+    await heatingApi.setSchedules(cleanedData)
+    showToast(
+      newDisplayName ? `Renamed to ${newDisplayName}` : `Name reset to ${room.name}`,
+      'success'
+    )
+  } catch (err) {
+    // Put the old name back so the card doesn't show a name that was never saved.
+    room.displayName = previousDisplayName
+    console.error('Error saving room name:', err)
+    showToast('Failed to rename room', 'error')
+  }
+}
+
+// Groups expand one at a time, matching how rooms already behave. Not persisted: the
+// expanded-room cookie holds a room id, and a group has no id to store.
+// ---- Layout editing --------------------------------------------------------------------------
+// Each change saves immediately, like boosts and renames. If the save fails everything is put back,
+// so the screen never shows an arrangement that was not stored.
+const snapshot = () => ({
+  rooms: rooms.value,
+  tree: layoutTree.value,
+  expanded: new Set(expandedGroupIds.value)
+})
+
+const saveLayout = async (previous, successMessage) => {
+  try {
+    await heatingApi.setSchedules(cleanRoomsForApi(rooms.value))
+    if (successMessage) showToast(successMessage, 'success')
+  } catch (err) {
+    rooms.value = previous.rooms
+    layoutTree.value = previous.tree
+    expandedGroupIds.value = previous.expanded
+    console.error('Error saving layout:', err)
+    showToast('Failed to save the layout', 'error')
+  }
+}
+
+const openGroup = (id) => {
+  expandedGroupIds.value = new Set([...expandedGroupIds.value, id])
+}
+
+const handleToggleGroup = (id) => {
+  const next = new Set(expandedGroupIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  expandedGroupIds.value = next
+}
+
+const handleMoveNode = async (key, delta) => {
+  const previous = snapshot()
+  const next = move(layoutTree.value, key, delta)
+  if (next === layoutTree.value) return
+
+  layoutTree.value = next
+  await saveLayout(previous)
+}
+
+const openMoveTo = (key) => {
+  moveTarget.value = { key, title: 'Move to', targets: moveTargets(layoutTree.value, key) }
+}
+
+const handleMoveTo = async (targetId) => {
+  const target = moveTarget.value
+  moveTarget.value = null
+  if (!target) return
+
+  const previous = snapshot()
+  const next = moveTo(layoutTree.value, target.key, targetId)
+  if (next === layoutTree.value) return
+
+  layoutTree.value = next
+  if (targetId) openGroup(targetId) // so you can see where it went
+  await saveLayout(previous, 'Moved')
+}
+
+const openRoomIcon = (room) => {
+  iconTarget.value = { kind: 'room', id: room.id, title: `Icon for ${roomLabel(room)}`, current: room.icon ?? '' }
+}
+
+const openGroupEdit = (node) => {
+  iconTarget.value = { kind: 'group', id: node.id, title: 'Edit group', current: node.icon ?? '', name: node.name }
+}
+
+const openAddGroup = () => {
+  iconTarget.value = { kind: 'new-group', title: 'Add group', current: '', name: '' }
+}
+
+const handleIconSave = async ({ icon, name } = {}) => {
+  const target = iconTarget.value
+  iconTarget.value = null
+  if (!target) return
+
+  const previous = snapshot()
+  const cleaned = normaliseIcon(icon)
+  let message
+
+  if (target.kind === 'room') {
+    rooms.value = previous.rooms.map(room => (room.id === target.id ? { ...room, icon: cleaned } : room))
+    message = cleaned ? 'Icon saved' : 'Icon removed'
+  } else if (target.kind === 'group') {
+    layoutTree.value = updateGroup(layoutTree.value, target.id, { name, icon: cleaned })
+    message = 'Group saved'
+  } else {
+    const id = newGroupId(layoutTree.value)
+    layoutTree.value = addGroup(layoutTree.value, { id, name: name.trim(), icon: cleaned })
+    openGroup(id)
+    message = 'Group added'
+  }
+
+  await saveLayout(previous, message)
+}
+
+// Deleting a group keeps what is inside it: its rooms and groups move up one level.
+const handleDeleteGroup = async () => {
+  const target = iconTarget.value
+  iconTarget.value = null
+  if (!target || target.kind !== 'group') return
+
+  const previous = snapshot()
+  layoutTree.value = deleteGroup(layoutTree.value, target.id)
+  await saveLayout(previous, 'Group deleted. Its rooms were kept.')
 }
 
 const handleToggleExpand = (roomId) => {
@@ -535,6 +730,28 @@ const handleToggleExpand = (roomId) => {
   }
 }
 
+
+// Everything LayoutNode needs, provided last so every handler it points at already exists.
+provide(HEATING_LAYOUT, {
+  roomsById,
+  editLayout,
+  occupancyFilter: toRef(props, 'occupancyFilter'),
+  expandedRoomId,
+  expandedGroupIds,
+  canMove: (key, delta) => canMove(layoutTree.value, key, delta),
+  onMove: handleMoveNode,
+  onMoveTo: openMoveTo,
+  onEditRoomIcon: openRoomIcon,
+  onEditGroup: openGroupEdit,
+  onToggleGroup: handleToggleGroup,
+  onUpdateSchedule: handleUpdateSchedule,
+  onDeleteSchedule: handleDeleteSchedule,
+  onAddSchedule: handleAddSchedule,
+  onBoost: handleBoost,
+  onCancelBoost: handleCancelBoost,
+  onToggleExpand: handleToggleExpand,
+  onRename: handleRenameRoom
+})
 </script>
 
 <style scoped>
@@ -632,5 +849,35 @@ const handleToggleExpand = (roomId) => {
 
 .btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+.layout-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.btn-layout {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+  transition: all 0.2s;
+}
+
+.btn-layout:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.btn-layout.active {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
 }
 </style>

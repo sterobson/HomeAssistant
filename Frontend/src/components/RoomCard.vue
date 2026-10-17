@@ -8,7 +8,7 @@
     >
       <div class="header-left" :class="{ 'not-expandable': !canSetTemperature }" @click="canSetTemperature && toggleCollapse()">
         <div class="room-name-wrapper">
-          <h2 class="room-name">{{ room.name }}</h2>
+          <h2 class="room-name"><span v-if="room.icon" class="room-icon" aria-hidden="true">{{ room.icon }}</span>{{ roomDisplayName }}</h2>
           <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M5 7l5 5 5-5H5z"/>
@@ -24,7 +24,12 @@
           <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
-      <div class="header-actions">
+      <div v-if="!editMode" class="header-actions">
+        <button class="icon-btn rename-btn" @click.stop="handleRename" title="Rename room">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 01.5.5v.5h.5a.5.5 0 01.5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 015 12.5V12h-.5a.5.5 0 01-.5-.5V11h-.5a.5.5 0 01-.468-.325z"/>
+          </svg>
+        </button>
         <div class="icon-btn-placeholder">
           <button v-if="!isBoostActive && canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" title="Boost heating">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
@@ -36,6 +41,24 @@
           <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
             <path d="M0 0h1v15h15v1H0V0zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5z"/>
           </svg>
+        </button>
+      </div>
+      <div v-else class="header-actions">
+        <button class="icon-btn edit-btn" @click.stop="emit('edit-icon')" title="Choose icon" aria-label="Choose icon">
+          <span v-if="room.icon" class="edit-btn-emoji" aria-hidden="true">{{ room.icon }}</span>
+          <svg v-else width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/>
+            <path d="M4.285 9.567a.5.5 0 01.683.183A3.498 3.498 0 008 11.5a3.498 3.498 0 003.032-1.75.5.5 0 11.866.5A4.498 4.498 0 018 12.5a4.498 4.498 0 01-3.898-2.25.5.5 0 01.183-.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z"/>
+          </svg>
+        </button>
+        <button class="icon-btn edit-btn" :disabled="!canMoveUp" @click.stop="emit('move', -1)" title="Move up" aria-label="Move up">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.646 4.646a.5.5 0 01.708 0l6 6a.5.5 0 01-.708.708L8 5.707l-5.646 5.647a.5.5 0 01-.708-.708l6-6z"/></svg>
+        </button>
+        <button class="icon-btn edit-btn" :disabled="!canMoveDown" @click.stop="emit('move', 1)" title="Move down" aria-label="Move down">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.646 4.646a.5.5 0 01.708 0L8 10.293l5.646-5.647a.5.5 0 01.708.708l-6 6a.5.5 0 01-.708 0l-6-6a.5.5 0 010-.708z"/></svg>
+        </button>
+        <button class="icon-btn edit-btn" @click.stop="emit('move-to')" title="Move to…" aria-label="Move to">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1 3.5A1.5 1.5 0 012.5 2h2.764c.958 0 1.76.56 2.311 1.184C7.985 3.648 8.48 4 9 4h4.5A1.5 1.5 0 0115 5.5v7a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 12.5v-9zM2.5 3a.5.5 0 00-.5.5V6h12v-.5a.5.5 0 00-.5-.5H9c-.964 0-1.71-.629-2.174-1.154C6.374 3.334 5.82 3 5.264 3H2.5zM14 7H2v5.5a.5.5 0 00.5.5h11a.5.5 0 00.5-.5V7z"/></svg>
         </button>
       </div>
     </div>
@@ -81,9 +104,17 @@
 
     <BoostModal
       v-if="showBoost"
-      :room-name="room.name"
+      :room-name="roomDisplayName"
       @boost="handleBoostConfirm"
       @cancel="handleBoostCancel"
+    />
+
+    <RoomNameModal
+      v-if="showRename"
+      :canonical-name="room.name"
+      :current-display-name="room.displayName || ''"
+      @save="handleRenameConfirm"
+      @cancel="handleRenameCancel"
     />
 
     <ConfirmModal
@@ -98,7 +129,7 @@
 
     <TemperatureHistoryModal
       :show="showHistory"
-      :room-name="room.name"
+      :room-name="roomDisplayName"
       :history-data="historyData"
       :loading="historyLoading"
       :error="historyError"
@@ -117,8 +148,10 @@ import BoostModal from './BoostModal.vue'
 import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
+import RoomNameModal from './RoomNameModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { heatingApi } from '../services/heatingApi.js'
+import { roomLabel } from '../utils/rooms.js'
 
 const { formatTempWithUnit } = useFormatting()
 
@@ -134,10 +167,27 @@ const props = defineProps({
   occupancyFilter: {
     type: String,
     default: null // 'occupied', 'vacant', or null for all
+  },
+  // Layout editing: the action buttons give way to choose-icon / move-up / move-down.
+  editMode: {
+    type: Boolean,
+    default: false
+  },
+  canMoveUp: {
+    type: Boolean,
+    default: false
+  },
+  canMoveDown: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost', 'toggle-expand'])
+const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost', 'toggle-expand', 'rename', 'move', 'move-to', 'edit-icon'])
+
+// Display name when the room has one, otherwise its canonical name. Never show
+// room.name directly — see utils/rooms.js.
+const roomDisplayName = computed(() => roomLabel(props.room))
 
 const isCollapsed = computed(() => !props.isExpanded)
 const showEditor = ref(false)
@@ -146,6 +196,7 @@ const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 const showHistory = ref(false)
+const showRename = ref(false)
 const historyData = ref([])
 const historyLoading = ref(false)
 const historyError = ref(null)
@@ -205,6 +256,19 @@ const isBoostActive = computed(() => {
 
 const toggleCollapse = () => {
   emit('toggle-expand', props.room.id)
+}
+
+const handleRename = () => {
+  showRename.value = true
+}
+
+const handleRenameConfirm = (displayName) => {
+  showRename.value = false
+  emit('rename', props.room.id, displayName)
+}
+
+const handleRenameCancel = () => {
+  showRename.value = false
 }
 
 const handleAdd = () => {
@@ -430,6 +494,45 @@ const handleHistoryClose = () => {
 }
 
 .history-btn:active {
+  transform: translateY(0);
+}
+
+.room-icon {
+  margin-right: 0.5rem;
+}
+
+.edit-btn {
+  background-color: var(--btn-secondary-bg);
+  color: var(--icon-color);
+}
+
+.edit-btn:hover:not(:disabled) {
+  background-color: var(--btn-secondary-hover);
+  transform: translateY(-1px);
+}
+
+.edit-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.edit-btn-emoji {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Deliberately quieter than boost and history: renaming is a rare, non-urgent action. */
+.rename-btn {
+  background-color: var(--btn-secondary-bg);
+  color: var(--icon-color);
+}
+
+.rename-btn:hover {
+  background-color: var(--btn-secondary-hover);
+  transform: translateY(-1px);
+}
+
+.rename-btn:active {
   transform: translateY(0);
 }
 

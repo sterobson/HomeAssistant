@@ -1,6 +1,7 @@
 using HomeAssistant.Services.Climate;
 using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace HomeAssistant.Services;
 
@@ -42,6 +43,8 @@ public static class ScheduleMapper
             {
                 Id = roomDto.Id,
                 Name = roomDto.Name,
+                DisplayName = roomDto.DisplayName,
+                Icon = roomDto.Icon,
                 Boost = boost,
                 ScheduleTracks = []
             };
@@ -65,6 +68,7 @@ public static class ScheduleMapper
         }
 
         roomSchedules.Rooms = schedules;
+        roomSchedules.Layout = MapLayout(dto.Layout);
         return roomSchedules;
     }
 
@@ -91,6 +95,8 @@ public static class ScheduleMapper
             {
                 Id = schedule.Id,
                 Name = schedule.Name,
+                DisplayName = schedule.DisplayName,
+                Icon = schedule.Icon,
                 Boost = boostDto,
                 Schedules = []
             };
@@ -114,9 +120,30 @@ public static class ScheduleMapper
         return new RoomSchedulesDto
         {
             HouseOccupancyState = schedules.HouseOccupancyState,
+            Layout = MapLayout(schedules.Layout),
             Rooms = rooms
         };
     }
+
+    private static List<RoomLayoutNode> MapLayout(List<RoomLayoutNodeDto>? nodes) =>
+        [.. (nodes ?? []).Select(n => new RoomLayoutNode
+        {
+            RoomId = n.RoomId,
+            Id = n.Id,
+            Name = n.Name,
+            Icon = n.Icon,
+            Children = n.Children == null ? null : MapLayout(n.Children)
+        })];
+
+    private static List<RoomLayoutNodeDto> MapLayout(List<RoomLayoutNode>? nodes) =>
+        [.. (nodes ?? []).Select(n => new RoomLayoutNodeDto
+        {
+            RoomId = n.RoomId,
+            Id = n.Id,
+            Name = n.Name,
+            Icon = n.Icon,
+            Children = n.Children == null ? null : MapLayout(n.Children)
+        })];
 
     /// <summary>
     /// Maps room state from DTO to domain model

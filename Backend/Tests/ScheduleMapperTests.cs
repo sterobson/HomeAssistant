@@ -974,4 +974,237 @@ public class ScheduleMapperTests
     }
 
     #endregion
+
+    #region DisplayName Tests
+
+    // DisplayName is UI-only. Name is the join key to the room's hardware, so these tests
+    // exist mainly to pin down that mapping one never alters the other, and that a display
+    // name survives a round trip — if it is dropped anywhere, every save silently reverts
+    // the room to its canonical name.
+
+    [TestMethod]
+    public void MapFromDto_WithDisplayName_MapsDisplayNameAndLeavesNameAlone()
+    {
+        // Arrange
+        RoomSchedulesDto dto = new RoomSchedulesDto
+        {
+            Rooms =
+            [
+                new RoomDto
+                {
+                    Id = 3,
+                    Name = "Bedroom 1",
+                    DisplayName = "Ruth and Ste's room",
+                    Schedules = []
+                }
+            ]
+        };
+
+        // Act
+        RoomSchedules result = ScheduleMapper.MapFromDto(dto);
+
+        // Assert
+        RoomSchedule room = result.Rooms.ShouldHaveSingleItem();
+        room.Name.ShouldBe("Bedroom 1");
+        room.DisplayName.ShouldBe("Ruth and Ste's room");
+    }
+
+    [TestMethod]
+    public void MapFromDto_WithoutDisplayName_LeavesDisplayNameNull()
+    {
+        // Arrange
+        RoomSchedulesDto dto = new RoomSchedulesDto
+        {
+            Rooms =
+            [
+                new RoomDto
+                {
+                    Id = 1,
+                    Name = "Kitchen",
+                    Schedules = []
+                }
+            ]
+        };
+
+        // Act
+        RoomSchedules result = ScheduleMapper.MapFromDto(dto);
+
+        // Assert
+        RoomSchedule room = result.Rooms.ShouldHaveSingleItem();
+        room.Name.ShouldBe("Kitchen");
+        room.DisplayName.ShouldBeNull();
+    }
+
+    [TestMethod]
+    public void MapToDto_WithDisplayName_MapsDisplayNameAndLeavesNameAlone()
+    {
+        // Arrange
+        RoomSchedules schedules = new RoomSchedules
+        {
+            Rooms =
+            [
+                new RoomSchedule
+                {
+                    Id = 7,
+                    Name = "Bedroom 3",
+                    DisplayName = "Ellie's room",
+                    ScheduleTracks = []
+                }
+            ]
+        };
+
+        // Act
+        RoomSchedulesDto result = ScheduleMapper.MapToDto(schedules);
+
+        // Assert
+        RoomDto room = result.Rooms.ShouldHaveSingleItem();
+        room.Name.ShouldBe("Bedroom 3");
+        room.DisplayName.ShouldBe("Ellie's room");
+    }
+
+    [TestMethod]
+    public void MapRoundTrip_PreservesBothNames()
+    {
+        // Arrange
+        RoomSchedulesDto original = new RoomSchedulesDto
+        {
+            Rooms =
+            [
+                new RoomDto { Id = 3, Name = "Bedroom 1", DisplayName = "Ruth and Ste's room", Schedules = [] },
+                new RoomDto { Id = 6, Name = "Bedroom 2", DisplayName = "Joseph's room", Schedules = [] },
+                new RoomDto { Id = 7, Name = "Bedroom 3", DisplayName = "Ellie's room", Schedules = [] },
+                new RoomDto { Id = 1, Name = "Kitchen", Schedules = [] }
+            ]
+        };
+
+        // Act
+        RoomSchedulesDto result = ScheduleMapper.MapToDto(ScheduleMapper.MapFromDto(original));
+
+        // Assert
+        result.Rooms.Count.ShouldBe(4);
+
+        for (int i = 0; i < original.Rooms.Count; i++)
+        {
+            result.Rooms[i].Id.ShouldBe(original.Rooms[i].Id);
+            result.Rooms[i].Name.ShouldBe(original.Rooms[i].Name);
+            result.Rooms[i].DisplayName.ShouldBe(original.Rooms[i].DisplayName);
+        }
+    }
+
+    #endregion
+
+    #region Layout Tests
+
+    // The layout is an ordered tree of rooms and groups to any depth. It is presentation only, so
+    // nothing server-side depends on it, which is exactly why a mapper that forgot a field would go
+    // unnoticed until every save quietly wiped it.
+
+    private static RoomLayoutNodeDto Room(int id) => new() { RoomId = id };
+
+    private static RoomLayoutNodeDto Group(string id, string name, string? icon, params RoomLayoutNodeDto[] children) =>
+        new() { Id = id, Name = name, Icon = icon, Children = [.. children] };
+
+    [TestMethod]
+    public void MapRoundTrip_PreservesANestedLayoutInOrder()
+    {
+        // Downstairs holds a room, a nested group and another room; the nested group holds a group again.
+        RoomSchedulesDto original = new RoomSchedulesDto
+        {
+            Layout =
+            [
+                Group("g-down", "Downstairs", "⬇️",
+                    Room(1),
+                    Group("g-dining", "Dining room", "🍽️", Room(4), Room(9)),
+                    Room(5)),
+                Group("g-up", "Upstairs", null,
+                    Group("g-bedrooms", "Bedrooms", "🛏️",
+                        Group("g-kids", "Kids", null, Room(6), Room(7)),
+                        Room(3)),
+                    Room(8))
+            ],
+            Rooms = []
+        };
+
+        RoomSchedulesDto result = ScheduleMapper.MapToDto(ScheduleMapper.MapFromDto(original));
+
+        result.Layout.Count.ShouldBe(2);
+        RoomLayoutNodeDto down = result.Layout[0];
+        down.Id.ShouldBe("g-down");
+        down.Name.ShouldBe("Downstairs");
+        down.Icon.ShouldBe("⬇️");
+        down.Children!.Select(c => c.RoomId).ShouldBe([1, null, 5]);
+        down.Children![1].Name.ShouldBe("Dining room");
+        down.Children![1].Children!.Select(c => c.RoomId).ShouldBe([4, 9]);
+
+        RoomLayoutNodeDto kids = result.Layout[1].Children![0].Children![0];
+        kids.Name.ShouldBe("Kids");
+        kids.Icon.ShouldBeNull();
+        kids.Children!.Select(c => c.RoomId).ShouldBe([6, 7]);
+    }
+
+    [TestMethod]
+    public void MapRoundTrip_KeepsARoomNodeDistinctFromAnEmptyGroup()
+    {
+        // A room has no children at all; an empty group has an empty list. They must not blur together.
+        RoomSchedulesDto original = new RoomSchedulesDto
+        {
+            Layout = [Room(1), Group("g-new", "New group", null)],
+            Rooms = []
+        };
+
+        RoomSchedulesDto result = ScheduleMapper.MapToDto(ScheduleMapper.MapFromDto(original));
+
+        result.Layout[0].RoomId.ShouldBe(1);
+        result.Layout[0].Children.ShouldBeNull();
+        result.Layout[1].RoomId.ShouldBeNull();
+        result.Layout[1].Children.ShouldNotBeNull();
+        result.Layout[1].Children!.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void MapFromDto_WithNoLayout_YieldsAnEmptyLayout()
+    {
+        // Production's blob has no "layout" yet; it must read back as empty, not null.
+        RoomSchedules result = ScheduleMapper.MapFromDto(new RoomSchedulesDto { Rooms = [] });
+
+        result.Layout.ShouldNotBeNull();
+        result.Layout.ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public void MapRoundTrip_PreservesRoomIconsAndLeavesNamesAlone()
+    {
+        RoomSchedulesDto original = new RoomSchedulesDto
+        {
+            Rooms =
+            [
+                new RoomDto { Id = 9, Name = "dining desk", DisplayName = "Ruth's desk", Icon = "💻", Schedules = [] },
+                new RoomDto { Id = 5, Name = "Living room", Schedules = [] }
+            ]
+        };
+
+        RoomSchedulesDto result = ScheduleMapper.MapToDto(ScheduleMapper.MapFromDto(original));
+
+        result.Rooms.Select(r => r.Icon).ShouldBe(["💻", null]);
+        result.Rooms[0].Name.ShouldBe("dining desk", "the icon must never alter the hardware join key");
+    }
+
+    [TestMethod]
+    public void RoomOrderInTheRoomsListIsUntouched()
+    {
+        // The rooms list is flat and its order carries no meaning, but the mapper must not reorder it.
+        RoomSchedulesDto original = new RoomSchedulesDto
+        {
+            Rooms =
+            [
+                new RoomDto { Id = 7, Name = "Bedroom 3", Schedules = [] },
+                new RoomDto { Id = 2, Name = "games desk", Schedules = [] },
+                new RoomDto { Id = 5, Name = "Living room", Schedules = [] }
+            ]
+        };
+
+        ScheduleMapper.MapToDto(ScheduleMapper.MapFromDto(original)).Rooms.Select(r => r.Id).ShouldBe([7, 2, 5]);
+    }
+
+    #endregion
 }
