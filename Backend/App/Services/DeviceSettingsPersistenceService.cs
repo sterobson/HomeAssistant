@@ -40,9 +40,7 @@ internal class DeviceSettingsPersistenceService : IDeviceSettingsPersistenceServ
         _apiClient = apiClient;
         _signalRConnection = signalRConnection;
 
-        string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string appFolder = Path.Combine(appDataPath, "HomeAssistant");
-        Directory.CreateDirectory(appFolder);
+        string appFolder = LocalStorageFolder.Resolve();
         _localStoragePath = Path.Combine(appFolder, _storageFileName);
     }
 

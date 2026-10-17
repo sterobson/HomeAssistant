@@ -61,9 +61,7 @@ internal class BatteryRulesPersistenceService : IBatteryRulesPersistenceService
         });
 
         // Set up local storage path
-        string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string appFolder = Path.Combine(appDataPath, "HomeAssistant");
-        Directory.CreateDirectory(appFolder);
+        string appFolder = LocalStorageFolder.Resolve();
         _localStoragePath = Path.Combine(appFolder, _storageFileName);
     }
 

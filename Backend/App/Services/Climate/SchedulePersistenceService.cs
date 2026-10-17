@@ -57,9 +57,7 @@ internal class SchedulePersistenceService : ISchedulePersistenceService
         _signalRConnection = signalRConnection;
 
         // Set up local storage path
-        string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        string appFolder = Path.Combine(appDataPath, "HomeAssistant");
-        Directory.CreateDirectory(appFolder);
+        string appFolder = LocalStorageFolder.Resolve();
         _scheduleStoragePath = Path.Combine(appFolder, _scheduleStorageFileName);
     }
 
