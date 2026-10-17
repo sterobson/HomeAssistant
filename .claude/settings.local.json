@@ -60,7 +60,17 @@
       "Bash(grep -l \"DEPLOYMENT_VERSION\\\\|expectedVersion\\\\|version\" modules/TaskExecutors/*.ps1)",
       "Bash(python3 -c \"import json; data=json.load\\(open\\('C:/Users/stero/source/repos/aquarium/src/data/species.json'\\)\\); print\\([d['id'] for d in data]\\)\")",
       "Bash(node -e \"const d=require\\('C:/Users/stero/source/repos/aquarium/src/data/species.json'\\); console.log\\(d.map\\(x=>x.id\\)\\)\")",
-      "Bash(mkdir -p \"C:/Users/stero/source/repos/aquarium/.claude\")"
+      "Bash(mkdir -p \"C:/Users/stero/source/repos/aquarium/.claude\")",
+      "Bash(git mv *)",
+      "Bash(mv App/Services/Climate/EntityFactory.cs App/Services/Climate/HeatingEntityFactory.cs)",
+      "Bash(sed -i -e 's/\\\\bIEntityFactory\\\\b/IHeatingEntityFactory/g' -e 's/\\\\bclass EntityFactory\\\\b/class HeatingEntityFactory/' -e 's/public EntityFactory\\(/public HeatingEntityFactory\\(/' App/Services/Climate/HeatingEntityFactory.cs)",
+      "Bash(sed -i 's/AddScoped<IEntityFactory, EntityFactory>/AddScoped<IHeatingEntityFactory, HeatingEntityFactory>/' App/program.cs)",
+      "Bash(sed -i -e 's/\\\\bHeatingControlService\\\\b/LegacyHeatingControlService/g' -e 's/class HeatingControlServiceTests/class LegacyHeatingControlServiceTests/' Tests/LegacyHeatingControlServiceTests.cs)",
+      "Bash(sed -i 's/\\\\bHeatingControlServiceTests\\\\b/LegacyHeatingControlServiceTests/' Tests/LegacyHeatingControlServiceTests.cs)",
+      "Bash(sed -i -e 's/ILogger<HeatingControlService> logger = CreateLogger<HeatingControlService>\\(\\);/ILogger<LegacyHeatingControlService> logger = CreateLogger<LegacyHeatingControlService>\\(\\);/' -e 's/HeatingControlService sut = new\\(/LegacyHeatingControlService sut = new\\(/' Tests/EntityExistenceTests.cs)",
+      "Bash(git rm *)",
+      "Bash(git rev-list *)",
+      "Bash(git log *)"
     ],
     "deny": [],
     "ask": []
