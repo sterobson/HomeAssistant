@@ -1,171 +1,108 @@
-# HomeAssistant Deployment Guide
+# Deployment
 
-## Quick Start
+Deployment is handled by a **separate, shared tool** that lives outside this repo:
 
-From the **root** directory:
-
-```powershell
-.\deploy.ps1
+```
+C:\Users\stero\source\repos\Deployment\
 ```
 
-The script will interactively ask you:
-1. Which environment? (Testing or Live)
-2. What to deploy? (Enter one or more numbers: 1=Frontend, 2=Backend)
-   - You can select multiple by separating with spaces or commas (e.g., "1 2" or "1,2")
-
-## Command-Line Options
-
-You can also specify options directly to skip prompts:
+It discovers this repo by finding `.deployment/deploy-config.json`, and deploys all
+three parts of the system. It is menu-driven — there are no command-line flags for
+picking an environment or task.
 
 ```powershell
-# Deploy everything to testing
-.\deploy.ps1 -Environment testing -Frontend -Backend
-
-# Deploy only frontend to testing
-.\deploy.ps1 -Environment testing -Frontend
-
-# Deploy only backend to live
-.\deploy.ps1 -Environment live -Backend
+pwsh C:\Users\stero\source\repos\Deployment\deploy.ps1
 ```
 
-## What Gets Deployed
+From the menu: pick the project, pick **Deploy**, pick the environment, pick tasks.
+The same tool also launches the local dev stack and manages secrets and environment
+variables. Its own `README.md` is the reference for the tool itself; this file covers
+what is specific to HomeAssistant.
 
-### Frontend
-- **Testing**: Builds and deploys to GitHub Pages at `/testing/` subdirectory
-- **Live**: Builds and deploys to GitHub Pages at root
+> **The legacy script.** `deploy.ps1` in this repo's root is the superseded 3,500-line
+> red/green script. It still runs, but it reads secrets from `~/.homeassistant-deploy/`
+> and state from `.deployment/state.json`, which the current tool does not use. Prefer
+> the Deployment repo. The root script is kept only until the slot-swap behaviour is
+> reimplemented there.
 
-The frontend is built with the appropriate API URLs for each environment.
+## Environments and tasks
 
-### Backend (Azure Functions)
-- **Testing**: Deploys to `sterobson-homeassistant-testing` Function App
-- **Live**: Deploys to `sterobson-homeassistant` Function App
+Defined in `.deployment/deploy-config.json`.
 
-## Prerequisites
+### `production` — resource group `HomeAssistant-Production-RG`
 
-### For Frontend Deployment
-- Node.js and npm installed
-- Git configured with GitHub authentication
-- Write access to the repository's gh-pages branch
+| Task | Type | Target |
+|---|---|---|
+| `backend` | `azure-functions` | Slot `homeassistant-prod-functions` |
+| `frontend` | `azure-static-web-app` | `delightful-plant-0656dfa03.4.azurestaticapps.net`, served at `https://homeassistant.everymilesoftware.com` |
+| `hardware` | `dotnet-publish` | Copied to `\homeassistant.local\config\netdaemon6`, and uploaded to `/api/app-release/upload` for OTA |
 
-### For Backend Deployment
-- Azure Functions Core Tools: `npm install -g azure-functions-core-tools@4`
-- Azure CLI: `winget install Microsoft.AzureCLI`
-- Logged in to Azure: `az login`
-- .NET 10 SDK
+The frontend build receives `VITE_API_URL` (templated from the backend task's URL) and
+`VITE_FUNCTION_KEY` (from the stored secret). The hardware task runs `nd-codegen` as a
+pre-build step and runs `Backend/Tests` before publishing.
 
-## Environment Configuration
+### `local`
 
-The script uses these configurations:
+Runs the whole stack on this machine: Functions on **7159**, frontend dev server on
+**5173**, the NetDaemon app via `dotnet run`, and Azurite for storage
+(blob **10030**, queue **10031**, table **10032**, data in `.azurite`).
 
-### Testing
-- Frontend: `https://YOUR_USERNAME.github.io/YOUR_REPO/testing/`
-- Backend API: `https://sterobson-homeassistant-testing-e9ahagcjb0dyede6.uksouth-01.azurewebsites.net`
+Note the frontend port here differs from `Frontend/vite.config.js`, which defaults Vite
+to **3000** when you run `npm run dev` yourself.
 
-### Live
-- Frontend: `https://YOUR_USERNAME.github.io/YOUR_REPO/`
-- Backend API: `https://sterobson-homeassistant-cmcvcfe6gdb0h5f4.uksouth-01.azurewebsites.net`
+### `testing`
 
-## Adding New Deployment Targets
+`.deployment/state.json` still carries a `testing` environment pointing at the
+`sterobson-homeassistant-testing` slot, but there are no `testing` tasks in
+`deploy-config.json`. Treat testing as retired unless you re-add it.
 
-The script is designed to be extensible. To add a new deployment target:
+## Config and secrets are not in git
 
-1. **Add a new parameter** at the top of `deploy.ps1`:
-   ```powershell
-   [Parameter(Mandatory=$false)]
-   [switch]$NewTarget
-   ```
+`.gitignore` excludes the whole `/.deployment` directory, so **`deploy-config.json` and
+`state.json` exist only on the machine that last deployed.** There is no copy in the
+repository and no backup. If you set up a new machine you will have to recreate the
+config by hand.
 
-2. **Update the configuration object** with settings for your new target:
-   ```powershell
-   testing = @{
-       NewTarget = @{
-           Url = "..."
-           # other config
-       }
-   }
-   ```
+Secrets are DPAPI-encrypted per user, keyed by the project GUID from `deploy-config.json`:
 
-3. **Add to the interactive menu**:
-   ```powershell
-   Write-Host "  3. New Target" -ForegroundColor White
-   ```
-
-   And in the switch statement:
-   ```powershell
-   "3" { $NewTarget = $true }
-   ```
-
-4. **Add the deployment section** after the Backend deployment:
-
-Example structure:
-```powershell
-# ============================================================================
-# Deploy [NEW TARGET]
-# ============================================================================
-if ($NewTarget) {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Info "  Deploying [NEW TARGET]"
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host ""
-
-    # Your deployment logic here
-}
+```
+~\.deploy-secrets\b7e3a1d9-4c2f-48a6-9e1b-5d8f0c3a7e42\secrets.json
 ```
 
-## Troubleshooting
+Being DPAPI, they are tied to this Windows user on this machine and cannot be copied to
+another. Use the tool's **Manage secret keys** menu rather than editing the file.
 
-### Frontend Deployment Issues
+## Verifying what is actually deployed
 
-**"Not in a git repository"**
-- Make sure you're running the script from the repository root
-- Ensure the directory is a valid git repository
+Git history will not tell you — pushed is not deployed. Ask the running app:
 
-**"Failed to push to GitHub"**
-- Check your git authentication: `git config --list`
-- Ensure you have write access to the repository
-- Try: `git push origin gh-pages` manually to see the error
-
-### Backend Deployment Issues
-
-**"Azure Functions Core Tools not found"**
-- Install: `npm install -g azure-functions-core-tools@4`
-- Or: `winget install Microsoft.Azure.FunctionsCoreTools`
-
-**"Not authenticated with Azure"**
-- Run: `az login`
-- Ensure you're logged in to the correct subscription
-
-**"Can't find app with name..."**
-- Verify the Function App name in Azure Portal
-- Check you're logged in to the correct Azure subscription
-- List your apps: `az functionapp list --query "[].name"`
-
-## Manual Deployment (Advanced)
-
-If you prefer to deploy manually or the script fails:
-
-### Frontend
 ```bash
-cd Frontend
-npm ci
-$env:GITHUB_PAGES="true"
-$env:DEPLOY_PATH="/testing/"  # or "/" for live
-$env:VITE_API_URL="https://..."
-npm run build
-# Then manually copy dist/ contents to gh-pages branch
+curl -s https://homeassistant-prod-functions.azurewebsites.net/api/version
 ```
 
-### Backend
-```bash
-cd Backend/HomeAssistant.Functions
-dotnet build -c Release
-func azure functionapp publish sterobson-homeassistant-testing --dotnet-isolated
-```
+The response is the `DeploymentVersion` baked into the assembly at build time via
+`/p:DeploymentVersion=<timestamp>-<sha>`, so the trailing SHA identifies the deployed
+commit exactly. `GET /api/health` is a cheap liveness check. Both are anonymous.
 
-## Safety Features
+The NetDaemon app versions itself differently: the `GenerateVersionFile` MSBuild target
+writes `version.txt` (`yyyyMMddHHmmss` UTC) into the publish directory on every publish,
+and the OTA endpoints under `/api/app-release/` compare running against desired.
 
-- **Live deployment confirmation**: Always prompts "yes" confirmation before deploying to live
-- **Pre-flight checks**: Verifies all required tools are installed before starting
-- **Detailed error messages**: Provides helpful guidance when something goes wrong
-- **No automatic GitHub Actions**: You have full control over when deployments happen
+## GitHub Actions
+
+`.github/workflows/` holds two workflows that build the frontend and push to GitHub
+Pages — `deploy-github-pages.yml` (on `development` or `testing`) and
+`deploy-release.yml` (on `release`).
+
+**Both are effectively dead.** The `development` and `release` branches do not exist, and
+production has moved to Azure Static Web Apps. `Frontend/vite.config.js` still contains
+the GitHub Pages base-path logic (`GITHUB_PAGES`, `DEPLOY_PATH`) these workflows rely on.
+Delete all three together, or leave them all alone — don't half-remove it.
+
+## OTA update of the NetDaemon app
+
+The `hardware` task uploads each published build to the `app-releases` blob container via
+`POST /api/app-release/upload` (one of only two function-key-protected endpoints). The
+app polls for a desired version, downloads it, swaps its directory, and restarts through
+`IGracefulShutdownService`, which cancels work and waits up to 10 seconds before exiting.
+The frontend's settings menu drives this.

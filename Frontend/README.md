@@ -1,107 +1,141 @@
-# Heating Control Frontend
+# Frontend
 
-A mobile-friendly Vue.js application for controlling your house's central heating system.
+Vue 3 single-page app for the house: heating schedules, battery and energy charts,
+device setup, and over-the-air updates for the NetDaemon app. Talks to the Azure
+Functions API in `../Backend/HomeAssistant.Functions`.
 
-## Features
+Deployed to Azure Static Web Apps at `https://homeassistant.everymilesoftware.com`.
 
-- **Room-based Control**: Manage heating schedules for each room independently
-- **Collapsible Cards**: Organized UI with collapsible room cards
-- **Schedule Management**: Add, edit, and delete heating schedules
-- **Flexible Scheduling**: Set time, temperature, and conditions for each schedule
-- **Condition Support**: Configure schedules for specific days or conditions (e.g., occupied/away)
-- **Mobile Responsive**: Optimized for mobile devices
-- **Mock API**: Currently uses mock API calls for development
-
-## Project Structure
-
-```
-Frontend/
-├── src/
-│   ├── components/
-│   │   ├── RoomCard.vue          # Collapsible room card component
-│   │   ├── ScheduleItem.vue      # Individual schedule display
-│   │   └── ScheduleEditor.vue    # Add/edit schedule modal
-│   ├── services/
-│   │   └── heatingApi.js         # API service (currently mocked)
-│   ├── views/
-│   │   └── HeatingView.vue       # Main view
-│   ├── App.vue                   # Root component
-│   └── main.js                   # Application entry point
-├── index.html
-├── vite.config.js
-└── package.json
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v16 or higher)
-- npm or yarn
-
-### Installation
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-3. Open your browser to `http://localhost:3000`
-
-### Building for Production
+## Running it
 
 ```bash
-npm run build
+npm install
+npm run dev          # Vite dev server on http://localhost:3000
 ```
 
-The built files will be in the `dist` directory.
+Point it at an API by creating `.env.local` — see [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md).
+For a local backend, `VITE_API_URL=http://localhost:7071/api` plus `VITE_LOCALHOST_KEY`.
 
-## API Integration
+| Script | Does |
+|---|---|
+| `npm run dev` | Vite dev server, port 3000 |
+| `npm run build` | Production build into `dist/` |
+| `npm run preview` | Serve the built output |
+| `npm run test` | Vitest, watch mode |
+| `npm run test:run` | Vitest, single pass |
+| `npm run generate-icons` | Regenerate PWA icons from SVG via `sharp` |
 
-Currently, the app uses mock API calls defined in `src/services/heatingApi.js`. To integrate with your C# backend:
+Test coverage is one file (`src/utils/energyDistribution.test.js`). There are no
+component tests.
 
-1. Update `heatingApi.js` to point to your actual API endpoints
-2. Replace mock implementations with real HTTP calls (using fetch or axios)
-3. Expected API endpoints:
-   - `GET /api/schedules` - Returns all room schedules
-   - `POST /api/schedules` - Saves updated schedules
+## Routes
 
-### Expected Data Structure
+`vue-router` 4 in HTML5 history mode. SPA fallback for Azure Static Web Apps is
+`public/staticwebapp.config.json`.
 
-```json
-{
-  "rooms": [
-    {
-      "id": 1,
-      "name": "Living Room",
-      "schedules": [
-        {
-          "id": 1,
-          "time": "06:00",
-          "temperature": 20,
-          "conditions": "Mon,Tue,Wed,Thu,Fri"
-        }
-      ]
-    }
-  ]
-}
+| Route | View | Notes |
+|---|---|---|
+| `/` | `LandingView.vue` | Feature cards |
+| `/heating` | `HeatingView.vue` | **The** heating UI — room cards, schedules, boost |
+| `/battery` | `BatteryView.vue` | Battery zones, pricing, energy charts and tables |
+| `/heating2` | `Heating2View.vue` | **Superseded.** Floor/device/rule editor for the newer heating config model. Slated for removal; the final heating UI is `/heating`. |
+| `/manual-import` | `ManualImportView.vue` | Hidden recovery page, not linked from anywhere. Restores missing daily energy data by distributing a total across hours using another day's shape. |
+
+There is no `/settings` route. Settings is a menu component, `SettingsMenu.vue`, which is
+also where OTA updates are triggered.
+
+## Layout
+
+```
+src/
+  views/           One per route
+  components/      Shared components; components/heating2/ belongs to the superseded UI
+  composables/     Singleton reactive state, auto-persisted
+  services/        One API client per backend area
+  utils/           Pure functions
 ```
 
-## Schedule Conditions
+**Composables** are singletons, not factories — importing one twice gives the same
+reactive state. They persist themselves: cookies for small settings, `localStorage` for
+structured JSON such as battery zone rules.
 
-Conditions can include:
-- **Days of week**: Mon, Tue, Wed, Thu, Fri, Sat, Sun
-- **Custom conditions**: Occupied, Away, or any custom condition your backend supports
-- Multiple conditions are comma-separated
+`useApiErrors`, `useAppUpdate`, `useBatteryRules`, `useDeviceSettings`, `useFormatting`,
+`useHeatingConfig`, `useSettings`, `useSignalR`, `useTheme`.
 
-## Development Notes
+`useDeviceSettings` also owns the boiler control path (`boilerControlPath`,
+`saveBoilerControlPath`, `BOILER_CONTROL_PATHS`), surfaced on the heating page as
+**Settings → Boiler control** in `SettingsMenu.vue`. It says which of the boiler's two
+control paths the house is wired to; nothing can read the physical switch at the boiler, so
+the setting has to be kept in step with it by hand.
 
-- Built with Vue 3 Composition API
-- Uses Vite for fast development and building
-- No external UI library dependencies (pure CSS)
-- Mobile-first responsive design
+**Services** wrap `fetch` and attach auth headers: `x-functions-key` for deployed
+environments, `X-Localhost-Key` when the URL is localhost. Every call is scoped by a
+`houseId` read from a cookie — if it is unset the service throws, and `HouseIdModal.vue`
+prompts for it.
+
+`appReleaseApi`, `batteryApi`, `deviceSettingsApi`, `heatingApi`, `heatingConfigApi`.
+
+## Real-time updates
+
+`useSignalR` connects to the Functions SignalR hub via `/api/signalr/negotiate` and joins
+the group `house-{houseId}`. Handlers are registered with `on(event, handler)`.
+
+The events **this app consumes** are:
+
+`room-states-changed`, `schedules-changed`, `heating-config-changed`,
+`battery-state-changed`, `battery-history-replaced`, `energy-history-changed`,
+`energy-history-replaced`, `power-snapshot`.
+
+The API emits several more — `battery-rules-changed`, `device-settings-changed`,
+`update-available`, `version-report`, and the `backfill-*` / `start-power-monitor`
+commands aimed at the hardware app. The full list is in
+[the API README](../Backend/HomeAssistant.Functions/README.md).
+
+Two older PascalCase names, `RoomStatesUpdated` and `SchedulesUpdated`, still appear in
+commented-out code in `services/heatingApi.js`. The live names are the kebab-case ones.
+
+## Charts
+
+`vue-chartjs` over Chart.js 4, with `chartjs-adapter-date-fns` for time axes. Chart.js
+components must be registered explicitly. Theme colours are CSS custom properties, so
+charts read them via `getComputedStyle` in `onMounted` rather than hard-coding hex values.
+
+`BatteryChart.vue` carries two custom plugins: `zoneRenderingPlugin` (`afterDatasetsDraw`,
+paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
+(drag-to-create, click-to-edit).
+
+## Conventions
+
+- Composition API throughout, `<script setup>`.
+- No UI framework — plain CSS, mobile-first.
+- 20 themes, defined as CSS custom properties on `[data-theme]` in `index.html` and
+  switched by `useTheme`.
+- Modals: fixed overlay plus centred panel, base `z-index` 1000, `fadeIn`/`slideUp`
+  animations. A modal opened from another modal takes a `z-index` 100 higher, passed as
+  a prop.
+- Sentence case for all UI text — "Add new room", not "Add New Room".
+- **Never render `room.name` directly.** Rooms have two names: `name` is the canonical one
+  the NetDaemon app matches on to find the room's radiator, plugs and sensors, and
+  `displayName` is the UI-only one the user can edit. Always go through
+  `roomLabel(room)` in [src/utils/rooms.js](src/utils/rooms.js), which falls back to
+  `name`. Renaming is display-only by design — see **Heating** in the root
+  [CLAUDE.md](../CLAUDE.md) for why changing `name` breaks hardware.
+- `cleanRoomsForApi` in `HeatingView.vue` whitelists the fields sent to `POST /schedules`,
+  and that payload replaces the entire blob. Any room field not in that whitelist is
+  silently wiped the next time anything is saved — add new fields there as well as to the
+  C# DTO.
+- **The layout is a tree of any depth.** `layout` (rooms and groups, groups holding more of either) is saved
+  next to the flat `rooms` list; `LayoutNode` renders itself for each group's children, and a group shows
+  whether anything inside is heating plus the temperature (one value if every room agrees, otherwise the
+  range). Edit layout mode gives every card choose-icon / move-up / move-down / "Move to…" buttons, and
+  the toolbar adds "Add group". All the rules (moving, nesting without cycles, deleting a group without
+  losing its rooms, reconciling a layout with the room list) are pure functions in `utils/roomLayout.js`.
+  Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
+  since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
+
+  `RoomGroupCard` that shows the shared temperature and a flame if any zone is heating,
+  but has no controls of its own — the controls live on the zone cards inside it. The
+  grouping is built in `roomEntries` in `HeatingView.vue`, and a group takes the position
+  of its first zone, so the blob's room order still decides the layout. Rooms with no
+  `group` render exactly as before. Group expansion is not persisted (the expanded-room
+  cookie stores a room id, and groups have none).
