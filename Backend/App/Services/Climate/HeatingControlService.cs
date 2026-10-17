@@ -276,7 +276,12 @@ internal class HeatingControlService
         }
 
         // Step 0: Is there a boost active?
-        bool hasBoost = roomHeatingSchedule.Boost?.EndTime.GetValueOrDefault().DateTime > now && roomHeatingSchedule.Boost.Temperature.HasValue;
+        // Compare instants, not clock faces. The end time is a DateTimeOffset (the UI sends it in UTC) and
+        // `now` is the local wall clock, so comparing the end's .DateTime to `now` was wrong by the UTC
+        // offset: in British Summer Time every boost ended an hour early and any boost shorter than an hour
+        // never ran at all.
+        bool hasBoost = roomHeatingSchedule.Boost is { EndTime: DateTimeOffset boostEnd, Temperature: not null }
+            && boostEnd > _timeProvider.GetUtcNow();
         double desiredTemperature;
         string reason;
         HeatingScheduleTrack? effectiveTrack = null;

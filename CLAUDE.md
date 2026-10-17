@@ -210,13 +210,13 @@ Four more heating notes:
   without changing it the app is wrong again and cannot tell. Never conclude from radiator
   temperatures that a press worked. See [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → gotcha 13
   and the boiler fingerbot device note.
-- **Boosts end an hour early in British Summer Time (known bug, found 2026-10-17, not yet fixed).**
-  `HeatingControlService` decides whether a boost is active with
-  `Boost.EndTime.GetValueOrDefault().DateTime > now`, where `now` is the *local* clock but `EndTime` is the UTC
-  timestamp the UI sends, with its offset stripped by `.DateTime`. In BST a boost therefore ends an hour early,
-  and any boost shorter than an hour is **never active at all**. Reproduced locally against real devices: a
-  1-hour boost produced no device commands, a 3-hour boost did. The fix is to compare as `DateTimeOffset`
-  against `_timeProvider.GetUtcNow()`.
+- **Boost expiry compares instants, never clock faces (fixed 2026-10-17).** A boost's end is a
+  `DateTimeOffset` (the UI sends UTC) while the evaluation's `now` is the *local* wall clock, so comparing
+  `EndTime.DateTime` to `now` was wrong by the UTC offset: in British Summer Time every boost ended an hour
+  early and any boost shorter than an hour never ran at all. It now compares against
+  `_timeProvider.GetUtcNow()`. [BoostExpiryTests](Backend/Tests/BoostExpiryTests.cs) uses a London clock for
+  this; the shared `FakeTimeProvider` is hard-wired to GMT and can never show a summer-time bug, so do not
+  use it for anything that depends on local time.
 
 ## In-flight work
 
