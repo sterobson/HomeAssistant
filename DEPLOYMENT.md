@@ -35,7 +35,7 @@ Defined in `.deployment/deploy-config.json`.
 |---|---|---|
 | `backend` | `azure-functions` | Slot `homeassistant-prod-functions` |
 | `frontend` | `azure-static-web-app` | `delightful-plant-0656dfa03.4.azurestaticapps.net`, served at `https://homeassistant.everymilesoftware.com` |
-| `hardware` | `dotnet-publish` | Copied to `\homeassistant.local\config\netdaemon6`, and uploaded to `/api/app-release/upload` for OTA |
+| `hardware` | `dotnet-publish` | Copied to `\\192.168.1.188\config\netdaemon6` (the Samba share add-on, **by IP**), and uploaded to `/api/app-release/upload` for OTA |
 
 The frontend build receives `VITE_API_URL` (templated from the backend task's URL) and
 `VITE_FUNCTION_KEY` (from the stored secret). The hardware task runs `nd-codegen` as a
@@ -98,6 +98,52 @@ Pages — `deploy-github-pages.yml` (on `development` or `testing`) and
 production has moved to Azure Static Web Apps. `Frontend/vite.config.js` still contains
 the GitHub Pages base-path logic (`GITHUB_PAGES`, `DEPLOY_PATH`) these workflows rely on.
 Delete all three together, or leave them all alone — don't half-remove it.
+
+## Deploying by hand, and what the tool does not do
+
+The tool is a menu-driven script with many `Read-Host` branches (environment-variable sync, git
+commit and push, token entry, a Stripe step). Piping answers into it is unsafe: a line meant for a menu
+can be swallowed as an app setting value and written to production. The 2026-10-17 deploy instead ran
+each step as an explicit command, using the tool's own modules only to resolve the DPAPI secrets
+in-process (`Resolve-TemplateValue` from `modules\ConfigManagement.ps1`, never printed). The steps,
+in the order that works:
+
+1. **Preflight and backup.** Clean `main`, in step with `origin/main`. Save production's `schedules`,
+   `device-settings`, `battery-rules`, `house-details` and `heating-config` blobs (anonymous GETs for
+   house `1234567`) before changing anything.
+2. **Functions.** `func azure functionapp publish homeassistant-prod-functions --dotnet-isolated
+   --dotnet-cli-params "/p:DeploymentVersion=<yyyy.MM.dd.HH.mm>-<sha>"` from `Backend\HomeAssistant.Functions`.
+   Backward compatible with the running app, so it goes first. Then read `/api/version` back. The tool
+   also writes a `DEPLOYMENT_VERSION` app setting; nothing reads it (the version is baked into the
+   assembly), so skipping it avoids a production settings write.
+3. **NetDaemon app.** `dotnet test`, then `dotnet publish Backend/App -c Release --self-contained false
+   -p:DebugType=none -p:DebugSymbols=false -o publish\hardware-app`. Copy everything **except
+   `appsettings.*.json`** to the share (the real `appsettings.secrets.all.json` and
+   `appsettings.production.json` live only on the host and must never be overwritten), verify
+   `HomeAssistant.dll` byte-for-byte, upload the OTA zip, then **restart the NetDaemon add-on yourself**:
+   the tool does not, and the running app keeps the old code in memory until it restarts. Confirm via
+   `GET /api/app-release/running?houseId=1234567` reporting the new `version.txt`.
+4. **Data migration, if the release changes room names.** The app matches room names in code, so the new
+   app on old names (or the reverse) leaves those rooms unbound until the blob is migrated. Do it straight
+   after the app restarts, with `LocalEnv/migrate-rooms.mjs` (dry run first; writing to production needs
+   `--apply --i-mean-production`). The live app picks up the change over SignalR within seconds.
+5. **Frontend.** Build with `VITE_API_URL` and `VITE_FUNCTION_KEY`, then `swa deploy` with the token from
+   `az staticwebapp secrets list`. Compare the live `index-*.js` name to the local build to prove it.
+
+`nd-codegen` (the tool's pre-build step) was skipped: it regenerates `HomeAssistantGenerated.cs` from the
+live Home Assistant, which makes the deployed build differ from the commit.
+
+### The Samba share, and restarting add-ons
+
+- Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
+  machine, and Windows holds saved credentials for the IP.
+- **The Samba add-on can report `started` while nothing listens on 445/139** (seen 2026-10-17: ports
+  refused, SSH and the file editor fine). Check with a raw TCP connect, not `Test-NetConnection`, whose
+  output is easy to misread. Restarting just that add-on fixed it in under 5 seconds.
+- Add-ons can be read and restarted through the HA websocket (`supervisor/api` with endpoints such as
+  `/addons/core_samba/restart`), using the same long-lived token. The REST `/api/hassio` proxy returns
+  401 for it, and the add-on log endpoints failed (`unknown_error`), so a crashed add-on's log is only
+  readable from the HA UI. The NetDaemon add-on's slug is `c6a2317c_netdaemon6`.
 
 ## OTA update of the NetDaemon app
 

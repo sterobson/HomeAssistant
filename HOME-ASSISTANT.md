@@ -170,7 +170,7 @@ that is a gap to close, not a dead end.
 | SONOFF **SNZB-02D** temp/humidity | **CR2450** ✔︎ | **Small Phillips** ✔︎ | 7 | Every room thermometer — bedrooms 1/2/3, dining, living, kitchen, games room |
 | eWeLink **SNZB-01P** button | **CR2477** † | unrecorded | 4 | Dining Room Desk, Games Room Desk, Dining Bookshelf, Christmas Tree |
 | eWeLink **SNZB-02P** temp/humidity | **CR2477** † | unrecorded | 1 | Bathroom — **not** an SNZB-02D, do not fit a CR2450 |
-| SONOFF **TRVZB** radiator valve | **3 × AA** (LR6 alkaline) † | unrecorded | 5 | Bedrooms 1/2/3, dining, living |
+| SONOFF **TRVZB** radiator valve | **3 × AA** (LR6 alkaline) † | unrecorded | 7 | Bedrooms 1/2/3, dining, living, den (radiators 1 and 2, added 2026-10-18, fresh batteries) |
 | eWeLink **SNZB-03P** motion | unrecorded | unrecorded | 2 | Porch, Motion-Sensor-02 |
 | SONOFF **SNZB-05P** flood | unrecorded | unrecorded | 1 | Kitchen flood detector |
 
@@ -291,12 +291,23 @@ a CR2450 and a small Phillips screwdriver cover every room thermometer in the ho
 the bathroom.
 
 **Radiator TRVs** — `climate.{room}_radiator_thermostat` in bedrooms 1–3, dining and living
-rooms. Battery powered, 94–95%. Expose `hvac_action`, `child_lock`, `open_window`,
+rooms, plus `climate.den_radiator_1_thermostat` and `climate.den_radiator_2_thermostat` (paired 2026-10-18, named "Den - Radiator 1/2", in the Games
+Room area; wired into `Backend/App` as the `den` zone). Battery powered, 94–95%
+(the den ones 100%, new). Expose `hvac_action`, `child_lock`, `open_window`,
 `local_temperature_offset` and `external_temperature_sensor_value`. **Nothing in this repo
 writes the external-temperature registers**, so a TRV's own reading is independent of the
 room thermometer — bedroom 1 read 17.8 °C at the room sensor and 16.4 °C at the TRV
 simultaneously on 2026-10-17. Schedules and the UI use the room sensor; boiler verification
 uses the TRV.
+
+**Pairing a new TRVZB** (procedure confirmed by hand on 2026-10-18, two units): the display shows "F5" (it can
+look like "FS") until the TRV is on a radiator valve — that only means it is not installed on a valve yet, it
+is not a fault. Then: (1) install it on the valve; (2) press the button 3 times to activate it; (3) turn the
+dial all the way to "OF"; (4) long-press the button (~3 s) until the Zigbee icon flashes — pairing mode, which
+times out after about 3 minutes; (5) have ZHA's join window open at that moment (`zha.permit`, `duration` up to
+254 s; its 200 response proves nothing, so watch for the device to appear). "In" on the display is the
+installation/adaptation state. Afterwards rename the device and its entities together (device `{Room} -
+Radiator`, entities `{room}_radiator_*`), or the entities stay `sonoff_trvzb_*`.
 
 **Heater plugs** — `switch.{room}_plug_heater_switch` in bedroom 1, dining room, games room
 and kitchen. **Mains powered**, each with `_power`, `_current`, `_voltage` and
@@ -408,6 +419,19 @@ Coverage is yesterday–tomorrow only. Export is untouched (still REST, 12p via 
 If REST *and* HA both come back empty the reader logs one warning ("No electricity import rates
 available …") and re-arms it once rates return, instead of silently pricing at 0. That warning is the
 signal that the integration is down or renamed its events. Tests: `ImportRatesFallbackTests`.
+
+**Deployed 2026-10-17 (Functions `2026.10.17.20.24-338b011`, app `20261017192754`).** Verified from
+production afterwards: `battery-pricing` for today shows 7.6p / 35.6164p slots (00:00, 05:30, 23:30) instead of
+0, and the first daily battery snapshot arrived (21 devices, the dead fingerbot unavailable rather than 0%).
+**Observed, then self-corrected:** at 20:34 BST tomorrow and the day after were each a single flat
+35.6164p slot rather than three. By 05:07 the next morning both had their three slots (a watcher polling only
+while the dev PC was awake saw it flat at 20:43 and fixed at 05:07, so the exact correcting push is not known). The reader and slot builder are proven correct for all three days
+(`EachOfTodayTomorrowAndTheDayAfter_GetsTheCheapNightSlots`, `FourRateMultiDayTests`). The likely writer is
+`ElectricityRatePushService.HandleRateChangeAsync` (the live-sensor override), which rewrites a whole future
+day as one point at the sensor's rate when it thinks an override runs past midnight; it fires at app start,
+before REST has loaded. That is a hypothesis: if the hourly push has not corrected it, look there. Battery
+*planning* is unaffected either way, since `BatteryControlService` reads rates from the reader, not from the
+stored pricing.
 
 **Why REST returned zero (researched 2026-10-17, all verified against Octopus's public API; since
 addressed by `FourRateTariff` above).** The

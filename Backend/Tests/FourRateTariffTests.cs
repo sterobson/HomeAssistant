@@ -285,6 +285,41 @@ public sealed class FourRateTariffTests
         homeAssistant.ReceivedCalls().ShouldBeEmpty();
     }
 
+    // ---- The pricing the app stores for each day ----
+
+    [TestMethod]
+    public async Task EachOfTodayTomorrowAndTheDayAfter_GetsTheCheapNightSlots()
+    {
+        // This is what ElectricityRatePushService does for each date: ask the reader for that day's rates
+        // and turn them into pricing slots. It found, live, that today had its night slots while tomorrow
+        // and the day after were one flat daytime price.
+        if (TimeZoneInfo.Local.BaseUtcOffset != London.BaseUtcOffset)
+        {
+            Assert.Inconclusive("PricingSlot builds days in the machine's local zone, so this needs a machine on UK time.");
+        }
+
+        StubOctopus octopus = StubOctopus.FourRate();
+        OctopusReader sut = new(new HttpClient(octopus), Configuration(), London);
+
+        DateTime today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.Local).Date;
+
+        for (int dayOffset = 0; dayOffset < 3; dayOffset++)
+        {
+            DateTime date = today.AddDays(dayOffset);
+            DateTime startUtc = TimeZoneInfo.ConvertTimeToUtc(date, TimeZoneInfo.Local);
+            DateTime endUtc = TimeZoneInfo.ConvertTimeToUtc(date.AddDays(1), TimeZoneInfo.Local);
+
+            List<EnergyRate> imports = await sut.GetElectricityImportRatesAsync(startUtc, endUtc);
+            List<HomeAssistant.Services.Energy.PricingSlot> slots =
+                HomeAssistant.Services.Energy.PricingSlot.FromEnergyRatesExact(imports, [], date);
+
+            // 00:00 (still the night rate), 05:30 (day starts), 23:30 (night starts).
+            slots.Select(s => (s.TimeMinutes, s.ImportPrice))
+                .ToList()
+                .ShouldBe([(0, (double)Night), (330, (double)Day), (1410, (double)Night)], $"{date:yyyy-MM-dd}");
+        }
+    }
+
     // ---- Helpers ----
 
     private const string EmptyRates = """{"count":0,"next":null,"previous":null,"results":[]}""";

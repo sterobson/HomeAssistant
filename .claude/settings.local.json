@@ -70,7 +70,14 @@
       "Bash(sed -i -e 's/ILogger<HeatingControlService> logger = CreateLogger<HeatingControlService>\\(\\);/ILogger<LegacyHeatingControlService> logger = CreateLogger<LegacyHeatingControlService>\\(\\);/' -e 's/HeatingControlService sut = new\\(/LegacyHeatingControlService sut = new\\(/' Tests/EntityExistenceTests.cs)",
       "Bash(git rm *)",
       "Bash(git rev-list *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(node LocalEnv/migrate-rooms.mjs 1234567 --api https://homeassistant-prod-functions.azurewebsites.net/api --apply --i-mean-production)",
+      "Bash(curl -s \"https://homeassistant-prod-functions.azurewebsites.net/api/schedules?houseId=1234567\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);console.log\\('rooms:',j.rooms.map\\(r=>r.id+':'+r.name+\\(r.displayName?' \\('+r.displayName+'\\)':''\\)\\).join\\(' | '\\)\\);const show=\\(ns,d=0\\)=>ns.forEach\\(n=>{console.log\\('  '.repeat\\(d+1\\)+\\(n.roomId!=null?'room '+n.roomId:'['+n.name+']'\\)\\);if\\(n.children\\)show\\(n.children,d+1\\)}\\);console.log\\('layout:'\\);show\\(j.layout\\)}\\)\")",
+      "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\57b019c1-4b1c-408d-84a7-ba8800eb0186\\\\scratchpad\\\\deploy-stage4-frontend.ps1' 2>&1)",
+      "Bash(timeout 60 node nd-logs.cjs)",
+      "Bash(bash \"C:/Users/stero/AppData/Local/Temp/claude/C--Users-stero-source-repos-HomeAssistant/57b019c1-4b1c-408d-84a7-ba8800eb0186/scratchpad/watch-pricing.sh\")",
+      "Bash(node bedroom1-plug.mjs)"
     ],
     "deny": [],
     "ask": []
