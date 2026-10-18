@@ -27,8 +27,7 @@
       </div>
       <div v-else class="edit-actions" @click.stop>
         <button class="icon-btn edit-btn" title="Edit name and icon" aria-label="Edit name and icon" @click.stop="emit('edit')">
-          <span v-if="node.icon" class="edit-btn-emoji" aria-hidden="true">{{ node.icon }}</span>
-          <svg v-else width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 01.5.5v.5h.5a.5.5 0 01.5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 015 12.5V12h-.5a.5.5 0 01-.5-.5V11h-.5a.5.5 0 01-.468-.325z"/>
           </svg>
         </button>
@@ -146,6 +145,8 @@ const empty = computed(() => props.node.children.length === 0)
 .header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
   flex: 1;
   min-width: 0;
 }
@@ -154,7 +155,7 @@ const empty = computed(() => props.node.children.length === 0)
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -163,6 +164,8 @@ const empty = computed(() => props.node.children.length === 0)
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .group-icon {
@@ -188,6 +191,7 @@ const empty = computed(() => props.node.children.length === 0)
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .heating-status {
@@ -218,13 +222,14 @@ const empty = computed(() => props.node.children.length === 0)
   white-space: nowrap;
 }
 
-/* Three 36px icon buttons and the two 0.5rem gaps between them. This also fixes the header height at
-   a room's (36px of content plus padding). */
+/* Two 36px icon buttons (a room's boost and history) and the 0.5rem gap between them. This also fixes
+   the header height at a room's (36px of content plus padding). */
 .actions-area {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  width: calc(36px * 3 + 0.5rem * 2);
+  flex: 0 0 auto;
+  width: calc(36px * 2 + 0.5rem);
   min-height: 36px;
 }
 
@@ -234,11 +239,12 @@ const empty = computed(() => props.node.children.length === 0)
   white-space: nowrap;
 }
 
-/* In edit mode there are four buttons, so the temperature shifts left by one button for that mode. */
+/* In edit mode there are four buttons, so the temperature shifts left by two buttons for that mode. */
 .edit-actions {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .icon-btn {
@@ -267,11 +273,6 @@ const empty = computed(() => props.node.children.length === 0)
 .edit-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.edit-btn-emoji {
-  font-size: 1.25rem;
-  line-height: 1;
 }
 
 /* What is inside sits indented, so the nesting reads at a glance at any depth. */

@@ -32,10 +32,9 @@
     @boost="ctx.onBoost"
     @cancel-boost="ctx.onCancelBoost"
     @toggle-expand="ctx.onToggleExpand"
-    @rename="ctx.onRename"
     @move="(delta) => ctx.onMove(node.key, delta)"
     @move-to="ctx.onMoveTo(node.key)"
-    @edit-icon="ctx.onEditRoomIcon(room)"
+    @edit="ctx.onEditRoom(room)"
   />
 </template>
 

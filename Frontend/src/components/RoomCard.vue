@@ -25,11 +25,6 @@
         </div>
       </div>
       <div v-if="!editMode" class="header-actions">
-        <button class="icon-btn rename-btn" @click.stop="handleRename" title="Rename room">
-          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 01.5.5v.5h.5a.5.5 0 01.5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 015 12.5V12h-.5a.5.5 0 01-.5-.5V11h-.5a.5.5 0 01-.468-.325z"/>
-          </svg>
-        </button>
         <div class="icon-btn-placeholder">
           <button v-if="!isBoostActive && canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" title="Boost heating">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
@@ -44,11 +39,9 @@
         </button>
       </div>
       <div v-else class="header-actions">
-        <button class="icon-btn edit-btn" @click.stop="emit('edit-icon')" title="Choose icon" aria-label="Choose icon">
-          <span v-if="room.icon" class="edit-btn-emoji" aria-hidden="true">{{ room.icon }}</span>
-          <svg v-else width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M8 15A7 7 0 118 1a7 7 0 010 14zm0 1A8 8 0 108 0a8 8 0 000 16z"/>
-            <path d="M4.285 9.567a.5.5 0 01.683.183A3.498 3.498 0 008 11.5a3.498 3.498 0 003.032-1.75.5.5 0 11.866.5A4.498 4.498 0 018 12.5a4.498 4.498 0 01-3.898-2.25.5.5 0 01.183-.683zM7 6.5C7 7.328 6.552 8 6 8s-1-.672-1-1.5S5.448 5 6 5s1 .672 1 1.5zm4 0c0 .828-.448 1.5-1 1.5s-1-.672-1-1.5S9.448 5 10 5s1 .672 1 1.5z"/>
+        <button class="icon-btn edit-btn" @click.stop="emit('edit')" title="Edit name and icon" aria-label="Edit name and icon">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M12.146.146a.5.5 0 01.708 0l3 3a.5.5 0 010 .708l-10 10a.5.5 0 01-.168.11l-5 2a.5.5 0 01-.65-.65l2-5a.5.5 0 01.11-.168l10-10zM11.207 2.5L13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 01.5.5v.5h.5a.5.5 0 01.5.5v.5h.293l6.5-6.5zm-9.761 5.175l-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 015 12.5V12h-.5a.5.5 0 01-.5-.5V11h-.5a.5.5 0 01-.468-.325z"/>
           </svg>
         </button>
         <button class="icon-btn edit-btn" :disabled="!canMoveUp" @click.stop="emit('move', -1)" title="Move up" aria-label="Move up">
@@ -109,14 +102,6 @@
       @cancel="handleBoostCancel"
     />
 
-    <RoomNameModal
-      v-if="showRename"
-      :canonical-name="room.name"
-      :current-display-name="room.displayName || ''"
-      @save="handleRenameConfirm"
-      @cancel="handleRenameCancel"
-    />
-
     <ConfirmModal
       v-if="showDeleteConfirm"
       title="Delete Schedule"
@@ -148,7 +133,6 @@ import BoostModal from './BoostModal.vue'
 import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
-import RoomNameModal from './RoomNameModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
@@ -183,7 +167,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost', 'toggle-expand', 'rename', 'move', 'move-to', 'edit-icon'])
+const emit = defineEmits(['update-schedule', 'delete-schedule', 'add-schedule', 'boost', 'cancel-boost', 'toggle-expand', 'move', 'move-to', 'edit'])
 
 // Display name when the room has one, otherwise its canonical name. Never show
 // room.name directly — see utils/rooms.js.
@@ -196,7 +180,6 @@ const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 const showHistory = ref(false)
-const showRename = ref(false)
 const historyData = ref([])
 const historyLoading = ref(false)
 const historyError = ref(null)
@@ -256,19 +239,6 @@ const isBoostActive = computed(() => {
 
 const toggleCollapse = () => {
   emit('toggle-expand', props.room.id)
-}
-
-const handleRename = () => {
-  showRename.value = true
-}
-
-const handleRenameConfirm = (displayName) => {
-  showRename.value = false
-  emit('rename', props.room.id, displayName)
-}
-
-const handleRenameCancel = () => {
-  showRename.value = false
 }
 
 const handleAdd = () => {
@@ -385,7 +355,10 @@ const handleHistoryClose = () => {
 .header-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
   flex: 1;
+  min-width: 0;
   cursor: pointer;
   user-select: none;
 }
@@ -398,7 +371,8 @@ const handleHistoryClose = () => {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .room-name {
@@ -406,12 +380,15 @@ const handleHistoryClose = () => {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .room-status {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .heating-status {
@@ -445,6 +422,7 @@ const handleHistoryClose = () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .icon-btn-placeholder {
@@ -514,26 +492,6 @@ const handleHistoryClose = () => {
 .edit-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.edit-btn-emoji {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-/* Deliberately quieter than boost and history: renaming is a rare, non-urgent action. */
-.rename-btn {
-  background-color: var(--btn-secondary-bg);
-  color: var(--icon-color);
-}
-
-.rename-btn:hover {
-  background-color: var(--btn-secondary-hover);
-  transform: translateY(-1px);
-}
-
-.rename-btn:active {
-  transform: translateY(0);
 }
 
 .collapse-btn {

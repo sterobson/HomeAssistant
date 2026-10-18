@@ -141,7 +141,8 @@ with no error. Adding a room means adding arms to all three.
 carry an optional `DisplayName` that is UI-only — nothing binds to it, and the heating
 code never reads it. The frontend renders every room through `roomLabel(room)`
 ([Frontend/src/utils/rooms.js](Frontend/src/utils/rooms.js)), which falls back to `name`
-when no display name is set, and the pencil button on each room card edits it. `name`
+when no display name is set. In Edit layout the pencil button on a room or group opens one dialog that
+changes its name and emoji together (a room leaves the name empty to fall back). `name`
 stays as the canonical hardware key. Two traps if you touch this:
 
 - `cleanRoomsForApi` in [HeatingView.vue](Frontend/src/views/HeatingView.vue) whitelists

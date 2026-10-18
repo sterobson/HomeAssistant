@@ -44,8 +44,12 @@
       v-if="iconTarget"
       :title="iconTarget.title"
       :current-icon="iconTarget.current"
-      :editable-name="iconTarget.kind !== 'room'"
+      :editable-name="true"
       :current-name="iconTarget.name ?? ''"
+      :name-optional="iconTarget.kind === 'room'"
+      :name-label="iconTarget.kind === 'room' ? 'Display name' : 'Name'"
+      :name-placeholder="iconTarget.canonicalName ?? ''"
+      :name-hint="iconTarget.kind === 'room' ? `Shown in the app only. This room stays wired to its radiator and sensors as ${iconTarget.canonicalName}, so renaming it is always safe. Leave empty to use that name.` : ''"
       :deletable="iconTarget.kind === 'group'"
       @save="handleIconSave"
       @delete="handleDeleteGroup"
@@ -575,39 +579,6 @@ const handleCancelBoost = async (roomId) => {
   }
 }
 
-// Rename is display-only: it sets room.displayName and never touches room.name, which is
-// the join key the NetDaemon app uses to find the room's radiator, plugs and sensors.
-const handleRenameRoom = async (roomId, displayName) => {
-  const room = rooms.value.find(r => r.id === roomId)
-  if (!room) {
-    return
-  }
-
-  const trimmed = displayName?.trim() ?? ''
-  const newDisplayName = trimmed.length > 0 ? trimmed : null
-  const previousDisplayName = room.displayName ?? null
-
-  if (newDisplayName === previousDisplayName) {
-    return
-  }
-
-  room.displayName = newDisplayName
-
-  try {
-    const cleanedData = cleanRoomsForApi(rooms.value)
-    await heatingApi.setSchedules(cleanedData)
-    showToast(
-      newDisplayName ? `Renamed to ${newDisplayName}` : `Name reset to ${room.name}`,
-      'success'
-    )
-  } catch (err) {
-    // Put the old name back so the card doesn't show a name that was never saved.
-    room.displayName = previousDisplayName
-    console.error('Error saving room name:', err)
-    showToast('Failed to rename room', 'error')
-  }
-}
-
 // Groups expand one at a time, matching how rooms already behave. Not persisted: the
 // expanded-room cookie holds a room id, and a group has no id to store.
 // ---- Layout editing --------------------------------------------------------------------------
@@ -670,8 +641,18 @@ const handleMoveTo = async (targetId) => {
   await saveLayout(previous, 'Moved')
 }
 
-const openRoomIcon = (room) => {
-  iconTarget.value = { kind: 'room', id: room.id, title: `Icon for ${roomLabel(room)}`, current: room.icon ?? '' }
+// A room's name here is display-only: it sets room.displayName and never touches room.name, which is
+// the join key the NetDaemon app uses to find the room's radiator, plugs and sensors. Empty means
+// "use the room's own name".
+const openRoomEdit = (room) => {
+  iconTarget.value = {
+    kind: 'room',
+    id: room.id,
+    title: 'Edit room',
+    current: room.icon ?? '',
+    name: room.displayName ?? '',
+    canonicalName: room.name
+  }
 }
 
 const openGroupEdit = (node) => {
@@ -692,8 +673,10 @@ const handleIconSave = async ({ icon, name } = {}) => {
   let message
 
   if (target.kind === 'room') {
-    rooms.value = previous.rooms.map(room => (room.id === target.id ? { ...room, icon: cleaned } : room))
-    message = cleaned ? 'Icon saved' : 'Icon removed'
+    const trimmedName = name?.trim() ?? ''
+    const displayName = trimmedName.length > 0 ? trimmedName : null
+    rooms.value = previous.rooms.map(room => (room.id === target.id ? { ...room, icon: cleaned, displayName } : room))
+    message = 'Room saved'
   } else if (target.kind === 'group') {
     layoutTree.value = updateGroup(layoutTree.value, target.id, { name, icon: cleaned })
     message = 'Group saved'
@@ -741,7 +724,7 @@ provide(HEATING_LAYOUT, {
   canMove: (key, delta) => canMove(layoutTree.value, key, delta),
   onMove: handleMoveNode,
   onMoveTo: openMoveTo,
-  onEditRoomIcon: openRoomIcon,
+  onEditRoom: openRoomEdit,
   onEditGroup: openGroupEdit,
   onToggleGroup: handleToggleGroup,
   onUpdateSchedule: handleUpdateSchedule,
@@ -749,8 +732,7 @@ provide(HEATING_LAYOUT, {
   onAddSchedule: handleAddSchedule,
   onBoost: handleBoost,
   onCancelBoost: handleCancelBoost,
-  onToggleExpand: handleToggleExpand,
-  onRename: handleRenameRoom
+  onToggleExpand: handleToggleExpand
 })
 </script>
 

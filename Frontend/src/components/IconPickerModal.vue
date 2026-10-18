@@ -12,7 +12,7 @@
 
       <form class="icon-form" @submit.prevent="handleSubmit">
         <div v-if="editableName" class="name-row">
-          <label for="group-name">Name</label>
+          <label for="group-name">{{ nameLabel }}</label>
           <input
             id="group-name"
             ref="nameRef"
@@ -22,9 +22,11 @@
             :class="{ invalid: !!nameProblem }"
             maxlength="60"
             autocomplete="off"
+            :placeholder="namePlaceholder"
             :aria-invalid="!!nameProblem"
           />
           <p v-if="nameProblem" class="name-problem">{{ nameProblem }}</p>
+          <p v-else-if="nameHint" class="name-hint">{{ nameHint }}</p>
         </div>
 
         <div class="preview-row">
@@ -88,10 +90,27 @@ const props = defineProps({
     type: Number,
     default: 1000
   },
-  // Offer a name field too (used for groups; a room's name has its own rename dialog).
+  // Offer a name field too, so name and emoji are changed in one dialog.
   editableName: {
     type: Boolean,
     default: false
+  },
+  // A group must have a name. A room may leave it empty, which means "use its own name".
+  nameOptional: {
+    type: Boolean,
+    default: false
+  },
+  nameLabel: {
+    type: String,
+    default: 'Name'
+  },
+  namePlaceholder: {
+    type: String,
+    default: ''
+  },
+  nameHint: {
+    type: String,
+    default: ''
   },
   currentName: {
     type: String,
@@ -122,7 +141,7 @@ const nameRef = ref(null)
 
 const name = ref(props.currentName ?? '')
 
-const nameProblem = computed(() => (props.editableName && !name.value.trim() ? 'Enter a name.' : ''))
+const nameProblem = computed(() => (props.editableName && !props.nameOptional && !name.value.trim() ? 'Enter a name.' : ''))
 
 // Whether what would be saved differs from what is there now.
 const iconChanged = computed(() => (chosen.value ?? null) !== (normaliseIcon(props.currentIcon) ?? null))
@@ -265,6 +284,12 @@ const handleCancel = () => {
 
 .name-input.invalid {
   border-color: var(--color-error, #e74c3c);
+}
+
+.name-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .name-problem {
