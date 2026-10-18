@@ -117,6 +117,10 @@ public interface INamedEntities
     ICustomNumericSensorEntity Bedroom2Temperature { get; }
     ICustomClimateControlEntity Bedroom2RadiatorThermostat { get; }
 
+    // Den (the radiators; its thermometer is GamesRoomDeskTemperature)
+    ICustomClimateControlEntity DenRadiator1Thermostat { get; }
+    ICustomClimateControlEntity DenRadiator2Thermostat { get; }
+
     // Bedroom 3
     ICustomNumericSensorEntity Bedroom3Temperature { get; }
     ICustomClimateControlEntity Bedroom3RadiatorThermostat { get; }
@@ -189,6 +193,8 @@ public class NamedEntities : INamedEntities
     private readonly LightEntity _bedroomTwoDeskLamp;
     private readonly ICustomNumericSensorEntity _bedroom2Temperature;
     private readonly ICustomClimateControlEntity _bedroom2RadiatorThermostat;
+    private readonly ICustomClimateControlEntity _denRadiator1Thermostat;
+    private readonly ICustomClimateControlEntity _denRadiator2Thermostat;
 
     // Bedroom 3
     private readonly ICustomNumericSensorEntity _bedroom3Temperature;
@@ -266,6 +272,10 @@ public class NamedEntities : INamedEntities
         _bedroom2Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bedroom_2_climate_temperature"));
         _bedroom2RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_2_radiator_thermostat"));
 
+        // Den
+        _denRadiator1Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_1_thermostat"));
+        _denRadiator2Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_2_thermostat"));
+
         // Bedroom 3
         _bedroom3Temperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.bedroom_3_climate_temperature"));
         _bedroom3RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_3_radiator_thermostat"));
@@ -334,6 +344,10 @@ public class NamedEntities : INamedEntities
     public LightEntity BedroomTwoDeskLamp => _bedroomTwoDeskLamp;
     public ICustomNumericSensorEntity Bedroom2Temperature => _bedroom2Temperature;
     public ICustomClimateControlEntity Bedroom2RadiatorThermostat => _bedroom2RadiatorThermostat;
+
+    // Den
+    public ICustomClimateControlEntity DenRadiator1Thermostat => _denRadiator1Thermostat;
+    public ICustomClimateControlEntity DenRadiator2Thermostat => _denRadiator2Thermostat;
 
     // Bedroom 3
     public ICustomNumericSensorEntity Bedroom3Temperature => _bedroom3Temperature;

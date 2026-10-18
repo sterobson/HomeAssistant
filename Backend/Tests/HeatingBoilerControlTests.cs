@@ -122,6 +122,69 @@ public sealed class HeatingBoilerControlTests
     }
 
     [TestMethod]
+    public async Task FingerbotMode_TurnsOnWhenTheCombinedDeficitReachesThreeDegrees()
+    {
+        // Living room 2 degrees short plus bedroom 2 one degree short: neither would do it alone.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 17, bedroom2Target: 16);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.Logger.CountMessagesContaining("Boiler turned ON").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task FingerbotMode_StaysOffWhenTheCombinedDeficitIsUnderThreeDegrees()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 17, bedroom2Target: 15.8);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0, "2.8 degrees in total is under the threshold");
+    }
+
+    [TestMethod]
+    public async Task FingerbotMode_OneRoomThreeDegreesShortIsEnough()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the threshold is inclusive");
+    }
+
+    [TestMethod]
+    public async Task FingerbotMode_ARoomThatIsTooHotIsDisregardedNotSubtracted()
+    {
+        // Living room is 5 degrees over target. If that counted as -5 it would cancel the bedroom's
+        // 3-degree deficit and the boiler would stay off.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 18);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task FingerbotMode_StaysOnUntilEveryRoomIsAtItsTarget()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15);
+
+        await context.Service.EvaluateAllSchedules("cold");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        // Down to a 1 degree deficit: well under the 3 degrees it took to start, but not zero.
+        context.LivingRoomTemperature.State = 17;
+        await context.Service.EvaluateAllSchedules("warming");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the boiler only turns off when the deficit is gone");
+
+        context.LivingRoomTemperature.State = 18;
+        await context.Service.EvaluateAllSchedules("at target");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "a deficit of zero turns the boiler off");
+        context.Logger.CountMessagesContaining("Boiler turned OFF").ShouldBe(1);
+    }
+
+    [TestMethod]
     public async Task FingerbotMode_IssuesTheCorrectivePressOnAVerificationMismatch()
     {
         BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot, roomsCallForHeat: false);
@@ -177,16 +240,24 @@ public sealed class HeatingBoilerControlTests
         public required FakeCustomSwitchEntity BoilerFingerbot { get; init; }
         public required FakeCustomClimateControlEntity LivingRoomThermostat { get; init; }
         public required FakeCustomClimateControlEntity Bedroom2Thermostat { get; init; }
+        public required FakeCustomNumericSensorEntity LivingRoomTemperature { get; init; }
+        public required FakeCustomNumericSensorEntity Bedroom2Temperature { get; init; }
         public required IBoilerVerificationService Verification { get; init; }
         public required FakeDeviceSettingsPersistenceService DeviceSettings { get; init; }
         public required RecordingLogger<HeatingControlService> Logger { get; init; }
 
         /// <summary>
-        /// Builds a house whose living room and bedroom 2 are both radiator-valve rooms. Their
-        /// boiler priority scores (2 + 2) clear the boiler score threshold of 3, so when they
-        /// call for heat the boiler is due to be turned on.
+        /// Builds a house whose living room and bedroom 2 are both radiator-valve rooms, both at
+        /// 15 degrees. When they call for heat they are 5 degrees short each, well past the
+        /// 3-degree deficit that turns the boiler on; otherwise they are above target.
         /// </summary>
         public static BoilerTestContext Create(BoilerControlPath? boilerControlPath, bool roomsCallForHeat = true)
+        {
+            double scheduledTemperature = roomsCallForHeat ? 20 : 10;
+            return CreateWithTargets(boilerControlPath, scheduledTemperature, scheduledTemperature);
+        }
+
+        public static BoilerTestContext CreateWithTargets(BoilerControlPath? boilerControlPath, double livingRoomTarget, double bedroom2Target)
         {
             ServiceCollection services = new();
 
@@ -224,8 +295,6 @@ public sealed class HeatingBoilerControlTests
             timeProvider.SetSpecificDateTime(new DateTimeOffset(new DateTime(2025, 11, 24, 12, 00, 00)));
 
             double roomTemperature = 15;
-            double scheduledTemperature = roomsCallForHeat ? 20 : 10;
-
             FakeNamedEntities namedEntities = provider.GetRequiredService<FakeNamedEntities>();
             ((FakeCustomNumericSensorEntity)namedEntities.LivingRoomClimateTemperature).State = roomTemperature;
             ((FakeCustomNumericSensorEntity)namedEntities.Bedroom2Temperature).State = roomTemperature;
@@ -243,8 +312,8 @@ public sealed class HeatingBoilerControlTests
             schedulePersistence.GetSchedulesAsync().Returns(Task.FromResult(new RoomSchedules
             {
                 Rooms = [
-                    BuildRoom(1, "Living room", scheduledTemperature),
-                    BuildRoom(2, "Bedroom 2", scheduledTemperature)
+                    BuildRoom(1, "Living room", livingRoomTarget),
+                    BuildRoom(2, "Bedroom 2", bedroom2Target)
                 ]
             }));
 
@@ -254,6 +323,8 @@ public sealed class HeatingBoilerControlTests
                 BoilerFingerbot = (FakeCustomSwitchEntity)namedEntities.BoilerFingerbot,
                 LivingRoomThermostat = livingRoomThermostat,
                 Bedroom2Thermostat = bedroom2Thermostat,
+                LivingRoomTemperature = (FakeCustomNumericSensorEntity)namedEntities.LivingRoomClimateTemperature,
+                Bedroom2Temperature = (FakeCustomNumericSensorEntity)namedEntities.Bedroom2Temperature,
                 Verification = verification,
                 DeviceSettings = deviceSettings,
                 Logger = logger

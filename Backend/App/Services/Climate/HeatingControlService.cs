@@ -26,7 +26,9 @@ internal class HeatingControlService
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
-    internal const int BoilerScoreThreshold = 3;
+    // The boiler is switched on once the rooms with a radiator valve are, between them, this many
+    // degrees Celsius short of their targets, and off again only when none is short at all.
+    internal const double BoilerDeficitThresholdCelsius = 3;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
     private bool _boilerOn = false;
@@ -99,6 +101,8 @@ internal class HeatingControlService
             namedEntities.Bedroom1RadiatorThermostat.EntityId,
             namedEntities.Bedroom2RadiatorThermostat.EntityId,
             namedEntities.Bedroom3RadiatorThermostat.EntityId,
+            namedEntities.DenRadiator1Thermostat.EntityId,
+            namedEntities.DenRadiator2Thermostat.EntityId,
             namedEntities.BoilerFingerbot.EntityId);
     }
 
@@ -630,11 +634,8 @@ internal class HeatingControlService
             "dining room" => [_namedEntities.DiningRoomRadiatorThermostat],
             "games desk" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
 
-            // The den's TRVs are not fitted yet. This arm is deliberate, not a gap: it
-            // keeps the zone visible and unbound rather than falling through to the
-            // default, so its capabilities read as "no controls" instead of "unknown
-            // room". Add the valves here when they are installed.
-            "den" => [],
+            // The den's two radiators (paired 2026-10-18). Its thermometer is the games desk's.
+            "den" => [_namedEntities.DenRadiator1Thermostat, _namedEntities.DenRadiator2Thermostat],
 
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
@@ -763,10 +764,11 @@ internal class HeatingControlService
                 trigger);
         }
 
-        // Find rooms with radiator valves that are actively calling for heat and calculate priority score
-        List<(RoomSchedule Schedule, RoomState State, int Score)> roomsCallingForHeat = [];
+        // Sum how far each room with a radiator valve is below its target. A room at or above its
+        // target contributes nothing: it is disregarded, not a credit against the cold rooms.
+        List<(string RoomName, double Deficit)> roomsBelowTarget = [];
         List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves = [];
-        int totalScore = 0;
+        double totalDeficit = 0;
 
         foreach (RoomSchedule roomSchedule in schedules.Rooms)
         {
@@ -776,12 +778,18 @@ internal class HeatingControlService
             if (radiatorValves.Count == 0)
                 continue;
 
-            if (_roomStates.TryGetValue(roomSchedule.Id, out RoomState? state) && state.HeatingActive)
-            {
-                int roomScore = GetRoomBoilerPriority(roomSchedule);
-                roomsCallingForHeat.Add((roomSchedule, state, roomScore));
-                totalScore += roomScore;
+            _roomStates.TryGetValue(roomSchedule.Id, out RoomState? state);
 
+            // A room whose thermometer has no reading has no known deficit, so it adds nothing.
+            if (state is { CurrentTemperature: double current, TargetTemperature: double target } && target > current)
+            {
+                double deficit = target - current;
+                roomsBelowTarget.Add((roomSchedule.Name, deficit));
+                totalDeficit += deficit;
+            }
+
+            if (state is { HeatingActive: true })
+            {
                 foreach (ICustomClimateControlEntity valve in radiatorValves)
                 {
                     activeValves.Add((roomSchedule.Name, valve));
@@ -812,14 +820,14 @@ internal class HeatingControlService
         if (!_boilerOn)
         {
             // Boiler is OFF - should we turn it ON?
-            if (totalScore >= BoilerScoreThreshold)
+            if (totalDeficit >= BoilerDeficitThresholdCelsius)
             {
                 ToggleBoilerFingerbot();
                 _boilerOn = true;
                 _logger.LogInformation(
-                    "Boiler turned ON (score {Score}/{Threshold}). Triggered by {Trigger}. Rooms: {Rooms}",
-                    totalScore, BoilerScoreThreshold, trigger,
-                    string.Join(", ", roomsCallingForHeat.Select(r => $"{r.Schedule.Name} ({r.Score})")));
+                    "Boiler turned ON (total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
+                    totalDeficit, BoilerDeficitThresholdCelsius, trigger,
+                    string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
 
                 _boilerVerification.NotifyBoilerToggled(true, activeValves);
             }
@@ -827,11 +835,11 @@ internal class HeatingControlService
         else
         {
             // Boiler is ON - should we turn it OFF?
-            if (totalScore == 0)
+            if (totalDeficit <= 0)
             {
                 ToggleBoilerFingerbot();
                 _boilerOn = false;
-                _logger.LogInformation("Boiler turned OFF (no radiator valves calling for heat). Triggered by {Trigger}", trigger);
+                _logger.LogInformation("Boiler turned OFF (no room with a radiator valve is below its target). Triggered by {Trigger}", trigger);
 
                 _boilerVerification.NotifyBoilerToggled(false, activeValves);
             }
@@ -860,27 +868,6 @@ internal class HeatingControlService
         }
     }
 
-    // Internal so a test can pin every room name to a score: a name that matches no arm scores 0
-    // silently, which is exactly how "upstairsbathroom" (no space) went unnoticed.
-    internal static int GetRoomBoilerPriority(RoomSchedule schedule)
-    {
-        return schedule.Name.Trim().ToLower() switch
-        {
-            "dining room" => 2,         // Medium
-            "dining desk" => 2,         // Medium — inherits the dining room's score
-            "living room" => 2,         // Medium
-            "bedroom 1" => 2,           // Medium
-            "bedroom 2" => 2,           // Medium
-            "bedroom 3" => 1,           // Low
-            "games desk" => 1,          // Low — was "games room" before the den split
-            "den" => 1,                 // Low
-            "upstairs bathroom" => 1,   // Low
-            "downstairs bathroom" => 1, // Low
-            "kitchen" => 1,             // Low
-            _ => 0
-        };
-    }
-
     private void ToggleBoilerFingerbot()
     {
         if (_namedEntities.BoilerFingerbot.IsOn())
@@ -895,6 +882,11 @@ internal class HeatingControlService
 
     private bool EvaluateHeaterConditions(HeaterConditions conditions)
     {
+        return EvaluateHeaterConditions(conditions, _housePresenceSensor.State == true, _timeProvider.GetLocalNow().TimeOfDay);
+    }
+
+    internal static bool EvaluateHeaterConditions(HeaterConditions conditions, bool housePresent, TimeSpan now)
+    {
         // Check power override first (if configured)
         // Only trust power reading if the switch is actually on (plugs report stale power when off)
         bool switchIsOn = conditions.PowerOverrideSwitch?.IsOn() == true;
@@ -904,13 +896,17 @@ internal class HeatingControlService
         }
 
         // House presence check
-        if (conditions.RequireHousePresence && _housePresenceSensor.State != true)
+        if (conditions.RequireHousePresence && !housePresent)
         {
             return false;
         }
 
-        // Time-based check
-        TimeSpan now = _timeProvider.GetLocalNow().TimeOfDay;
+        // Time-based check. No windows configured means any time of day.
+        if (conditions.AllowedTimeWindows is null)
+        {
+            return true;
+        }
+
         return conditions.AllowedTimeWindows.Any(window => now >= window.Start && now < window.End);
     }
 
@@ -919,8 +915,7 @@ internal class HeatingControlService
         RequireHousePresence = true,
         PowerOverrideSwitch = _namedEntities.GamesRoomDeskPlugOnOff,
         PowerOverrideSensor = _namedEntities.GamesRoomDeskPlugPower,
-        PowerOverrideThreshold = 30,
-        AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(21, 0, 0))]
+        PowerOverrideThreshold = 30
     };
 
     private HeaterConditions DiningRoomHeaterConditions => new()
@@ -928,8 +923,7 @@ internal class HeatingControlService
         RequireHousePresence = true,
         PowerOverrideSwitch = _namedEntities.DiningRoomDeskPlugOnOff,
         PowerOverrideSensor = _namedEntities.DiningRoomDeskPlugPower,
-        PowerOverrideThreshold = 30,
-        AllowedTimeWindows = [new(new TimeSpan(7, 0, 0), new TimeSpan(18, 0, 0))]
+        PowerOverrideThreshold = 30
     };
 
     private HeaterConditions KitchenHeaterConditions => new()
@@ -957,7 +951,8 @@ internal class HeaterConditions
     public ICustomSwitchEntity? PowerOverrideSwitch { get; init; }
     public ICustomNumericSensorEntity? PowerOverrideSensor { get; init; }
     public double PowerOverrideThreshold { get; init; } = 30;
-    public List<TimeWindow> AllowedTimeWindows { get; init; } = [];
+    /// <summary>Times of day the plug may be turned on. Null means any time.</summary>
+    public List<TimeWindow>? AllowedTimeWindows { get; init; }
 }
 
 internal record HeatingDevice(object Device, HeaterConditions? Conditions = null)

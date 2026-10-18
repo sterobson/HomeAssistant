@@ -124,19 +124,18 @@ happen.
 ## Heating: the one thing that will catch you out
 
 **Room names are the join key between configuration and hardware.** Room names are not
-defined in code — they live in the `schedules/{houseId}.json` blob. Four separate
+defined in code — they live in the `schedules/{houseId}.json` blob. Three separate
 `switch` statements match on `room.Name.Trim().ToLower()` to decide what a room is
 wired to:
 
 - `GetSwitchesForRoom` — which plugs and valves to drive
 - `GetCurrentTemperatureForRoom` — which sensor to read
-- `GetRoomBoilerPriority` — the room's boiler score
 - `PresenceService.CanDetectIfRoomInUse`
 
 all in [HeatingControlService.cs](Backend/App/Services/Climate/HeatingControlService.cs)
 and [PresenceService.cs](Backend/App/Services/PresenceService.cs). Renaming a room in the
 blob silently unbinds it from its hardware — every switch falls through to `[]` or `null`
-with no error. Adding a room means adding arms to all four.
+with no error. Adding a room means adding arms to all three.
 
 **So rooms are renamed through `displayName`, never `name`.** `RoomDto`/`RoomSchedule`
 carry an optional `DisplayName` that is UI-only — nothing binds to it, and the heating
@@ -159,7 +158,7 @@ room and the den each hold two zones that are scheduled and controlled independe
 | Dining room | `dining desk` ("Ruth's desk") | dining heater plug | yes — desk plug power |
 | Dining room | `dining room` ("Dining room") | dining TRV | no |
 | Den | `games desk` ("Ste's desk") | games heater plug | yes — desk plug power |
-| Den | `den` ("Den") | **nothing yet** — TRVs not fitted | no |
+| Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | no |
 
 Which zones sit together, and in what order, is the **layout**: an ordered tree saved as `layout` next to the
 room list, whose nodes are rooms (`{ roomId }`) or groups (`{ id, name, icon, children }`), nested to any
@@ -177,8 +176,8 @@ Three consequences worth knowing before changing any of this:
   never fires, and a `RoomNotInUse` track always fires. That asymmetry is why the dining
   radiator took only the presence-free baseline tracks in the split.
 - `"games room"` no longer exists — it was only ever the desk's plug and thermometer, so
-  it became `games desk`. `den` is bound to nothing on purpose; that arm exists so the
-  zone reads as "no controls" rather than as an unrecognised room.
+  it became `games desk`. `den` drives both den radiators and shares the games desk's
+  thermometer; before they were fitted its arm was deliberately empty so it read as "no controls".
 - [RoomZoneBindingTests.cs](Backend/Tests/RoomZoneBindingTests.cs) pins each zone to the
   hardware it owns, including that an unknown name binds to nothing. If you rename a zone
   and those fail, that is the silent unbinding being caught for once.
@@ -210,6 +209,21 @@ Four more heating notes:
   without changing it the app is wrong again and cannot tell. Never conclude from radiator
   temperatures that a press worked. See [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → gotcha 13
   and the boiler fingerbot device note.
+- **In fingerbot mode the boiler follows a temperature deficit (since 2026-10-18).** For each room with a
+  radiator valve, deficit = target − current room temperature (the room thermometer, not the TRV's own
+  sensor), counting only rooms below target; a room that is too hot adds nothing and does not offset a cold
+  one. The boiler turns **on** when the total reaches 3 °C (`BoilerDeficitThresholdCelsius`, inclusive) and
+  **off** only when the total is 0. It replaced a per-room priority score (2 + 2 etc.), so
+  `GetRoomBoilerPriority` is gone and a room's name no longer affects the boiler. Heater-plug rooms (kitchen,
+  desks) have no valve and contribute nothing. Not yet deployed or verified against the live house.
+- **Heater plugs are gated in code, and a boost does not bypass the gate.** `EvaluateHeaterConditions` in
+  [HeatingControlService.cs](Backend/App/Services/Climate/HeatingControlService.cs) decides whether a plug may
+  be turned on (never off): desk power over 30 W with that desk's plug on allows it; otherwise it needs *house
+  presence*, then any time window. "House presence" is not a real occupancy sensor — it is true when either
+  desk plug is on and drawing over 30 W (`HousePresenceSensor`), with no hysteresis. The desk heaters (Ste's
+  and Ruth's) have **no time window** (removed 2026-10-18; they follow desk power, presence and the UI
+  schedule). Kitchen (06:00-21:00) and Bedroom 1 (08:00-08:30, 21:00-21:15) still have hard-coded windows
+  and no power override. A `null` `AllowedTimeWindows` means any time; an empty list means never.
 - **Boost expiry compares instants, never clock faces (fixed 2026-10-17).** A boost's end is a
   `DateTimeOffset` (the UI sends UTC) while the evaluation's `now` is the *local* wall clock, so comparing
   `EndTime.DateTime` to `now` was wrong by the UTC offset: in British Summer Time every boost ended an hour

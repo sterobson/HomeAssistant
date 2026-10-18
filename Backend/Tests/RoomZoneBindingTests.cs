@@ -46,6 +46,39 @@ public sealed class RoomZoneBindingTests
     }
 
     [TestMethod]
+    public async Task GamesDesk_HeaterRunsAtNightWhenSomeoneIsAtADesk()
+    {
+        // The desk heaters used to carry a daytime window as well as the desk-power check. They
+        // now follow desk power, presence and the schedule alone.
+        ZoneTestContext context = ZoneTestContext.CreateAt(new TimeSpan(23, 30, 0), "games desk");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.GamesRoomHeaterPlug.TurnOnCount.ShouldBeGreaterThan(0);
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_HeaterRunsAtNightWhenSomeoneIsAtADesk()
+    {
+        ZoneTestContext context = ZoneTestContext.CreateAt(new TimeSpan(23, 30, 0), "dining desk");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.DiningRoomHeaterPlug.TurnOnCount.ShouldBeGreaterThan(0);
+    }
+
+    [TestMethod]
+    public async Task GamesDesk_HeaterStaysOffWithNobodyAtEitherDesk()
+    {
+        ZoneTestContext context = ZoneTestContext.CreateAt(new TimeSpan(12, 0, 0), "games desk");
+        ((FakeCustomNumericSensorEntity)context.Entities.DiningRoomDeskPlugPower).State = 0;
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.GamesRoomHeaterPlug.TurnOnCount.ShouldBe(0, "no desk is in use, so nobody is considered home");
+    }
+
+    [TestMethod]
     public async Task GamesDesk_StillDrivesTheGamesHeaterPlug()
     {
         // "games room" was renamed to "games desk" when the den was split out. If that rename
@@ -85,24 +118,34 @@ public sealed class RoomZoneBindingTests
     }
 
     [TestMethod]
-    public async Task DenReportsNoControlsUntilItsValvesAreFitted()
+    public async Task Den_DrivesBothRadiatorsAndNoHeaterPlug()
     {
-        // The den has no TRVs yet. It should read as "no controls" rather than disappear, and
-        // crucially this must not look any different from a room whose name stopped matching -
-        // which is why every other zone above is pinned explicitly.
         ZoneTestContext context = ZoneTestContext.Create("den");
 
         await context.Service.EvaluateAllSchedules("unit test");
 
-        IReadOnlyDictionary<int, RoomState> states = context.CapturedStates();
-        states[1].Capabilities.HasFlag(RoomCapabilities.CanSetTemperature).ShouldBeFalse();
+        context.DenRadiator1.TargetTemperature.ShouldBe(ZoneTestContext.HeatingRadiatorTarget);
+        context.DenRadiator2.TargetTemperature.ShouldBe(ZoneTestContext.HeatingRadiatorTarget);
+        context.GamesRoomHeaterPlug.TurnOnCount.ShouldBe(0, "the heater plug belongs to the games desk zone");
+        context.CapturedStates()[1].Capabilities.HasFlag(RoomCapabilities.CanSetTemperature).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task GamesDesk_DoesNotDriveTheDenRadiators()
+    {
+        ZoneTestContext context = ZoneTestContext.Create("games desk");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.DenRadiator1.TargetTemperature.ShouldBe(ZoneTestContext.IdleRadiatorTarget);
+        context.DenRadiator2.TargetTemperature.ShouldBe(ZoneTestContext.IdleRadiatorTarget);
     }
 
     [TestMethod]
     public async Task AnUnknownRoomNameBindsToNothing()
     {
         // Guards the failure mode itself: this is what a mistyped or un-migrated name looks
-        // like, and it is indistinguishable from the den above except by the name.
+        // like, and it is indistinguishable from a working zone except by the name.
         ZoneTestContext context = ZoneTestContext.Create("dining rooom");
 
         await context.Service.EvaluateAllSchedules("unit test");
@@ -111,37 +154,6 @@ public sealed class RoomZoneBindingTests
         states[1].Capabilities.HasFlag(RoomCapabilities.CanSetTemperature).ShouldBeFalse();
         context.DiningRoomHeaterPlug.TurnOnCount.ShouldBe(0);
         context.DiningRoomRadiator.TargetTemperature.ShouldBe(ZoneTestContext.IdleRadiatorTarget);
-    }
-
-    [TestMethod]
-    [DataRow("Kitchen", 1)]
-    [DataRow("Living room", 2)]
-    [DataRow("Dining room", 2)]
-    [DataRow("dining desk", 2)]
-    [DataRow("Games desk", 1)]
-    [DataRow("den", 1)]
-    [DataRow("Bedroom 1", 2)]
-    [DataRow("Bedroom 2", 2)]
-    [DataRow("Bedroom 3", 1)]
-    [DataRow("Upstairs bathroom", 1)]
-    [DataRow("Downstairs bathroom", 1)]
-    public void EveryKnownRoomHasABoilerScore(string roomName, int expectedScore)
-    {
-        // A name that matches no arm scores 0 with no error, so a typo in the switch quietly
-        // takes that room out of the boiler's decision. "upstairsbathroom" (no space) did exactly
-        // that: the real room is "Upstairs bathroom" and it scored 0 instead of 1.
-        RoomSchedule room = new RoomSchedule { Name = roomName, ScheduleTracks = [] };
-
-        HeatingControlService.GetRoomBoilerPriority(room).ShouldBe(expectedScore);
-    }
-
-    [TestMethod]
-    public void AnUnknownRoomScoresZeroForTheBoiler()
-    {
-        // Guards the failure mode itself, so the test above cannot pass by everything scoring > 0.
-        RoomSchedule room = new RoomSchedule { Name = "upstairsbathroom", ScheduleTracks = [] };
-
-        HeatingControlService.GetRoomBoilerPriority(room).ShouldBe(0);
     }
 
     private sealed class ZoneTestContext
@@ -166,6 +178,8 @@ public sealed class RoomZoneBindingTests
 
         public FakeCustomSwitchEntity DiningRoomHeaterPlug => (FakeCustomSwitchEntity)Entities.DiningRoomHeaterSmartPlugOnOff;
         public FakeCustomClimateControlEntity DiningRoomRadiator => (FakeCustomClimateControlEntity)Entities.DiningRoomRadiatorThermostat;
+        public FakeCustomClimateControlEntity DenRadiator1 => (FakeCustomClimateControlEntity)Entities.DenRadiator1Thermostat;
+        public FakeCustomClimateControlEntity DenRadiator2 => (FakeCustomClimateControlEntity)Entities.DenRadiator2Thermostat;
         public FakeCustomSwitchEntity GamesRoomHeaterPlug => (FakeCustomSwitchEntity)Entities.GamesRoomHeaterSmartPlugOnOff;
 
         /// <summary>
@@ -183,10 +197,15 @@ public sealed class RoomZoneBindingTests
         }
 
         /// <summary>
-        /// Builds a house of the given zones, each wanting heat right now, at a time of day when
-        /// the time-restricted heater plugs are allowed to run.
+        /// Builds a house of the given zones, each wanting heat right now. The clock defaults to
+        /// midday, when every time-restricted heater plug is allowed to run.
         /// </summary>
         public static ZoneTestContext Create(params string[] roomNames)
+        {
+            return CreateAt(new TimeSpan(12, 0, 0), roomNames);
+        }
+
+        public static ZoneTestContext CreateAt(TimeSpan timeOfDay, params string[] roomNames)
         {
             ServiceCollection services = new();
 
@@ -216,9 +235,8 @@ public sealed class RoomZoneBindingTests
 
             ServiceProvider provider = services.BuildServiceProvider();
 
-            // Midday, so the plugs' 07:00-21:00 window is open.
             provider.GetRequiredService<FakeTimeProvider>()
-                .SetSpecificDateTime(new DateTimeOffset(new DateTime(2026, 10, 19, 12, 0, 0)));
+                .SetSpecificDateTime(new DateTimeOffset(new DateTime(2026, 10, 19).Add(timeOfDay)));
 
             FakeNamedEntities entities = provider.GetRequiredService<FakeNamedEntities>();
 
@@ -228,6 +246,12 @@ public sealed class RoomZoneBindingTests
             FakeCustomClimateControlEntity diningRadiator = (FakeCustomClimateControlEntity)entities.DiningRoomRadiatorThermostat;
             diningRadiator.CurrentTemperature = RoomTemperature;
             diningRadiator.SetTargetTemperature(IdleRadiatorTarget);
+
+            foreach (FakeCustomClimateControlEntity denRadiator in new[] { (FakeCustomClimateControlEntity)entities.DenRadiator1Thermostat, (FakeCustomClimateControlEntity)entities.DenRadiator2Thermostat })
+            {
+                denRadiator.CurrentTemperature = RoomTemperature;
+                denRadiator.SetTargetTemperature(IdleRadiatorTarget);
+            }
 
             // House presence is inferred from desk plug power draw.
             ((FakeCustomSwitchEntity)entities.DiningRoomDeskPlugOnOff).TurnOn();
