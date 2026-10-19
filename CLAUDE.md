@@ -92,6 +92,8 @@ Functions project from its own folder reads and writes production, separated fro
 house ID. The NetDaemon app has two matching traps: it loads its `appsettings.*development*.json` files *after*
 environment variables (so env vars cannot redirect it), and it caches schedules, device settings, battery
 rules and its boiler belief in `%LOCALAPPDATA%\HomeAssistant`, shared by every copy and not keyed by house.
+(On the host, as an add-on, the same caches live in `/data/HomeAssistant`, the only folder that survives an
+add-on restart; see `LocalStorageFolder`.)
 
 **[LocalEnv/](LocalEnv/README.md) runs the whole stack safely**: a published copy of the Functions app on the
 Azurite emulator with its own settings, a one-off snapshot of production data under the non-production house ID
@@ -224,8 +226,12 @@ Four more heating notes:
 - **The boiler has no feedback.** It is switched by a Tuya fingerbot pressing a physical
   button (`switch.tz3210_j4pdtz9v_ts0001`), so the app's `_boilerOn` is a belief, not a
   reading. `BoilerVerificationService` infers success from radiator temperature changes.
-  Since 2026-10-19 the belief survives restarts (`boiler-state.json` in the local cache folder,
-  reloaded only at startup, never after coming back from the boiler thermostat); a fingerbot
+  Since 2026-10-19 the belief is meant to survive restarts (`boiler-state.json` in the local cache folder,
+  reloaded only at startup, never after coming back from the boiler thermostat). **On the host it did not
+  at first:** the cache was in the user profile inside the add-on's container, which the Supervisor recreates
+  on every add-on restart, so the app forgot it had turned the boiler on and never pressed it off. Since
+  then `LocalStorageFolder` uses the add-on's persistent `/data/HomeAssistant` when it runs as an add-on,
+  and logs the path at startup ("Boiler belief is kept in ..." in the NetDaemon add-on log). A fingerbot
   movement the app did not command (HA UI, a script) flips it; a press is refused while the
   fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
   pressed. Before that fix the turn-on verification could never arm in the running app, because

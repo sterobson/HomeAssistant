@@ -49,4 +49,49 @@ public sealed class LocalStorageFolderTests
 
         LocalStorageFolder.Resolve().ShouldBe(expected);
     }
+
+    // As a Home Assistant add-on only /data survives a restart (2026-10-19: the boiler belief was lost).
+
+    [TestMethod]
+    public void AsAHomeAssistantAddOn_UsesTheAddOnsDataFolder()
+    {
+        string folder = LocalStorageFolder.Choose(
+            name => name == LocalStorageFolder.SupervisorTokenVariable ? "a token" : null,
+            path => path == LocalStorageFolder.AddOnDataFolder);
+
+        folder.ShouldBe("/data/HomeAssistant");
+    }
+
+    [TestMethod]
+    public void WithoutTheSupervisor_IgnoresAFolderCalledData()
+    {
+        string folder = LocalStorageFolder.Choose(_ => null, path => path == LocalStorageFolder.AddOnDataFolder);
+
+        folder.ShouldBe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeAssistant"));
+    }
+
+    [TestMethod]
+    public void WithTheSupervisorButNoDataFolder_FallsBackToTheUserProfile()
+    {
+        string folder = LocalStorageFolder.Choose(
+            name => name == LocalStorageFolder.SupervisorTokenVariable ? "a token" : null,
+            _ => false);
+
+        folder.ShouldBe(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HomeAssistant"));
+    }
+
+    [TestMethod]
+    public void TheOverrideWinsEvenInsideAnAddOn()
+    {
+        string folder = LocalStorageFolder.Choose(
+            name => name switch
+            {
+                LocalStorageFolder.OverrideVariable => "/config/elsewhere",
+                LocalStorageFolder.SupervisorTokenVariable => "a token",
+                _ => null
+            },
+            _ => true);
+
+        folder.ShouldBe("/config/elsewhere");
+    }
 }

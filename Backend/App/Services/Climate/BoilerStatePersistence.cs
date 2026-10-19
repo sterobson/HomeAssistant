@@ -31,6 +31,10 @@ internal sealed class BoilerStatePersistence : IBoilerStatePersistence
     {
         _logger = logger;
         _localStoragePath = Path.Combine(LocalStorageFolder.Resolve(), _storageFileName);
+
+        // The add-on log is the only place this can be checked on the host: it should be under /data.
+        _logger.LogInformation("Boiler belief is kept in {Path} ({State})", _localStoragePath,
+            File.Exists(_localStoragePath) ? "a saved belief is there" : "nothing saved yet");
     }
 
     public BoilerBelief? Load()
