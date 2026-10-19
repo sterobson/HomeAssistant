@@ -161,7 +161,8 @@ public static class ScheduleMapper
             HeatingActive = dto.HeatingActive,
             ActiveScheduleTrackId = dto.ActiveScheduleTrackId,
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated),
-            Capabilities = dto.Capabilities
+            Capabilities = dto.Capabilities,
+            Devices = [.. dto.Devices ?? []]
         };
     }
 
@@ -181,7 +182,8 @@ public static class ScheduleMapper
             HeatingActive = state.HeatingActive,
             ActiveScheduleTrackId = state.ActiveScheduleTrackId,
             LastUpdated = state.LastUpdated.ToString("O"),
-            Capabilities = state.Capabilities
+            Capabilities = state.Capabilities,
+            Devices = [.. state.Devices]
         };
     }
 }

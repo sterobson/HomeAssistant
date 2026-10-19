@@ -3,9 +3,11 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Shared;
 using HomeAssistant.Shared.Climate;
+using NetDaemon.HassModel.Entities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reactive.Concurrency;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +21,7 @@ internal class HeatingControlService
     private readonly IElectricityMeter _electricityMeter;
     private readonly IPresenceService _presenceService;
     private readonly TimeProvider _timeProvider;
+    private readonly IHaContext _ha;
     private readonly INamedEntities _namedEntities;
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
@@ -55,6 +58,7 @@ internal class HeatingControlService
         IBoilerVerificationService boilerVerification,
         IDeviceSettingsPersistenceService deviceSettings)
     {
+        _ha = ha;
         _namedEntities = namedEntities;
         _scheduler = scheduler;
         _logger = logger;
@@ -96,6 +100,7 @@ internal class HeatingControlService
             namedEntities.UpstairsBathroomTemperature.EntityId,
             namedEntities.DiningRoomClimateTemperature.EntityId,
             namedEntities.LivingRoomClimateTemperature.EntityId,
+            namedEntities.DenClimateTemperature.EntityId,
             namedEntities.DiningRoomRadiatorThermostat.EntityId,
             namedEntities.LivingRoomRadiatorThermostat.EntityId,
             namedEntities.Bedroom1RadiatorThermostat.EntityId,
@@ -142,6 +147,7 @@ internal class HeatingControlService
         _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room desk plug state changed"));
         _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room temperature changed"));
         _namedEntities.LivingRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room temperature changed"));
+        _namedEntities.DenClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("den temperature changed"));
 
         // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
@@ -176,7 +182,8 @@ internal class HeatingControlService
                         HeatingActive = false,
                         ActiveScheduleTrackId = 0,
                         LastUpdated = DateTimeOffset.UtcNow,
-                        Capabilities = GetRoomCapabilities(schedule)
+                        Capabilities = GetRoomCapabilities(schedule),
+                        Devices = GetDevicesForRoom(schedule)
                     };
                 }
             }
@@ -207,6 +214,7 @@ internal class HeatingControlService
                     }
 
                     kvp.Value.Capabilities = GetRoomCapabilities(schedule);
+                    kvp.Value.Devices = GetDevicesForRoom(schedule);
                     kvp.Value.CurrentTemperature = GetCurrentTemperatureForRoom(schedule);
                 }
             }
@@ -374,6 +382,7 @@ internal class HeatingControlService
         roomState.ActiveScheduleTrackId = effectiveTrack?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;
         roomState.Capabilities = GetRoomCapabilities(roomHeatingSchedule);
+        roomState.Devices = GetDevicesForRoom(roomHeatingSchedule);
         _roomStates[roomHeatingSchedule.Id] = roomState;
 
         // Apply hysteresis to prevent flapping
@@ -628,13 +637,13 @@ internal class HeatingControlService
             "kitchen" => [_kitchenHeaterSmartPlugOnOffWithConditions],
 
             // The dining room and the den each split into two independently scheduled
-            // zones that share one thermometer: a desk (heater plug, presence-aware) and
-            // the room itself (radiator). See the Heating section of CLAUDE.md.
+            // zones: a desk (heater plug, presence-aware) and the room itself (radiator).
+            // See the Heating section of CLAUDE.md.
             "dining desk" => [_diningRoomHeaterSmartPlugOnOffWithConditions],
             "dining room" => [_namedEntities.DiningRoomRadiatorThermostat],
             "games desk" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
 
-            // The den's two radiators (paired 2026-10-18). Its thermometer is the games desk's.
+            // The den's two radiators (paired 2026-10-18).
             "den" => [_namedEntities.DenRadiator1Thermostat, _namedEntities.DenRadiator2Thermostat],
 
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
@@ -649,23 +658,29 @@ internal class HeatingControlService
 
     private double? GetCurrentTemperatureForRoom(RoomSchedule roomHeatingSchedule)
     {
+        return GetThermometerForRoom(roomHeatingSchedule)?.State;
+    }
+
+    private ICustomNumericSensorEntity? GetThermometerForRoom(RoomSchedule roomHeatingSchedule)
+    {
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            "kitchen" => _namedEntities.KitchenTemperature.State,
+            "kitchen" => _namedEntities.KitchenTemperature,
 
-            // Both zones of a split room read the same physical thermometer — there is
-            // only one per room. They differ in what they drive, not in what they sense.
-            "dining desk" => _namedEntities.DiningRoomClimateTemperature.State,
-            "dining room" => _namedEntities.DiningRoomClimateTemperature.State,
-            "games desk" => _namedEntities.GamesRoomDeskTemperature.State,
-            "den" => _namedEntities.GamesRoomDeskTemperature.State,
+            // Both dining zones read the same physical thermometer — there is only one in
+            // that room. They differ in what they drive, not in what they sense. The den
+            // has its own room thermometer (since 2026-10-19), separate from Ste's desk.
+            "dining desk" => _namedEntities.DiningRoomClimateTemperature,
+            "dining room" => _namedEntities.DiningRoomClimateTemperature,
+            "games desk" => _namedEntities.GamesRoomDeskTemperature,
+            "den" => _namedEntities.DenClimateTemperature,
 
-            "living room" => _namedEntities.LivingRoomClimateTemperature.State,
+            "living room" => _namedEntities.LivingRoomClimateTemperature,
             "downstairs bathroom" => null,
-            "bedroom 1" => _namedEntities.Bedroom1Temperature.State,
-            "bedroom 2" => _namedEntities.Bedroom2Temperature.State,
-            "bedroom 3" => _namedEntities.Bedroom3Temperature.State,
-            "upstairs bathroom" => _namedEntities.UpstairsBathroomTemperature.State,
+            "bedroom 1" => _namedEntities.Bedroom1Temperature,
+            "bedroom 2" => _namedEntities.Bedroom2Temperature,
+            "bedroom 3" => _namedEntities.Bedroom3Temperature,
+            "upstairs bathroom" => _namedEntities.UpstairsBathroomTemperature,
             _ => null
         };
     }
@@ -716,6 +731,79 @@ internal class HeatingControlService
     {
         return (GetSwitchesForRoom(room).Length != 0 ? RoomCapabilities.CanSetTemperature : RoomCapabilities.None)
              | (_presenceService.CanDetectIfRoomInUse(room.Name) ? RoomCapabilities.CanDetectRoomOccupancy : RoomCapabilities.None);
+    }
+
+    /// <summary>
+    /// Every entity a zone is bound to, read from the same switches that bind it, so the list shown in the UI
+    /// cannot drift from what the heating code actually drives and reads. Dummy switches are not hardware and
+    /// are left out.
+    /// </summary>
+    private List<RoomDeviceDto> GetDevicesForRoom(RoomSchedule room)
+    {
+        List<RoomDeviceDto> devices = [];
+
+        ICustomNumericSensorEntity? thermometer = GetThermometerForRoom(room);
+        if (thermometer != null)
+        {
+            devices.Add(DescribeDevice(thermometer.EntityId, RoomDeviceRoles.Thermometer));
+        }
+
+        foreach (object device in GetSwitchesForRoom(room))
+        {
+            switch (device)
+            {
+                case ICustomClimateControlEntity valve:
+                    RoomDeviceDto valveDevice = DescribeDevice(valve.EntityId, RoomDeviceRoles.RadiatorValve);
+                    valveDevice.CurrentTemperature = valve.CurrentTemperature;
+                    valveDevice.TargetTemperature = valve.TargetTemperature;
+                    devices.Add(valveDevice);
+                    break;
+                case DummySwitchEntity:
+                    break;
+                case ICustomSwitchEntity plug:
+                    devices.Add(DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug));
+                    break;
+            }
+        }
+
+        foreach ((string entityId, string role) in _presenceService.GetPresenceDevices(room.Name))
+        {
+            devices.Add(DescribeDevice(entityId, role));
+        }
+
+        return devices;
+    }
+
+    private RoomDeviceDto DescribeDevice(string entityId, string role)
+    {
+        RoomDeviceDto device = new() { EntityId = entityId, Role = role };
+
+        try
+        {
+            EntityState? state = _ha.GetState(entityId);
+            device.State = state?.State;
+
+            JsonElement? attributes = state?.AttributesJson;
+            if (attributes.HasValue && attributes.Value.ValueKind == JsonValueKind.Object)
+            {
+                if (attributes.Value.TryGetProperty("friendly_name", out JsonElement name) && name.ValueKind == JsonValueKind.String)
+                {
+                    device.Name = name.GetString();
+                }
+
+                if (attributes.Value.TryGetProperty("unit_of_measurement", out JsonElement unit) && unit.ValueKind == JsonValueKind.String)
+                {
+                    device.Unit = unit.GetString();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // The list is for display; a malformed entity must never stop the room state being published.
+            _logger.LogDebug(ex, "Could not read state for {EntityId}", entityId);
+        }
+
+        return device;
     }
 
     public static int MinutesUntil(TimeSpan from, TimeSpan to)

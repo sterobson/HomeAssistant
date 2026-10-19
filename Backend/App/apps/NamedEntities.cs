@@ -117,7 +117,8 @@ public interface INamedEntities
     ICustomNumericSensorEntity Bedroom2Temperature { get; }
     ICustomClimateControlEntity Bedroom2RadiatorThermostat { get; }
 
-    // Den (the radiators; its thermometer is GamesRoomDeskTemperature)
+    // Den
+    ICustomNumericSensorEntity DenClimateTemperature { get; }
     ICustomClimateControlEntity DenRadiator1Thermostat { get; }
     ICustomClimateControlEntity DenRadiator2Thermostat { get; }
 
@@ -193,6 +194,9 @@ public class NamedEntities : INamedEntities
     private readonly LightEntity _bedroomTwoDeskLamp;
     private readonly ICustomNumericSensorEntity _bedroom2Temperature;
     private readonly ICustomClimateControlEntity _bedroom2RadiatorThermostat;
+
+    // Den
+    private readonly ICustomNumericSensorEntity _denClimateTemperature;
     private readonly ICustomClimateControlEntity _denRadiator1Thermostat;
     private readonly ICustomClimateControlEntity _denRadiator2Thermostat;
 
@@ -273,6 +277,7 @@ public class NamedEntities : INamedEntities
         _bedroom2RadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.bedroom_2_radiator_thermostat"));
 
         // Den
+        _denClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.den_climate_temperature"));
         _denRadiator1Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_1_thermostat"));
         _denRadiator2Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_2_thermostat"));
 
@@ -346,6 +351,7 @@ public class NamedEntities : INamedEntities
     public ICustomClimateControlEntity Bedroom2RadiatorThermostat => _bedroom2RadiatorThermostat;
 
     // Den
+    public ICustomNumericSensorEntity DenClimateTemperature => _denClimateTemperature;
     public ICustomClimateControlEntity DenRadiator1Thermostat => _denRadiator1Thermostat;
     public ICustomClimateControlEntity DenRadiator2Thermostat => _denRadiator2Thermostat;
 

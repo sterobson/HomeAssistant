@@ -45,15 +45,31 @@
 
     <div v-show="isExpanded" class="group-contents">
       <div v-if="empty" class="empty-group">Nothing in this group yet. In Edit layout, use Move to on a room or group.</div>
+      <!-- Only once the group is opened, so the collapsed list stays as plain as it was. -->
+      <button v-else type="button" class="devices-link" @click="showDevices = true">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
+        </svg>
+        Devices in {{ node.name }} ({{ deviceCount }})
+      </button>
       <slot />
     </div>
+
+    <RoomDevicesModal
+      v-if="showDevices"
+      :title="`Devices in ${node.name}`"
+      :sections="groupDeviceSections"
+      @close="showDevices = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import RoomDevicesModal from './RoomDevicesModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
+import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
 
 const { formatTemp, formatTempWithUnit } = useFormatting()
 
@@ -104,6 +120,12 @@ const temperatureText = computed(() => {
 const roomCount = computed(() => roomIdsIn(props.node).length)
 const roomCountLabel = computed(() => (roomCount.value === 1 ? '1 room' : `${roomCount.value} rooms`))
 const empty = computed(() => props.node.children.length === 0)
+
+// Every zone at any depth below this group, in layout order, each listed separately.
+const showDevices = ref(false)
+const roomsInGroup = computed(() => roomIdsIn(props.node).map(id => props.roomsById.get(id)).filter(Boolean))
+const groupDeviceSections = computed(() => deviceSections(roomsInGroup.value))
+const deviceCount = computed(() => distinctDeviceCount(roomsInGroup.value))
 </script>
 
 <!-- Sizing and highlighting deliberately mirror RoomCard so a group reads as one more room. If
@@ -286,6 +308,29 @@ const empty = computed(() => props.node.children.length === 0)
   padding: 0.5rem 0.25rem 0.75rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+/* The same quiet link RoomCard puts under its schedules. */
+.devices-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin: 0 0 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.devices-link:hover {
+  color: var(--color-primary);
+  background-color: var(--hover-bg);
 }
 
 /* Same phone adjustments as RoomCard's header. */

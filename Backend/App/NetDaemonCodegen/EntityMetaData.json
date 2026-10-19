@@ -15,7 +15,7 @@
         },
         {
           "id": "light.lamperion_bane_of_shadows",
-          "friendlyName": null,
+          "friendlyName": "Lamperion Bane of Shadows",
           "cSharpName": "LamperionBaneOfShadows"
         },
         {
@@ -192,7 +192,7 @@
         },
         {
           "id": "media_player.main_speakers",
-          "friendlyName": null,
+          "friendlyName": "Main speakers",
           "cSharpName": "MainSpeakers"
         },
         {
@@ -620,6 +620,11 @@
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportOffPeak"
         },
         {
+          "id": "binary_sensor.octopus_energy_electricity_24j0494691_1591015382045_off_peak",
+          "friendlyName": "Off Peak Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045OffPeak"
+        },
+        {
           "id": "binary_sensor.sonoff_snzb_05p",
           "friendlyName": "Flood detector",
           "cSharpName": "SonoffSnzb05p"
@@ -740,6 +745,11 @@
           "jsonName": "current",
           "cSharpName": "Current",
           "clrType": null
+        },
+        {
+          "jsonName": "minimum_dispatch_duration_in_minutes",
+          "cSharpName": "MinimumDispatchDurationInMinutes",
+          "clrType": "System.Double"
         }
       ]
     },
@@ -800,6 +810,21 @@
           "id": "button.bookcase_light_strip_identify",
           "friendlyName": "Bookcase Light Strip Identify",
           "cSharpName": "BookcaseLightStripIdentify"
+        },
+        {
+          "id": "button.den_climate_identify",
+          "friendlyName": "Den - Climate Identify",
+          "cSharpName": "DenClimateIdentify"
+        },
+        {
+          "id": "button.den_radiator_1_identify",
+          "friendlyName": "Den - Radiator 1 Identify",
+          "cSharpName": "DenRadiator1Identify"
+        },
+        {
+          "id": "button.den_radiator_2_identify",
+          "friendlyName": "Den - Radiator 2 Identify",
+          "cSharpName": "DenRadiator2Identify"
         },
         {
           "id": "button.dining_room_desk_plug_identify",
@@ -1113,6 +1138,11 @@
           "cSharpName": "BackupAutomaticBackup"
         },
         {
+          "id": "event.octopus_energy_a_98d9d332_octoplus_power_down_events",
+          "friendlyName": "Octoplus Power Down Events (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusPowerDownEvents"
+        },
+        {
           "id": "event.octopus_energy_a_98d9d332_octoplus_saving_session_events",
           "friendlyName": "Octoplus Saving Session Events (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessionEvents"
@@ -1131,6 +1161,21 @@
           "id": "event.octopus_energy_electricity_24j0494691_1574300576548_export_previous_day_rates",
           "friendlyName": "Previous Day Rates Export Electricity (24J0494691/1574300576548)",
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_current_day_rates",
+          "friendlyName": "Current Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_next_day_rates",
+          "friendlyName": "Next Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextDayRates"
+        },
+        {
+          "id": "event.octopus_energy_electricity_24j0494691_1591015382045_previous_day_rates",
+          "friendlyName": "Previous Day Rates Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousDayRates"
         },
         {
           "id": "event.octopus_energy_gas_e6s12951182562_1902909205_current_day_rates",
@@ -1243,6 +1288,11 @@
           "jsonName": "supported_features",
           "cSharpName": "SupportedFeatures",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "account_region_id",
+          "cSharpName": "AccountRegionId",
+          "clrType": "System.String"
         }
       ]
     },
@@ -1288,6 +1338,11 @@
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_climate_heating",
           "friendlyName": "netdaemon_home_assistant_apps_hass_model_climate_heating",
           "cSharpName": "NetdaemonHomeAssistantAppsHassModelClimateHeating"
+        },
+        {
+          "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_device_battery_app",
+          "friendlyName": "netdaemon_home_assistant_apps_hass_model_device_battery_app",
+          "cSharpName": "NetdaemonHomeAssistantAppsHassModelDeviceBatteryApp"
         },
         {
           "id": "input_boolean.netdaemon_home_assistant_apps_hass_model_energy_energy_app",
@@ -1581,6 +1636,96 @@
           "cSharpName": "Bedroom3RadiatorTemperatureControlAccuracy"
         },
         {
+          "id": "number.den_climate_comfort_humidity_max",
+          "friendlyName": "Den - Climate Comfort humidity max",
+          "cSharpName": "DenClimateComfortHumidityMax"
+        },
+        {
+          "id": "number.den_climate_comfort_humidity_min",
+          "friendlyName": "Den - Climate Comfort humidity min",
+          "cSharpName": "DenClimateComfortHumidityMin"
+        },
+        {
+          "id": "number.den_climate_comfort_temperature_max",
+          "friendlyName": "Den - Climate Comfort temperature max",
+          "cSharpName": "DenClimateComfortTemperatureMax"
+        },
+        {
+          "id": "number.den_climate_comfort_temperature_min",
+          "friendlyName": "Den - Climate Comfort temperature min",
+          "cSharpName": "DenClimateComfortTemperatureMin"
+        },
+        {
+          "id": "number.den_climate_humidity_offset",
+          "friendlyName": "Den - Climate Humidity offset",
+          "cSharpName": "DenClimateHumidityOffset"
+        },
+        {
+          "id": "number.den_climate_temperature_offset",
+          "friendlyName": "Den - Climate Temperature offset",
+          "cSharpName": "DenClimateTemperatureOffset"
+        },
+        {
+          "id": "number.den_radiator_1_external_temperature_sensor_value",
+          "friendlyName": "Den - Radiator 1 External temperature sensor value",
+          "cSharpName": "DenRadiator1ExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.den_radiator_1_frost_protection_temperature",
+          "friendlyName": "Den - Radiator 1 Frost protection temperature",
+          "cSharpName": "DenRadiator1FrostProtectionTemperature"
+        },
+        {
+          "id": "number.den_radiator_1_local_temperature_offset",
+          "friendlyName": "Den - Radiator 1 Local temperature offset",
+          "cSharpName": "DenRadiator1LocalTemperatureOffset"
+        },
+        {
+          "id": "number.den_radiator_1_max_heat_setpoint_limit",
+          "friendlyName": "Den - Radiator 1 Max heat setpoint limit",
+          "cSharpName": "DenRadiator1MaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.den_radiator_1_min_heat_setpoint_limit",
+          "friendlyName": "Den - Radiator 1 Min heat setpoint limit",
+          "cSharpName": "DenRadiator1MinHeatSetpointLimit"
+        },
+        {
+          "id": "number.den_radiator_1_temperature_control_accuracy",
+          "friendlyName": "Den - Radiator 1 Temperature control accuracy",
+          "cSharpName": "DenRadiator1TemperatureControlAccuracy"
+        },
+        {
+          "id": "number.den_radiator_2_external_temperature_sensor_value",
+          "friendlyName": "Den - Radiator 2 External temperature sensor value",
+          "cSharpName": "DenRadiator2ExternalTemperatureSensorValue"
+        },
+        {
+          "id": "number.den_radiator_2_frost_protection_temperature",
+          "friendlyName": "Den - Radiator 2 Frost protection temperature",
+          "cSharpName": "DenRadiator2FrostProtectionTemperature"
+        },
+        {
+          "id": "number.den_radiator_2_local_temperature_offset",
+          "friendlyName": "Den - Radiator 2 Local temperature offset",
+          "cSharpName": "DenRadiator2LocalTemperatureOffset"
+        },
+        {
+          "id": "number.den_radiator_2_max_heat_setpoint_limit",
+          "friendlyName": "Den - Radiator 2 Max heat setpoint limit",
+          "cSharpName": "DenRadiator2MaxHeatSetpointLimit"
+        },
+        {
+          "id": "number.den_radiator_2_min_heat_setpoint_limit",
+          "friendlyName": "Den - Radiator 2 Min heat setpoint limit",
+          "cSharpName": "DenRadiator2MinHeatSetpointLimit"
+        },
+        {
+          "id": "number.den_radiator_2_temperature_control_accuracy",
+          "friendlyName": "Den - Radiator 2 Temperature control accuracy",
+          "cSharpName": "DenRadiator2TemperatureControlAccuracy"
+        },
+        {
           "id": "number.dining_room_radiator_external_temperature_sensor_value",
           "friendlyName": "Dining Room - Radiator External temperature sensor value",
           "cSharpName": "DiningRoomRadiatorExternalTemperatureSensorValue"
@@ -1652,7 +1797,7 @@
         },
         {
           "id": "number.lamperion_bane_of_shadows_effect_speed",
-          "friendlyName": "Effect speed",
+          "friendlyName": "Lamperion Bane of Shadows Effect speed",
           "cSharpName": "LamperionBaneOfShadowsEffectSpeed"
         },
         {
@@ -2150,6 +2295,11 @@
           "cSharpName": "Bedroom3shelfplugStartUpBehaviour"
         },
         {
+          "id": "select.den_climate_display_unit",
+          "friendlyName": "Den - Climate Display unit",
+          "cSharpName": "DenClimateDisplayUnit"
+        },
+        {
           "id": "select.dining_room_desk_plug_start_up_behaviour",
           "friendlyName": "Dining Room - Desk - Plug Start-up behaviour",
           "cSharpName": "DiningRoomDeskPlugStartUpBehaviour"
@@ -2592,6 +2742,26 @@
           "cSharpName": "Bedroom3RadiatorTimestamp"
         },
         {
+          "id": "sensor.den_radiator_1_hvac_action",
+          "friendlyName": "Den - Radiator 1 HVAC action",
+          "cSharpName": "DenRadiator1HvacAction"
+        },
+        {
+          "id": "sensor.den_radiator_1_timestamp",
+          "friendlyName": "Den - Radiator 1 Timestamp",
+          "cSharpName": "DenRadiator1Timestamp"
+        },
+        {
+          "id": "sensor.den_radiator_2_hvac_action",
+          "friendlyName": "Den - Radiator 2 HVAC action",
+          "cSharpName": "DenRadiator2HvacAction"
+        },
+        {
+          "id": "sensor.den_radiator_2_timestamp",
+          "friendlyName": "Den - Radiator 2 Timestamp",
+          "cSharpName": "DenRadiator2Timestamp"
+        },
+        {
           "id": "sensor.dining_room_radiator_hvac_action",
           "friendlyName": "Dining Room - Radiator HVAC action",
           "cSharpName": "DiningRoomRadiatorHvacAction"
@@ -2772,6 +2942,11 @@
           "cSharpName": "OctopusEnergy0000000000094000802000000005f18dIntelligentState"
         },
         {
+          "id": "sensor.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_charge_cap_hours",
+          "friendlyName": "Charge Cap Hours (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentChargeCapHours"
+        },
+        {
           "id": "sensor.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_state",
           "friendlyName": "Intelligent State (00000000-0009-4000-8020-000000068fe8)",
           "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentState"
@@ -2790,6 +2965,11 @@
           "id": "sensor.octopus_energy_a_98d9d332_octoplus_points",
           "friendlyName": "Octoplus Points (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusPoints"
+        },
+        {
+          "id": "sensor.octopus_energy_a_98d9d332_octoplus_weekend_happy_hours",
+          "friendlyName": "Octoplus Weekend Happy Hours (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusWeekendHappyHours"
         },
         {
           "id": "sensor.octopus_energy_a_98d9d332_wheel_of_fortune_spins_electricity",
@@ -3155,6 +3335,31 @@
           "cSharpName": "ClockTemperatureAndHumidityTemperature"
         },
         {
+          "id": "sensor.den_climate_battery",
+          "friendlyName": "Den - Climate Battery",
+          "cSharpName": "DenClimateBattery"
+        },
+        {
+          "id": "sensor.den_climate_humidity",
+          "friendlyName": "Den",
+          "cSharpName": "DenClimateHumidity"
+        },
+        {
+          "id": "sensor.den_climate_temperature",
+          "friendlyName": "Den",
+          "cSharpName": "DenClimateTemperature"
+        },
+        {
+          "id": "sensor.den_radiator_1_battery",
+          "friendlyName": "Den - Radiator 1 Battery",
+          "cSharpName": "DenRadiator1Battery"
+        },
+        {
+          "id": "sensor.den_radiator_2_battery",
+          "friendlyName": "Den - Radiator 2 Battery",
+          "cSharpName": "DenRadiator2Battery"
+        },
+        {
           "id": "sensor.dining_room_desk_plug_current",
           "friendlyName": "Dining Room - Desk - Plug Current",
           "cSharpName": "DiningRoomDeskPlugCurrent"
@@ -3406,7 +3611,7 @@
         },
         {
           "id": "sensor.lamperion_bane_of_shadows_power",
-          "friendlyName": "Power",
+          "friendlyName": "Lamperion Bane of Shadows Power",
           "cSharpName": "LamperionBaneOfShadowsPower"
         },
         {
@@ -3625,6 +3830,11 @@
           "cSharpName": "MotionSensor02Battery"
         },
         {
+          "id": "sensor.octopus_energy_00000000_0009_4000_8020_000000068fe8_intelligent_state_of_charge",
+          "friendlyName": "State of Charge (00000000-0009-4000-8020-000000068fe8)",
+          "cSharpName": "OctopusEnergy00000000000940008020000000068fe8IntelligentStateOfCharge"
+        },
+        {
           "id": "sensor.octopus_energy_cost_tracker_octopus_home_mini",
           "friendlyName": "Octopus Energy Cost Tracker octopus_home_mini",
           "cSharpName": "OctopusEnergyCostTrackerOctopusHomeMini"
@@ -3685,9 +3895,64 @@
           "cSharpName": "OctopusEnergyElectricity24j04946911574300576548ExportPreviousRate"
         },
         {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption",
+          "friendlyName": "Current Accumulative Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumption"
+        },
+        {
           "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption_cost",
           "friendlyName": "sensor Cost",
           "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumptionCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_consumption_cost_2",
+          "friendlyName": "sensor Cost",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeConsumptionCost2"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_accumulative_cost",
+          "friendlyName": "Current Accumulative Cost Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_demand",
+          "friendlyName": "Live demand",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentDemand"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_rate",
+          "friendlyName": "Current Rate Electricity (24J0494691 1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_standing_charge",
+          "friendlyName": "Current Standing Charge Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentStandingCharge"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_current_total_consumption",
+          "friendlyName": "Current Total Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045CurrentTotalConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_next_rate",
+          "friendlyName": "Next Rate Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045NextRate"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_consumption",
+          "friendlyName": "Previous Accumulative Consumption Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeConsumption"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_accumulative_cost",
+          "friendlyName": "Previous Accumulative Cost Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousAccumulativeCost"
+        },
+        {
+          "id": "sensor.octopus_energy_electricity_24j0494691_1591015382045_previous_rate",
+          "friendlyName": "Previous Rate Electricity (24J0494691/1591015382045)",
+          "cSharpName": "OctopusEnergyElectricity24j04946911591015382045PreviousRate"
         },
         {
           "id": "sensor.octopus_energy_gas_e6s12951182562_1902909205_current_accumulative_consumption_kwh",
@@ -4475,6 +4740,11 @@
           "jsonName": "battery_quantity",
           "cSharpName": "BatteryQuantity",
           "clrType": "System.Double"
+        },
+        {
+          "jsonName": "latest_consumption_timestamp",
+          "cSharpName": "LatestConsumptionTimestamp",
+          "clrType": "System.String"
         }
       ]
     },
@@ -4627,6 +4897,46 @@
           "id": "switch.christmas_tree_led",
           "friendlyName": "LED",
           "cSharpName": "ChristmasTreeLed"
+        },
+        {
+          "id": "switch.den_radiator_1_child_lock",
+          "friendlyName": "Den - Radiator 1 Child lock",
+          "cSharpName": "DenRadiator1ChildLock"
+        },
+        {
+          "id": "switch.den_radiator_1_external_temperature_sensor",
+          "friendlyName": "Den - Radiator 1 External temperature sensor",
+          "cSharpName": "DenRadiator1ExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.den_radiator_1_open_window",
+          "friendlyName": "Den - Radiator 1 Open window",
+          "cSharpName": "DenRadiator1OpenWindow"
+        },
+        {
+          "id": "switch.den_radiator_1_switch",
+          "friendlyName": "Den - Radiator 1 Switch",
+          "cSharpName": "DenRadiator1Switch"
+        },
+        {
+          "id": "switch.den_radiator_2_child_lock",
+          "friendlyName": "Den - Radiator 2 Child lock",
+          "cSharpName": "DenRadiator2ChildLock"
+        },
+        {
+          "id": "switch.den_radiator_2_external_temperature_sensor",
+          "friendlyName": "Den - Radiator 2 External temperature sensor",
+          "cSharpName": "DenRadiator2ExternalTemperatureSensor"
+        },
+        {
+          "id": "switch.den_radiator_2_open_window",
+          "friendlyName": "Den - Radiator 2 Open window",
+          "cSharpName": "DenRadiator2OpenWindow"
+        },
+        {
+          "id": "switch.den_radiator_2_switch",
+          "friendlyName": "Den - Radiator 2 Switch",
+          "cSharpName": "DenRadiator2Switch"
         },
         {
           "id": "switch.dining_room_desk_plug",
@@ -4948,6 +5258,21 @@
           "id": "update.bookcase_light_strip_firmware",
           "friendlyName": "Bookcase Light Strip Firmware",
           "cSharpName": "BookcaseLightStripFirmware"
+        },
+        {
+          "id": "update.den_climate_firmware",
+          "friendlyName": "Den - Climate Firmware",
+          "cSharpName": "DenClimateFirmware"
+        },
+        {
+          "id": "update.den_radiator_1_firmware",
+          "friendlyName": "Den - Radiator 1 Firmware",
+          "cSharpName": "DenRadiator1Firmware"
+        },
+        {
+          "id": "update.den_radiator_2_firmware",
+          "friendlyName": "Den - Radiator 2 Firmware",
+          "cSharpName": "DenRadiator2Firmware"
         },
         {
           "id": "update.dining_room_desk_plug_firmware",
@@ -5361,6 +5686,11 @@
           "cSharpName": "OctopusEnergyA98d9d332GreenerNights"
         },
         {
+          "id": "calendar.octopus_energy_a_98d9d332_octoplus_power_down",
+          "friendlyName": "Octoplus Power Down (A-98D9D332)",
+          "cSharpName": "OctopusEnergyA98d9d332OctoplusPowerDown"
+        },
+        {
           "id": "calendar.octopus_energy_a_98d9d332_octoplus_saving_sessions",
           "friendlyName": "Octoplus Saving Sessions (A-98D9D332)",
           "cSharpName": "OctopusEnergyA98d9d332OctoplusSavingSessions"
@@ -5580,6 +5910,16 @@
           "id": "climate.bedroom_3_radiator_thermostat",
           "friendlyName": "Bedroom 3 - Radiator Thermostat",
           "cSharpName": "Bedroom3RadiatorThermostat"
+        },
+        {
+          "id": "climate.den_radiator_1_thermostat",
+          "friendlyName": "Den - Radiator 1 Thermostat",
+          "cSharpName": "DenRadiator1Thermostat"
+        },
+        {
+          "id": "climate.den_radiator_2_thermostat",
+          "friendlyName": "Den - Radiator 2 Thermostat",
+          "cSharpName": "DenRadiator2Thermostat"
         },
         {
           "id": "climate.dining_room_radiator_thermostat",

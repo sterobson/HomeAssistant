@@ -69,6 +69,7 @@ public class RoomState
     public int ActiveScheduleTrackId { get; set; }
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
     public RoomCapabilities Capabilities { get; set; }
+    public List<RoomDeviceDto> Devices { get; set; } = [];
 }
 
 public class HeatingScheduleTrack

@@ -25,8 +25,8 @@ For a local backend, `VITE_API_URL=http://localhost:7071/api` plus `VITE_LOCALHO
 | `npm run test:run` | Vitest, single pass |
 | `npm run generate-icons` | Regenerate PWA icons from SVG via `sharp` |
 
-Test coverage is one file (`src/utils/energyDistribution.test.js`). There are no
-component tests.
+Tests are Vitest files next to the pure helpers in `src/utils/` (`energyDistribution`,
+`roomLayout`, `rooms`, `roomDevices`). There are no component tests.
 
 ## Routes
 
@@ -132,6 +132,12 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   losing its rooms, reconciling a layout with the room list) are pure functions in `utils/roomLayout.js`.
   Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
+- **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs and
+  desk presence plugs, each with its live HA state), built by the NetDaemon app from the same switches that
+  bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
+  group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`.
+  Labels and state text are pure functions in `utils/roomDevices.js`. `devices` is display only and is
+  never sent back: `cleanRoomsForApi` leaves it out, as it should.
 
   `RoomGroupCard` that shows the shared temperature and a flame if any zone is heating,
   but has no controls of its own — the controls live on the zone cards inside it. The

@@ -85,6 +85,14 @@
         </button>
       </template>
 
+      <!-- Tucked inside the expanded card rather than in the header, so it costs nothing until a room is opened. -->
+      <button type="button" class="devices-link" @click="showDevices = true">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
+        </svg>
+        Devices ({{ deviceCount }})
+      </button>
+
       <ScheduleEditor
         v-if="showEditor"
         :schedule="editingSchedule"
@@ -122,6 +130,13 @@
       @retry="handleHistory"
       @date-change="handleDateChange"
     />
+
+    <RoomDevicesModal
+      v-if="showDevices"
+      :title="`Devices in ${roomDisplayName}`"
+      :sections="deviceSectionsForRoom"
+      @close="showDevices = false"
+    />
   </div>
 </template>
 
@@ -133,9 +148,11 @@ import BoostModal from './BoostModal.vue'
 import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
+import RoomDevicesModal from './RoomDevicesModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
+import { deviceSections } from '../utils/roomDevices.js'
 
 const { formatTempWithUnit } = useFormatting()
 
@@ -180,6 +197,9 @@ const showBoost = ref(false)
 const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 const showHistory = ref(false)
+const showDevices = ref(false)
+const deviceCount = computed(() => props.room.devices?.length ?? 0)
+const deviceSectionsForRoom = computed(() => deviceSections([props.room]))
 const historyData = ref([])
 const historyLoading = ref(false)
 const historyError = ref(null)
@@ -551,6 +571,28 @@ const handleHistoryClose = () => {
 
 .btn-add:active {
   transform: scale(0.98);
+}
+
+/* Deliberately quiet: a text link under the schedules, not another coloured button. */
+.devices-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  margin-left: -0.5rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.devices-link:hover {
+  color: var(--color-primary);
+  background-color: var(--hover-bg);
 }
 
 @media (max-width: 600px) {

@@ -358,7 +358,9 @@ const mergeSchedulesWithStates = (schedules, states) => {
       currentTemperature: state?.currentTemperature ?? null,
       heatingActive: state?.heatingActive ?? false,
       activeScheduleId: state?.activeScheduleTrackId ?? null,
-      capabilities: state?.capabilities ?? 3 // Default to both capabilities if state not found
+      capabilities: state?.capabilities ?? 3, // Default to both capabilities if state not found
+      // What the zone is bound to, from the NetDaemon app. Display only; never sent back.
+      devices: state?.devices ?? []
     }
   })
 }
@@ -448,7 +450,8 @@ const loadRoomStates = async () => {
         ...room,
         currentTemperature: state?.currentTemperature ?? room.currentTemperature,
         heatingActive: state?.heatingActive ?? room.heatingActive,
-        activeScheduleId: state?.activeScheduleTrackId ?? room.activeScheduleId
+        activeScheduleId: state?.activeScheduleTrackId ?? room.activeScheduleId,
+        devices: state?.devices ?? room.devices
       }
     })
   } catch (err) {
