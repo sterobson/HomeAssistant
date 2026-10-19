@@ -68,6 +68,13 @@ row before you finish — that is how this list earns its keep.
 
 ## Recipes
 
+**Scripts first.** [tools/ha/](tools/ha/README.md) has tested Node scripts for the common jobs, which
+already apply the gotchas above: `entity-history.cjs` (real transitions, with `end_time` always set),
+`find-entities.cjs` (matches friendly names too), `list-devices.cjs` (the registry: model, area,
+entity names, live state), `pair-zigbee.cjs` (ZHA join plus house-style renames) and
+`put-automation.cjs` (HA automations from `tools/ha/automations/*.json`). Only the last two write. Reach for them before writing ad-hoc queries, and add a script there if you find yourself
+writing the same query twice.
+
 ### Are the entities this repo depends on actually alive?
 
 The single most useful check. Extract every entity ID bound in
@@ -82,7 +89,9 @@ the MG car (cloud, `setup_error`), seasonal plugs (`switch.christmas_tree`,
 ### What hardware is this entity actually on?
 
 `/api/states` does not expose manufacturer or model, and entity IDs lie after a rename
-(gotchas 10 and 11). The device registry is authoritative, and `POST /api/template`
+(gotchas 10 and 11). The device registry is authoritative:
+`node tools/ha/list-devices.cjs --model SNZB-02` reads it over the WebSocket API. Without the
+script, `POST /api/template`
 reaches it — this works on the instance and is the only reliable way to group devices by
 hardware type:
 
@@ -105,6 +114,8 @@ Iterate over a filtered set to fingerprint the whole fleet at once:
 Do this before buying batteries or assuming two devices are the same type.
 
 ### When did a device really stop reporting?
+
+`node tools/ha/entity-history.cjs <entity_id> --hours 240` does all of this. By hand:
 
 ```
 GET /api/history/period/{iso_start}?filter_entity_id={entity_id}&end_time={iso_now}
@@ -167,7 +178,7 @@ that is a gap to close, not a dead end.
 | Device type | Battery | Tools | Count | Devices |
 |---|---|---|---|---|
 | Tuya **TS0001** fingerbot (`_TZ3210_j4pdtz9v`) | **CR2** ✔︎ | **None — toolless** ✔︎ | 1 | Boiler-Fingerbot |
-| SONOFF **SNZB-02D** temp/humidity | **CR2450** ✔︎ | **Small Phillips** ✔︎ | 7 | Every room thermometer — bedrooms 1/2/3, dining, living, kitchen, games room |
+| SONOFF **SNZB-02D** temp/humidity | **CR2450** ✔︎ | **Small Phillips** ✔︎ | 8 | Every room thermometer — bedrooms 1/2/3, dining, living, kitchen, games room desk, den (added 2026-10-19) |
 | eWeLink **SNZB-01P** button | **CR2477** † | unrecorded | 4 | Dining Room Desk, Games Room Desk, Dining Bookshelf, Christmas Tree |
 | eWeLink **SNZB-02P** temp/humidity | **CR2477** † | unrecorded | 1 | Bathroom — **not** an SNZB-02D, do not fit a CR2450 |
 | SONOFF **TRVZB** radiator valve | **3 × AA** (LR6 alkaline) † | unrecorded | 7 | Bedrooms 1/2/3, dining, living, den (radiators 1 and 2, added 2026-10-18, fresh batteries) |
@@ -179,7 +190,7 @@ that is a gap to close, not a dead end.
 before buying in quantity.
 
 **CR2477 covers five devices** (four buttons plus the bathroom sensor) and **CR2450 covers
-seven** (every other room thermometer), so two coin-cell types plus AAs and a single CR2
+eight** (every other room thermometer), so two coin-cell types plus AAs and a single CR2
 stock the whole house.
 
 ### Batteries, lowest first
@@ -202,7 +213,7 @@ matches the inventory above exactly.
 
 | Level | Device | Battery entity | Used by the C# app as |
 |---|---|---|---|
-| **unavailable** | Boiler-Fingerbot | `sensor.tz3210_j4pdtz9v_ts0001_battery` | `BoilerFingerbot` |
+| **1.0** (unverified) | Boiler-Fingerbot | `sensor.tz3210_j4pdtz9v_ts0001_battery` | `BoilerFingerbot` |
 | **22%** | Dining Room – Desk – Button | `sensor.ewelink_snzb_01p_battery` | `DiningRoomDeskButton` |
 | 94% | Bedroom 3 – Radiator (TRV) | `sensor.bedroom_3_radiator_battery` | `Bedroom3RadiatorThermostat` |
 | 95% | Bedroom 1 / 2, Dining, Living – Radiator (TRVs) | `sensor.*_radiator_battery` | `*RadiatorThermostat` |
@@ -210,6 +221,7 @@ matches the inventory above exactly.
 | 100% | Games Room – Desk – Climate | `sensor.sonoff_snzb_02d_battery` | `GamesRoomDeskTemperature` |
 | 100% | Living Room – Climate | `sensor.sonoff_snzb_02d_battery_2` | `LivingRoomClimateTemperature` |
 | 100% | Dining Room – Climate | `sensor.sonoff_snzb_02d_battery_3` | `DiningRoomClimateTemperature` |
+| 100% | Den – Climate (new 2026-10-19) | `sensor.den_climate_battery` | not used yet |
 | 100% | Kitchen temperature and humidity | `sensor.kitchen_temperature_and_humidity_battery` | `KitchenTemperature` |
 | 100% | Bathroom – Climate | `sensor.bedroom_3_temperature_and_humidity_battery` | `UpstairsBathroomTemperature` (gotcha 10) |
 | 100% | Games Room Desk / Dining Bookshelf / Christmas Tree – Buttons | `sensor.*_button_battery` | `*Button` (bound by IEEE) |
@@ -226,6 +238,15 @@ it reports **no feedback at all** — `_boilerOn` in `HeatingControlService` is 
 a reading. Exposes `_up_movement`, `_down_movement`, `_sustain_time`, `_mode`, `_reverse`
 and `_touch_control` for arm calibration. Died 2026-10-08 17:25 UTC and went unnoticed for
 nine days because of gotchas 5 and 6.
+
+**Back online 2026-10-19** after the owner fitted a new CR2 (told to us; the cell itself is not
+observable). Read from the HA recorder: `switch.tz3210_j4pdtz9v_ts0001` went `unavailable` →
+`off` at 08:03:22 local on 2026-10-19, after ten days unavailable, with the same entity ID, so
+nothing in `NamedEntities.cs` needs changing. Its battery sensor reads **`1.0`**, which is
+unverified — it may be 1% (nonsense for a fresh cell) or a 0–1 fraction/raw value; check it
+against the daily `device-batteries` snapshot before trusting or alerting on it. A press has
+**not** been tested, and the app still does not drive the boiler (control path is a setting, see
+below), so "active" here means *reporting to HA*, not *controlling the boiler*.
 
 **The boiler has two control paths, and the fingerbot is only one of them** (established by
 the owner, 2026-10-17). The boiler can be driven either by the fingerbot pressing its
@@ -286,9 +307,19 @@ Battery replaced 2026-10-17 after dropping to 5%. Worth watching regardless of l
 because it is the games room's **only** temperature source: when it dies
 `GetCurrentTemperatureForRoom("games room")` returns null, `EvaluateSchedule` hits its
 `currentTemperature == null` early return, and the games room silently stops being
-controlled — no error, no alert. It is one of **seven** identical SNZB-02Ds (gotcha 11), so
+controlled — no error, no alert. It is one of **eight** identical SNZB-02Ds (gotcha 11), so
 a CR2450 and a small Phillips screwdriver cover every room thermometer in the house except
 the bathroom.
+
+**Den climate** — `sensor.den_climate_temperature` / `_humidity` / `_battery`, device "Den - Climate", a
+Sonoff SNZB-02D in the **Games Room** area (there is no Den area; the den radiators are there too). Paired
+2026-10-19: joined ~90 s after the ZHA join window opened, as soon as it was powered on (a new unit needed no
+button press), with `tools/ha/pair-zigbee.cjs` (the example in its README is this exact run). First
+readings: 20.8 °C / 55.2 %, against 21.4 °C at Ste's desk at the same moment. It
+measures the whole den, unlike the desk thermometer, but **is not yet bound in `Backend/App`**: the `den` zone
+still reads the games desk thermometer. Named the way Bedrooms 2 and 3 are: every entity renamed to
+`den_climate_*` and the temperature/humidity entities named after the room. RSSI/LQI are disabled by the
+integration, as on every other unit.
 
 **Radiator TRVs** — `climate.{room}_radiator_thermostat` in bedrooms 1–3, dining and living
 rooms, plus `climate.den_radiator_1_thermostat` and `climate.den_radiator_2_thermostat` (paired 2026-10-18, named "Den - Radiator 1/2", in the Games
@@ -308,6 +339,54 @@ times out after about 3 minutes; (5) have ZHA's join window open at that moment 
 254 s; its 200 response proves nothing, so watch for the device to appear). "In" on the display is the
 installation/adaptation state. Afterwards rename the device and its entities together (device `{Room} -
 Radiator`, entities `{room}_radiator_*`), or the entities stay `sonoff_trvzb_*`.
+[`tools/ha/pair-zigbee.cjs`](tools/ha/README.md) opens the join window and does the renaming
+(`--model TRVZB --name "{Room} - Radiator" --prefix {room}_radiator`); it was first used on the den
+thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing radiator first.
+
+**Den plugs** — two Sonoff S60ZBTPGs in the **Games Room** area, both paired 2026-10-19 with
+`tools/ha/pair-zigbee.cjs`, each joining within 30 s of being plugged in:
+
+| Device | Switch | Feeds |
+|---|---|---|
+| Den - Plug - TV | `switch.den_plug_tv_switch` | the den TV |
+| Den - Plug - Motion lights | `switch.den_plug_motion_lights_switch` | the den's motion-sensitive lights, which have their **own built-in motion sensor** (owner, 2026-10-19). HA cannot see that sensor; it can only cut the lights' power |
+
+Mains powered, with the usual `_power`, `_current`, `_voltage` and `_summation_delivered` sensors.
+Both shipped with start-up behaviour **Off**, so after a power cut whatever they feed stays unpowered
+until the plug is switched on. Neither is referenced by `Backend/App`. ZHA reused the same temporary
+entity IDs (`sonoff_s60zbtpg_3`, `_11`) for the second plug once the first had been renamed, so a
+default entity ID does not identify a device; the device ID does.
+
+**The motion lights follow the TV**, through two HA automations (not `Backend/App`), created
+2026-10-19 from [tools/ha/automations/](tools/ha/automations/):
+
+- `automation.den_motion_lights_off_when_tv_is_on`: TV plug power **≥ 30 W for 5 s** → lights plug off.
+- `automation.den_motion_lights_on_when_tv_is_off`: TV plug power **under 30 W for more than 5 s** →
+  lights plug on. An `unavailable` power reading counts as neither.
+
+The 30 W triggers fire on a *crossing*, not a level, so on their own they would leave the lights in
+the wrong state after anything that skips a crossing (a power cut — both plugs start up Off — or an
+HA restart mid-change). So both automations also **re-check on HA start, on automation reload, and
+when the lights plug comes back from `unavailable`**, and both carry a condition repeating their
+threshold, so whichever trigger fires they act only if the TV's power is really on that side of 30 W.
+
+Observed 2026-10-19, read from automation traces:
+
+- The ≥ 30 W path works on the real TV: the TV plug was switched on at 07:37:27 UTC, the power read
+  35 W two seconds later, and the off automation ran at 07:37:34.
+- The reload re-check works: the on automation ran on `automation_reloaded` and stopped at its
+  condition, because the TV was at 45 W.
+- A `switch.turn_off` to the lights plug once failed with **"Failed to send request: device did not
+  respond"** while both plugs showed `available` and good LQI moments later. HA automations do not
+  retry, so a single lost Zigbee command leaves the lights in the wrong state until the next trigger.
+- **The TV drew a steady 35–45 W for about two minutes after its plug came on, then dropped to
+  4 W** (07:37:29–07:39:38 UTC, then 4 W from 07:39:41). The owner was surprised by the 40 W, so
+  it was probably the TV powering up after its plug was switched on rather than being watched; that
+  is unconfirmed. The 4 W it settled at is presumably standby, comfortably under 30 W.
+- The < 30 W path works on the real TV: the on automation ran at 07:39:46, 5 s after the drop, and
+  the lights plug turned on. So the full off → on cycle has been seen working.
+- Consequence: **switching the TV plug on by itself cuts the motion lights' power for about two
+  minutes**, since that start-up draw crosses 30 W.
 
 **Heater plugs** — `switch.{room}_plug_heater_switch` in bedroom 1, dining room, games room
 and kitchen. **Mains powered**, each with `_power`, `_current`, `_voltage` and

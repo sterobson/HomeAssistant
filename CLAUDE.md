@@ -17,6 +17,7 @@ happened, update the doc named:
 | A physical fact about a device (battery type, tooling, where it is, that it's deliberately offline) | [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → Device inventory |
 | An API or tool behaved in a surprising way, or a timestamp/status code misled you | [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → Gotchas, as a new numbered row |
 | You confirmed a spec marked † by hand | Upgrade it to ✔︎ in the battery table |
+| You wrote a Home Assistant query or setup step you'd run again | A script in [tools/ha/](tools/ha/README.md), listed in its README |
 | A deploy target, slot, URL or secret location changed | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | An endpoint, storage container or SignalR event was added or removed | [Functions README](Backend/HomeAssistant.Functions/README.md) |
 | A route, composable, service or convention changed | [Frontend README](Frontend/README.md) |
@@ -117,6 +118,14 @@ device is unreachable**. Always read state back instead of trusting the status c
 
 That file also holds the device inventory — battery types and levels, which sensors are
 mains versus battery, and which devices are deliberately offline.
+
+**Use the scripts in [tools/ha/](tools/ha/README.md) before writing your own queries.** They cover
+state history (`entity-history.cjs`), finding entities by friendly name (`find-entities.cjs`),
+the device/area registry (`list-devices.cjs`), pairing a Zigbee device with house-style names
+(`pair-zigbee.cjs`) and creating HA automations from version-controlled JSON
+(`put-automation.cjs`, with the files in `tools/ha/automations/`). Only those last two write. They read the token without printing it and already
+dodge the history and timestamp traps. When you write a new query you'd want again, add it there
+and list it in that README.
 
 Writes move real hardware in someone's home. Ask first, and say what will physically
 happen.

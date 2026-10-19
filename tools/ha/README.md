@@ -1,0 +1,105 @@
+# Home Assistant scripts
+
+Small Node scripts for inspecting and setting up the live Home Assistant instance from a dev
+machine. Read [HOME-ASSISTANT.md](../../HOME-ASSISTANT.md) first: these scripts already apply its
+gotchas, but the results still need interpreting with them in mind.
+
+Run them from the repo root. They need Node 20+ and the `ws` package from `Frontend/node_modules`
+(`cd Frontend && npm install` once). The token is read from the git-ignored
+`Backend/App/appsettings.secrets*.json` files and is never printed. Set `HA_HOST` to override
+`homeassistant.local:8123`.
+
+| Script | Writes? | What it answers |
+|---|---|---|
+| `entity-history.cjs <entity_id> [...] [--hours 48]` | no | Current state plus real transitions from the recorder. Use it for "when did this really fail / come back", never `last_changed` |
+| `find-entities.cjs <regex>` | no | Entities whose ID **or friendly name** matches, with state and `last_updated` |
+| `list-devices.cjs [--model] [--name] [--area]` | no | Devices from the registry: manufacturer, model, area, and every entity with its live state, entity name and disabled flag |
+| `list-devices.cjs --areas` | no | Area IDs, for `pair-zigbee.cjs --area` |
+| `pair-zigbee.cjs --plan <device_id> --prefix ...` | no | Dry run: the renames a device would get under a naming scheme, and any clashes |
+| `pair-zigbee.cjs --model ... --name ... --prefix ...` | **yes** | Opens the ZHA join window, waits for a new device of that model, then names the device and all its entities |
+| `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |
+| `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
+
+## Automations kept here
+
+[automations/](automations/) holds automations created from this repo, one JSON file each, in
+exactly the shape HA stores them, with a readable `id`. The repo copy is meant to be the source:
+`put-automation.cjs` overwrites HA's version. If one is edited in the HA UI, copy it back (the
+`--check` run shows which have drifted). Older automations made in the UI (porch light, light
+tree, washing machine and so on) are not here.
+
+| File | Does |
+|---|---|
+| `den_motion_lights_off_when_tv_on.json` | Den TV plug ≥ 30 W for 5 s → motion lights plug off |
+| `den_motion_lights_on_when_tv_off.json` | Den TV plug < 30 W for 5 s → motion lights plug on |
+
+Both also re-check on HA start, on `automation_reloaded` and when the lights plug comes back from
+`unavailable`, guarded by a condition that repeats the threshold.
+
+Prefer entity-based triggers (`numeric_state`, `state`, `template`) over the UI's device triggers,
+which reference opaque registry IDs and can't be read without a lookup. Threshold triggers fire on a
+*crossing*, never on creation and never while a value stays on one side, so an automation that
+should hold a state needs start/reload re-check triggers plus a condition, as the den pair has.
+Saving through `put-automation.cjs` reloads automations, which fires those re-checks, so a save can
+switch things.
+
+## Examples
+
+```bash
+# Did the fingerbot really come back after its battery change?
+node tools/ha/entity-history.cjs switch.tz3210_j4pdtz9v_ts0001 sensor.tz3210_j4pdtz9v_ts0001_battery --hours 72
+
+# Every room thermometer, with how each is named
+node tools/ha/list-devices.cjs --model SNZB-02
+
+# Pair a new room thermometer (how the den one was added on 2026-10-19)
+node tools/ha/pair-zigbee.cjs --model SNZB-02D --name "Den - Climate" --area games_room --prefix den_climate --label Den
+
+# Check it afterwards
+node tools/ha/list-devices.cjs --name "Den - Climate"
+```
+
+## Pairing and naming
+
+`pair-zigbee.cjs` copies the naming used on the bedroom thermometers:
+
+| Device | Device name | Entity IDs | `--label` |
+|---|---|---|---|
+| Room thermometer (SNZB-02D) | `{Room} - Climate` | `{room}_climate_*` | `{Room}`, set on the temperature and humidity sensors |
+| Radiator valve (TRVZB) | `{Room} - Radiator` (add ` 1` / ` 2` when a room has two) | `{room}_radiator_*` | none |
+| Smart plug (S60ZBTPG) | `{Room} - Plug - {Purpose}` | `{room}_plug_{purpose}_*`, main switch `switch.{room}_plug_{purpose}_switch` (`--main-suffix switch`) | none |
+
+Every entity becomes `{domain}.{prefix}_{snake_case(original name)}`, e.g.
+`sensor.den_climate_temperature`. A device's main entity (a plug's on/off switch) has no name of its
+own, so it becomes `{domain}.{prefix}`, plus `_{--main-suffix}` if given. The plug pattern is taken
+from the heater and bookshelf plugs. Older plugs (`Bedroom3LampPlug`, `switch.sonoff_s60zbtpg_2`,
+the desk plugs) predate it and are not worth copying. Before pairing, dry-run the scheme against an existing device of
+the same model (`list-devices.cjs` gives you its `device_id`); that shows the exact entity list and
+any target IDs already taken.
+
+When pairing for real: start the script **first**, then put the device into pairing mode. A
+brand-new SNZB-02D joins as soon as it is powered on; a TRVZB needs the button sequence in
+HOME-ASSISTANT.md → Radiator TRVs. The window is 254 s, ZHA's maximum. The script ignores any other
+model that joins in that time, waits for the entity count to stop changing before renaming, and stops
+without renaming anything if a target ID is taken.
+
+What it does not do: bind the new entity into `Backend/App`. For that, run `dotnet nd-codegen`, add it
+to `NamedEntities.cs`, and if it feeds heating, update the room arms in `HeatingControlService` and
+`RoomZoneBindingTests`. Then record the device in HOME-ASSISTANT.md → Device inventory.
+
+## Reading the output
+
+- `entity-history.cjs` collapses repeated states, so each line is a change. The first line for an
+  entity can be dated at the window's start rather than at a real event: the recorder reports the
+  state *as of* the start time. Widen `--hours` if the first line matters. Retention is ~10 days.
+- `last_updated` from `find-entities.cjs` is reset by HA restarts and integration reloads. Many
+  entities sharing one timestamp means a restart, not an incident (gotchas 3 and 4).
+- Config entities (`_identify`, `_comfort_*`, `_firmware`, `_offset`) sit at `unknown` by nature
+  (gotcha 7).
+
+## Adding a script
+
+Put shared connection code in `lib/ha.cjs` (`rest`, `connect`, `snapshot`, `parseArgs`, `run`). Start
+the file with a comment saying whether it writes, add a row to the table above, and mark anything that
+changes the house **yes** there. Anything that moves hardware asks first; see HOME-ASSISTANT.md →
+Safety.

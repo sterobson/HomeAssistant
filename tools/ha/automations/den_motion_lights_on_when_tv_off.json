@@ -1,0 +1,30 @@
+{
+  "id": "den_motion_lights_on_when_tv_off",
+  "alias": "Den motion lights on when TV is off",
+  "description": "Restores power to the den's motion-sensing lights once the TV draws under 30 W for more than 5 s. Also re-checks on HA start, on automation reload and when the lights plug comes back online, so the lights don't stay off just because no crossing happened. An unavailable power reading never counts as under 30 W. Pair: den_motion_lights_off_when_tv_on. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "numeric_state",
+      "entity_id": "sensor.den_plug_tv_power",
+      "below": 30,
+      "for": { "seconds": 5 }
+    },
+    { "trigger": "homeassistant", "event": "start" },
+    { "trigger": "event", "event_type": "automation_reloaded" },
+    { "trigger": "state", "entity_id": "switch.den_plug_motion_lights_switch", "from": "unavailable" }
+  ],
+  "conditions": [
+    {
+      "condition": "numeric_state",
+      "entity_id": "sensor.den_plug_tv_power",
+      "below": 30
+    }
+  ],
+  "actions": [
+    {
+      "action": "switch.turn_on",
+      "target": { "entity_id": "switch.den_plug_motion_lights_switch" }
+    }
+  ],
+  "mode": "single"
+}
