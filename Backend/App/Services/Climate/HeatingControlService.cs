@@ -52,8 +52,10 @@ internal class HeatingControlService
     private bool? _expectedFingerbotState;
     private int _pressesSeenOutsideTheApp = 0;
 
-    /// <summary>Just over the living room TV's 5 s steady-draw rule, so the re-evaluation sees it settled.</summary>
-    private static readonly TimeSpan PresencePowerSettleDelay = PresenceService.LivingRoomTvSteadyFor + TimeSpan.FromSeconds(1);
+    /// <summary>Just over the longest steady-draw rule (the living room TV, Ruth's desk), so a re-evaluation sees it settled.</summary>
+    private static readonly TimeSpan PresencePowerSettleDelay =
+        (PresenceService.LivingRoomTvSteadyFor > PresenceService.DiningDeskSteadyFor ? PresenceService.LivingRoomTvSteadyFor : PresenceService.DiningDeskSteadyFor)
+        + TimeSpan.FromSeconds(1);
     private BoilerControlPath? _lastSeenBoilerControlPath = null;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
@@ -184,6 +186,7 @@ internal class HeatingControlService
         // remote, not its plug, so its power draw is what changes.
         ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvInUseWatts, "den TV");
         ReevaluateWhenPowerCrosses(_namedEntities.LivingRoomTvPlugPower, PresenceService.LivingRoomTvInUseWatts, "living room TV");
+        ReevaluateWhenPowerCrosses(_namedEntities.DiningRoomDeskPlugPower, PresenceService.DiningDeskInUseWatts, "Ruth's desk");
         _namedEntities.LivingRoomStickLightsPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room stick lights switched"));
 
         // Subscribe to power changes
@@ -1445,7 +1448,8 @@ internal class HeatingControlService
             }
         }
 
-        inUse[PresenceSources.House] = inUse.Values.Any(value => value);
+        // "House" is someone home, so only the zones that mean that: not, say, a desk plug merely switched on.
+        inUse[PresenceSources.House] = _presenceService.HouseZones.Any(zone => inUse.TryGetValue(zone, out bool value) && value);
         return inUse;
     }
 

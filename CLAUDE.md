@@ -169,8 +169,8 @@ dining room and the den each hold two zones that are scheduled and controlled in
 
 | Group | Zone (`name`) | Drives | Reads | Presence |
 |---|---|---|---|---|
-| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug power |
-| Dining room | `dining room` ("Dining room") | dining TRV | dining room thermometer | no |
+| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug on and ≥ 30 W for 5 s (since 2026-10-19) |
+| Dining room | `dining room` ("Dining room") | dining TRV | dining room thermometer | yes — Ruth's desk plug switched on (since 2026-10-19; not part of "house") |
 | Den | `games desk` ("Ste's desk") | games heater plug | desk thermometer (`sensor.sonoff_snzb_02d_temperature`) | yes — desk plug power |
 | Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | den thermometer (`sensor.den_climate_temperature`, since 2026-10-19) | yes — TV plug power (since 2026-10-19) |
 
@@ -185,8 +185,13 @@ the recursive [LayoutNode](Frontend/src/components/LayoutNode.vue); all the tree
 
 Four consequences worth knowing before changing any of this:
 
-- **Presence comes from plugs, and only some zones have it.** The desks use their desk
-  plug (on, and ≥ 40 W within the last 5 minutes); the `den` uses its TV plug's **power
+- **Presence comes from plugs, and only some zones have it.** Ste's desk (`games desk`) uses its desk
+  plug (on, and ≥ 40 W within the last 5 minutes). **Ruth's desk plug gives two detectors** (owner,
+  2026-10-19): `dining desk` is in use while the plug is on **and** has drawn ≥ 30 W for the whole of the last
+  5 s, with no hold (the desk is really being used, which her heater's default rule needs); `dining room` is
+  in use while the plug is merely **switched on**, so the radiator can have a track for "the desk is set up".
+  The second is left out of `house` (`IPresenceService.HouseZones`), because a plug left on says nobody is
+  home. The `den` uses its TV plug's **power
   alone** (≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
   2026-10-19. The 5-minute look-back doubles as a hold after the draw stops. The
   `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
@@ -195,13 +200,12 @@ Four consequences worth knowing before changing any of this:
   only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
   power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
-  gotcha 15). Heating re-evaluates 6 s after either TV's power crosses 30 W. The dining room
-  radiator zone stays presence-blind, because a person at Ruth's desk is not the whole room
-  in use. `IsRoomInUse` returns `false` for any name it doesn't recognise, so a `RoomInUse`
+  gotcha 15). Heating re-evaluates 6 s after either TV's or Ruth's desk's power crosses 30 W.
+  `IsRoomInUse` returns `false` for any name it doesn't recognise, so a `RoomInUse`
   track on a presence-blind zone silently never fires, and a `RoomNotInUse` track always
   fires. That asymmetry is why the dining radiator took only the presence-free baseline
-  tracks in the split. Neither the den's nor the living room's live tracks used a room
-  condition when they gained presence, so nothing they did changed. All the rules live in
+  tracks in the split. Neither the den's, the living room's nor the dining room's live tracks used a
+  room condition when they gained presence, so nothing they did changed. All the rules live in
   [PresenceService.cs](Backend/App/Services/PresenceService.cs), pinned by
   [PresenceServiceTests](Backend/Tests/PresenceServiceTests.cs); the heating tests all use a
   mock and never exercise them.
@@ -309,8 +313,8 @@ Four more heating notes:
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤
   start runs past midnight and belongs to the start day; none = any time) AND a presence rule (sources
   combined Any/All; none = no presence needed). A source is a presence zone's canonical name or `house` =
-  any presence zone in use (games desk, dining desk, den, living room — never motion sensors, the cat sets
-  them off). Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
+  any of the zones that mean someone is home in use (games desk, dining desk, den, living room; not the
+  dining room's "desk switched on"; never motion sensors, the cat sets them off). Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
   once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`, enforced both ways by
   `EnforceDeviceRulesAsync`: a device whose rules stop passing is **switched off** even if the room is still
   cold (owner's choice), and back on if they pass again while the zone still wants heat. A boost does not

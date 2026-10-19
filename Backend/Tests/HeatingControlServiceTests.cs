@@ -460,6 +460,11 @@ internal class MockPresenceService : IPresenceService
 
     /// <summary>Every zone given a value with <see cref="SetRoomValue"/>.</summary>
     public IReadOnlyList<string> PresenceZones => [.. _presenceValue.Keys];
+
+    /// <summary>Every presence zone, unless a test narrows it.</summary>
+    public IReadOnlyList<string>? HouseZonesOverride { get; set; }
+
+    public IReadOnlyList<string> HouseZones => HouseZonesOverride ?? PresenceZones;
 }
 
 internal class FakeTimeProvider : TimeProvider

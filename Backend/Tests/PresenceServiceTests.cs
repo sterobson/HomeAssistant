@@ -70,9 +70,9 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public async Task Desks_StillNeed40Watts()
+    public async Task GamesDesk_StillNeeds40Watts()
     {
-        // The TV's lower threshold must not leak into the desks.
+        // The TVs' and Ruth's desk's lower threshold must not leak into Ste's desk.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(GamesDeskSwitch, "on");
         context.History[GamesDeskPower] = [35];
@@ -84,13 +84,77 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public void Den_CanNowDetectPresence_DiningRoomStillCannot()
+    public void Den_CanDetectPresence()
     {
         PresenceTestContext context = PresenceTestContext.Create();
 
         context.Service.CanDetectIfRoomInUse("den").ShouldBeTrue();
         context.Service.CanDetectIfRoomInUse(" Den ").ShouldBeTrue("room names are matched trimmed and case-insensitively");
-        context.Service.CanDetectIfRoomInUse("dining room").ShouldBeFalse("the dining radiator zone is deliberately presence-blind");
+    }
+
+    // Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone is in use while the plug is on and
+    // drawing 30 W for the whole of the last 5 s, and the dining room zone while the plug is merely switched on.
+
+    private const string DiningDeskSwitch = "switch.dining_room_desk_plug";
+    private const string DiningDeskPower = "sensor.dining_room_desk_plug_power";
+
+    [TestMethod]
+    [DataRow("on", new[] { 35.0 }, true, DisplayName = "on and drawing steadily")]
+    [DataRow("on", new[] { 30.0, 31.0 }, true, DisplayName = "exactly the threshold counts")]
+    [DataRow("on", new[] { 4.0, 45.0 }, false, DisplayName = "only just started drawing: not yet 5 s")]
+    [DataRow("on", new[] { 45.0, 4.0 }, false, DisplayName = "just stopped: no hold")]
+    [DataRow("on", new[] { 4.0 }, false, DisplayName = "on but idle")]
+    [DataRow("off", new[] { 45.0 }, false, DisplayName = "switched off")]
+    public async Task DiningDesk_IsInUseWhileOnAndDrawing30WattsForTheLast5Seconds(string plug, double[] watts, bool expected)
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetSwitch(DiningDeskSwitch, plug);
+        context.History[DiningDeskPower] = watts;
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBe(expected);
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_AsksForExactlyTheLast5SecondsOfPower()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetSwitch(DiningDeskSwitch, "on");
+        context.History[DiningDeskPower] = [45];
+
+        await context.Service.IsRoomInUse("dining desk");
+
+        context.RequestedWindows[DiningDeskPower].ShouldBe(TimeSpan.FromSeconds(5));
+    }
+
+    [TestMethod]
+    [DataRow("on", true)]
+    [DataRow("off", false)]
+    public async Task DiningRoom_IsInUseWhileRuthsDeskPlugIsSwitchedOn_WhateverItDraws(string plug, bool expected)
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetSwitch(DiningDeskSwitch, plug);
+        context.History[DiningDeskPower] = [0];
+
+        (await context.Service.IsRoomInUse("dining room")).ShouldBe(expected);
+    }
+
+    [TestMethod]
+    public void DiningRoom_ListsOnlyTheDeskPlugSwitchAsItsPresenceDevice()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+
+        context.Service.CanDetectIfRoomInUse("dining room").ShouldBeTrue();
+        context.Service.GetPresenceDevices("dining room").ShouldBe([(DiningDeskSwitch, RoomDeviceRoles.DeskPlug)]);
+    }
+
+    [TestMethod]
+    public void House_LeavesOutTheDiningRoom_ADeskSwitchedOnIsNotSomeoneHome()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+
+        context.Service.PresenceZones.ShouldContain("dining room");
+        context.Service.HouseZones.ShouldNotContain("dining room");
+        context.Service.HouseZones.ShouldBe(context.Service.PresenceZones.Where(zone => zone != "dining room"));
     }
 
     [TestMethod]

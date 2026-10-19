@@ -8,8 +8,16 @@ namespace HomeAssistant.Services;
 
 internal class PresenceService : IPresenceService
 {
-    /// <summary>A desk is in use once its plug has drawn this much within <see cref="InUseLookBack"/>.</summary>
+    /// <summary>Ste's desk is in use once its plug has drawn this much within <see cref="InUseLookBack"/>.</summary>
     internal const double DeskInUseWatts = 40;
+
+    /// <summary>
+    /// Ruth's desk is in use while its plug is on and has drawn this much for the whole of
+    /// <see cref="DiningDeskSteadyFor"/> (owner, 2026-10-19). No hold: it ends as soon as the draw drops.
+    /// </summary>
+    internal const double DiningDeskInUseWatts = 30;
+
+    internal static readonly TimeSpan DiningDeskSteadyFor = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// The den is in use while its TV draws this much. The same threshold as the Home Assistant
@@ -56,17 +64,22 @@ internal class PresenceService : IPresenceService
     public async Task<bool> IsRoomInUse(string roomName)
     {
         // Presence is measured from plugs. The desk zones use their desk plug; the den uses its TV;
-        // the living room uses its TV or its stick lights being switched on. The dining room zone
-        // deliberately has no presence: a person at Ruth's desk should not make the whole room's
-        // radiator come on. The den and living room are different because a TV or the room's lights
-        // mean the room itself is being used, not a desk in it.
+        // the living room uses its TV or its stick lights being switched on. The den and living room
+        // are different because a TV or the room's lights mean the room itself is being used.
+        //
+        // Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone is in use while the
+        // plug is on and drawing 30 W steadily (the desk is actually being used, which her heater
+        // needs), and the dining room zone while the plug is merely switched on, so the radiator can
+        // have a track for "the desk is set up" without waiting for it to be used.
         //
         // The TVs use their power reading alone (owner, 2026-10-19): a TV plug switched off reads 0 W
         // anyway, so also checking its switch added a second "presence device" and nothing else.
         return roomName.ToLower().Trim() switch
         {
             "games desk" => _namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(_namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts),
-            "dining desk" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn() && await IsDrawing(_namedEntities.DiningRoomDeskPlugPower, DeskInUseWatts),
+            "dining desk" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn()
+                && await IsDrawingSteadily(_namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts, DiningDeskSteadyFor),
+            "dining room" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn(),
             "den" => await IsDrawing(_namedEntities.DenTvPlugPower, DenTvInUseWatts),
             "living room" => _namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()
                 || await IsDrawingSteadily(_namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor),
@@ -75,7 +88,14 @@ internal class PresenceService : IPresenceService
     }
 
     /// <summary>Must list exactly the zones with an arm in IsRoomInUse and GetPresenceDevices.</summary>
-    public IReadOnlyList<string> PresenceZones { get; } = ["games desk", "dining desk", "den", "living room"];
+    public IReadOnlyList<string> PresenceZones { get; } = ["games desk", "dining desk", "dining room", "den", "living room"];
+
+    /// <summary>
+    /// The zones whose presence means someone is home. The dining room is left out: its detector is only Ruth's
+    /// desk plug being switched on, which says nothing about anyone being there, and "house" drives the kitchen
+    /// and bedroom heaters.
+    /// </summary>
+    public IReadOnlyList<string> HouseZones { get; } = ["games desk", "dining desk", "den", "living room"];
 
     public bool CanDetectIfRoomInUse(string roomName)
     {
@@ -96,6 +116,10 @@ internal class PresenceService : IPresenceService
             [
                 (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
                 (_namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
+            ],
+            "dining room" =>
+            [
+                (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)
             ],
             "den" =>
             [

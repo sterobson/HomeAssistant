@@ -274,6 +274,21 @@ public sealed class DeviceRulesHeatingTests
     }
 
     [TestMethod]
+    public async Task House_IsOnlyTheZonesThatMeanSomeoneIsHome()
+    {
+        // Ruth's desk plug switched on makes the dining room zone "in use", but nobody need be there, so it is not
+        // one of the house zones and must not run the kitchen heater (owner's rules, 2026-10-19).
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        context.Presence.SetRoomValue("dining room", true);
+        context.Presence.HouseZonesOverride = ["games desk"];
+
+        await context.Service.EvaluateAllSchedules("desk plug left on, nobody home");
+
+        context.KitchenHeater.TurnOnCount.ShouldBe(0);
+    }
+
+    [TestMethod]
     public async Task SwitchingAZoneOn_SendsEachDeviceOneCommand()
     {
         // 2026-10-19: the kitchen plug was turned on twice in one pass - once by the zone, then again by the

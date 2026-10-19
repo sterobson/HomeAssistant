@@ -14,9 +14,12 @@ internal interface IPresenceService
     /// </summary>
     IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName);
 
-    /// <summary>
-    /// The canonical names of every zone that can detect presence. The "house" presence source means
-    /// any of these is in use.
-    /// </summary>
+    /// <summary>The canonical names of every zone that can detect presence.</summary>
     IReadOnlyList<string> PresenceZones { get; }
+
+    /// <summary>
+    /// The presence zones that mean someone is home: the "house" presence source is any of these in use. A
+    /// subset of <see cref="PresenceZones"/>.
+    /// </summary>
+    IReadOnlyList<string> HouseZones { get; }
 }
