@@ -123,7 +123,8 @@ mains versus battery, and which devices are deliberately offline.
 
 **Use the scripts in [tools/ha/](tools/ha/README.md) before writing your own queries.** They cover
 state history (`entity-history.cjs`), what caused each change (`who-changed.cjs`: a user, the
-NetDaemon app as "Supervisor", or the device itself), add-on state and restarts (`addon.cjs`),
+NetDaemon app as "Supervisor", or the device itself), add-on state and restarts (`addon.cjs`), running the
+monthly valve exercise now (`valve-exercise.cjs`),
 finding entities by friendly name (`find-entities.cjs`),
 the device/area registry (`list-devices.cjs`), pairing a Zigbee device with house-style names
 (`pair-zigbee.cjs`) and creating HA automations from version-controlled JSON
@@ -300,6 +301,14 @@ Four more heating notes:
     5. `RecordValvesAndVerifyAsync`: a valve only counts as heating while open *and* the boiler is believed on.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
+  - **Monthly valve exercise** (owner, 2026-10-19, after finding a TRV seized from months without moving):
+    08:00 on the 1st (`ValveExerciseCron`), or on demand with `tools/ha/valve-exercise.cjs` (an HA event). If the
+    boiler is believed on, the heating is evidently working and that month is skipped. Otherwise the boiler is
+    pressed on and every TRV flipped (open to shut, shut to open); after 2½ minutes each is put back to its exact
+    setpoint, and at 5 minutes the boiler goes off unless the rooms would have turned it on themselves
+    (`_boilerOnForExercise` in `DecideBoiler`). Normal evaluations are skipped while it runs, and the turn-on
+    verification is reset, since a 5-minute burn would fail it and provoke a corrective press. In
+    boiler-thermostat mode only the valves are exercised. [HeatingControlService.ValveExercise.cs](Backend/App/Services/Climate/HeatingControlService.ValveExercise.cs)
   - **A room switched in a pass is not enforced again in that pass.** HA reports a device's new state only a
     moment after the command, so `EnforceDeviceRulesAsync` straight after a switch read the old states and sent
     every command twice (seen 2026-10-19 on the kitchen plug: "Turning on", then "turned on by its device rules").

@@ -421,6 +421,101 @@ public sealed class HeatingBoilerControlTests
         context.BoilerFingerbot.ToggleCount.ShouldBe(0, "0.1 degrees short is inside the band where its valve would not open");
     }
 
+    // The monthly valve exercise (owner, 2026-10-19, after a TRV seized from not moving for months).
+
+    [TestMethod]
+    public async Task Exercise_FlipsEveryValve_RunsTheBoiler_ThenPutsItAllBack()
+    {
+        // Warm rooms, so nothing needs heat; the living room's valve happens to be open and bedroom 2's shut.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10);
+        context.LivingRoomThermostat.SetTargetTemperature(20);
+
+        (await context.Service.StartValveExerciseAsync("unit test")).ShouldBeTrue();
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the boiler is run for the exercise");
+        context.LivingRoomThermostat.TargetTemperature.ShouldBe(10, "the open valve is shut");
+        context.Bedroom2Thermostat.TargetTemperature.ShouldBe(20, "the shut valve is opened");
+
+        await context.Service.RestoreValvesAfterExerciseAsync();
+        context.LivingRoomThermostat.TargetTemperature.ShouldBe(20, "put back to its exact setpoint");
+        context.Bedroom2Thermostat.TargetTemperature.ShouldBe(10);
+
+        await context.Service.EndValveExerciseAsync();
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "nothing needs heat, so the boiler goes off again");
+        context.Logger.CountMessagesContaining("Boiler turned OFF after the valve exercise").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task Exercise_IsSkippedWhenTheBoilerIsAlreadyOn()
+    {
+        // The heating is evidently working, so that month's exercise is skipped.
+        InMemoryBoilerStatePersistence boilerState = new() { Saved = new BoilerBelief(true, DateTimeOffset.UtcNow.AddMinutes(-20)) };
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, boilerState: boilerState);
+
+        (await context.Service.StartValveExerciseAsync("unit test")).ShouldBeFalse();
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+        context.LivingRoomThermostat.SetCount.ShouldBe(0, "no valve is moved either");
+        context.Logger.CountMessagesContaining("Valve exercise skipped").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task DuringTheExercise_NormalEvaluationsWait()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10);
+        await context.Service.StartValveExerciseAsync("unit test");
+        int sets = context.LivingRoomThermostat.SetCount + context.Bedroom2Thermostat.SetCount;
+
+        // Warm rooms with the boiler on would normally shut the opened valves and turn the boiler off.
+        await context.Service.EvaluateAllSchedules("temperature changed mid-exercise");
+
+        (context.LivingRoomThermostat.SetCount + context.Bedroom2Thermostat.SetCount).ShouldBe(sets);
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task Exercise_LeavesTheBoilerOnWhenTheRoomsNeedIt()
+    {
+        // Cold rooms that had not yet been evaluated: once the exercise ends they want the boiler anyway.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20);
+        await context.Service.StartValveExerciseAsync("unit test");
+        await context.Service.RestoreValvesAfterExerciseAsync();
+
+        await context.Service.EndValveExerciseAsync();
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "no off-then-on again: it stays on");
+        context.Logger.CountMessagesContaining("Boiler left ON after the valve exercise").ShouldBe(1);
+        context.ValvesAreOpen().ShouldBeTrue("and normal control opens the cold rooms' valves");
+    }
+
+    [TestMethod]
+    public async Task Exercise_DoesNotArmTheBoilerVerification()
+    {
+        // A 5-minute burn would fail the 15-minute turn-on check, which would "correct" it with another press.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10);
+
+        await context.Service.StartValveExerciseAsync("unit test");
+
+        context.Verification.Received(1).Reset();
+        context.Verification.DidNotReceiveWithAnyArgs().NotifyBoilerToggled(default, default!, default);
+    }
+
+    [TestMethod]
+    public async Task OnTheBoilerThermostat_OnlyTheValvesAreExercised()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.BoilerThermostat, livingRoomTarget: 10, bedroom2Target: 10);
+
+        (await context.Service.StartValveExerciseAsync("unit test")).ShouldBeTrue();
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0, "the app cannot drive the boiler in that mode");
+        context.ValvesAreOpen().ShouldBeTrue();
+
+        await context.Service.RestoreValvesAfterExerciseAsync();
+        await context.Service.EndValveExerciseAsync();
+        context.ValvesAreShut().ShouldBeTrue();
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+    }
+
     // A boost starts the boiler whatever the total deficit (owner, 2026-10-19).
 
     [TestMethod]

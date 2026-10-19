@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace HomeAssistant.Services.Climate;
 
-internal class HeatingControlService
+internal partial class HeatingControlService
 {
     private readonly IScheduler _scheduler;
     private readonly ILogger<HeatingControlService> _logger;
@@ -168,6 +168,8 @@ internal class HeatingControlService
             // Initial evaluation
             await EvaluateAllSchedules("app startup");
         });
+
+        ScheduleValveExercise();
 
         // Schedule periodic evaluation of all schedules
         _scheduler.SchedulePeriodic(TimeSpan.FromMinutes(_recheckEveryXMinutes), async () => await EvaluateAllSchedules($"{_recheckEveryXMinutes} minute period recheck"));
@@ -352,6 +354,13 @@ internal class HeatingControlService
         try
         {
             await _evaluationSemaphore.WaitAsync();
+            if (_valveExerciseRunning)
+            {
+                // The monthly valve exercise owns the valves and the boiler for its 5 minutes; it evaluates when done.
+                _logger.LogDebug("Evaluation skipped during the valve exercise. Triggered by {Trigger}", trigger);
+                return;
+            }
+
             await PrepareDeviceRulesAsync();
             RoomSchedules schedules = await LoadSchedulesAsync();
 
@@ -1242,11 +1251,28 @@ internal class HeatingControlService
             }
         }
 
-        if (!_boilerOn)
+        bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
+        bool roomsWantItOn = _roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
+
+        if (_boilerOn && _boilerOnForExercise)
+        {
+            // On only for the valve exercise: off again, unless the rooms would have turned it on themselves.
+            _boilerOnForExercise = false;
+            if (roomsWantItOn)
+            {
+                _logger.LogInformation("Boiler left ON after the valve exercise: the rooms need it. Triggered by {Trigger}", trigger);
+            }
+            else if (PressBoilerFingerbot())
+            {
+                SetBoilerBelief(false, _timeProvider.GetUtcNow());
+                _lastBoilerPressWasCorrection = false;
+                _logger.LogInformation("Boiler turned OFF after the valve exercise. Triggered by {Trigger}", trigger);
+            }
+        }
+        else if (!_boilerOn)
         {
             // Boiler is OFF - should we turn it ON?
-            bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
-            if (_roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0))
+            if (roomsWantItOn)
             {
                 string why = deficitReached ? "deficit reached the threshold"
                     : boostedRoomsCalling.Count > 0 ? $"boost running in {string.Join(", ", boostedRoomsCalling)}"
