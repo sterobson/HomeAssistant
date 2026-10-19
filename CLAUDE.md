@@ -182,12 +182,14 @@ the recursive [LayoutNode](Frontend/src/components/LayoutNode.vue); all the tree
 Four consequences worth knowing before changing any of this:
 
 - **Presence comes from plugs, and only some zones have it.** The desks use their desk
-  plug (on, and ≥ 40 W within the last 5 minutes); the `den` uses its TV plug (on, and
-  ≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
+  plug (on, and ≥ 40 W within the last 5 minutes); the `den` uses its TV plug's **power
+  alone** (≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
   2026-10-19. The 5-minute look-back doubles as a hold after the draw stops. The
   `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
-  **or** its TV plug is on and has drawn ≥ 30 W for the whole of the last 5 seconds — no
-  hold, as specified by the owner. The stick lights plug follows the WiZ lamp through two HA
+  **or** its TV has drawn ≥ 30 W for the whole of the last 5 seconds — no
+  hold, as specified by the owner. The TV plugs' on/off switches are deliberately not read (owner:
+  only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
+  power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
   gotcha 15). Heating re-evaluates 6 s after either TV's power crosses 30 W. The dining room
   radiator zone stays presence-blind, because a person at Ruth's desk is not the whole room
@@ -292,6 +294,27 @@ Four more heating notes:
   `HeatingConfigFunctions`) is **shipped dark**: the Functions app stores and serves it,
   but nothing in `Backend/App` references it yet. The legacy schedule stack is still what
   actually runs the house.
+
+## Access: the house ID is the only credential
+
+Every Functions endpoint is `AuthorizationLevel.Anonymous` and keyed by `houseId`, so **anyone with the house
+ID can read and change everything** — schedules, device rules, device settings. The web app keeps it in a
+cookie. Two consequences:
+
+- **Guests use QR links instead (since 2026-10-19).** Each zone, and each layout group, can have one share
+  token (Share on the zone's or group's card). The `/r/<token>` page and the `guest/*` endpoints let the holder
+  set, change or cancel an override on that zone — or on every zone in that group, at any depth — within
+  16–24 °C and ≤ 6 h, stored as those zones' boosts, and never see the house ID. Revoking issues a new token and
+  kills the old QR; a link to a deleted group stops working. Never put the house ID in a guest-facing page, link
+  or response, and never let a `guest/*` endpoint save anything but those zones' boosts — `GuestOverrideTests`
+  pins that.
+- **Every boost sets the exact temperature, up or down** (owner, 2026-10-19, after briefly trying "raise-only"):
+  an owner's zone boost, an owner's group boost (the ⚡ on a group card — the same boost on every zone inside),
+  and a guest's override all replace the schedule until they end, and boosting again changes a running one.
+  Per-device rules still decide whether each heater or valve may actually run.
+- **The production house ID is short and guessable** (seven digits). That makes the owner endpoints
+  effectively public to anyone who tries. Not fixed by the QR work; replacing it with a long random ID (or
+  real auth) is an open follow-up.
 
 ## Conventions
 

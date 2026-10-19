@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <Compile Include="..\App\Shared\Climate\DeviceRulesDto.cs" Link="Shared\Climate\DeviceRulesDto.cs" />
+    <Compile Include="..\App\Shared\Climate\GuestOverride.cs" Link="Shared\Climate\GuestOverride.cs" />
     <Compile Include="..\App\Shared\Climate\HeatingControlTypes.cs" Link="Shared\Climate\HeatingControlTypes.cs" />
     <Compile Include="..\App\Shared\Climate\HouseDetailsDto.cs" Link="Shared\Climate\HouseDetailsDto.cs" />
     <Compile Include="..\App\Shared\Climate\RoomStateDto.cs" Link="Shared\Climate\RoomStateDto.cs" />

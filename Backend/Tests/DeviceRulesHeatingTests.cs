@@ -229,6 +229,27 @@ public sealed class DeviceRulesHeatingTests
         context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).RulesAreDefault.ShouldBeFalse();
     }
 
+    [TestMethod]
+    [DataRow(20.0, DisplayName = "below the schedule's 21 °C: the boost lowers the target")]
+    [DataRow(23.0, DisplayName = "above the schedule: the boost raises the target")]
+    public async Task ABoostSetsTheExactTemperature_UpOrDown(double boostTemperature)
+    {
+        // Every boost (owner's, group, or a guest's QR override) replaces the schedule until it ends
+        // (owner, 2026-10-19): Downstairs boosted to 20 °C takes Ste's 21 °C desk down to 20 °C.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "games desk");
+        context.Presence.SetRoomValue("games desk", true);
+        context.Rooms[0].Boost = new Boost
+        {
+            StartTime = new DateTimeOffset(2026, 10, 19, 11, 0, 0, TimeSpan.Zero),
+            EndTime = new DateTimeOffset(2026, 10, 19, 14, 0, 0, TimeSpan.Zero),
+            Temperature = boostTemperature
+        };
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].TargetTemperature.ShouldBe(boostTemperature);
+    }
+
     private sealed class RulesTestContext
     {
         private const double RoomTemperature = 15;
@@ -240,6 +261,9 @@ public sealed class DeviceRulesHeatingTests
         public required MockPresenceService Presence { get; init; }
         public required FakeDeviceSettingsPersistenceService Settings { get; init; }
         public required IRoomStatePersistenceService StatePersistence { get; init; }
+
+        /// <summary>The zones the service evaluates (each scheduled at 21 °C); tests may set a boost on one.</summary>
+        public required List<RoomSchedule> Rooms { get; init; }
 
         public FakeCustomSwitchEntity KitchenHeater => (FakeCustomSwitchEntity)Entities.KitchenHeaterSmartPlugOnOff;
         public FakeCustomSwitchEntity Bedroom1Heater => (FakeCustomSwitchEntity)Entities.Bedroom1HeaterSmartPlugOnOff;
@@ -332,7 +356,8 @@ public sealed class DeviceRulesHeatingTests
                 Entities = entities,
                 Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>(),
                 Settings = settings,
-                StatePersistence = statePersistence
+                StatePersistence = statePersistence,
+                Rooms = rooms
             };
         }
     }

@@ -23,6 +23,18 @@
       <!-- Normally the width of a room's three icon buttons, so the temperature sits in the same column as
            every other card and the header is the same height. -->
       <div v-if="!editMode" class="actions-area">
+        <!-- Same column as each zone's boost button. Boosting again changes a running group boost. -->
+        <button
+          v-if="canBoost"
+          class="icon-btn boost-btn"
+          :title="boostedCount ? 'Change the boost for this group' : 'Boost every zone in this group'"
+          :aria-label="boostedCount ? 'Change the boost for this group' : 'Boost every zone in this group'"
+          @click.stop="showBoost = true"
+        >
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
+          </svg>
+        </button>
         <span class="room-count">{{ roomCountLabel }}</span>
       </div>
       <div v-else class="edit-actions" @click.stop>
@@ -46,12 +58,30 @@
     <div v-show="isExpanded" class="group-contents">
       <div v-if="empty" class="empty-group">Nothing in this group yet. In Edit layout, use Move to on a room or group.</div>
       <!-- Only once the group is opened, so the collapsed list stays as plain as it was. -->
-      <button v-else type="button" class="devices-link" @click="showDevices = true">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
-        </svg>
-        Devices in {{ node.name }} ({{ deviceCount }})
-      </button>
+      <template v-else>
+        <div class="group-links">
+          <button type="button" class="devices-link" @click="showDevices = true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
+            </svg>
+            Devices in {{ node.name }} ({{ deviceCount }})
+          </button>
+          <!-- A QR code that lets a guest set every zone in this group; see ShareRoomModal. -->
+          <button v-if="canBoost" type="button" class="devices-link" @click="showShare = true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 2h5v5H2V2zm1 1v3h3V3H3zm6-1h5v5H9V2zm1 1v3h3V3h-3zM2 9h5v5H2V9zm1 1v3h3v-3H3zm7-1h1v1h-1V9zm2 0h2v1h-1v1h-1V9zm-2 2h1v1h-1v-1zm2 1h1v2h-2v-1h1v-1zm-2 1h1v1h-1v-1z"/>
+            </svg>
+            Share
+          </button>
+        </div>
+
+        <div v-if="boostedCount" class="group-boost">
+          <span>
+            Boost running on {{ boostedCount === boostableCount ? (boostableCount === 1 ? 'its zone' : `all ${boostableCount} zones`) : `${boostedCount} of ${boostableCount} zones` }}
+          </span>
+          <button type="button" class="group-boost-cancel" @click="emit('cancel-boost')">Cancel boost</button>
+        </div>
+      </template>
       <slot />
     </div>
 
@@ -63,12 +93,28 @@
       :all-devices="layoutContext?.drivableDevices.value ?? []"
       @close="showDevices = false"
     />
+
+    <BoostModal
+      v-if="showBoost"
+      :room-name="node.name"
+      is-group
+      @boost="(boostData) => { showBoost = false; emit('boost', boostData) }"
+      @cancel="showBoost = false"
+    />
+
+    <ShareRoomModal
+      v-if="showShare"
+      :group="node"
+      @close="showShare = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, inject, ref } from 'vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
+import BoostModal from './BoostModal.vue'
+import ShareRoomModal from './ShareRoomModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
 import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
@@ -108,7 +154,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['toggle-expand', 'move', 'move-to', 'edit'])
+const emit = defineEmits(['toggle-expand', 'move', 'move-to', 'edit', 'boost', 'cancel-boost'])
 
 // Lit whenever ANY room anywhere inside is heating, expanded or not, so a group never looks idle
 // while something in it is on.
@@ -132,6 +178,19 @@ const showDevices = ref(false)
 const roomsInGroup = computed(() => roomIdsIn(props.node).map(id => props.roomsById.get(id)).filter(Boolean))
 const groupDeviceSections = computed(() => deviceSections(roomsInGroup.value))
 const deviceCount = computed(() => distinctDeviceCount(roomsInGroup.value))
+
+// Boosting and sharing need at least one zone inside that can set a temperature (capability flag 1).
+const showBoost = ref(false)
+const showShare = ref(false)
+const boostableRooms = computed(() => roomsInGroup.value.filter(room => ((room.capabilities ?? 0) & 1) !== 0))
+const canBoost = computed(() => boostableRooms.value.length > 0)
+const boostableCount = computed(() => boostableRooms.value.length)
+const boostedCount = computed(() => boostableRooms.value.filter(isBoostRunning).length)
+
+function isBoostRunning (room) {
+  const end = room.boost?.endTime ? new Date(room.boost.endTime).getTime() : 0
+  return room.boost?.temperature != null && end > Date.now()
+}
 </script>
 
 <!-- Sizing and highlighting deliberately mirror RoomCard so a group reads as one more room. If
@@ -267,6 +326,77 @@ const deviceCount = computed(() => distinctDeviceCount(roomsInGroup.value))
   white-space: nowrap;
 }
 
+/* Beside the boost button the count takes the history button's slot, so it may wrap rather than push the
+   temperature out of line with the zone cards. */
+.icon-btn + .room-count {
+  width: 36px;
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.1;
+  white-space: normal;
+  text-align: center;
+}
+
+/* Same look as RoomCard's boost button. */
+.icon-btn {
+  color: white;
+  border: none;
+  padding: 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+}
+
+.boost-btn {
+  background: linear-gradient(135deg, var(--color-warning) 0%, #e67e22 100%);
+  box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
+}
+
+.boost-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(243, 156, 18, 0.3);
+}
+
+.group-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+}
+
+.group-boost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-warning);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.group-boost-cancel {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-danger);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.group-boost-cancel:hover {
+  text-decoration: underline;
+}
+
 /* In edit mode there are four buttons, so the temperature shifts left by two buttons for that mode. */
 .edit-actions {
   display: flex;
@@ -316,7 +446,7 @@ const deviceCount = computed(() => distinctDeviceCount(roomsInGroup.value))
   color: var(--text-secondary);
 }
 
-/* The same quiet link RoomCard puts under its schedules. */
+/* The same quiet link RoomCard puts above its schedules. */
 .devices-link {
   align-self: flex-start;
   display: inline-flex;

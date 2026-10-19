@@ -32,7 +32,6 @@ public sealed class PresenceServiceTests
     public async Task Den_IsInUseWhileTheTvDrawsAtLeast30Watts(double watts, bool expected)
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.SetSwitch(DenTvSwitch, "on");
         context.History[DenTvPower] = [watts];
 
         bool inUse = await context.Service.IsRoomInUse("den");
@@ -45,27 +44,27 @@ public sealed class PresenceServiceTests
     {
         // The history window still holds the earlier on-reading, which is the deliberate hold.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.SetSwitch(DenTvSwitch, "on");
         context.History[DenTvPower] = [45, 4];
 
         (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
     }
 
     [TestMethod]
-    public async Task Den_IsNotInUseWhenTheTvPlugIsOff()
+    public async Task Den_GoesByPowerAlone_NotTheTvPlugSwitch()
     {
+        // Only the draw matters (owner, 2026-10-19). A switched-off plug reads 0 W anyway, so the switch
+        // state is not read at all, and is not listed as a presence device.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(DenTvSwitch, "off");
         context.History[DenTvPower] = [45];
 
-        (await context.Service.IsRoomInUse("den")).ShouldBeFalse();
+        (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
     }
 
     [TestMethod]
     public async Task Den_IsNotInUseWithNoPowerHistory()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.SetSwitch(DenTvSwitch, "on");
 
         (await context.Service.IsRoomInUse("den")).ShouldBeFalse();
     }
@@ -95,15 +94,11 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public void Den_ListsTheTvPlugAndItsPowerAsPresenceDevices()
+    public void Den_ListsOnlyTheTvPowerAsItsPresenceDevice()
     {
         PresenceTestContext context = PresenceTestContext.Create();
 
-        context.Service.GetPresenceDevices("den").ShouldBe(
-        [
-            (DenTvSwitch, RoomDeviceRoles.TvPlug),
-            (DenTvPower, RoomDeviceRoles.TvPower)
-        ]);
+        context.Service.GetPresenceDevices("den").ShouldBe([(DenTvPower, RoomDeviceRoles.TvPower)]);
     }
 
     private const string LivingTvSwitch = "switch.living_room_plug_tv_switch";
@@ -115,7 +110,7 @@ public sealed class PresenceServiceTests
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "on");
-        context.SetSwitch(LivingTvSwitch, "off");
+        context.History[LivingTvPower] = [0];
 
         (await context.Service.IsRoomInUse("living room")).ShouldBeTrue();
     }
@@ -130,7 +125,6 @@ public sealed class PresenceServiceTests
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
-        context.SetSwitch(LivingTvSwitch, "on");
         context.History[LivingTvPower] = watts;
 
         (await context.Service.IsRoomInUse("living room")).ShouldBe(expected);
@@ -141,7 +135,6 @@ public sealed class PresenceServiceTests
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
-        context.SetSwitch(LivingTvSwitch, "on");
         context.History[LivingTvPower] = [45];
 
         await context.Service.IsRoomInUse("living room");
@@ -150,25 +143,27 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public async Task LivingRoom_IsNotInUseWithTheTvPlugOffAndTheLightsOff()
+    public async Task LivingRoom_GoesByTvPowerAlone_NotTheTvPlugSwitch()
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
         context.SetSwitch(LivingTvSwitch, "off");
         context.History[LivingTvPower] = [45];
 
-        (await context.Service.IsRoomInUse("living room")).ShouldBeFalse();
+        (await context.Service.IsRoomInUse("living room")).ShouldBeTrue("the switch is not read; the 45 W draw is");
+
+        context.History[LivingTvPower] = [4];
+        (await context.Service.IsRoomInUse("living room")).ShouldBeFalse("standby, and the lights are off");
     }
 
     [TestMethod]
-    public void LivingRoom_ListsTheTvPlugItsPowerAndTheStickLightsAsPresenceDevices()
+    public void LivingRoom_ListsTheTvPowerAndTheStickLightsAsPresenceDevices()
     {
         PresenceTestContext context = PresenceTestContext.Create();
 
         context.Service.CanDetectIfRoomInUse("living room").ShouldBeTrue();
         context.Service.GetPresenceDevices("living room").ShouldBe(
         [
-            (LivingTvSwitch, RoomDeviceRoles.TvPlug),
             (LivingTvPower, RoomDeviceRoles.TvPower),
             (StickLightsSwitch, RoomDeviceRoles.LightsPlug)
         ]);

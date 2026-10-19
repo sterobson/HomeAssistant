@@ -54,13 +54,9 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomClimateControlEntity DenRadiator2Thermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(DenRadiator2Thermostat) };
 
-    public ICustomSwitchEntity LivingRoomTvPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(LivingRoomTvPlugOnOff) };
-
     public ICustomNumericSensorEntity LivingRoomTvPlugPower { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomTvPlugPower) };
 
     public ICustomSwitchEntity LivingRoomStickLightsPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(LivingRoomStickLightsPlugOnOff) };
-
-    public ICustomSwitchEntity DenTvPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(DenTvPlugOnOff) };
 
     public ICustomNumericSensorEntity DenTvPlugPower { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DenTvPlugPower) };
 

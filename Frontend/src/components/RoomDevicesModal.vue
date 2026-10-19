@@ -24,25 +24,29 @@
             No devices. Nothing is bound to this name, or the house has not reported yet.
           </p>
 
-          <ul v-else class="device-list">
-            <li v-for="device in section.devices" :key="device.entityId" class="device" :class="{ unavailable: isUnavailable(device) }">
-              <div class="device-main">
-                <span class="device-name">{{ deviceName(device) }}</span>
-                <span class="device-state">{{ describeState(device, formatTempWithUnit) }}</span>
-              </div>
-              <div class="device-meta">
-                <span class="device-role">{{ roleLabel(device.role) }}</span>
-                <code class="device-entity">{{ device.entityId }}</code>
-              </div>
-              <!-- Only the devices the heating code switches have rules. -->
-              <div v-if="isDrivable(device)" class="device-rules">
-                <span class="rules-summary">
-                  {{ rulesSummary(device) }}<span v-if="rulesAreBuiltIn(device)" class="rules-default"> (built-in)</span>
-                </span>
-                <button type="button" class="rules-btn" @click="openRules(device)">Rules</button>
-              </div>
-            </li>
-          </ul>
+          <template v-else>
+            <div v-for="group in groupDevices(section.devices)" :key="group.key" class="device-group">
+              <h5 class="group-title">{{ group.title }}</h5>
+              <ul class="device-list">
+                <li v-for="device in group.devices" :key="device.entityId" class="device" :class="{ unavailable: isUnavailable(device) }">
+                  <div class="device-main">
+                    <span class="device-name">{{ deviceName(device) }}</span>
+                    <span class="device-state">{{ describeState(device, formatTempWithUnit) }}</span>
+                  </div>
+                  <div class="device-meta">
+                    <span class="device-role">{{ roleLabel(device.role) }}</span>
+                  </div>
+                  <!-- Only the devices the heating code switches have rules. -->
+                  <div v-if="isDrivable(device)" class="device-rules">
+                    <span class="rules-summary">
+                      {{ rulesSummary(device) }}<span v-if="rulesAreBuiltIn(device)" class="rules-default"> (built-in)</span>
+                    </span>
+                    <button type="button" class="rules-btn" @click="openRules(device)">Rules</button>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </template>
         </section>
       </div>
 
@@ -72,7 +76,7 @@ import { computed, onMounted, ref } from 'vue'
 import DeviceRulesModal from './DeviceRulesModal.vue'
 import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import { useFormatting } from '../composables/useFormatting.js'
-import { describeState, deviceName, isUnavailable, roleLabel } from '../utils/roomDevices.js'
+import { describeState, deviceName, groupDevices, isUnavailable, roleLabel } from '../utils/roomDevices.js'
 import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
 
 const { formatTempWithUnit } = useFormatting()
@@ -266,7 +270,18 @@ const saveRules = async (rules) => {
   border-color: var(--color-danger, #e74c3c);
 }
 
-/* On a narrow screen the state and the entity ID drop onto their own line rather than squeezing the name. */
+.device-group + .device-group {
+  margin-top: 0.75rem;
+}
+
+.group-title {
+  margin: 0 0 0.375rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* On a narrow screen the state drops onto its own line rather than squeezing the name. */
 .device-main,
 .device-meta {
   display: flex;
@@ -300,14 +315,6 @@ const saveRules = async (rules) => {
   margin-top: 0.2rem;
   font-size: 0.75rem;
   color: var(--text-secondary);
-}
-
-.device-entity {
-  margin-left: auto;
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  overflow-wrap: anywhere;
-  text-align: right;
 }
 
 .device-rules {

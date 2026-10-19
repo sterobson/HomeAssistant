@@ -13,6 +13,8 @@
     @move="(delta) => ctx.onMove(node.key, delta)"
     @move-to="ctx.onMoveTo(node.key)"
     @edit="ctx.onEditGroup(node)"
+    @boost="(boostData) => ctx.onBoostGroup(node, boostData)"
+    @cancel-boost="ctx.onCancelGroupBoost(node)"
   >
     <LayoutNode v-for="child in node.children" :key="child.key" :node="child" />
   </RoomGroupCard>

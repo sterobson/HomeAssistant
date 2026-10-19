@@ -14,4 +14,5 @@
 //   canMove(key, delta) -> boolean
 //   onMove(key, delta), onMoveTo(key), onEditRoomIcon(room), onEditGroup(groupNode), onToggleGroup(id)
 //   onUpdateSchedule, onDeleteSchedule, onAddSchedule, onBoost, onCancelBoost, onToggleExpand, onRename
+//   onBoostGroup(groupNode, boostData), onCancelGroupBoost(groupNode)
 export const HEATING_LAYOUT = Symbol('heating-layout')

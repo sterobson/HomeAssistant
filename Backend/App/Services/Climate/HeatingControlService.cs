@@ -161,9 +161,7 @@ internal class HeatingControlService
 
         // Room presence from TVs and lights (PresenceService). A TV is normally switched with its
         // remote, not its plug, so its power draw is what changes.
-        _namedEntities.DenTvPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("den TV plug state changed"));
         ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvInUseWatts, "den TV");
-        _namedEntities.LivingRoomTvPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room TV plug state changed"));
         ReevaluateWhenPowerCrosses(_namedEntities.LivingRoomTvPlugPower, PresenceService.LivingRoomTvInUseWatts, "living room TV");
         _namedEntities.LivingRoomStickLightsPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room stick lights switched"));
 
@@ -396,6 +394,8 @@ internal class HeatingControlService
         string reason;
         HeatingScheduleTrack? effectiveTrack = null;
 
+        // A boost — the owner's, a group boost, or a guest's QR override — sets the exact temperature, up or
+        // down, until it ends (owner, 2026-10-19). Per-device rules still decide whether each device may run.
         if (hasBoost)
         {
             desiredTemperature = roomHeatingSchedule.Boost?.Temperature ?? 0;

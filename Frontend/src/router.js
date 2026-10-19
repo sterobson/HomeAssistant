@@ -22,6 +22,13 @@ const routes = [
     component: () => import('./views/Heating2View.vue')
   },
   {
+    // The page a heating zone's QR code opens. Reached by guests who know only the token, so it
+    // must not depend on the house ID; App.vue shows nothing but this view on it.
+    path: '/r/:token',
+    name: 'guestRoom',
+    component: () => import('./views/GuestRoomView.vue')
+  },
+  {
     // Power-user / recovery page, not linked from anywhere — accessible only
     // by typing the URL. Used for manually restoring missing daily energy
     // data by distributing a total across hours using another day's shape.

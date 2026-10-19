@@ -7,7 +7,7 @@
         </svg>
       </div>
       <div class="boost-info">
-        <h3>Boost Active</h3>
+        <h3>Boost active</h3>
         <div class="boost-details">
           <div class="boost-temp">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
@@ -26,7 +26,7 @@
       </div>
     </div>
     <button class="btn-cancel" @click="$emit('cancel')">
-      Cancel Boost
+      Cancel boost
     </button>
   </div>
 </template>

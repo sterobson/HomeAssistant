@@ -76,6 +76,14 @@ achieves nothing until they require one. See
 | GET | `room-history` | Temperature history for one room over a date range |
 | GET/POST | `heating-config` | Newer device/rule config model — **stored but not yet consumed** by the NetDaemon app |
 | GET/POST | `house-details` | House name and occupancy |
+| GET/POST | `room-shares`, POST `room-shares/revoke` | Owner side of the QR links (since 2026-10-19): list, get-or-create, and revoke-and-reissue the share token of a zone (`roomId=`) or a layout group (`groupId=`). House-ID keyed like everything else |
+| GET | `guest/room?token=` | Guest side: `{ kind: 'zone'|'group', name, icon, zones: [{ name, icon, currentTemperature, targetTemperature, heatingActive }], override, limits }` — a group lists every zone in it at any depth. **Token only — never takes or returns the house ID** |
+| POST | `guest/override?token=`, `guest/override/cancel?token=` | Set or change (`{ temperature, durationMinutes }`, 16–24 °C, ≤ 360 min, enforced here) or cancel the boost on the token's zone or on every zone in its group; a new override replaces a running one. Saves the schedules blob and sends `schedules-changed`, like an owner save. Cannot touch schedules, other zones or anything else. Logic in the linked `App/Shared/Climate/GuestOverride.cs`, tested in `Backend/Tests/GuestOverrideTests.cs` |
+
+**Security model.** Every endpoint is `AuthorizationLevel.Anonymous`; for owner endpoints the house ID is the
+only credential, so anyone who has it can do everything. The QR links exist so a guest never needs it: a
+share token (128 random bits) resolves server-side to one house and zone, and the `guest/*` endpoints can only
+change that zone's boost. A guest who was never given the house ID cannot reach anything else.
 
 `GetSchedules` has one behaviour worth knowing: rooms that exist in `room-states` but not
 in the schedules blob are synthesized into the response with the default name
@@ -157,7 +165,9 @@ One connection string, many containers and tables.
 Most are a single JSON blob per house, named `{houseId}.json`.
 
 **Tables** — `batteryhistory`, `energypricehistory`, `energyhistory`, `roomhistory`,
-`devicebatteryhistory`, `AppReleaseState`.
+`devicebatteryhistory`, `AppReleaseState`, `RoomShares` (PartitionKey house ID, RowKey share token, `RoomId`
+for a zone or `GroupId` for a layout group, `CreatedAt`; one live token per zone or group; looked up by RowKey
+for guests).
 
 `devicebatteryhistory` is partitioned by `{houseId}_{entityId}` with an inverted-date row
 key, so one device's history is a single partition scan and the newest day sorts first.

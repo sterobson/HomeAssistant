@@ -4,12 +4,37 @@ import {
   deviceName,
   deviceSections,
   distinctDeviceCount,
+  groupDevices,
   isUnavailable,
   roleLabel,
   sortDevices
 } from './roomDevices.js'
 
 const celsius = (value) => `${value}°C`
+
+describe('groupDevices', () => {
+  it('splits a zone into readers, heaters and presence, in that order', () => {
+    const groups = groupDevices([
+      { role: 'tvPower', name: 'Den - Plug - TV Power' },
+      { role: 'radiatorValve', name: 'Den - Radiator 2' },
+      { role: 'thermometer', name: 'Den - Climate' },
+      { role: 'heaterPlug', name: 'Heater' },
+      { role: 'radiatorValve', name: 'Den - Radiator 10' }
+    ])
+
+    expect(groups.map(g => g.title)).toEqual(['Readers', 'Heaters', 'Presence'])
+    expect(groups[1].devices.map(d => d.name)).toEqual(['Den - Radiator 2', 'Den - Radiator 10', 'Heater'])
+  })
+
+  it('leaves out empty groups', () => {
+    expect(groupDevices([{ role: 'thermometer', name: 'Bathroom' }]).map(g => g.key)).toEqual(['readers'])
+    expect(groupDevices([])).toEqual([])
+  })
+
+  it('keeps a device with an unknown role, in "Other"', () => {
+    expect(groupDevices([{ role: 'somethingNew', name: 'X' }]).map(g => g.title)).toEqual(['Other'])
+  })
+})
 
 describe('describeState', () => {
   it('formats a thermometer reading in the user unit', () => {
@@ -28,7 +53,6 @@ describe('describeState', () => {
   it('capitalises plug states', () => {
     expect(describeState({ role: 'heaterPlug', state: 'on' }, celsius)).toBe('On')
     expect(describeState({ role: 'deskPlug', state: 'off' }, celsius)).toBe('Off')
-    expect(describeState({ role: 'tvPlug', state: 'on' }, celsius)).toBe('On')
     expect(describeState({ role: 'lightsPlug', state: 'off' }, celsius)).toBe('Off')
   })
 
@@ -56,9 +80,9 @@ describe('isUnavailable', () => {
 describe('labels', () => {
   it('names each role in sentence case', () => {
     expect(roleLabel('radiatorValve')).toBe('Radiator valve')
-    expect(roleLabel('tvPlug')).toBe('TV plug (presence)')
-    expect(roleLabel('tvPower')).toBe('TV power (presence)')
-    expect(roleLabel('lightsPlug')).toBe('Lights plug (presence)')
+    expect(roleLabel('tvPower')).toBe('TV power')
+    expect(roleLabel('lightsPlug')).toBe('Lights plug')
+    expect(roleLabel('deskPlug')).toBe('Desk plug')
     expect(roleLabel('somethingNew')).toBe('Device')
   })
 

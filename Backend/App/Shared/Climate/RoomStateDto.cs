@@ -68,7 +68,6 @@ public static class RoomDeviceRoles
     public const string HeaterPlug = "heaterPlug";
     public const string DeskPlug = "deskPlug";
     public const string DeskPower = "deskPower";
-    public const string TvPlug = "tvPlug";
     public const string TvPower = "tvPower";
     public const string LightsPlug = "lightsPlug";
 }

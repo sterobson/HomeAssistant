@@ -12,7 +12,7 @@
 
       <form @submit.prevent="handleSubmit" class="boost-form">
         <div class="form-group">
-          <label for="temperature">Target Temperature (°C)</label>
+          <label for="temperature">Target temperature (°C)</label>
           <div class="temperature-selector">
             <button type="button" class="temp-btn" @click="decreaseTemp">
               <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
@@ -56,7 +56,11 @@
             <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm.93 4.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533l.816-3.833z"/>
             <circle cx="8" cy="2.5" r="1"/>
           </svg>
-          <p>Boost will override your schedule and maintain {{ temperature.toFixed(1) }}°{{ currentTempUnit }} for {{ displayDuration }}</p>
+          <p v-if="isGroup">
+            Every zone in this group will override its schedule and hold {{ temperature.toFixed(1) }}°{{ currentTempUnit }}
+            for {{ displayDuration }}.
+          </p>
+          <p v-else>Boost will override your schedule and maintain {{ temperature.toFixed(1) }}°{{ currentTempUnit }} for {{ displayDuration }}</p>
         </div>
 
         <div class="form-actions">
@@ -67,7 +71,7 @@
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
             </svg>
-            Start Boost
+            Start boost
           </button>
         </div>
       </form>
@@ -85,6 +89,11 @@ const props = defineProps({
   roomName: {
     type: String,
     required: true
+  },
+  // A group boost: the same temperature is set on every zone in the group.
+  isGroup: {
+    type: Boolean,
+    default: false
   }
 })
 

@@ -48,9 +48,7 @@ internal class PresenceService : IPresenceService
             namedEntities.GamesRoomDeskPlugPower.EntityId,
             namedEntities.DiningRoomDeskPlugOnOff.EntityId,
             namedEntities.DiningRoomDeskPlugPower.EntityId,
-            namedEntities.DenTvPlugOnOff.EntityId,
             namedEntities.DenTvPlugPower.EntityId,
-            namedEntities.LivingRoomTvPlugOnOff.EntityId,
             namedEntities.LivingRoomTvPlugPower.EntityId,
             namedEntities.LivingRoomStickLightsPlugOnOff.EntityId);
     }
@@ -62,13 +60,16 @@ internal class PresenceService : IPresenceService
         // deliberately has no presence: a person at Ruth's desk should not make the whole room's
         // radiator come on. The den and living room are different because a TV or the room's lights
         // mean the room itself is being used, not a desk in it.
+        //
+        // The TVs use their power reading alone (owner, 2026-10-19): a TV plug switched off reads 0 W
+        // anyway, so also checking its switch added a second "presence device" and nothing else.
         return roomName.ToLower().Trim() switch
         {
-            "games desk" => await IsPlugDrawing(_namedEntities.GamesRoomDeskPlugOnOff, _namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts),
-            "dining desk" => await IsPlugDrawing(_namedEntities.DiningRoomDeskPlugOnOff, _namedEntities.DiningRoomDeskPlugPower, DeskInUseWatts),
-            "den" => await IsPlugDrawing(_namedEntities.DenTvPlugOnOff, _namedEntities.DenTvPlugPower, DenTvInUseWatts),
+            "games desk" => _namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(_namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts),
+            "dining desk" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn() && await IsDrawing(_namedEntities.DiningRoomDeskPlugPower, DeskInUseWatts),
+            "den" => await IsDrawing(_namedEntities.DenTvPlugPower, DenTvInUseWatts),
             "living room" => _namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()
-                || await IsPlugDrawingSteadily(_namedEntities.LivingRoomTvPlugOnOff, _namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor),
+                || await IsDrawingSteadily(_namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor),
             _ => false
         };
     }
@@ -98,12 +99,10 @@ internal class PresenceService : IPresenceService
             ],
             "den" =>
             [
-                (_namedEntities.DenTvPlugOnOff.EntityId, RoomDeviceRoles.TvPlug),
                 (_namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)
             ],
             "living room" =>
             [
-                (_namedEntities.LivingRoomTvPlugOnOff.EntityId, RoomDeviceRoles.TvPlug),
                 (_namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower),
                 (_namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)
             ],
@@ -112,34 +111,24 @@ internal class PresenceService : IPresenceService
     }
 
     /// <summary>
-    /// True when the plug is on and its power reached <paramref name="thresholdWatts"/> at any point
-    /// within <see cref="InUseLookBack"/>. Recorder history includes the reading in force at the
-    /// start of the window, so a steady draw with no recent change still counts.
+    /// True when the power reached <paramref name="thresholdWatts"/> at any point within
+    /// <see cref="InUseLookBack"/>. Recorder history includes the reading in force at the start of the
+    /// window, so a steady draw with no recent change still counts.
     /// </summary>
-    private async Task<bool> IsPlugDrawing(ICustomSwitchEntity plug, ICustomNumericSensorEntity power, double thresholdWatts)
+    private async Task<bool> IsDrawing(ICustomNumericSensorEntity power, double thresholdWatts)
     {
-        if (!plug.IsOn())
-        {
-            return false;
-        }
-
         DateTime now = DateTime.Now;
         IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(power.EntityId, now.Subtract(InUseLookBack), now);
         return histories.Count > 0 && histories.Max(h => h.State) >= thresholdWatts;
     }
 
     /// <summary>
-    /// True when the plug is on and its power has been at or above <paramref name="thresholdWatts"/> for
-    /// the whole of the last <paramref name="steadyFor"/>: every reading in that window, including the one
-    /// in force at its start, meets the threshold. A non-numeric reading (unavailable) counts as 0 W.
+    /// True when the power has been at or above <paramref name="thresholdWatts"/> for the whole of the last
+    /// <paramref name="steadyFor"/>: every reading in that window, including the one in force at its start,
+    /// meets the threshold. A non-numeric reading (unavailable) counts as 0 W.
     /// </summary>
-    private async Task<bool> IsPlugDrawingSteadily(ICustomSwitchEntity plug, ICustomNumericSensorEntity power, double thresholdWatts, TimeSpan steadyFor)
+    private async Task<bool> IsDrawingSteadily(ICustomNumericSensorEntity power, double thresholdWatts, TimeSpan steadyFor)
     {
-        if (!plug.IsOn())
-        {
-            return false;
-        }
-
         DateTime now = DateTime.Now;
         IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(power.EntityId, now.Subtract(steadyFor), now);
         return histories.Count > 0 && histories.All(h => h.State >= thresholdWatts);

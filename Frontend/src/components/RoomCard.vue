@@ -9,7 +9,9 @@
       <div class="header-left" :class="{ 'not-expandable': !canSetTemperature }" @click="canSetTemperature && toggleCollapse()">
         <div class="room-name-wrapper">
           <h2 class="room-name"><span v-if="room.icon" class="room-icon" aria-hidden="true">{{ room.icon }}</span>{{ roomDisplayName }}</h2>
-          <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" @click="toggleCollapse">
+          <!-- .stop: the header around it toggles too, and a click reaching both toggled twice — open then
+               straight back shut — so the arrow appeared to do nothing. -->
+          <button v-if="canSetTemperature" class="collapse-btn" :class="{ collapsed: isCollapsed }" :aria-expanded="!isCollapsed" aria-label="Show or hide the schedules" @click.stop="toggleCollapse">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
               <path d="M5 7l5 5 5-5H5z"/>
             </svg>
@@ -26,7 +28,8 @@
       </div>
       <div v-if="!editMode" class="header-actions">
         <div class="icon-btn-placeholder">
-          <button v-if="!isBoostActive && canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" title="Boost heating">
+          <!-- Stays available while a boost runs: boosting again changes it (any boost can be changed or cancelled). -->
+          <button v-if="canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" :title="isBoostActive ? 'Change boost' : 'Boost heating'">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
             </svg>
@@ -57,6 +60,24 @@
     </div>
 
     <div v-show="!isCollapsed" class="room-card-content">
+      <!-- Tucked inside the expanded card rather than in the header, so it costs nothing until a room is
+           opened. First in the card, before any boost and the schedules, mirroring a group's "Devices in …". -->
+      <div class="card-links">
+      <button type="button" class="devices-link" @click="showDevices = true">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
+        </svg>
+        Devices ({{ deviceCount }})
+      </button>
+      <!-- Hands out a QR code that lets a guest override just this zone; see ShareRoomModal. -->
+      <button v-if="canSetTemperature" type="button" class="devices-link" @click="showShare = true">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M2 2h5v5H2V2zm1 1v3h3V3H3zm6-1h5v5H9V2zm1 1v3h3V3h-3zM2 9h5v5H2V9zm1 1v3h3v-3H3zm7-1h1v1h-1V9zm2 0h2v1h-1v1h-1V9zm-2 2h1v1h-1v-1zm2 1h1v2h-2v-1h1v-1zm-2 1h1v1h-1v-1z"/>
+        </svg>
+        Share
+      </button>
+      </div>
+
       <BoostCard
         v-if="isBoostActive"
         :boost-end-time="room.boost.endTime"
@@ -84,14 +105,6 @@
           Add schedule
         </button>
       </template>
-
-      <!-- Tucked inside the expanded card rather than in the header, so it costs nothing until a room is opened. -->
-      <button type="button" class="devices-link" @click="showDevices = true">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M6 0a.5.5 0 01.5.5V3h3V.5a.5.5 0 011 0V3h1a.5.5 0 01.5.5v3A3.5 3.5 0 018.5 10c-.002.434-.01.845-.04 1.22-.041.514-.126 1.003-.317 1.424a2.083 2.083 0 01-.97 1.028C6.725 13.9 6.169 14 5.5 14c-.998 0-1.61.33-1.974.718A1.922 1.922 0 003 16H2c0-.616.232-1.367.797-1.968C3.374 13.42 4.261 13 5.5 13c.581 0 .962-.088 1.218-.219.241-.123.4-.3.514-.55.121-.266.193-.621.23-1.09.027-.34.035-.718.037-1.141A3.5 3.5 0 014 6.5v-3a.5.5 0 01.5-.5h1V.5A.5.5 0 016 0z"/>
-        </svg>
-        Devices ({{ deviceCount }})
-      </button>
 
       <ScheduleEditor
         v-if="showEditor"
@@ -131,6 +144,12 @@
       @date-change="handleDateChange"
     />
 
+    <ShareRoomModal
+      v-if="showShare"
+      :room="room"
+      @close="showShare = false"
+    />
+
     <RoomDevicesModal
       v-if="showDevices"
       :title="`Devices in ${roomDisplayName}`"
@@ -151,6 +170,7 @@ import BoostCard from './BoostCard.vue'
 import ConfirmModal from './ConfirmModal.vue'
 import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
+import ShareRoomModal from './ShareRoomModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
@@ -204,6 +224,7 @@ const showDeleteConfirm = ref(false)
 const scheduleToDelete = ref(null)
 const showHistory = ref(false)
 const showDevices = ref(false)
+const showShare = ref(false)
 const deviceCount = computed(() => props.room.devices?.length ?? 0)
 const deviceSectionsForRoom = computed(() => deviceSections([props.room]))
 const historyData = ref([])
@@ -579,14 +600,21 @@ const handleHistoryClose = () => {
   transform: scale(0.98);
 }
 
-/* Deliberately quiet: a text link under the schedules, not another coloured button. */
+/* Deliberately quiet: a text link above the schedules, not another coloured button. Spaced like a group's. */
+.card-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.5rem;
+  margin: 0 0 0.5rem -0.5rem;
+}
+
 .devices-link {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  margin-top: 0.75rem;
+  margin: 0;
   padding: 0.25rem 0.5rem;
-  margin-left: -0.5rem;
   background: none;
   border: none;
   border-radius: 6px;

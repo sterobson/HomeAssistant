@@ -100,7 +100,6 @@ public interface INamedEntities
     ICustomClimateControlEntity LivingRoomRadiatorThermostat { get; }
     ICustomNumericSensorEntity LivingRoomClimateHumidity { get; }
     ICustomNumericSensorEntity LivingRoomClimateTemperature { get; }
-    ICustomSwitchEntity LivingRoomTvPlugOnOff { get; }
     ICustomNumericSensorEntity LivingRoomTvPlugPower { get; }
     ICustomSwitchEntity LivingRoomStickLightsPlugOnOff { get; }
 
@@ -124,7 +123,6 @@ public interface INamedEntities
     ICustomNumericSensorEntity DenClimateTemperature { get; }
     ICustomClimateControlEntity DenRadiator1Thermostat { get; }
     ICustomClimateControlEntity DenRadiator2Thermostat { get; }
-    ICustomSwitchEntity DenTvPlugOnOff { get; }
     ICustomNumericSensorEntity DenTvPlugPower { get; }
 
     // Bedroom 3
@@ -164,7 +162,6 @@ public class NamedEntities : INamedEntities
     private readonly ICustomClimateControlEntity _livingRoomRadiatorThermostat;
     private readonly ICustomNumericSensorEntity _livingRoomClimateHumidity;
     private readonly ICustomNumericSensorEntity _livingRoomClimateTemperature;
-    private readonly ICustomSwitchEntity _livingRoomTvPlugOnOff;
     private readonly ICustomNumericSensorEntity _livingRoomTvPlugPower;
     private readonly ICustomSwitchEntity _livingRoomStickLightsPlugOnOff;
 
@@ -207,7 +204,6 @@ public class NamedEntities : INamedEntities
     private readonly ICustomNumericSensorEntity _denClimateTemperature;
     private readonly ICustomClimateControlEntity _denRadiator1Thermostat;
     private readonly ICustomClimateControlEntity _denRadiator2Thermostat;
-    private readonly ICustomSwitchEntity _denTvPlugOnOff;
     private readonly ICustomNumericSensorEntity _denTvPlugPower;
 
     // Bedroom 3
@@ -250,7 +246,6 @@ public class NamedEntities : INamedEntities
         _livingRoomRadiatorThermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.living_room_radiator_thermostat"));
         _livingRoomClimateHumidity = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.livingroom_climate_humidity"));
         _livingRoomClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.livingroom_climate_temperature"));
-        _livingRoomTvPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.living_room_plug_tv_switch"));
         _livingRoomTvPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.living_room_plug_tv_power"));
         // HA calls the stick lights the "light tree".
         _livingRoomStickLightsPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.livingroomlighttreeplug"));
@@ -294,7 +289,6 @@ public class NamedEntities : INamedEntities
         _denClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.den_climate_temperature"));
         _denRadiator1Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_1_thermostat"));
         _denRadiator2Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_2_thermostat"));
-        _denTvPlugOnOff = new CustomSwitchEntity(new SwitchEntity(ha, "switch.den_plug_tv_switch"));
         _denTvPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.den_plug_tv_power"));
 
         // Bedroom 3
@@ -322,7 +316,6 @@ public class NamedEntities : INamedEntities
     public ICustomClimateControlEntity LivingRoomRadiatorThermostat => _livingRoomRadiatorThermostat;
     public ICustomNumericSensorEntity LivingRoomClimateHumidity => _livingRoomClimateHumidity;
     public ICustomNumericSensorEntity LivingRoomClimateTemperature => _livingRoomClimateTemperature;
-    public ICustomSwitchEntity LivingRoomTvPlugOnOff => _livingRoomTvPlugOnOff;
     public ICustomNumericSensorEntity LivingRoomTvPlugPower => _livingRoomTvPlugPower;
     public ICustomSwitchEntity LivingRoomStickLightsPlugOnOff => _livingRoomStickLightsPlugOnOff;
 
@@ -373,7 +366,6 @@ public class NamedEntities : INamedEntities
     public ICustomNumericSensorEntity DenClimateTemperature => _denClimateTemperature;
     public ICustomClimateControlEntity DenRadiator1Thermostat => _denRadiator1Thermostat;
     public ICustomClimateControlEntity DenRadiator2Thermostat => _denRadiator2Thermostat;
-    public ICustomSwitchEntity DenTvPlugOnOff => _denTvPlugOnOff;
     public ICustomNumericSensorEntity DenTvPlugPower => _denTvPlugPower;
 
     // Bedroom 3

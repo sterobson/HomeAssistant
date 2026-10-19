@@ -87,7 +87,7 @@ import { getHouseId } from '../utils/cookies.js'
 import { roomLabel } from '../utils/rooms.js'
 import {
   fromLayoutDto, toLayoutDto, canMove, move, moveTo, moveTargets, addGroup, updateGroup, deleteGroup,
-  newGroupId, normaliseIcon
+  newGroupId, normaliseIcon, roomIdsIn
 } from '../utils/roomLayout.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 import { drivableDevices, presenceZones } from '../utils/deviceRules.js'
@@ -586,6 +586,48 @@ const handleCancelBoost = async (roomId) => {
   }
 }
 
+// A group boost is the same boost on every zone in the group, at any depth, saved in one go. Like a zone
+// boost it sets that exact temperature, up or down, and boosting again changes it.
+const handleGroupBoost = async (groupNode, boostData) => {
+  const ids = new Set(roomIdsIn(groupNode))
+  const startTime = new Date()
+  const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
+  const previous = rooms.value.map(room => room.boost)
+
+  for (const room of rooms.value) {
+    if (ids.has(room.id)) {
+      room.boost = { startTime: startTime.toISOString(), endTime: endTime.toISOString(), temperature: boostData.temperature }
+    }
+  }
+
+  try {
+    await heatingApi.setSchedules(cleanRoomsForApi(rooms.value))
+    showToast(`Boost activated for ${groupNode.name} (${boostData.temperature}°C)`, 'success')
+  } catch (err) {
+    console.error('Error saving group boost:', err)
+    rooms.value.forEach((room, index) => { room.boost = previous[index] })
+    showToast('Failed to activate boost', 'error')
+  }
+}
+
+const handleCancelGroupBoost = async (groupNode) => {
+  const ids = new Set(roomIdsIn(groupNode))
+  const previous = rooms.value.map(room => room.boost)
+
+  for (const room of rooms.value) {
+    if (ids.has(room.id)) room.boost = null
+  }
+
+  try {
+    await heatingApi.setSchedules(cleanRoomsForApi(rooms.value))
+    showToast(`Boost cancelled for ${groupNode.name}`, 'info')
+  } catch (err) {
+    console.error('Error cancelling group boost:', err)
+    rooms.value.forEach((room, index) => { room.boost = previous[index] })
+    showToast('Failed to cancel boost', 'error')
+  }
+}
+
 // Groups expand one at a time, matching how rooms already behave. Not persisted: the
 // expanded-room cookie holds a room id, and a group has no id to store.
 // ---- Layout editing --------------------------------------------------------------------------
@@ -741,6 +783,8 @@ provide(HEATING_LAYOUT, {
   onAddSchedule: handleAddSchedule,
   onBoost: handleBoost,
   onCancelBoost: handleCancelBoost,
+  onBoostGroup: handleGroupBoost,
+  onCancelGroupBoost: handleCancelGroupBoost,
   onToggleExpand: handleToggleExpand
 })
 </script>

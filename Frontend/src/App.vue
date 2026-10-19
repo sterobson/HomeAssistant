@@ -1,5 +1,10 @@
 <template>
-  <div class="app">
+  <!-- A guest opening a QR code gets the bare view: no header, no menus, no house-ID prompt. -->
+  <div v-if="isGuestRoute" class="app app--guest">
+    <router-view />
+  </div>
+
+  <div v-else class="app">
     <header class="app-header">
       <div class="header-left">
         <router-link
@@ -100,6 +105,11 @@ import { useApiErrors } from './composables/useApiErrors.js'
 import { useDeviceSettings } from './composables/useDeviceSettings.js'
 
 const route = useRoute()
+
+// The route is not resolved yet when the app first mounts, so fall back to the address itself. Either way
+// nothing below may run for a guest: the house-ID cookie must not be read, written or prompted for.
+const guestPathAtLoad = window.location.pathname.startsWith('/r/') && window.location.pathname.length > 3
+const isGuestRoute = computed(() => (route.name ? route.name === 'guestRoom' : guestPathAtLoad))
 const { errors: apiErrors, dismissError: dismissApiError } = useApiErrors()
 const { isPowerMonitorConfigured, loadSettings } = useDeviceSettings()
 
@@ -204,6 +214,8 @@ function setHouseState(state) {
 
 // Check for house ID on mount
 onMounted(() => {
+  if (isGuestRoute.value) return
+
   hasHouseId.value = checkHouseId()
   if (!hasHouseId.value) {
     // Show modal if no house ID is set

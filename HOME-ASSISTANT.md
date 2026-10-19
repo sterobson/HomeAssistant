@@ -366,7 +366,7 @@ thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing r
 
 | Device | Switch | Feeds | Presence rule |
 |---|---|---|---|
-| Living Room - Plug - TV | `switch.living_room_plug_tv_switch` | the living room TV | on, and ≥ 30 W for the whole last 5 s |
+| Living Room - Plug - TV | `switch.living_room_plug_tv_switch` | the living room TV | `sensor.living_room_plug_tv_power` ≥ 30 W for the whole last 5 s (the switch is not read) |
 | LivingRoomLightTreePlug (the owner calls them the **stick lights**) | `switch.livingroomlighttreeplug` | the stick lights | switched on |
 
 The TV plug was the **charging dock** plug under the TV until 2026-10-19, when it was repurposed and renamed
@@ -389,7 +389,7 @@ hence the lag in gotcha 15.
 Mains powered, with the usual `_power`, `_current`, `_voltage` and `_summation_delivered` sensors.
 Both shipped with start-up behaviour **Off**, so after a power cut whatever they feed stays unpowered
 until the plug is switched on. The TV plug is also the den's **presence sensor** in `Backend/App`
-(`DenTvPlugOnOff` / `DenTvPlugPower`; in use at ≥ 30 W within 5 minutes, see `PresenceService`), so
+(`DenTvPlugPower` only — the switch is not read; in use at ≥ 30 W within 5 minutes, see `PresenceService`), so
 den schedules can be set for occupied or unoccupied. The motion lights plug is not referenced by
 `Backend/App`. ZHA reused the same temporary
 entity IDs (`sonoff_s60zbtpg_3`, `_11`) for the second plug once the first had been renamed, so a

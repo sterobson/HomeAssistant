@@ -40,6 +40,18 @@ Tests are Vitest files next to the pure helpers in `src/utils/` (`energyDistribu
 | `/battery` | `BatteryView.vue` | Battery zones, pricing, energy charts and tables |
 | `/heating2` | `Heating2View.vue` | **Superseded.** Floor/device/rule editor for the newer heating config model. Slated for removal; the final heating UI is `/heating`. |
 | `/manual-import` | `ManualImportView.vue` | Hidden recovery page, not linked from anywhere. Restores missing daily energy data by distributing a total across hours using another day's shape. |
+| `/r/:token` | `GuestRoomView.vue` | **Guest page** opened from a zone's or group's QR code (since 2026-10-19): the zone's temperatures (a group lists each zone) and an override form (16–24 °C, up to 6 h) that stays available while one runs, so it can be changed, plus cancel. `App.vue` renders it bare — no header, menus or house-ID prompt — and it never reads or writes the house-ID cookie; it talks only to the `guest/*` endpoints with the token (`services/guestApi.js`) and refreshes every 30 s. A revoked or unknown token shows "This link is no longer valid". |
+
+**Sharing a zone or group.** An expanded zone card has a quiet **Share** link beside "Devices (n)", and an
+expanded group card one beside "Devices in …"; both open `ShareRoomModal.vue` (`room` or `group` prop) with the
+QR code (the `qrcode` package, rendered in the browser), Copy link, Print, and "Revoke and make a new link"
+(`services/roomShareApi.js`, which takes `{ roomId }` or `{ groupId }`).
+
+**Boosts.** Every boost sets the exact temperature, up or down. A zone card's ⚡ stays available while a boost
+runs, so boosting again changes it. A group card has its own ⚡ (`BoostModal` with `is-group`), which puts the
+same boost on every zone in the group in one save (`handleGroupBoost` in `HeatingView.vue`); an expanded group
+shows "Boost running on …" with **Cancel boost** when any zone inside has one. The server-side rules and the security model are
+in the Functions README and CLAUDE.md → "Access".
 
 There is no `/settings` route. Settings is a menu component, `SettingsMenu.vue`, which is
 also where OTA updates are triggered.
@@ -133,9 +145,13 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
 - **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs and
-  presence plugs (desk plugs, and the den TV plug), each with its live HA state), built by the NetDaemon app from the same switches that
+  presence devices — desk plugs and their power, TV power, the living room's lights plug — each with its live
+  HA state), built by the NetDaemon app from the same switches that
   bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
-  group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`.
+  group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`, which
+  shows each zone's devices under **Readers**, **Heaters** and **Presence** (`groupDevices` /
+  `DEVICE_GROUPS` in `utils/roomDevices.js`) by friendly name. Entity IDs are deliberately not shown (owner,
+  2026-10-19); they are only keys.
   Labels and state text are pure functions in `utils/roomDevices.js`. `devices` is display only and is
   never sent back: `cleanRoomsForApi` leaves it out, as it should. The readings are a snapshot taken when
   the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
