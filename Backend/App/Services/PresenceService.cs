@@ -63,7 +63,15 @@ internal class PresenceService : IPresenceService
     internal const string GamesDeskInUse = "games-desk-in-use";
     internal const string DiningDeskInUse = "dining-desk-in-use";
     internal const string DiningDeskSwitchedOn = "dining-desk-switched-on";
+    // "On recently" keeps its original id, so a saved choice that names it still means the same thing.
     internal const string DenTvOn = "den-tv-on";
+    internal const string DenTvOnNow = "den-tv-on-now";
+
+    /// <summary>
+    /// The den TV is on right now once it has drawn <see cref="DenTvInUseWatts"/> for this long, unbroken: the same
+    /// rule as the HA automations that switch the den's motion lights off while the TV is on (tools/ha/automations).
+    /// </summary>
+    internal static readonly TimeSpan DenTvSteadyFor = TimeSpan.FromSeconds(5);
     internal const string LivingRoomTvOn = "living-room-tv-on";
     internal const string LivingRoomLightsOn = "living-room-lights-on";
 
@@ -105,9 +113,15 @@ internal class PresenceService : IPresenceService
             new(DiningDeskSwitchedOn, "Ruth's desk switched on", false,
                 [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)],
                 () => Task.FromResult(namedEntities.DiningRoomDeskPlugOnOff.IsOn())),
-            new(DenTvOn, "Den TV on (30 W or more in the last 5 minutes)", true,
+            // Two from the den TV (owner, 2026-10-19): "recently" holds for 5 minutes after the TV goes off, so the
+            // heating does not drop the moment it does; "now" has no hold, like the motion lights' automations.
+            // Only "now" counts towards "house": a TV that was on a few minutes ago does not mean anyone is home.
+            new(DenTvOn, "Den TV on recently (30 W or more in the last 5 minutes)", false,
                 [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
                 () => IsDrawing(namedEntities.DenTvPlugPower, DenTvInUseWatts)),
+            new(DenTvOnNow, "Den TV on now (30 W or more for 5 seconds)", true,
+                [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
+                () => IsDrawingSteadily(namedEntities.DenTvPlugPower, DenTvInUseWatts, DenTvSteadyFor)),
             new(LivingRoomTvOn, "Living room TV on (30 W or more for 5 seconds)", true,
                 [(namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
                 () => IsDrawingSteadily(namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor)),

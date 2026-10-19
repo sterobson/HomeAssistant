@@ -206,7 +206,11 @@ Four consequences worth knowing before changing any of this:
   The second is left out of `house` (`IPresenceService.HouseZones`), because a plug left on says nobody is
   home. The `den` uses its TV plug's **power
   alone** (≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
-  2026-10-19. The 5-minute look-back doubles as a hold after the draw stops. The
+  2026-10-19. The 5-minute look-back doubles as a hold after the draw stops: that is the "Den TV on
+  recently" detector, for the heating, and it does **not** count towards "house" (owner: a TV that was on a
+  few minutes ago does not mean anyone is home). "Den TV on now" (≥ 30 W for the whole of the last 5 s, no
+  hold) does count towards "house", and is the motion lights' rule; they follow it through their own HA
+  automations, not the app. The
   `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
   **or** its TV has drawn ≥ 30 W for the whole of the last 5 seconds — no
   hold, as specified by the owner. The TV plugs' on/off switches are deliberately not read (owner:

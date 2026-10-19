@@ -176,6 +176,47 @@ public sealed class PresenceServiceTests
         snapshot.SomeoneHome.ShouldBeTrue();
     }
 
+    // The den TV has two detectors (owner, 2026-10-19): on recently (5-minute hold), and on now (5 s, no hold).
+
+    [TestMethod]
+    [DataRow(new[] { 45.0 }, true, true, DisplayName = "on: both")]
+    [DataRow(new[] { 45.0, 4.0 }, true, false, DisplayName = "just turned off: recently, but not now")]
+    [DataRow(new[] { 4.0, 45.0 }, true, false, DisplayName = "only just switched on: recently, but not yet 5 s")]
+    [DataRow(new[] { 4.0 }, false, false, DisplayName = "standby: neither")]
+    public async Task DenTv_OnRecentlyAndOnNow(double[] watts, bool recently, bool now)
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.History[DenTvPower] = watts;
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Detectors[PresenceService.DenTvOn].ShouldBe(recently);
+        snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBe(now);
+    }
+
+    [TestMethod]
+    public void TheDen_UsesOnRecentlyForTheHeatingByDefault()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+
+        context.Service.DetectorsFor("den").ShouldBe([PresenceService.DenTvOn]);
+    }
+
+    [TestMethod]
+    public async Task House_CountsTheDenTvOnlyWhileItIsOnNow_NotForItsHold()
+    {
+        // Turned off a moment ago: the den is still in use for its hold, but that is not someone being home.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.History[DenTvPower] = [45, 4];
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Zones["den"].ShouldBeTrue();
+        snapshot.SomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.Single(d => d.Id == PresenceService.DenTvOn).MeansSomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.Single(d => d.Id == PresenceService.DenTvOnNow).MeansSomeoneHome.ShouldBeTrue();
+    }
+
     // Which detectors count for each zone is configurable (owner, 2026-10-19).
 
     [TestMethod]
@@ -234,7 +275,7 @@ public sealed class PresenceServiceTests
 
         context.Service.Detectors.Select(d => d.Id).ShouldBe([
             PresenceService.GamesDeskInUse, PresenceService.DiningDeskInUse, PresenceService.DiningDeskSwitchedOn,
-            PresenceService.DenTvOn, PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn
+            PresenceService.DenTvOn, PresenceService.DenTvOnNow, PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn
         ]);
         context.Service.Detectors.Single(d => d.Id == PresenceService.DiningDeskSwitchedOn).MeansSomeoneHome.ShouldBeFalse();
         context.Service.Detectors.ShouldAllBe(d => d.Label.Length > 0);
