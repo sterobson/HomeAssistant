@@ -21,43 +21,15 @@
 // needs the sequence in HOME-ASSISTANT.md). It stops without renaming anything if a target entity ID
 // is already taken, and ignores any other model that joins in the window.
 const { connect, parseArgs, run } = require('./lib/ha.cjs');
+const { plan, entitiesOf, problems, apply, show } = require('./lib/naming.cjs');
 
 const JOIN_SECONDS = 254;           // ZHA's maximum
 const EXPECT_SETTLED_MS = 20000;    // entities appear as the interview runs; wait until the count is stable this long
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const snake = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 const time = () => new Date().toLocaleTimeString();
 
-function plan(entities, prefix, label, mainSuffix) {
-  return entities.map((e) => {
-    const domain = e.entity_id.split('.')[0];
-    // A device's main entity (a plug's on/off switch) has no original_name; it takes the prefix
-    // itself, plus --main-suffix if given (the heater plugs are switch.{room}_plug_heater_switch).
-    const to = e.original_name
-      ? `${domain}.${prefix}_${snake(e.original_name)}`
-      : `${domain}.${prefix}${mainSuffix ? `_${snake(mainSuffix)}` : ''}`;
-    const labelled = label && domain === 'sensor' && /^(temperature|humidity)$/i.test(e.original_name || '');
-    return { from: e.entity_id, to, name: labelled ? label : undefined };
-  });
-}
-
-async function entitiesOf(ha, deviceId) {
-  return (await ha.call({ type: 'config/entity_registry/list' })).filter((e) => e.device_id === deviceId);
-}
-
-async function problems(ha, steps) {
-  const taken = new Set((await ha.call({ type: 'config/entity_registry/list' })).map((e) => e.entity_id));
-  const targets = steps.map((s) => s.to);
-  return [
-    ...targets.filter((t, i) => targets.indexOf(t) !== i).map((t) => `duplicate target ${t}`),
-    ...steps.filter((s) => s.from !== s.to && taken.has(s.to)).map((s) => `already taken: ${s.to}`),
-  ];
-}
-
-const show = (s) => `  ${s.from}  ->  ${s.to}${s.name ? `   (name "${s.name}")` : ''}`;
-
 async function dryRun(ha, deviceId, prefix, label, mainSuffix) {
-  const steps = plan(await entitiesOf(ha, deviceId), prefix, label, mainSuffix);
+  const steps = plan(await entitiesOf(ha, deviceId), { prefix, label, mainSuffix });
   steps.forEach((s) => console.log(show(s)));
   const issues = await problems(ha, steps);
   console.log(issues.length ? issues.join('\n') : `${steps.length} entities, no clashes`);
@@ -92,24 +64,16 @@ async function pair(ha, { model, name, area, prefix, label, 'main-suffix': mainS
     if (n !== count) { count = n; stableSince = Date.now(); console.log(`  entities so far: ${n}`); }
   }
 
-  const steps = plan(await entitiesOf(ha, device.id), prefix, label, mainSuffix);
+  const steps = plan(await entitiesOf(ha, device.id), { prefix, label, mainSuffix });
   const issues = await problems(ha, steps);
   if (issues.length) {
     console.log(`Stopping before renaming anything:\n${issues.join('\n')}`);
     return;
   }
 
-  const update = { type: 'config/device_registry/update', device_id: device.id, name_by_user: name };
-  if (area) update.area_id = area;
-  await ha.call(update);
+  await apply(ha, device.id, steps, { name, area });
   console.log(`Device named "${name}"${area ? `, area ${area}` : ''}`);
-  for (const s of steps) {
-    const msg = { type: 'config/entity_registry/update', entity_id: s.from };
-    if (s.from !== s.to) msg.new_entity_id = s.to;
-    if (s.name) msg.name = s.name;
-    if (msg.new_entity_id || msg.name) await ha.call(msg);
-    console.log(show(s));
-  }
+  steps.forEach((s) => console.log(show(s)));
   console.log(`Done: ${steps.length} entities. Check it with: node tools/ha/list-devices.cjs --name "${name}"`);
 }
 

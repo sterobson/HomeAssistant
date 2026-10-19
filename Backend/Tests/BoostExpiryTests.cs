@@ -124,6 +124,7 @@ public sealed class BoostExpiryTests
         services.AddSingleton(schedulePersistence);
         services.AddSingleton(Substitute.For<IRoomStatePersistenceService>());
         services.AddSingleton(Substitute.For<IBoilerVerificationService>());
+        services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
         services.AddSingleton<FakeDeviceSettingsPersistenceService>();
         services.AddSingleton<IDeviceSettingsPersistenceService>(provider => provider.GetRequiredService<FakeDeviceSettingsPersistenceService>());
 

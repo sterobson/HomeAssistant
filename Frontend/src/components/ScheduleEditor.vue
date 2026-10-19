@@ -2,7 +2,7 @@
   <div class="editor-overlay" @click.self="handleCancel">
     <div class="editor-modal">
       <div class="editor-header">
-        <h3>{{ isEditing ? 'Edit Schedule' : 'Add Schedule' }}</h3>
+        <h3>{{ isEditing ? 'Edit schedule' : 'Add schedule' }}</h3>
         <button class="close-btn" @click="handleCancel">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
             <path d="M4.646 4.646a.5.5 0 01.708 0L10 9.293l4.646-4.647a.5.5 0 01.708.708L10.707 10l4.647 4.646a.5.5 0 01-.708.708L10 10.707l-4.646 4.647a.5.5 0 01-.708-.708L9.293 10 4.646 5.354a.5.5 0 010-.708z"/>
@@ -43,7 +43,7 @@
         </div>
 
         <div class="form-group">
-          <label>Days of Week</label>
+          <label>Days of week</label>
           <div class="days-selector">
             <button
               v-for="day in daysOfWeek"
@@ -59,7 +59,7 @@
         </div>
 
         <div class="form-group" v-if="canDetectRoomOccupancy">
-          <label>Room Occupancy</label>
+          <label>Room occupancy</label>
           <div class="occupancy-selector">
             <button
               type="button"
@@ -93,7 +93,7 @@
             Cancel
           </button>
           <button type="submit" class="btn btn-primary">
-            {{ isEditing ? 'Save Changes' : 'Add Schedule' }}
+            {{ isEditing ? 'Save changes' : 'Add schedule' }}
           </button>
         </div>
       </form>

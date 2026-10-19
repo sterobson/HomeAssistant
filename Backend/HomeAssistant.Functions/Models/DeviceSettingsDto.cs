@@ -48,6 +48,13 @@ public class HeatingSettingsDto
     /// BoilerControlMode, which describes how a boiler switch is actuated.
     /// </summary>
     public BoilerControlPath BoilerControlPath { get; set; } = BoilerControlPath.ExternalScheduler;
+
+    /// <summary>
+    /// Per-device heating rules keyed by entity ID; null = never configured. Stored and served as-is:
+    /// the NetDaemon app evaluates them. Mirrors Backend/App/Shared/DeviceSettingsDto.cs — a field
+    /// missing here is dropped on save, so keep the two in step.
+    /// </summary>
+    public Dictionary<string, HomeAssistant.Shared.Climate.DeviceRulesDto>? DeviceRules { get; set; }
 }
 
 /// <summary>

@@ -39,7 +39,7 @@ public sealed class BoilerVerificationServiceTests
         // A valve has to have been cold for half an hour to be worth watching.
         service.NotifyValveStopped(Room);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(true, [(Room, valve)]);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
 
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOnWaitMinutes + 1);
         valve.CurrentTemperature = ColdValveTemperature + BoilerVerificationService.TurnOnTemperatureRiseThreshold + 0.5;
@@ -56,7 +56,7 @@ public sealed class BoilerVerificationServiceTests
 
         service.NotifyValveStopped(Room);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(true, [(Room, valve)]);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
 
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOnWaitMinutes + 1);
         await service.CheckAsync();
@@ -73,7 +73,7 @@ public sealed class BoilerVerificationServiceTests
 
         service.NotifyValveStopped(Room);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(true, [(Room, valve)]);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
 
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOnWaitMinutes - 1);
         await service.CheckAsync();
@@ -89,7 +89,7 @@ public sealed class BoilerVerificationServiceTests
 
         service.NotifyValveStartedHeating(Room, valve);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(false, [(Room, valve)]);
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
 
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOffSettlingMinutes + 1);
         await service.CheckAsync();
@@ -109,7 +109,7 @@ public sealed class BoilerVerificationServiceTests
 
         service.NotifyValveStartedHeating(Room, valve);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(false, [(Room, valve)]);
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
 
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOffSettlingMinutes + 1);
         await service.CheckAsync();
@@ -128,7 +128,7 @@ public sealed class BoilerVerificationServiceTests
 
         service.NotifyValveStopped(Room);
         Advance(timeProvider, minutes: 31);
-        service.NotifyBoilerToggled(true, [(Room, valve)]);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
 
         service.Reset();
 
@@ -151,7 +151,7 @@ public sealed class BoilerVerificationServiceTests
         service.Reset();
 
         // Without the cold-for-30-minutes history there is nothing to measure against.
-        service.NotifyBoilerToggled(true, [(Room, valve)]);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOnWaitMinutes + 1);
         await service.CheckAsync();
 

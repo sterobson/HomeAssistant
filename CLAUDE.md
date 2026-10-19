@@ -90,8 +90,8 @@ The NetDaemon app reports its own version separately via `version.txt`
 Azure storage account** and `AzureSignalRConnectionString` at the **live SignalR service**. Running the
 Functions project from its own folder reads and writes production, separated from the real house only by the
 house ID. The NetDaemon app has two matching traps: it loads its `appsettings.*development*.json` files *after*
-environment variables (so env vars cannot redirect it), and it caches schedules, device settings and battery
-rules in `%LOCALAPPDATA%\HomeAssistant`, shared by every copy and not keyed by house.
+environment variables (so env vars cannot redirect it), and it caches schedules, device settings, battery
+rules and its boiler belief in `%LOCALAPPDATA%\HomeAssistant`, shared by every copy and not keyed by house.
 
 **[LocalEnv/](LocalEnv/README.md) runs the whole stack safely**: a published copy of the Functions app on the
 Azurite emulator with its own settings, a one-off snapshot of production data under the non-production house ID
@@ -168,7 +168,7 @@ dining room and the den each hold two zones that are scheduled and controlled in
 | Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug power |
 | Dining room | `dining room` ("Dining room") | dining TRV | dining room thermometer | no |
 | Den | `games desk` ("Ste's desk") | games heater plug | desk thermometer (`sensor.sonoff_snzb_02d_temperature`) | yes — desk plug power |
-| Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | den thermometer (`sensor.den_climate_temperature`, since 2026-10-19) | no |
+| Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | den thermometer (`sensor.den_climate_temperature`, since 2026-10-19) | yes — TV plug power (since 2026-10-19) |
 
 Which zones sit together, and in what order, is the **layout**: an ordered tree saved as `layout` next to the
 room list, whose nodes are rooms (`{ roomId }`) or groups (`{ id, name, icon, children }`), nested to any
@@ -181,10 +181,24 @@ the recursive [LayoutNode](Frontend/src/components/LayoutNode.vue); all the tree
 
 Four consequences worth knowing before changing any of this:
 
-- **Presence belongs to the desks, not the rooms.** `IsRoomInUse` returns `false` for any
-  name it doesn't recognise, so a `RoomInUse` track on a presence-blind zone silently
-  never fires, and a `RoomNotInUse` track always fires. That asymmetry is why the dining
-  radiator took only the presence-free baseline tracks in the split.
+- **Presence comes from plugs, and only some zones have it.** The desks use their desk
+  plug (on, and ≥ 40 W within the last 5 minutes); the `den` uses its TV plug (on, and
+  ≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
+  2026-10-19. The 5-minute look-back doubles as a hold after the draw stops. The
+  `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
+  **or** its TV plug is on and has drawn ≥ 30 W for the whole of the last 5 seconds — no
+  hold, as specified by the owner. The stick lights plug follows the WiZ lamp through two HA
+  automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
+  gotcha 15). Heating re-evaluates 6 s after either TV's power crosses 30 W. The dining room
+  radiator zone stays presence-blind, because a person at Ruth's desk is not the whole room
+  in use. `IsRoomInUse` returns `false` for any name it doesn't recognise, so a `RoomInUse`
+  track on a presence-blind zone silently never fires, and a `RoomNotInUse` track always
+  fires. That asymmetry is why the dining radiator took only the presence-free baseline
+  tracks in the split. Neither the den's nor the living room's live tracks used a room
+  condition when they gained presence, so nothing they did changed. All the rules live in
+  [PresenceService.cs](Backend/App/Services/PresenceService.cs), pinned by
+  [PresenceServiceTests](Backend/Tests/PresenceServiceTests.cs); the heating tests all use a
+  mock and never exercise them.
 - `"games room"` no longer exists — it was only ever the desk's plug and thermometer, so
   it became `games desk`. `den` drives both den radiators and, since 2026-10-19, reads its
   own room thermometer; until then it borrowed the games desk's, which read ~0.6 °C warmer
@@ -208,7 +222,14 @@ Four more heating notes:
 - **The boiler has no feedback.** It is switched by a Tuya fingerbot pressing a physical
   button (`switch.tz3210_j4pdtz9v_ts0001`), so the app's `_boilerOn` is a belief, not a
   reading. `BoilerVerificationService` infers success from radiator temperature changes.
-  It has no test coverage.
+  Since 2026-10-19 the belief survives restarts (`boiler-state.json` in the local cache folder,
+  reloaded only at startup, never after coming back from the external scheduler); a fingerbot
+  movement the app did not command (HA UI, a script) flips it; a press is refused while the
+  fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
+  pressed. Before that fix the turn-on verification could never arm in the running app, because
+  valves were reported as heating before the press, which wiped the "shut since" time it needs.
+  A press by hand on the boiler itself is still invisible. [HeatingBoilerControlTests](Backend/Tests/HeatingBoilerControlTests.cs)
+  drives all of this through `HeatingControlService` with the real verification service.
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
   physical switch at the boiler chooses between the fingerbot and a separate
   temperature/time scheduler in the kitchen. The two are exclusive: in scheduler mode the
@@ -233,14 +254,27 @@ Four more heating notes:
   **off** only when the total is 0. It replaced a per-room priority score (2 + 2 etc.), so
   `GetRoomBoilerPriority` is gone and a room's name no longer affects the boiler. Heater-plug rooms (kitchen,
   desks) have no valve and contribute nothing. Not yet deployed or verified against the live house.
-- **Heater plugs are gated in code, and a boost does not bypass the gate.** `EvaluateHeaterConditions` in
-  [HeatingControlService.cs](Backend/App/Services/Climate/HeatingControlService.cs) decides whether a plug may
-  be turned on (never off): desk power over 30 W with that desk's plug on allows it; otherwise it needs *house
-  presence*, then any time window. "House presence" is not a real occupancy sensor — it is true when either
-  desk plug is on and drawing over 30 W (`HousePresenceSensor`), with no hysteresis. The desk heaters (Ste's
-  and Ruth's) have **no time window** (removed 2026-10-18; they follow desk power, presence and the UI
-  schedule). Kitchen (06:00-21:00) and Bedroom 1 (08:00-08:30, 21:00-21:15) still have hard-coded windows
-  and no power override. A `null` `AllowedTimeWindows` means any time; an empty list means never.
+- **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
+  rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
+  in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤
+  start runs past midnight and belongs to the start day; none = any time) AND a presence rule (sources
+  combined Any/All; none = no presence needed). A source is a presence zone's canonical name or `house` =
+  any presence zone in use (games desk, dining desk, den, living room — never motion sensors, the cat sets
+  them off). Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
+  once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`, enforced both ways by
+  `EnforceDeviceRulesAsync`: a device whose rules stop passing is **switched off** even if the room is still
+  cold (owner's choice), and back on if they pass again while the zone still wants heat. A boost does not
+  bypass rules. Valves held off by their rules add no boiler demand. `deviceRules: null` (never saved) means
+  the built-in [DefaultDeviceRules](Backend/App/Services/Climate/DefaultDeviceRules.cs): kitchen
+  05:30–22:00 + House; Bedroom 1 08:00–08:30 and 21:00–21:15 + House; Ste's desk heater needs the games
+  desk; Ruth's needs the dining desk; valves none. Once anything is saved the blob is authoritative and a
+  missing entry means no rules — so the UI's first save writes every device's defaults plus the edit.
+  Unreadable settings fall back to the defaults. Edited from each zone's **Devices** list → **Rules**
+  ([DeviceRulesModal](Frontend/src/components/DeviceRulesModal.vue)). This replaced the hard-coded
+  `HeaterConditions`/`CustomSwitchWithConditions` gate (which only blocked turning on) and the desk-only
+  `HousePresenceSensor`. **Deploy the Functions app first**: its `DeviceSettingsDto` copy must know
+  `deviceRules` or a save drops it. Tests: `DeviceRulesEvaluatorTests`, `DeviceRulesHeatingTests`; the
+  schedule-selection tests in `HeatingControlServiceTests` run with empty saved rules on purpose.
 - **Boost expiry compares instants, never clock faces (fixed 2026-10-17).** A boost's end is a
   `DateTimeOffset` (the UI sends UTC) while the evaluation's `now` is the *local* wall clock, so comparing
   `EndTime.DateTime` to `now` was wrong by the UTC offset: in British Summer Time every boost ended an hour

@@ -90,6 +90,7 @@ import {
   newGroupId, normaliseIcon
 } from '../utils/roomLayout.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
+import { drivableDevices, presenceZones } from '../utils/deviceRules.js'
 
 const props = defineProps({
   occupancyFilter: {
@@ -113,6 +114,9 @@ const expandedGroupIds = ref(new Set())
 // How the rooms are arranged: a tree of rooms and groups to any depth. See utils/roomLayout.js.
 const layoutTree = ref([])
 const roomsById = computed(() => new Map(rooms.value.map(room => [room.id, room])))
+// What the device rules editor needs: the zones a presence rule can name, and every device it could be saved for.
+const presenceZoneList = computed(() => presenceZones(rooms.value))
+const drivableDeviceList = computed(() => drivableDevices(rooms.value))
 
 // Layout editing: reorder, move into groups, choose icons, make and delete groups.
 const editLayout = ref(false)
@@ -720,6 +724,8 @@ const handleToggleExpand = (roomId) => {
 // Everything LayoutNode needs, provided last so every handler it points at already exists.
 provide(HEATING_LAYOUT, {
   roomsById,
+  presenceZones: presenceZoneList,
+  drivableDevices: drivableDeviceList,
   editLayout,
   occupancyFilter: toRef(props, 'occupancyFilter'),
   expandedRoomId,

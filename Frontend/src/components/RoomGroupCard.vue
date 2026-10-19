@@ -59,19 +59,25 @@
       v-if="showDevices"
       :title="`Devices in ${node.name}`"
       :sections="groupDeviceSections"
+      :presence-zones="layoutContext?.presenceZones.value ?? []"
+      :all-devices="layoutContext?.drivableDevices.value ?? []"
       @close="showDevices = false"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
 import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
+import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
 const { formatTemp, formatTempWithUnit } = useFormatting()
+
+// Where the presence zones and the house's drivable devices come from; absent outside the heating view.
+const layoutContext = inject(HEATING_LAYOUT, null)
 
 const props = defineProps({
   // The group node from the layout tree: { type: 'group', id, name, icon, children }.

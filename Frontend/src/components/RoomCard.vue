@@ -81,7 +81,7 @@
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0v16M0 8h16" stroke="currentColor" stroke-width="2"/>
           </svg>
-          Add Schedule
+          Add schedule
         </button>
       </template>
 
@@ -135,13 +135,15 @@
       v-if="showDevices"
       :title="`Devices in ${roomDisplayName}`"
       :sections="deviceSectionsForRoom"
+      :presence-zones="layoutContext?.presenceZones.value ?? []"
+      :all-devices="layoutContext?.drivableDevices.value ?? []"
       @close="showDevices = false"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import ScheduleItem from './ScheduleItem.vue'
 import ScheduleEditor from './ScheduleEditor.vue'
 import BoostModal from './BoostModal.vue'
@@ -153,8 +155,12 @@ import { useFormatting } from '../composables/useFormatting.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
 import { deviceSections } from '../utils/roomDevices.js'
+import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
 const { formatTempWithUnit } = useFormatting()
+
+// Where the presence zones and the house's drivable devices come from; absent outside the heating view.
+const layoutContext = inject(HEATING_LAYOUT, null)
 
 const props = defineProps({
   room: {

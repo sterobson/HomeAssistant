@@ -13,10 +13,14 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 |---|---|---|
 | `entity-history.cjs <entity_id> [...] [--hours 48]` | no | Current state plus real transitions from the recorder. Use it for "when did this really fail / come back", never `last_changed` |
 | `find-entities.cjs <regex>` | no | Entities whose ID **or friendly name** matches, with state and `last_updated` |
+| `trv-status.cjs` | no | Whether each radiator TRV is heating or idle, with its setpoint and its own onboard reading |
 | `list-devices.cjs [--model] [--name] [--area]` | no | Devices from the registry: manufacturer, model, area, and every entity with its live state, entity name and disabled flag |
 | `list-devices.cjs --areas` | no | Area IDs, for `pair-zigbee.cjs --area` |
 | `pair-zigbee.cjs --plan <device_id> --prefix ...` | no | Dry run: the renames a device would get under a naming scheme, and any clashes |
 | `pair-zigbee.cjs --model ... --name ... --prefix ...` | **yes** | Opens the ZHA join window, waits for a new device of that model, then names the device and all its entities |
+| `rename-device.cjs <device_id> --name ... --prefix ...` | no | Dry run: the renames an existing device would get, which entities of *other* integrations it leaves alone, and any clashes |
+| `rename-device.cjs <device_id> ... --apply` | **yes** | Renames an existing device and its own entities the house way (how the living room TV plug was renamed, 2026-10-19). Check what refers to the old IDs first — HOME-ASSISTANT.md gotcha 16 |
+| `put-automation.cjs --delete <id> --backup <file.json>` | **yes** | Saves an automation's config to a file, then deletes it from HA |
 | `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
 
@@ -99,7 +103,9 @@ to `NamedEntities.cs`, and if it feeds heating, update the room arms in `Heating
 
 ## Adding a script
 
-Put shared connection code in `lib/ha.cjs` (`rest`, `connect`, `snapshot`, `parseArgs`, `run`). Start
+Put shared connection code in `lib/ha.cjs` (`rest`, `connect`, `snapshot`, `parseArgs`, `run`) and
+naming rules in `lib/naming.cjs` (renames only the device's own `zha` entities, never ones another
+integration such as the Octopus cost tracker attached to it). Start
 the file with a comment saying whether it writes, add a row to the table above, and mark anything that
 changes the house **yes** there. Anything that moves hardware asks first; see HOME-ASSISTANT.md →
 Safety.

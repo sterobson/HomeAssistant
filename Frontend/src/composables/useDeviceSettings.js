@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
+import { firstSaveMap } from '../utils/deviceRules.js'
 
 // Which control path the boiler is physically wired to. A switch at the boiler selects between
 // the fingerbot and the house's own scheduler, and nothing can read it, so this is a statement of
@@ -94,6 +95,34 @@ async function saveBoilerControlPath(path) {
   })
 }
 
+// The per-device heating rules blob: null until someone first saves, then entity ID -> rules.
+const deviceRules = computed(() => settings.value?.heating?.deviceRules ?? null)
+
+// Saves one device's rules, keeping everything else in the device settings blob. While no rules have
+// ever been saved the app is running on built-in defaults, so the first save writes every drivable
+// device's current default alongside the new rules instead of wiping them.
+async function saveDeviceRules(entityId, rules, allDrivableDevices) {
+  await loadSettings()
+
+  // A failed load leaves nothing to merge into, and saving then would replace the whole blob.
+  if (!settings.value) {
+    throw new Error('Device settings have not loaded, so the rules were not saved.')
+  }
+
+  const current = settings.value.heating?.deviceRules ?? null
+  const nextRules = current === null
+    ? firstSaveMap(allDrivableDevices, entityId, rules)
+    : { ...current, [entityId]: rules }
+
+  await saveSettings({
+    ...settings.value,
+    heating: {
+      ...(settings.value.heating || {}),
+      deviceRules: nextRules
+    }
+  })
+}
+
 const isPowerMonitorConfigured = computed(() => {
   const rp = settings.value?.realtimePower
   if (!rp) return false
@@ -119,6 +148,8 @@ export function useDeviceSettings() {
     isPowerMonitorConfigured,
     boilerControlPath,
     saveBoilerControlPath,
+    deviceRules,
+    saveDeviceRules,
     BOILER_CONTROL_PATHS
   }
 }

@@ -65,6 +65,8 @@ row before you finish — that is how this list earns its keep.
 | 12 | A device the C# app uses has no entity ID in the code | Buttons are bound by **IEEE address**, not entity ID (`new SonoffButton(ha, "d4:48:67:...")`) | Grep for `SonoffButton` as well as entity-ID literals when auditing coverage |
 | 13 | The boiler is clearly running (or clearly isn't) and it contradicts everything the app did | The boiler has **two exclusive control paths** — the fingerbot, or a temperature/time scheduler in the kitchen — selected by a **physical switch HA cannot read**, and in scheduler mode the boiler's button is **dead**, so fingerbot presses are no-ops. **As of 2026-10-17 the switch is on the external scheduler.** Since 2026-10-17 the app is *told* which path it is on, by the `heating.boilerControlPath` device setting (**Settings → Boiler control** on the heating page), and it defaults to the external scheduler, so out of the box it does not touch the boiler at all | Never infer the control path from HA — no entity exposes it, and the setting is a statement of belief, not a reading. Check the setting *and* ask which way the switch is set before diagnosing any heating behaviour, and treat radiator warmth as evidence the boiler fired, not that the app caused it |
 | 14 | A configured entity ID reads nothing, with no error anywhere | `new NumericSensorEntity(ha, id)` succeeds for an entity that does not exist. It never throws, never logs, and its state-change subscription simply never fires. The "not configured" warning in `OctopusElectricityMeter` only covers an *empty* setting, not a dead one | Check device-settings entity IDs against `/api/states` rather than assuming a configured ID is a live one. `dotnet nd-codegen` is a good canary: entities vanishing from the generated file means they vanished from HA |
+| 15 | Something "follows" the living room lamp, but minutes late | The lamp (`light.living_room_lamp`, a WiZ Wi-Fi bulb) is switched by cutting its power at the wall, which tells HA nothing. HA only sees it go `unavailable` after the bulb stops answering its polls, and after an HA restart with the lamp off its WiZ config entry sits in `setup_retry`, whose retry interval keeps growing — so "lamp came back on" can wait for the next retry. Measured 2026-10-19 (owner switched on, then off a few seconds later): HA saw **on** within a few seconds (bulb boot + Wi-Fi join, with the WiZ entry `loaded`) but **off ~60 s late**; the light tree automations then followed each within ~0.1 s, so the whole delay is detection | Measure lamp lag against a known flip time before blaming an automation. Ways to speed up "off", not done (owner happy to live with it): a Zigbee button driving the bulb instead of cutting its power (instant both ways); a Zigbee plug under the lamp, only if the switch is on the lamp rather than the socket; or pinging the bulb every few seconds (~5–10 s, needs a fixed IP) |
+| 16 | Renaming an entity might silently orphan whatever tracks it | Some integrations store a target *entity ID*. The Octopus cost tracker does (`target_entity_id`) — but on 2026-10-19 it **followed** a registry rename live (`loving_room_charging_dock_summation_delivered` → `living_room_plug_tv_summation_delivered`). Whether that survives an HA restart was not checked | Before renaming, search states' attributes and automation configs for the old ID (`tools/ha/rename-device.cjs` leaves other integrations' entities alone, but cannot see what *refers* to them). After the next HA restart, check the tracker's `target_entity_id` |
 
 ## Recipes
 
@@ -278,6 +280,16 @@ period covering the fingerbot's death. So:
 > so if someone flips the switch and not the setting, the app is wrong again and silent about
 > it. Set it to `fingerbot` only after the switch at the boiler has actually been moved.
 
+**2026-10-19, confirmed by the owner by hand:** a single `switch.turn_on` on the fingerbot
+(`switch.tz3210_j4pdtz9v_ts0001`) physically pressed the boiler button and the boiler responded. So
+the boiler's switch was on the **fingerbot** path at that moment, no longer the kitchen scheduler as
+on 2026-10-17. Nobody checked what `heating.boilerControlPath` was set to; if it is still
+`externalScheduler` the app is not driving a boiler that can now be driven. HA kept the switch at
+`on` afterwards and never reverted it (read back from the recorder later that morning), so the
+fingerbot's HA state **latches**: each on/off change is one press, and the state says nothing about
+the boiler. The app relies on that to spot presses made outside it. Whether a `turn_off` also
+physically presses has not been watched. The owner chose to leave it as it was.
+
 - **`Backend/App` is not currently heating this house.** Every boiler decision
   `HeatingControlService` made in this period was discarded by a dead button — and since
   2026-10-17 it no longer makes them, because the control-path setting defaults to the
@@ -349,6 +361,23 @@ Radiator`, entities `{room}_radiator_*`), or the entities stay `sonoff_trvzb_*`.
 (`--model TRVZB --name "{Room} - Radiator" --prefix {room}_radiator`); it was first used on the den
 thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing radiator first.
 
+**Living room plugs** — both Sonoff S60ZBTPGs, both now the living room's **presence sensors** in
+`Backend/App` (see CLAUDE.md → presence):
+
+| Device | Switch | Feeds | Presence rule |
+|---|---|---|---|
+| Living Room - Plug - TV | `switch.living_room_plug_tv_switch` | the living room TV | on, and ≥ 30 W for the whole last 5 s |
+| LivingRoomLightTreePlug (the owner calls them the **stick lights**) | `switch.livingroomlighttreeplug` | the stick lights | switched on |
+
+The TV plug was the **charging dock** plug under the TV until 2026-10-19, when it was repurposed and renamed
+with `tools/ha/rename-device.cjs` (it was "Living room plug - charging dock", entities misspelt
+`loving_room_charging_dock_*`). Its "Living room charging dock completion" automation, which sent a
+"charging complete" notification to Ste's phone, was deleted the same day. The Octopus cost tracker
+"octopus_home_mini" is attached to this device and now costs the TV (gotcha 16). Its start-up behaviour is
+**On**. The stick lights plug is not renamed and follows the WiZ lamp via the automations "Living room light
+tree on" (lamp power > 1 W, or back from `unavailable`) and "… off" (lamp turned off, `unavailable`, or 23:00) —
+hence the lag in gotcha 15.
+
 **Den plugs** — two Sonoff S60ZBTPGs in the **Games Room** area, both paired 2026-10-19 with
 `tools/ha/pair-zigbee.cjs`, each joining within 30 s of being plugged in:
 
@@ -359,7 +388,10 @@ thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing r
 
 Mains powered, with the usual `_power`, `_current`, `_voltage` and `_summation_delivered` sensors.
 Both shipped with start-up behaviour **Off**, so after a power cut whatever they feed stays unpowered
-until the plug is switched on. Neither is referenced by `Backend/App`. ZHA reused the same temporary
+until the plug is switched on. The TV plug is also the den's **presence sensor** in `Backend/App`
+(`DenTvPlugOnOff` / `DenTvPlugPower`; in use at ≥ 30 W within 5 minutes, see `PresenceService`), so
+den schedules can be set for occupied or unoccupied. The motion lights plug is not referenced by
+`Backend/App`. ZHA reused the same temporary
 entity IDs (`sonoff_s60zbtpg_3`, `_11`) for the second plug once the first had been renamed, so a
 default entity ID does not identify a device; the device ID does.
 

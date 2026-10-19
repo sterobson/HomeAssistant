@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace HomeAssistant.Shared;
 
 public class DeviceSettingsDto
@@ -48,6 +50,15 @@ public class HeatingSettingsDto
     /// BoilerControlMode, which describes how a boiler switch is actuated.
     /// </summary>
     public BoilerControlPath BoilerControlPath { get; set; } = BoilerControlPath.ExternalScheduler;
+
+    /// <summary>
+    /// Extra rules for individual heating devices (heater plugs and radiator valves), keyed by the
+    /// device's Home Assistant entity ID. A device runs only while its zone calls for heat AND its
+    /// rules allow it. <c>null</c> means never configured, and the app falls back to its built-in
+    /// defaults (DefaultDeviceRules); once saved from the UI this map is authoritative and a device
+    /// with no entry has no rules. Keep in step with the copy in the Functions project.
+    /// </summary>
+    public Dictionary<string, HomeAssistant.Shared.Climate.DeviceRulesDto>? DeviceRules { get; set; }
 }
 
 /// <summary>

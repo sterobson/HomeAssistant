@@ -8,7 +8,13 @@ namespace HomeAssistant.Services.Climate;
 
 internal interface IBoilerVerificationService
 {
-    void NotifyBoilerToggled(bool boilerNowOn, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves);
+    /// <summary>
+    /// Arms a verification of a press. Call it before reporting this cycle's valve changes, so a
+    /// valve that has just opened still shows how long it was shut. <paramref name="boilerOffSince"/>
+    /// is when the boiler was last believed to go off (null if unknown): a radiator whose valve was
+    /// open all that time was still cold, because the boiler was not feeding it.
+    /// </summary>
+    void NotifyBoilerToggled(bool boilerNowOn, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves, DateTimeOffset? boilerOffSince);
     void NotifyValveStartedHeating(string roomName, ICustomClimateControlEntity valve);
     void NotifyValveStopped(string roomName);
     Task CheckAsync();
@@ -32,6 +38,9 @@ internal class BoilerVerificationService : IBoilerVerificationService
     internal const int TurnOnWaitMinutes = 15;
     internal const int TurnOffSettlingMinutes = 30;
     internal const int TurnOffVerificationMinutes = 60;
+    // How long a radiator must have been cold (before a turn-on) or hot (before a turn-off) to be
+    // worth watching.
+    internal const int RadiatorSettledMinutes = 30;
 
     private BoilerToggleEvent? _pendingVerification;
     private readonly Dictionary<string, ValveHeatingRecord> _valveHeatingRecords = [];
@@ -44,13 +53,13 @@ internal class BoilerVerificationService : IBoilerVerificationService
         _timeProvider = timeProvider;
     }
 
-    public void NotifyBoilerToggled(bool boilerNowOn, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves)
+    public void NotifyBoilerToggled(bool boilerNowOn, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves, DateTimeOffset? boilerOffSince)
     {
         DateTimeOffset now = _timeProvider.GetUtcNow();
 
         if (boilerNowOn)
         {
-            SetupTurnOnVerification(now, activeValves);
+            SetupTurnOnVerification(now, activeValves, boilerOffSince);
         }
         else
         {
@@ -58,9 +67,11 @@ internal class BoilerVerificationService : IBoilerVerificationService
         }
     }
 
-    private void SetupTurnOnVerification(DateTimeOffset now, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves)
+    private void SetupTurnOnVerification(DateTimeOffset now, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves, DateTimeOffset? boilerOffSince)
     {
-        // Find all valves that were off for at least 30 minutes (cold radiators)
+        // Watch every open valve whose radiator has had no hot water for half an hour: either the
+        // boiler has been off that long, or the valve itself was shut that long.
+        bool boilerOffLongEnough = boilerOffSince.HasValue && (now - boilerOffSince.Value).TotalMinutes >= RadiatorSettledMinutes;
         List<MonitoredValve> qualifyingValves = [];
 
         foreach ((string roomName, ICustomClimateControlEntity valve) in activeValves)
@@ -69,9 +80,11 @@ internal class BoilerVerificationService : IBoilerVerificationService
             if (!currentTemp.HasValue)
                 continue;
 
-            if (_valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
+            bool valveShutLongEnough = _valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
                 && record.HeatingStoppedAt.HasValue
-                && (now - record.HeatingStoppedAt.Value).TotalMinutes >= 30)
+                && (now - record.HeatingStoppedAt.Value).TotalMinutes >= RadiatorSettledMinutes;
+
+            if (boilerOffLongEnough || valveShutLongEnough)
             {
                 qualifyingValves.Add(new MonitoredValve
                 {
@@ -118,7 +131,7 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
             if (_valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
                 && !record.HeatingStoppedAt.HasValue
-                && (now - record.HeatingStartedAt).TotalMinutes >= 30)
+                && (now - record.HeatingStartedAt).TotalMinutes >= RadiatorSettledMinutes)
             {
                 qualifyingValves.Add(new MonitoredValve
                 {

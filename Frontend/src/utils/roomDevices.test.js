@@ -28,10 +28,13 @@ describe('describeState', () => {
   it('capitalises plug states', () => {
     expect(describeState({ role: 'heaterPlug', state: 'on' }, celsius)).toBe('On')
     expect(describeState({ role: 'deskPlug', state: 'off' }, celsius)).toBe('Off')
+    expect(describeState({ role: 'tvPlug', state: 'on' }, celsius)).toBe('On')
+    expect(describeState({ role: 'lightsPlug', state: 'off' }, celsius)).toBe('Off')
   })
 
   it('adds the unit for other sensors', () => {
     expect(describeState({ role: 'deskPower', state: '45.2', unit: 'W' }, celsius)).toBe('45.2 W')
+    expect(describeState({ role: 'tvPower', state: '4.0', unit: 'W' }, celsius)).toBe('4.0 W')
   })
 
   it('never shows an unreachable device as a reading', () => {
@@ -53,6 +56,9 @@ describe('isUnavailable', () => {
 describe('labels', () => {
   it('names each role in sentence case', () => {
     expect(roleLabel('radiatorValve')).toBe('Radiator valve')
+    expect(roleLabel('tvPlug')).toBe('TV plug (presence)')
+    expect(roleLabel('tvPower')).toBe('TV power (presence)')
+    expect(roleLabel('lightsPlug')).toBe('Lights plug (presence)')
     expect(roleLabel('somethingNew')).toBe('Device')
   })
 

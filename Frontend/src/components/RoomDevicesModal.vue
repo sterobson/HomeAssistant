@@ -34,6 +34,13 @@
                 <span class="device-role">{{ roleLabel(device.role) }}</span>
                 <code class="device-entity">{{ device.entityId }}</code>
               </div>
+              <!-- Only the devices the heating code switches have rules. -->
+              <div v-if="isDrivable(device)" class="device-rules">
+                <span class="rules-summary">
+                  {{ rulesSummary(device) }}<span v-if="rulesAreBuiltIn(device)" class="rules-default"> (built-in)</span>
+                </span>
+                <button type="button" class="rules-btn" @click="openRules(device)">Rules</button>
+              </div>
             </li>
           </ul>
         </section>
@@ -43,15 +50,33 @@
         <button type="button" class="btn btn-secondary" @click="emit('close')">Close</button>
       </div>
     </div>
+
+    <DeviceRulesModal
+      v-if="editingDevice"
+      :key="editingDevice.entityId"
+      :device-title="deviceName(editingDevice)"
+      :rules="effectiveRules(editingDevice, deviceRules)"
+      :is-default="rulesAreBuiltIn(editingDevice)"
+      :presence-zones="presenceZones"
+      :saving="savingRules"
+      :error="rulesError"
+      :z-index="zIndex + 100"
+      @save="saveRules"
+      @cancel="closeRules"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import DeviceRulesModal from './DeviceRulesModal.vue'
+import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { describeState, deviceName, isUnavailable, roleLabel } from '../utils/roomDevices.js'
+import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
 
 const { formatTempWithUnit } = useFormatting()
+const { deviceRules, loadSettings, saveDeviceRules } = useDeviceSettings()
 
 const props = defineProps({
   title: {
@@ -66,6 +91,16 @@ const props = defineProps({
   zIndex: {
     type: Number,
     default: 1000
+  },
+  // [{ name, label }] zones that can detect presence, sorted, for labelling and choosing rule sources.
+  presenceZones: {
+    type: Array,
+    default: () => []
+  },
+  // Every drivable device in the house, so the first save can keep the other devices' built-in defaults.
+  allDevices: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -73,6 +108,40 @@ const emit = defineEmits(['close'])
 
 // A single zone needs no heading of its own; the modal title already names it.
 const showSectionTitles = computed(() => props.sections.length > 1)
+
+// The rules blob decides what a device's rules are once it exists, so it has to be loaded to show them.
+onMounted(() => loadSettings())
+
+const zoneLabel = (name) => props.presenceZones.find(z => z.name === name)?.label ?? name
+const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel)
+// Built-in defaults only apply while nothing has been saved.
+const rulesAreBuiltIn = (device) => deviceRules.value === null && device.rulesAreDefault === true
+
+const editingDevice = ref(null)
+const savingRules = ref(false)
+const rulesError = ref('')
+
+const openRules = (device) => {
+  rulesError.value = ''
+  editingDevice.value = device
+}
+
+const closeRules = () => {
+  if (!savingRules.value) editingDevice.value = null
+}
+
+const saveRules = async (rules) => {
+  savingRules.value = true
+  rulesError.value = ''
+  try {
+    await saveDeviceRules(editingDevice.value.entityId, rules, props.allDevices)
+    editingDevice.value = null
+  } catch (err) {
+    rulesError.value = err?.message || 'The rules could not be saved. Try again.'
+  } finally {
+    savingRules.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -239,6 +308,41 @@ const showSectionTitles = computed(() => props.sections.length > 1)
   color: var(--text-secondary);
   overflow-wrap: anywhere;
   text-align: right;
+}
+
+.device-rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.rules-summary {
+  flex: 1 1 10rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.rules-default {
+  color: var(--text-secondary);
+}
+
+.rules-btn {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.rules-btn:hover {
+  background-color: var(--hover-bg);
 }
 
 .devices-actions {

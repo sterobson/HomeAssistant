@@ -133,11 +133,21 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
 - **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs and
-  desk presence plugs, each with its live HA state), built by the NetDaemon app from the same switches that
+  presence plugs (desk plugs, and the den TV plug), each with its live HA state), built by the NetDaemon app from the same switches that
   bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
   group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`.
   Labels and state text are pure functions in `utils/roomDevices.js`. `devices` is display only and is
-  never sent back: `cleanRoomsForApi` leaves it out, as it should.
+  never sent back: `cleanRoomsForApi` leaves it out, as it should. The readings are a snapshot taken when
+  the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
+  on/off or active track changes, so a device-only change (plug switched, TV power, valve target) waits for
+  the next such upload. Left that way deliberately (2026-10-19).
+- **Device rules.** Each heater plug and radiator valve in a devices list shows its rules summary and a
+  **Rules** button opening `DeviceRulesModal` (schedule windows + presence sources with Any/All). Rules live
+  in the device-settings blob as `heating.deviceRules` (see CLAUDE.md → heating). While that is `null` each
+  drivable device carries the app's built-in `rules` (`rulesAreDefault: true`); the first save writes every
+  device's defaults plus the edit (`firstSaveMap`), because once saved a missing entry means "no rules".
+  Pure helpers and their tests are in `utils/deviceRules.js`; saving goes through
+  `useDeviceSettings().saveDeviceRules`.
 
   `RoomGroupCard` that shows the shared temperature and a flame if any zone is heating,
   but has no controls of its own — the controls live on the zone cards inside it. The

@@ -79,8 +79,9 @@ missing from Home Assistant.
 
 ### `Services/`
 
-- **`Climate/`** — `HeatingControlService` (schedule evaluation, device toggling, boiler
-  scoring), `BoilerVerificationService` (infers whether the boiler actually responded),
+- **`Climate/`** — `HeatingControlService` (schedule evaluation, device toggling, the boiler's
+  deficit rule), `BoilerVerificationService` (infers whether the boiler actually responded),
+  `BoilerStatePersistence` (keeps the boiler belief in `boiler-state.json` across restarts),
   `SchedulePersistenceService` + `ScheduleApiClient` (fetch and cache schedules, SignalR
   refresh), `RoomStatePersistenceService` (push room state back to the API).
 - **`Energy/`** — battery control and zone resolution, Octopus pricing analysis, power

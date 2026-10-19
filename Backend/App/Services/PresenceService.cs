@@ -8,6 +8,33 @@ namespace HomeAssistant.Services;
 
 internal class PresenceService : IPresenceService
 {
+    /// <summary>A desk is in use once its plug has drawn this much within <see cref="InUseLookBack"/>.</summary>
+    internal const double DeskInUseWatts = 40;
+
+    /// <summary>
+    /// The den is in use while its TV draws this much. The same threshold as the Home Assistant
+    /// automations that cut the den's motion lights while the TV is on (tools/ha/automations).
+    /// Its standby draw is about 4 W; just after its plug is switched on it draws ~40 W for a couple
+    /// of minutes, which counts as in use.
+    /// </summary>
+    internal const double DenTvInUseWatts = 30;
+
+    /// <summary>The living room TV counts as on at this draw, held for <see cref="LivingRoomTvSteadyFor"/>.</summary>
+    internal const double LivingRoomTvInUseWatts = 30;
+
+    /// <summary>
+    /// The living room TV must have drawn <see cref="LivingRoomTvInUseWatts"/> for this long, unbroken.
+    /// Unlike the den's look-back there is no hold: presence ends once the draw has been below the
+    /// threshold for a moment.
+    /// </summary>
+    internal static readonly TimeSpan LivingRoomTvSteadyFor = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// How far back a power reading still counts for the desks and the den. It doubles as a hold: a zone
+    /// stays in use for this long after the draw stops, so a brief dip does not flip the schedule.
+    /// </summary>
+    private static readonly TimeSpan InUseLookBack = TimeSpan.FromMinutes(5);
+
     private readonly NamedEntities _namedEntities;
     private readonly HistoryService _historyService;
 
@@ -20,45 +47,34 @@ internal class PresenceService : IPresenceService
             namedEntities.GamesRoomDeskPlugOnOff.EntityId,
             namedEntities.GamesRoomDeskPlugPower.EntityId,
             namedEntities.DiningRoomDeskPlugOnOff.EntityId,
-            namedEntities.DiningRoomDeskPlugPower.EntityId);
+            namedEntities.DiningRoomDeskPlugPower.EntityId,
+            namedEntities.DenTvPlugOnOff.EntityId,
+            namedEntities.DenTvPlugPower.EntityId,
+            namedEntities.LivingRoomTvPlugOnOff.EntityId,
+            namedEntities.LivingRoomTvPlugPower.EntityId,
+            namedEntities.LivingRoomStickLightsPlugOnOff.EntityId);
     }
 
     public async Task<bool> IsRoomInUse(string roomName)
     {
-        DateTime now = DateTime.Now;
-        switch (roomName.ToLower().Trim())
+        // Presence is measured from plugs. The desk zones use their desk plug; the den uses its TV;
+        // the living room uses its TV or its stick lights being switched on. The dining room zone
+        // deliberately has no presence: a person at Ruth's desk should not make the whole room's
+        // radiator come on. The den and living room are different because a TV or the room's lights
+        // mean the room itself is being used, not a desk in it.
+        return roomName.ToLower().Trim() switch
         {
-            // Presence is measured from desk plug power draw, so it belongs to the desk
-            // zones only. The radiator zones in the same rooms ("dining room", "den")
-            // deliberately have no presence: a person at the desk should not make the
-            // whole room's radiator come on.
-            case "games desk":
-                if (_namedEntities.GamesRoomDeskPlugOnOff.IsOn())
-                {
-                    // Get the power over the last 5 minutes.
-                    IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.GamesRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
-                    if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
-                    {
-                        return true;
-                    }
-                }
-                break;
-
-            case "dining desk":
-                if (_namedEntities.DiningRoomDeskPlugOnOff.IsOn())
-                {
-                    // Get the power over the last 5 minutes.
-                    IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(_namedEntities.DiningRoomDeskPlugPower.EntityId, now.AddMinutes(-5), now);
-                    if (histories.Count > 0 && histories.Max(h => h.State) >= 40)
-                    {
-                        return true;
-                    }
-                }
-                break;
-        }
-
-        return false;
+            "games desk" => await IsPlugDrawing(_namedEntities.GamesRoomDeskPlugOnOff, _namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts),
+            "dining desk" => await IsPlugDrawing(_namedEntities.DiningRoomDeskPlugOnOff, _namedEntities.DiningRoomDeskPlugPower, DeskInUseWatts),
+            "den" => await IsPlugDrawing(_namedEntities.DenTvPlugOnOff, _namedEntities.DenTvPlugPower, DenTvInUseWatts),
+            "living room" => _namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()
+                || await IsPlugDrawingSteadily(_namedEntities.LivingRoomTvPlugOnOff, _namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor),
+            _ => false
+        };
     }
+
+    /// <summary>Must list exactly the zones with an arm in IsRoomInUse and GetPresenceDevices.</summary>
+    public IReadOnlyList<string> PresenceZones { get; } = ["games desk", "dining desk", "den", "living room"];
 
     public bool CanDetectIfRoomInUse(string roomName)
     {
@@ -80,8 +96,52 @@ internal class PresenceService : IPresenceService
                 (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
                 (_namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
             ],
+            "den" =>
+            [
+                (_namedEntities.DenTvPlugOnOff.EntityId, RoomDeviceRoles.TvPlug),
+                (_namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)
+            ],
+            "living room" =>
+            [
+                (_namedEntities.LivingRoomTvPlugOnOff.EntityId, RoomDeviceRoles.TvPlug),
+                (_namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower),
+                (_namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)
+            ],
             _ => []
         };
     }
 
+    /// <summary>
+    /// True when the plug is on and its power reached <paramref name="thresholdWatts"/> at any point
+    /// within <see cref="InUseLookBack"/>. Recorder history includes the reading in force at the
+    /// start of the window, so a steady draw with no recent change still counts.
+    /// </summary>
+    private async Task<bool> IsPlugDrawing(ICustomSwitchEntity plug, ICustomNumericSensorEntity power, double thresholdWatts)
+    {
+        if (!plug.IsOn())
+        {
+            return false;
+        }
+
+        DateTime now = DateTime.Now;
+        IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(power.EntityId, now.Subtract(InUseLookBack), now);
+        return histories.Count > 0 && histories.Max(h => h.State) >= thresholdWatts;
+    }
+
+    /// <summary>
+    /// True when the plug is on and its power has been at or above <paramref name="thresholdWatts"/> for
+    /// the whole of the last <paramref name="steadyFor"/>: every reading in that window, including the one
+    /// in force at its start, meets the threshold. A non-numeric reading (unavailable) counts as 0 W.
+    /// </summary>
+    private async Task<bool> IsPlugDrawingSteadily(ICustomSwitchEntity plug, ICustomNumericSensorEntity power, double thresholdWatts, TimeSpan steadyFor)
+    {
+        if (!plug.IsOn())
+        {
+            return false;
+        }
+
+        DateTime now = DateTime.Now;
+        IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(power.EntityId, now.Subtract(steadyFor), now);
+        return histories.Count > 0 && histories.All(h => h.State >= thresholdWatts);
+    }
 }

@@ -2,6 +2,7 @@
 //
 //   node tools/ha/put-automation.cjs tools/ha/automations/<file>.json [...]
 //   node tools/ha/put-automation.cjs --check tools/ha/automations/<file>.json [...]   compare only, write nothing
+//   node tools/ha/put-automation.cjs --delete <automation id> --backup <file.json>    save its config, then delete it
 //
 // Each file is an automation config exactly as HA stores it, with an "id" field. Saving goes through
 // the same config API as the UI editor: HA writes automations.yaml and reloads automations itself.
@@ -22,6 +23,22 @@ const canonical = (v) => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
 
 run(async () => {
   const args = parseArgs(['check']);
+
+  if (args.delete) {
+    // The automation's numeric `id` attribute, not its entity ID. Its config is written out first so
+    // a deletion can be undone by putting that file back.
+    if (!args.backup) throw new Error('--delete needs --backup <file.json> to save the config to first');
+    const config = await rest('GET', `/config/automation/config/${args.delete}`);
+    fs.writeFileSync(args.backup, JSON.stringify(config, null, 2));
+    console.log(`saved "${config.alias}" to ${args.backup}`);
+    await rest('DELETE', `/config/automation/config/${args.delete}`);
+    await sleep(1500);
+    const states = await rest('GET', '/states');
+    const still = states.find((s) => s.entity_id.startsWith('automation.') && s.attributes.id === String(args.delete));
+    console.log(still ? `NOT deleted: ${still.entity_id} still exists` : `deleted automation ${args.delete}`);
+    return;
+  }
+
   const files = args._;
   if (!files.length) throw new Error('usage: put-automation.cjs [--check] <automation.json> [...]');
 

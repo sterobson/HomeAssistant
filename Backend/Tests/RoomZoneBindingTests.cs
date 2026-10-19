@@ -72,11 +72,12 @@ public sealed class RoomZoneBindingTests
     public async Task GamesDesk_HeaterStaysOffWithNobodyAtEitherDesk()
     {
         ZoneTestContext context = ZoneTestContext.CreateAt(new TimeSpan(12, 0, 0), "games desk");
-        ((FakeCustomNumericSensorEntity)context.Entities.DiningRoomDeskPlugPower).State = 0;
+        context.Presence.SetRoomValue("games desk", false);
+        context.Presence.SetRoomValue("dining desk", false);
 
         await context.Service.EvaluateAllSchedules("unit test");
 
-        context.GamesRoomHeaterPlug.TurnOnCount.ShouldBe(0, "no desk is in use, so nobody is considered home");
+        context.GamesRoomHeaterPlug.TurnOnCount.ShouldBe(0, "nobody is at Ste's desk, which its default rule requires");
     }
 
     [TestMethod]
@@ -315,6 +316,7 @@ public sealed class RoomZoneBindingTests
             services.AddSingleton(schedulePersistence);
             services.AddSingleton(statePersistence);
             services.AddSingleton(Substitute.For<IBoilerVerificationService>());
+            services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
             services.AddSingleton<FakeDeviceSettingsPersistenceService>();
             services.AddSingleton<IDeviceSettingsPersistenceService>(provider => provider.GetRequiredService<FakeDeviceSettingsPersistenceService>());
 
@@ -324,6 +326,7 @@ public sealed class RoomZoneBindingTests
                 .SetSpecificDateTime(new DateTimeOffset(new DateTime(2026, 10, 19).Add(timeOfDay)));
 
             FakeNamedEntities entities = provider.GetRequiredService<FakeNamedEntities>();
+            MockPresenceService presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>();
 
             // Every zone reads below target, so each one calls for heat.
             ((FakeCustomNumericSensorEntity)entities.DiningRoomClimateTemperature).State = RoomTemperature;
@@ -339,9 +342,10 @@ public sealed class RoomZoneBindingTests
                 denRadiator.SetTargetTemperature(IdleRadiatorTarget);
             }
 
-            // House presence is inferred from desk plug power draw.
-            ((FakeCustomSwitchEntity)entities.DiningRoomDeskPlugOnOff).TurnOn();
-            ((FakeCustomNumericSensorEntity)entities.DiningRoomDeskPlugPower).State = 50;
+            // Someone at each desk, so the desk heaters' default device rules (presence at that desk)
+            // let them run. Tests about nobody being present switch these off.
+            presence.SetRoomValue("games desk", true);
+            presence.SetRoomValue("dining desk", true);
 
             List<RoomSchedule> rooms = [];
             for (int i = 0; i < roomNames.Length; i++)
@@ -368,7 +372,7 @@ public sealed class RoomZoneBindingTests
                 Service = ActivatorUtilities.CreateInstance<HeatingControlService>(provider),
                 Entities = entities,
                 StatePersistence = statePersistence,
-                Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>()
+                Presence = presence
             };
         }
     }

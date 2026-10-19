@@ -11,11 +11,14 @@ const ROLE_LABELS = {
   radiatorValve: 'Radiator valve',
   heaterPlug: 'Heater plug',
   deskPlug: 'Desk plug (presence)',
-  deskPower: 'Desk power (presence)'
+  deskPower: 'Desk power (presence)',
+  tvPlug: 'TV plug (presence)',
+  tvPower: 'TV power (presence)',
+  lightsPlug: 'Lights plug (presence)'
 }
 
 // Display order within a zone: what it reads, what it drives, then how it detects presence.
-const ROLE_ORDER = ['thermometer', 'radiatorValve', 'heaterPlug', 'deskPlug', 'deskPower']
+const ROLE_ORDER = ['thermometer', 'radiatorValve', 'heaterPlug', 'deskPlug', 'deskPower', 'tvPlug', 'tvPower', 'lightsPlug']
 
 export const roleLabel = (role) => ROLE_LABELS[role] ?? 'Device'
 
@@ -53,6 +56,8 @@ export const describeState = (device, formatTempWithUnit) => {
     }
     case 'heaterPlug':
     case 'deskPlug':
+    case 'tvPlug':
+    case 'lightsPlug':
       if (device.state === 'on') return 'On'
       if (device.state === 'off') return 'Off'
       return device.state

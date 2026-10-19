@@ -4,7 +4,7 @@ using System.IO;
 namespace HomeAssistant.Services;
 
 /// <summary>
-/// Where the app keeps its on-disk caches (schedules, device settings, battery rules).
+/// Where the app keeps its on-disk caches (schedules, device settings, battery rules, the boiler belief).
 ///
 /// By default this is %LOCALAPPDATA%\HomeAssistant, which is correct for the deployed app. But that
 /// folder is shared by every copy of the app run under the same Windows user and is not keyed by

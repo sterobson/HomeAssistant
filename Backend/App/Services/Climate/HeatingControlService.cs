@@ -27,6 +27,7 @@ internal class HeatingControlService
     private readonly IRoomStatePersistenceService _statePersistence;
     private readonly IBoilerVerificationService _boilerVerification;
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
+    private readonly IBoilerStatePersistence _boilerStatePersistence;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     // The boiler is switched on once the rooms with a radiator valve are, between them, this many
@@ -34,15 +35,33 @@ internal class HeatingControlService
     internal const double BoilerDeficitThresholdCelsius = 3;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
+    // What the app believes the boiler is doing in fingerbot mode, and since when (null when unknown).
+    // The boiler has no feedback; see BoilerBelief.
     private bool _boilerOn = false;
+    private DateTimeOffset? _boilerBeliefSince = null;
+    // Set by a corrective press, cleared by any other. A verification that disagrees again straight
+    // after a correction is not trusted with another press, or a radiator that never cools for some
+    // other reason (sun, a second heat source) would have the boiler pressed every 90 minutes.
+    private bool _lastBoilerPressWasCorrection = false;
+    private bool _hasLoggedFingerbotUnavailable = false;
+
+    // Fingerbot movements the app did not command (the HA UI, a script, an automation). Guarded by
+    // _fingerbotLock because state changes arrive outside the evaluation semaphore.
+    private readonly object _fingerbotLock = new();
+    private bool? _lastSeenFingerbotState;
+    private bool? _expectedFingerbotState;
+    private int _pressesSeenOutsideTheApp = 0;
+
+    /// <summary>Just over the living room TV's 5 s steady-draw rule, so the re-evaluation sees it settled.</summary>
+    private static readonly TimeSpan PresencePowerSettleDelay = PresenceService.LivingRoomTvSteadyFor + TimeSpan.FromSeconds(1);
     private BoilerControlPath? _lastSeenBoilerControlPath = null;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
-    private readonly CustomSwitchWithConditions _gamesRoomHeaterSmartPlugOnOffWithConditions;
-    private readonly CustomSwitchWithConditions _diningRoomHeaterSmartPlugOnOffWithConditions;
-    private readonly CustomSwitchWithConditions _bedroom1HeaterSmartPlugOnOffWithConditions;
-    private readonly CustomSwitchWithConditions _kitchenHeaterSmartPlugOnOffWithConditions;
-    private readonly HousePresenceSensor _housePresenceSensor;
+    // Refreshed at the start of every evaluation pass (PrepareDeviceRulesAsync): the per-device rules in
+    // force, whether they are the built-in defaults, and which presence sources are in use right now.
+    private Dictionary<string, DeviceRulesDto>? _deviceRules;
+    private bool _deviceRulesAreDefault = true;
+    private Dictionary<string, bool> _presenceInUse = new(StringComparer.OrdinalIgnoreCase);
 
     public HeatingControlService(
         IHaContext ha,
@@ -56,7 +75,8 @@ internal class HeatingControlService
         ISchedulePersistenceService schedulePersistence,
         IRoomStatePersistenceService statePersistence,
         IBoilerVerificationService boilerVerification,
-        IDeviceSettingsPersistenceService deviceSettings)
+        IDeviceSettingsPersistenceService deviceSettings,
+        IBoilerStatePersistence boilerStatePersistence)
     {
         _ha = ha;
         _namedEntities = namedEntities;
@@ -70,18 +90,8 @@ internal class HeatingControlService
         _statePersistence = statePersistence;
         _boilerVerification = boilerVerification;
         _deviceSettings = deviceSettings;
-
-        // Entities which depend on other entities.
-        _gamesRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.GamesRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(GamesRoomHeaterConditions));
-        _diningRoomHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.DiningRoomHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(DiningRoomHeaterConditions));
-        _bedroom1HeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.Bedroom1HeaterSmartPlugOnOff, () => EvaluateHeaterConditions(Bedroom1HeaterConditions));
-        _kitchenHeaterSmartPlugOnOffWithConditions = new CustomSwitchWithConditions(namedEntities.KitchenHeaterSmartPlugOnOff, () => EvaluateHeaterConditions(KitchenHeaterConditions));
-
-        _housePresenceSensor = new(
-            namedEntities.GamesRoomDeskPlugOnOff,
-            namedEntities.GamesRoomDeskPlugPower,
-            namedEntities.DiningRoomDeskPlugOnOff,
-            namedEntities.DiningRoomDeskPlugPower);
+        _boilerStatePersistence = boilerStatePersistence;
+        _lastSeenFingerbotState = ReadFingerbotState();
 
         EntityExistenceValidator.ValidateEntities(ha, logger,
             namedEntities.GamesRoomHeaterSmartPlugOnOff.EntityId,
@@ -149,9 +159,95 @@ internal class HeatingControlService
         _namedEntities.LivingRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room temperature changed"));
         _namedEntities.DenClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("den temperature changed"));
 
+        // Room presence from TVs and lights (PresenceService). A TV is normally switched with its
+        // remote, not its plug, so its power draw is what changes.
+        _namedEntities.DenTvPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("den TV plug state changed"));
+        ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvInUseWatts, "den TV");
+        _namedEntities.LivingRoomTvPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room TV plug state changed"));
+        ReevaluateWhenPowerCrosses(_namedEntities.LivingRoomTvPlugPower, PresenceService.LivingRoomTvInUseWatts, "living room TV");
+        _namedEntities.LivingRoomStickLightsPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room stick lights switched"));
+
         // Subscribe to power changes
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
         _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules("electricity import rate changed"));
+
+        WatchBoilerFingerbot();
+    }
+
+    /// <summary>
+    /// Notices the fingerbot moving when the app did not tell it to, so a press from the HA UI, a
+    /// script or an automation flips the boiler belief instead of silently inverting it. The
+    /// fingerbot's HA state latches (after a press on 2026-10-19 it stayed "on" and never reverted), so any
+    /// on/off change the app did not command is someone else's press. A press made by hand on the
+    /// boiler itself goes through no device and cannot be seen.
+    /// </summary>
+    internal void WatchBoilerFingerbot()
+    {
+        _namedEntities.BoilerFingerbot.SubscribeToStateChangesAsync(async _ => await OnBoilerFingerbotStateChanged());
+    }
+
+    private async Task OnBoilerFingerbotStateChanged()
+    {
+        bool pressedOutsideTheApp = false;
+
+        lock (_fingerbotLock)
+        {
+            bool? previous = _lastSeenFingerbotState;
+            bool? current = ReadFingerbotState();
+            _lastSeenFingerbotState = current;
+
+            // Going unavailable or coming back is not a press.
+            if (current.HasValue && previous.HasValue && current != previous)
+            {
+                if (_expectedFingerbotState == current)
+                {
+                    _expectedFingerbotState = null;
+                }
+                else
+                {
+                    _pressesSeenOutsideTheApp++;
+                    pressedOutsideTheApp = true;
+                }
+            }
+        }
+
+        if (pressedOutsideTheApp)
+        {
+            await EvaluateAllSchedules("boiler fingerbot pressed outside the app");
+        }
+    }
+
+    /// <summary>The fingerbot's reported switch state, or null when it is unavailable or unknown.</summary>
+    private bool? ReadFingerbotState()
+    {
+        if (_namedEntities.BoilerFingerbot.IsOn())
+            return true;
+        if (_namedEntities.BoilerFingerbot.IsOff())
+            return false;
+        return null;
+    }
+
+    /// <summary>
+    /// Re-evaluates schedules shortly after a power reading crosses a presence threshold, in either
+    /// direction, rather than on every reading: plugs report every few seconds. The delay lets a "must
+    /// have drawn this for N seconds" rule (the living room TV) see the crossing as settled; for a
+    /// look-back rule (the den) it is merely harmless.
+    /// </summary>
+    private void ReevaluateWhenPowerCrosses(ICustomNumericSensorEntity power, double thresholdWatts, string what)
+    {
+        bool wasDrawing = false;
+        power.SubscribeToStateChangesAsync(reading =>
+        {
+            bool drawing = reading.State >= thresholdWatts;
+            if (drawing != wasDrawing)
+            {
+                wasDrawing = drawing;
+                string trigger = drawing ? $"{what} turned on" : $"{what} turned off";
+                _scheduler.Schedule(PresencePowerSettleDelay, async () => await EvaluateAllSchedules(trigger));
+            }
+
+            return Task.CompletedTask;
+        });
     }
 
     private async Task<RoomSchedules> LoadSchedulesAsync()
@@ -234,11 +330,13 @@ internal class HeatingControlService
         try
         {
             await _evaluationSemaphore.WaitAsync();
+            await PrepareDeviceRulesAsync();
             RoomSchedules schedules = await LoadSchedulesAsync();
             bool hasStateChanged = false;
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
                 hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
+                hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
             }
 
             await EvaluateBoilerState(schedules, trigger);
@@ -561,28 +659,39 @@ internal class HeatingControlService
         };
     }
 
+    /// <summary>
+    /// Switches a zone's heating on or off. Each device only comes on if its own rules allow it (and a
+    /// device asked to come on while its rules forbid it is held off), so "on" reports a change only when
+    /// at least one device actually started heating.
+    /// </summary>
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
     {
-        List<Func<bool, Task<bool>>?> toggleFuncs = [.. GetSwitchesForRoom(roomHeatingSchedule).Select(GetOnToggleFuncForSingleDevice).Where(f => f != null)];
+        List<(object Device, Func<bool, Task<bool>> Toggle)> toggles = [];
+        foreach (object device in GetSwitchesForRoom(roomHeatingSchedule))
+        {
+            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
+            if (toggle != null)
+            {
+                toggles.Add((device, toggle));
+            }
+        }
 
-        if (toggleFuncs.Count == 0)
+        if (toggles.Count == 0)
         {
             return null;
         }
 
         return async (value) =>
         {
-            bool anyChanged = false;
-            foreach (Func<bool, Task<bool>>? toggleFunc in toggleFuncs)
+            bool anyReachedRequestedState = false;
+            foreach ((object device, Func<bool, Task<bool>> toggle) in toggles)
             {
-                if (toggleFunc != null)
-                {
-                    bool changed = await toggleFunc(value);
-                    anyChanged |= changed;
-                }
+                bool desired = value && IsDeviceAllowed(device);
+                bool changed = await toggle(desired);
+                anyReachedRequestedState |= changed && desired == value;
             }
 
-            return anyChanged;
+            return anyReachedRequestedState;
         };
     }
 
@@ -634,21 +743,23 @@ internal class HeatingControlService
     {
         return roomHeatingSchedule.Name.Trim().ToLower() switch
         {
-            "kitchen" => [_kitchenHeaterSmartPlugOnOffWithConditions],
+            // Heater plugs are listed bare: whether each may run is decided by its device rules
+            // (DeviceRulesEvaluator, defaults in DefaultDeviceRules), not by a wrapper on the switch.
+            "kitchen" => [_namedEntities.KitchenHeaterSmartPlugOnOff],
 
             // The dining room and the den each split into two independently scheduled
             // zones: a desk (heater plug, presence-aware) and the room itself (radiator).
             // See the Heating section of CLAUDE.md.
-            "dining desk" => [_diningRoomHeaterSmartPlugOnOffWithConditions],
+            "dining desk" => [_namedEntities.DiningRoomHeaterSmartPlugOnOff],
             "dining room" => [_namedEntities.DiningRoomRadiatorThermostat],
-            "games desk" => [_gamesRoomHeaterSmartPlugOnOffWithConditions],
+            "games desk" => [_namedEntities.GamesRoomHeaterSmartPlugOnOff],
 
             // The den's two radiators (paired 2026-10-18).
             "den" => [_namedEntities.DenRadiator1Thermostat, _namedEntities.DenRadiator2Thermostat],
 
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
-            "bedroom 1" => [_bedroom1HeaterSmartPlugOnOffWithConditions, _namedEntities.Bedroom1RadiatorThermostat],
+            "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
             "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
             "upstairs bathroom" => [_namedEntities.UpstairsBathroomDummyPlugOnOff],
@@ -756,12 +867,15 @@ internal class HeatingControlService
                     RoomDeviceDto valveDevice = DescribeDevice(valve.EntityId, RoomDeviceRoles.RadiatorValve);
                     valveDevice.CurrentTemperature = valve.CurrentTemperature;
                     valveDevice.TargetTemperature = valve.TargetTemperature;
+                    AttachRules(valveDevice);
                     devices.Add(valveDevice);
                     break;
                 case DummySwitchEntity:
                     break;
                 case ICustomSwitchEntity plug:
-                    devices.Add(DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug));
+                    RoomDeviceDto plugDevice = DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug);
+                    AttachRules(plugDevice);
+                    devices.Add(plugDevice);
                     break;
             }
         }
@@ -772,6 +886,13 @@ internal class HeatingControlService
         }
 
         return devices;
+    }
+
+    /// <summary>Publishes the rules currently applied to a drivable device, so the UI can show and edit them.</summary>
+    private void AttachRules(RoomDeviceDto device)
+    {
+        device.Rules = GetRulesFor(device.EntityId);
+        device.RulesAreDefault = _deviceRulesAreDefault;
     }
 
     private RoomDeviceDto DescribeDevice(string entityId, string role)
@@ -823,8 +944,10 @@ internal class HeatingControlService
     private async Task EvaluateBoilerState(RoomSchedules schedules, string trigger)
     {
         BoilerControlPath controlPath = await GetBoilerControlPathAsync();
-        bool pathChanged = controlPath != _lastSeenBoilerControlPath;
+        BoilerControlPath? previousControlPath = _lastSeenBoilerControlPath;
+        bool pathChanged = controlPath != previousControlPath;
         _lastSeenBoilerControlPath = controlPath;
+        int pressesSeenOutsideTheApp = TakePressesSeenOutsideTheApp();
 
         if (controlPath == BoilerControlPath.ExternalScheduler)
         {
@@ -840,28 +963,69 @@ internal class HeatingControlService
                 _boilerVerification.Reset();
             }
 
-            // We have no belief about the boiler to hold while something else is driving it.
+            // We have no belief about the boiler to hold while something else is driving it, and a
+            // fingerbot press seen in this mode hit a dead button. Nothing is saved, so the belief
+            // last saved in fingerbot mode is left alone.
             _boilerOn = false;
+            _boilerBeliefSince = null;
             return;
         }
 
         if (pathChanged)
         {
-            _logger.LogInformation(
-                "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Assuming the boiler is currently OFF. Triggered by {Trigger}",
-                trigger);
+            // Only at startup does a saved belief describe the boiler now. Coming from the external
+            // scheduler, the scheduler has been driving it, so whatever was saved is stale.
+            BoilerBelief? savedBelief = previousControlPath == null ? _boilerStatePersistence.Load() : null;
+
+            if (savedBelief != null)
+            {
+                _boilerOn = savedBelief.BoilerOn;
+                _boilerBeliefSince = savedBelief.Since;
+                _logger.LogInformation(
+                    "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Carrying on from the saved belief that the boiler has been {State} since {Since:O}. Triggered by {Trigger}",
+                    _boilerOn ? "ON" : "OFF", savedBelief.Since, trigger);
+            }
+            else
+            {
+                SetBoilerBelief(false, _timeProvider.GetUtcNow());
+                _logger.LogInformation(
+                    "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Assuming the boiler is currently OFF. Triggered by {Trigger}",
+                    trigger);
+            }
+
+            _lastBoilerPressWasCorrection = false;
+        }
+
+        if (pressesSeenOutsideTheApp > 0)
+        {
+            // Each fingerbot movement is one press of a toggle button.
+            if (pressesSeenOutsideTheApp % 2 == 1)
+            {
+                SetBoilerBelief(!_boilerOn, _timeProvider.GetUtcNow());
+            }
+
+            _logger.LogWarning(
+                "The boiler fingerbot was pressed {Count} time(s) outside the app. Now believing the boiler is {State}. Triggered by {Trigger}",
+                pressesSeenOutsideTheApp, _boilerOn ? "ON" : "OFF", trigger);
+
+            // Any pending verification was judging the old state and would "correct" the new one.
+            _boilerVerification.Reset();
+            _lastBoilerPressWasCorrection = false;
         }
 
         // Sum how far each room with a radiator valve is below its target. A room at or above its
         // target contributes nothing: it is disregarded, not a credit against the cold rooms.
         List<(string RoomName, double Deficit)> roomsBelowTarget = [];
         List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves = [];
+        List<string> roomsWithValvesShut = [];
         double totalDeficit = 0;
 
         foreach (RoomSchedule roomSchedule in schedules.Rooms)
         {
             object[] devices = GetSwitchesForRoom(roomSchedule);
-            List<ICustomClimateControlEntity> radiatorValves = devices.OfType<ICustomClimateControlEntity>().ToList();
+            // Only valves their device rules currently allow can take heat from the boiler; a room whose
+            // valves are all held off by their rules adds no demand.
+            List<ICustomClimateControlEntity> radiatorValves = devices.OfType<ICustomClimateControlEntity>().Where(IsDeviceAllowed).ToList();
 
             if (radiatorValves.Count == 0)
                 continue;
@@ -881,12 +1045,11 @@ internal class HeatingControlService
                 foreach (ICustomClimateControlEntity valve in radiatorValves)
                 {
                     activeValves.Add((roomSchedule.Name, valve));
-                    _boilerVerification.NotifyValveStartedHeating(roomSchedule.Name, valve);
                 }
             }
             else
             {
-                _boilerVerification.NotifyValveStopped(roomSchedule.Name);
+                roomsWithValvesShut.Add(roomSchedule.Name);
             }
         }
 
@@ -894,15 +1057,34 @@ internal class HeatingControlService
         bool? verifiedState = _boilerVerification.GetVerifiedBoilerState();
         if (verifiedState.HasValue && verifiedState.Value != _boilerOn)
         {
-            _logger.LogWarning(
-                "Boiler verification detected state mismatch: we thought boiler was {Expected}, but it appears to be {Actual}. Correcting by toggling fingerbot",
-                _boilerOn ? "ON" : "OFF", verifiedState.Value ? "ON" : "OFF");
+            if (_lastBoilerPressWasCorrection)
+            {
+                _logger.LogWarning(
+                    "Boiler verification disagreed again straight after a corrective press: it thinks the boiler is {Actual}, we think {Expected}. Not pressing again, because a radiator that is not responding for some other reason would otherwise have the boiler pressed every 90 minutes. Keeping the belief until the next normal press",
+                    verifiedState.Value ? "ON" : "OFF", _boilerOn ? "ON" : "OFF");
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Boiler verification detected state mismatch: we thought boiler was {Expected}, but it appears to be {Actual}. Correcting by toggling fingerbot",
+                    _boilerOn ? "ON" : "OFF", verifiedState.Value ? "ON" : "OFF");
 
-            _boilerOn = verifiedState.Value;
-            ToggleBoilerFingerbot();
-            _boilerOn = !verifiedState.Value;
+                // The boiler has really been in the verified state since the press we believed in.
+                DateTimeOffset? actuallySince = _boilerBeliefSince;
 
-            _boilerVerification.NotifyBoilerToggled(_boilerOn, activeValves);
+                if (PressBoilerFingerbot())
+                {
+                    // The press puts the boiler where we believed it was.
+                    SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
+                    _lastBoilerPressWasCorrection = true;
+                    _boilerVerification.NotifyBoilerToggled(_boilerOn, activeValves, actuallySince);
+                }
+                else
+                {
+                    // Nothing could be pressed, so the verification is the best evidence there is.
+                    SetBoilerBelief(verifiedState.Value, actuallySince ?? _timeProvider.GetUtcNow());
+                }
+            }
         }
 
         if (!_boilerOn)
@@ -910,14 +1092,19 @@ internal class HeatingControlService
             // Boiler is OFF - should we turn it ON?
             if (totalDeficit >= BoilerDeficitThresholdCelsius)
             {
-                ToggleBoilerFingerbot();
-                _boilerOn = true;
-                _logger.LogInformation(
-                    "Boiler turned ON (total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
-                    totalDeficit, BoilerDeficitThresholdCelsius, trigger,
-                    string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
+                DateTimeOffset? offSince = _boilerBeliefSince;
 
-                _boilerVerification.NotifyBoilerToggled(true, activeValves);
+                if (PressBoilerFingerbot())
+                {
+                    SetBoilerBelief(true, _timeProvider.GetUtcNow());
+                    _lastBoilerPressWasCorrection = false;
+                    _logger.LogInformation(
+                        "Boiler turned ON (total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
+                        totalDeficit, BoilerDeficitThresholdCelsius, trigger,
+                        string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
+
+                    _boilerVerification.NotifyBoilerToggled(true, activeValves, offSince);
+                }
             }
         }
         else
@@ -925,16 +1112,48 @@ internal class HeatingControlService
             // Boiler is ON - should we turn it OFF?
             if (totalDeficit <= 0)
             {
-                ToggleBoilerFingerbot();
-                _boilerOn = false;
-                _logger.LogInformation("Boiler turned OFF (no room with a radiator valve is below its target). Triggered by {Trigger}", trigger);
+                if (PressBoilerFingerbot())
+                {
+                    SetBoilerBelief(false, _timeProvider.GetUtcNow());
+                    _lastBoilerPressWasCorrection = false;
+                    _logger.LogInformation("Boiler turned OFF (no room with a radiator valve is below its target). Triggered by {Trigger}", trigger);
 
-                _boilerVerification.NotifyBoilerToggled(false, activeValves);
+                    _boilerVerification.NotifyBoilerToggled(false, activeValves, null);
+                }
             }
+        }
+
+        // Only now record this cycle's valve changes. Done before the presses above, a valve that has
+        // just opened would already have lost the "shut since" time a turn-on verification needs.
+        foreach ((string roomName, ICustomClimateControlEntity valve) in activeValves)
+        {
+            _boilerVerification.NotifyValveStartedHeating(roomName, valve);
+        }
+
+        foreach (string roomName in roomsWithValvesShut)
+        {
+            _boilerVerification.NotifyValveStopped(roomName);
         }
 
         // Run the verification check
         await _boilerVerification.CheckAsync();
+    }
+
+    private void SetBoilerBelief(bool boilerOn, DateTimeOffset since)
+    {
+        _boilerOn = boilerOn;
+        _boilerBeliefSince = since;
+        _boilerStatePersistence.Save(new BoilerBelief(boilerOn, since));
+    }
+
+    private int TakePressesSeenOutsideTheApp()
+    {
+        lock (_fingerbotLock)
+        {
+            int presses = _pressesSeenOutsideTheApp;
+            _pressesSeenOutsideTheApp = 0;
+            return presses;
+        }
     }
 
     /// <summary>
@@ -956,9 +1175,36 @@ internal class HeatingControlService
         }
     }
 
-    private void ToggleBoilerFingerbot()
+    /// <summary>
+    /// Presses the boiler's button by flipping the fingerbot's switch state; each change is one press.
+    /// Returns false, pressing nothing, when the fingerbot is unavailable: HA accepts a command for an
+    /// unreachable device with HTTP 200, so pressing anyway would flip the belief with nothing moved.
+    /// </summary>
+    private bool PressBoilerFingerbot()
     {
-        if (_namedEntities.BoilerFingerbot.IsOn())
+        bool? fingerbotState = ReadFingerbotState();
+
+        if (fingerbotState == null)
+        {
+            if (!_hasLoggedFingerbotUnavailable)
+            {
+                _logger.LogWarning(
+                    "The boiler fingerbot is unavailable, so the boiler cannot be pressed. Keeping the belief that it is {State} until the fingerbot comes back",
+                    _boilerOn ? "ON" : "OFF");
+                _hasLoggedFingerbotUnavailable = true;
+            }
+
+            return false;
+        }
+
+        _hasLoggedFingerbotUnavailable = false;
+
+        lock (_fingerbotLock)
+        {
+            _expectedFingerbotState = !fingerbotState.Value;
+        }
+
+        if (fingerbotState.Value)
         {
             _namedEntities.BoilerFingerbot.TurnOff();
         }
@@ -966,89 +1212,134 @@ internal class HeatingControlService
         {
             _namedEntities.BoilerFingerbot.TurnOn();
         }
+
+        return true;
     }
 
-    private bool EvaluateHeaterConditions(HeaterConditions conditions)
+    /// <summary>
+    /// Loads the per-device rules and works out which presence sources are in use, once per evaluation
+    /// pass. Saved rules (device settings <c>heating.deviceRules</c>) win; if none have ever been saved, or
+    /// the settings cannot be read, the built-in defaults apply, which still keep the heaters restricted.
+    /// </summary>
+    private async Task PrepareDeviceRulesAsync()
     {
-        return EvaluateHeaterConditions(conditions, _housePresenceSensor.State == true, _timeProvider.GetLocalNow().TimeOfDay);
+        Dictionary<string, DeviceRulesDto>? saved = null;
+        try
+        {
+            DeviceSettingsDto? settings = await _deviceSettings.GetSettingsAsync();
+            saved = settings?.Heating?.DeviceRules;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read device rules from device settings - using the built-in defaults");
+        }
+
+        _deviceRulesAreDefault = saved == null;
+        _deviceRules = saved != null
+            ? new Dictionary<string, DeviceRulesDto>(saved, StringComparer.OrdinalIgnoreCase)
+            : DefaultDeviceRules.For(_namedEntities);
+
+        // Presence is only worth looking up (it costs a history query per zone) if some rule asks for it.
+        bool anyPresenceRule = _deviceRules.Values.Any(rules => rules.Presence?.Sources.Count > 0);
+        _presenceInUse = anyPresenceRule ? await GetPresenceInUseAsync() : new(StringComparer.OrdinalIgnoreCase);
     }
 
-    internal static bool EvaluateHeaterConditions(HeaterConditions conditions, bool housePresent, TimeSpan now)
+    /// <summary>
+    /// Each presence zone's in-use state, plus <see cref="PresenceSources.House"/> = any of them. Motion
+    /// sensors are deliberately not presence sources. A zone whose check fails counts as not in use.
+    /// </summary>
+    private async Task<Dictionary<string, bool>> GetPresenceInUseAsync()
     {
-        // Check power override first (if configured)
-        // Only trust power reading if the switch is actually on (plugs report stale power when off)
-        bool switchIsOn = conditions.PowerOverrideSwitch?.IsOn() == true;
-        if (switchIsOn && conditions.PowerOverrideSensor?.State >= conditions.PowerOverrideThreshold)
+        Dictionary<string, bool> inUse = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string zone in _presenceService.PresenceZones)
+        {
+            try
+            {
+                inUse[zone] = await _presenceService.IsRoomInUse(zone);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not check presence in {Zone} - treating it as not in use", zone);
+                inUse[zone] = false;
+            }
+        }
+
+        inUse[PresenceSources.House] = inUse.Values.Any(value => value);
+        return inUse;
+    }
+
+    private DeviceRulesDto? GetRulesFor(string entityId)
+    {
+        return _deviceRules != null && _deviceRules.TryGetValue(entityId, out DeviceRulesDto? rules) ? rules : null;
+    }
+
+    /// <summary>Whether a drivable device's rules let it run right now. Devices without rules always may.</summary>
+    private bool IsDeviceAllowed(object device)
+    {
+        string? entityId = device switch
+        {
+            DummySwitchEntity => null,
+            ICustomSwitchEntity plug => plug.EntityId,
+            ICustomClimateControlEntity valve => valve.EntityId,
+            _ => null
+        };
+
+        if (entityId == null)
         {
             return true;
         }
 
-        // House presence check
-        if (conditions.RequireHousePresence && !housePresent)
+        return DeviceRulesEvaluator.Allows(
+            GetRulesFor(entityId),
+            _timeProvider.GetLocalNow().DateTime,
+            source => _presenceInUse.TryGetValue(source.Trim(), out bool inUse) && inUse);
+    }
+
+    /// <summary>
+    /// After a zone has been evaluated, makes each of its devices follow its own rules while the zone is
+    /// heating: a device whose rules have stopped passing is turned off (the owner's choice — a heater must
+    /// not keep running after everyone has gone), and one whose rules pass again is turned back on. If the
+    /// rules hold every device off, the zone stops counting as heating. Returns whether anything changed.
+    /// </summary>
+    private async Task<bool> EnforceDeviceRulesAsync(RoomSchedule room)
+    {
+        if (!_roomStates.TryGetValue(room.Id, out RoomState? state) || !state.HeatingActive)
         {
             return false;
         }
 
-        // Time-based check. No windows configured means any time of day.
-        if (conditions.AllowedTimeWindows is null)
+        bool changed = false;
+        bool anyAllowed = false;
+        foreach (object device in GetSwitchesForRoom(room))
         {
-            return true;
+            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
+            if (toggle == null)
+            {
+                continue;
+            }
+
+            bool allowed = IsDeviceAllowed(device);
+            anyAllowed |= allowed;
+            if (await toggle(allowed))
+            {
+                changed = true;
+                _logger.LogInformation("Room {Room}: {Device} turned {State} by its device rules", room.Name, DeviceName(device), allowed ? "on" : "off");
+            }
         }
 
-        return conditions.AllowedTimeWindows.Any(window => now >= window.Start && now < window.End);
+        if (!anyAllowed)
+        {
+            state.HeatingActive = false;
+            changed = true;
+        }
+
+        return changed;
     }
 
-    private HeaterConditions GamesRoomHeaterConditions => new()
+    private static string DeviceName(object device) => device switch
     {
-        RequireHousePresence = true,
-        PowerOverrideSwitch = _namedEntities.GamesRoomDeskPlugOnOff,
-        PowerOverrideSensor = _namedEntities.GamesRoomDeskPlugPower,
-        PowerOverrideThreshold = 30
-    };
-
-    private HeaterConditions DiningRoomHeaterConditions => new()
-    {
-        RequireHousePresence = true,
-        PowerOverrideSwitch = _namedEntities.DiningRoomDeskPlugOnOff,
-        PowerOverrideSensor = _namedEntities.DiningRoomDeskPlugPower,
-        PowerOverrideThreshold = 30
-    };
-
-    private HeaterConditions KitchenHeaterConditions => new()
-    {
-        RequireHousePresence = true,
-        AllowedTimeWindows = [new(new TimeSpan(6, 0, 0), new TimeSpan(21, 0, 0))]
-    };
-
-    private HeaterConditions Bedroom1HeaterConditions => new()
-    {
-        RequireHousePresence = true,
-        AllowedTimeWindows =
-        [
-            new(new TimeSpan(8, 0, 0), new TimeSpan(8, 30, 0)),
-            new(new TimeSpan(21, 0, 0), new TimeSpan(21, 15, 0))
-        ]
-    };
-}
-
-internal record TimeWindow(TimeSpan Start, TimeSpan End);
-
-internal class HeaterConditions
-{
-    public bool RequireHousePresence { get; init; } = true;
-    public ICustomSwitchEntity? PowerOverrideSwitch { get; init; }
-    public ICustomNumericSensorEntity? PowerOverrideSensor { get; init; }
-    public double PowerOverrideThreshold { get; init; } = 30;
-    /// <summary>Times of day the plug may be turned on. Null means any time.</summary>
-    public List<TimeWindow>? AllowedTimeWindows { get; init; }
-}
-
-internal record HeatingDevice(object Device, HeaterConditions? Conditions = null)
-{
-    public string DeviceName => Device switch
-    {
-        ICustomSwitchEntity sw => sw.EntityId,
-        ICustomClimateControlEntity cc => cc.EntityId,
-        _ => "Unknown"
+        ICustomSwitchEntity plug => plug.EntityId,
+        ICustomClimateControlEntity valve => valve.EntityId,
+        _ => "unknown device"
     };
 }

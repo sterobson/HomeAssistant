@@ -54,6 +54,16 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomClimateControlEntity DenRadiator2Thermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(DenRadiator2Thermostat) };
 
+    public ICustomSwitchEntity LivingRoomTvPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(LivingRoomTvPlugOnOff) };
+
+    public ICustomNumericSensorEntity LivingRoomTvPlugPower { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(LivingRoomTvPlugPower) };
+
+    public ICustomSwitchEntity LivingRoomStickLightsPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(LivingRoomStickLightsPlugOnOff) };
+
+    public ICustomSwitchEntity DenTvPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(DenTvPlugOnOff) };
+
+    public ICustomNumericSensorEntity DenTvPlugPower { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DenTvPlugPower) };
+
     public ICustomNumericSensorEntity Bedroom3Temperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(Bedroom3Temperature) };
 
     public ICustomClimateControlEntity Bedroom3RadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(Bedroom3RadiatorThermostat) };
@@ -62,7 +72,9 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; } = new DummySwitchEntity(false);
 
-    public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot) };
+    // Reachable and reporting "off", as the real one does between presses; a fingerbot with no
+    // state at all is unavailable, and the app refuses to press it.
+    public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot), InitialState = false };
 }
 
 public class FakeCustomNumericSensorEntity : ICustomNumericSensorEntity
@@ -103,6 +115,23 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
     public int TurnOffCount { get; private set; }
 
     public int ToggleCount => TurnOnCount + TurnOffCount;
+
+    /// <summary>The state before anything happens. Null means unknown or unavailable.</summary>
+    public bool? InitialState { init => _state = value; }
+
+    /// <summary>
+    /// Changes the reported state as something other than the app would: the HA UI, a script, or the
+    /// device dropping off the network (null). Not counted as one of the app's commands. Returns the
+    /// subscriber's task so a test can wait for whatever it set off.
+    /// </summary>
+    public Task SetStateFromOutsideTheApp(bool? state)
+    {
+        if (_state == state)
+            return Task.CompletedTask;
+
+        _state = state;
+        return _stateChangeObserver?.Invoke(this) ?? Task.CompletedTask;
+    }
 
     public bool IsOff() => _state == false;
 

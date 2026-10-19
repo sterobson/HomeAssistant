@@ -49,6 +49,16 @@ public class RoomDeviceDto
 
     /// <summary>Radiator valves only: the target the valve is set to.</summary>
     public double? TargetTemperature { get; set; }
+
+    /// <summary>
+    /// Drivable devices only (heater plugs, radiator valves): the rules the app is applying to this
+    /// device right now, or null for none. Lets the UI show, and start editing from, the built-in
+    /// defaults before anyone has saved rules.
+    /// </summary>
+    public DeviceRulesDto? Rules { get; set; }
+
+    /// <summary>True when <see cref="Rules"/> are the app's built-in defaults rather than saved ones.</summary>
+    public bool RulesAreDefault { get; set; }
 }
 
 public static class RoomDeviceRoles
@@ -58,4 +68,7 @@ public static class RoomDeviceRoles
     public const string HeaterPlug = "heaterPlug";
     public const string DeskPlug = "deskPlug";
     public const string DeskPower = "deskPower";
+    public const string TvPlug = "tvPlug";
+    public const string TvPower = "tvPower";
+    public const string LightsPlug = "lightsPlug";
 }

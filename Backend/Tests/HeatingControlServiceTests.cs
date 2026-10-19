@@ -3,6 +3,7 @@ using HomeAssistant.Devices.Batteries;
 using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
 using HomeAssistant.Services.Climate;
+using HomeAssistant.Shared;
 using HomeAssistant.Shared.Climate;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -194,12 +195,13 @@ public sealed class HeatingControlServiceTests
 
         FakeNamedEntities namedEntities = serviceProvider.GetRequiredService<FakeNamedEntities>();
 
-        // Set up house presence by configuring desk plug power
-        // The HousePresenceSensor checks if desk power > 30 for either games room or dining room
-        // "House presence" (someone is home) is different from "room occupied" (specific room in use)
-        // Use dining room desk for house presence so it works even when games room is unoccupied
-        ((FakeCustomSwitchEntity)namedEntities.DiningRoomDeskPlugOnOff).TurnOn();
-        ((FakeCustomNumericSensorEntity)namedEntities.DiningRoomDeskPlugPower).State = 50;
+        // These rows test SCHEDULE selection (which track applies, pre-heat, hysteresis, DST) and read
+        // the answer off the heater plug. Saved-but-empty device rules switch the per-device rules off,
+        // so the plug follows the schedule alone. The rules themselves are covered by DeviceRulesHeatingTests.
+        serviceProvider.GetRequiredService<FakeDeviceSettingsPersistenceService>().Settings = new DeviceSettingsDto
+        {
+            Heating = new HeatingSettingsDto { DeviceRules = [] }
+        };
 
         HeatingControlService sut = ActivatorUtilities.CreateInstance<HeatingControlService>(serviceProvider);
 
@@ -323,6 +325,7 @@ public sealed class HeatingControlServiceTests
         services.AddSingleton(Substitute.For<ISchedulePersistenceService>());
         services.AddSingleton(Substitute.For<IRoomStatePersistenceService>());
         services.AddSingleton(Substitute.For<IBoilerVerificationService>());
+        services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
         services.AddSingleton<FakeDeviceSettingsPersistenceService>();
         services.AddSingleton<IDeviceSettingsPersistenceService>(provider => provider.GetRequiredService<FakeDeviceSettingsPersistenceService>());
 
@@ -454,6 +457,9 @@ internal class MockPresenceService : IPresenceService
     {
         return CanDetectIfRoomInUse(roomName) ? [($"{roomName} desk plug", RoomDeviceRoles.DeskPlug)] : [];
     }
+
+    /// <summary>Every zone given a value with <see cref="SetRoomValue"/>.</summary>
+    public IReadOnlyList<string> PresenceZones => [.. _presenceValue.Keys];
 }
 
 internal class FakeTimeProvider : TimeProvider

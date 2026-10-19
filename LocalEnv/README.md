@@ -93,6 +93,19 @@ Never allow the SolaX inverter entities, the boiler fingerbot or anything the pr
 
 ## Things that will surprise you
 
+- **Re-publishing the app can undo the guard.** `dotnet publish Backend/App -o LocalEnv/.work/app` copies the
+  repo's `appsettings.development.json`, which points at the real HA on `homeassistant.local:8123`, and on
+  Windows that is the *same file* as the guard config `appsettings.Development.json`. It can also bring the
+  secrets files, which `program.cs` loads *after* it (`appsettings.secrets.development.json` sets house
+  `1701`). So after every publish: delete any `appsettings.secrets.*` / `appsettings.production*` from
+  `.work/app`, re-run `node LocalEnv/make-app-config.mjs LOCAL-COPY`, and check the file says port 8124
+  before starting the app. Then confirm at the network level that the app holds connections to 8124 and
+  none to 8123 (`Get-NetTCPConnection -OwningProcess <pid>`). Found 2026-10-19 while re-publishing.
+- A stale local stack looks like missing features, not an error: the old Functions copy drops fields it
+  doesn't know (the room `devices` list read as 0 everywhere until both copies were re-published).
+- The app makes one outbound HTTPS connection to `api.octopus.energy` (CloudFront); with the placeholder
+  credentials it reads nothing. That is expected, not a leak.
+
 - The app evaluates schedules at startup from its **cache folder first**; it only re-fetches after 10 minutes.
   To pick up an API change straight away, delete `.work/storage/heating-schedules.json` and restart it.
 - Without SignalR (none is configured) `signalr/negotiate` returns 500 and the UI/app log a connection error.
