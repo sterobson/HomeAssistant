@@ -273,6 +273,101 @@ public sealed class HeatingBoilerControlTests
         context.LivingRoomThermostat.SetCount.ShouldBe(1, "opened once, from the saved belief, with no shut-then-open on the way");
     }
 
+    // The boiler goes off once no room is calling, and valves are only moved when there may be hot water
+    // behind them (owner, 2026-10-19).
+
+    [TestMethod]
+    public async Task TheBoilerTurnsOff_WhenNoRoomIsCalling_EvenWithOneAFractionShort()
+    {
+        // As on 2026-10-19: a boost ends and Bedroom 3 is left 0.1 degrees short. Too little to open its
+        // valve, so it must not hold the boiler on with every valve shut.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15.1);
+        await context.Service.EvaluateAllSchedules("living room 3 degrees short");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        context.LivingRoomTemperature.State = 18;
+        await context.Service.EvaluateAllSchedules("living room at target, bedroom 2 still 0.1 short");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "bedroom 2 never started calling, so nothing needs the boiler");
+        context.Logger.CountMessagesContaining("Boiler turned OFF").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task ARoomThatStartedCalling_KeepsTheBoilerOnUntilItReachesItsTarget()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15);
+        await context.Service.EvaluateAllSchedules("cold");
+
+        context.LivingRoomTemperature.State = 17.9;
+        await context.Service.EvaluateAllSchedules("0.1 short, still calling");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "a room that is warming carries on until it gets there");
+    }
+
+    [TestMethod]
+    public async Task TurningTheBoilerOff_LeavesTheValvesWhereTheyAre()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15);
+        await context.Service.EvaluateAllSchedules("cold");
+        context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThan(context.LivingRoomThermostat.CurrentTemperature.GetValueOrDefault());
+        int setsWhileOn = context.LivingRoomThermostat.SetCount;
+
+        // Warm enough that, with the boiler on, its valve would be shut.
+        context.LivingRoomTemperature.State = 18.5;
+        await context.Service.EvaluateAllSchedules("warm, boiler off");
+        await context.Service.EvaluateAllSchedules("next cycle");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2);
+        context.LivingRoomThermostat.SetCount.ShouldBe(setsWhileOn, "with the boiler off, shutting the valve would spend its battery for nothing");
+    }
+
+    [TestMethod]
+    public async Task TurningTheBoilerOn_BringsAValveLeftOpenInAWarmRoomIntoLine()
+    {
+        // The living room is warm but its valve was left open when the boiler last went off.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 20);
+        context.LivingRoomThermostat.SetTargetTemperature(20);
+        context.Bedroom2Temperature.State = 25;
+        await context.Service.EvaluateAllSchedules("nothing calling");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+        context.LivingRoomThermostat.TargetTemperature.ShouldBe(20, "left alone while the boiler is off");
+
+        context.Bedroom2Temperature.State = 15;
+        await context.Service.EvaluateAllSchedules("bedroom 2 calls for heat");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeLessThan(context.LivingRoomThermostat.CurrentTemperature.GetValueOrDefault(),
+            "with hot water flowing, the warm room's valve is shut in the same pass");
+        context.Bedroom2Thermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThan(context.Bedroom2Thermostat.CurrentTemperature.GetValueOrDefault());
+    }
+
+    [TestMethod]
+    public async Task AFailedTurnOffCheck_ShutsTheWarmRoomsValves()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, realVerification: true);
+        await context.Service.EvaluateAllSchedules("cold, boiler on");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        context.AdvanceMinutes(BoilerVerificationService.RadiatorSettledMinutes + 1);
+        context.LivingRoomTemperature.State = 25;
+        context.Bedroom2Temperature.State = 25;
+        await context.Service.EvaluateAllSchedules("warm, boiler off");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2);
+        context.ValvesAreOpen().ShouldBeTrue("the boiler is believed off, so the valves are left alone");
+
+        // The radiators never cool: the turn-off did not reach the boiler.
+        context.AdvanceMinutes(BoilerVerificationService.TurnOffSettlingMinutes + 1);
+        await context.Service.EvaluateAllSchedules("settled");
+        context.AdvanceMinutes(BoilerVerificationService.TurnOffVerificationMinutes + 1);
+        await context.Service.EvaluateAllSchedules("verification due");
+        context.ValvesAreOpen().ShouldBeTrue();
+
+        await context.Service.EvaluateAllSchedules("next cycle");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(3, "the mismatch is corrected with a press");
+        context.ValvesAreShut().ShouldBeTrue("evidence that the boiler may still be running is the reason to shut the warm rooms' valves");
+    }
+
     // A boost starts the boiler whatever the total deficit (owner, 2026-10-19).
 
     [TestMethod]

@@ -253,29 +253,37 @@ Four more heating notes:
   without changing it the app is wrong again and cannot tell. Never conclude from radiator
   temperatures that a press worked. See [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → gotcha 13
   and the boiler fingerbot device note.
-- **In fingerbot mode the boiler follows a temperature deficit (since 2026-10-18).** For each room with a
-  radiator valve, deficit = target − current room temperature (the room thermometer, not the TRV's own
-  sensor), counting only rooms below target; a room that is too hot adds nothing and does not offset a cold
-  one. The boiler turns **on** when the total reaches 3 °C (`BoilerDeficitThresholdCelsius`, inclusive) and
-  **off** only when the total is 0. It replaced a per-room priority score (2 + 2 etc.), so
-  `GetRoomBoilerPriority` is gone and a room's name no longer affects the boiler. Heater-plug rooms (kitchen,
-  desks) have no valve and contribute nothing. Deployed 2026-10-19 (app `20261019112544`). The first time the
-  owner tried it the total was 1.9 °C (a 21 °C den boost against 19.2 °C), so it correctly did nothing, which
-  looked like "not controlling the boiler". Two rules followed the same day (in code, not yet deployed):
-  - **A running boost starts the boiler regardless of the threshold.** This covers owner zone and group
-    boosts and guest QR overrides. A boost sets the target for every device in its zone. Heater plugs follow
-    it directly whenever their rules allow (`ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow`). This boiler rule
-    concerns only radiator valves, because the boiler feeds only radiators. It needs a room whose valves its rules allow, at least
-    `HysteresisOffset` (0.2 °C) below the boost target, the margin at which its valve opens. Turning off is
-    unchanged: the total deficit has to reach 0.
-  - **Valves wait for the boiler.** In fingerbot mode, while the boiler is believed off, no radiator valve is
-    opened. An open valve with no hot water behind it heats nothing and spends the TRV's battery. The rooms
-    are evaluated again straight after the press that turns the boiler on, so their valves open in that same
-    pass, and the turn-on verification watches those valves. Waiting never *shuts* a valve that is already
-    open, because that would be another wasted move. The order inside `EvaluateAllSchedules` matters:
-    `UpdateBoilerControlPathAsync` (mode, saved belief, outside presses), then the rooms, then
-    `EvaluateBoilerState`. In boiler-thermostat mode valves follow their rooms as before, since the boiler
+- **In fingerbot mode the boiler follows the rooms with radiator valves (since 2026-10-18, reworked
+  2026-10-19).** Only valves whose device rules allow them count; heater-plug rooms (kitchen, desks) have no
+  valve and never involve the boiler. Temperatures are the room thermometer's, not the TRV's own sensor.
+  - **Calling for heat.** A valve room starts calling once it is `HysteresisOffset` (0.2 °C) below its
+    target, the point at which its valve would open, and stops when it reaches its target
+    (`_roomsCallingForHeat`).
+  - **On** needs at least one room calling, and either a total deficit ≥ 3 °C (`BoilerDeficitThresholdCelsius`,
+    inclusive) or a calling room with a running boost. The deficit is the sum of target − current over rooms
+    below target; a room that is too hot adds nothing and does not offset a cold one. Boosts include owner
+    zone and group boosts and guest QR overrides. A boost sets the target for every device in its zone, and
+    heater plugs follow it whenever their rules allow (`ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow`).
+  - **Off** once no room is calling. Until 2026-10-19 it was "total deficit is 0", so Bedroom 3 at 17.9 °C
+    against 18 °C, too little to open its valve, held the boiler on with every valve shut. That was found live
+    after a boost was cancelled.
+  - **Valves move only when there may be hot water behind them.** While the boiler is believed off, valves
+    are neither opened nor shut (`_valvesWaitForBoiler`): their position makes no difference, and each move
+    costs TRV battery. They are brought into line in the pass that turns the boiler on. The one exception is
+    evidence: a turn-off verification that finds radiators still hot sets `_boilerMayBeRunning`, and valves
+    then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself.
+    While waiting, a valve room reports `heatingActive: false` even if its valve was left open.
+  - **Order inside `EvaluateAllSchedules`:**
+    1. `UpdateBoilerControlPathAsync`: the mode, the saved belief, and presses made outside the app.
+    2. `ResolveTargetAsync` for every room: what each room wants, before anything moves.
+    3. `DecideBoiler`: verification corrections, then on/off presses.
+    4. The rooms' devices.
+    5. `RecordValvesAndVerifyAsync`: a valve only counts as heating while open *and* the boiler is believed on.
+  - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
+  - Deployed 2026-10-19: the threshold in `20261019112544`; the boost rule and the first version of valve
+    waiting in `20261019114902`. The calling/off rule and leaving valves alone in both directions are in code,
+    not yet deployed.
 - **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
   rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤
