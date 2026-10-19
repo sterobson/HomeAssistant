@@ -955,8 +955,7 @@ internal class HeatingControlService
 
     /// <summary>
     /// Every entity a zone is bound to, read from the same switches that bind it, so the list shown in the UI
-    /// cannot drift from what the heating code actually drives and reads. Dummy switches are not hardware and
-    /// are left out.
+    /// cannot drift from what the heating code actually drives and reads.
     /// </summary>
     private List<RoomDeviceDto> GetDevicesForRoom(RoomSchedule room)
     {
@@ -1145,6 +1144,9 @@ internal class HeatingControlService
         List<(string RoomName, ICustomClimateControlEntity Valve)> callingValves = [];
         // A running boost starts the boiler on its own, whatever the total (owner, 2026-10-19).
         List<string> boostedRoomsCalling = [];
+        // So does a room someone is in: its active track needs "room in use", which is only selected while the
+        // room's presence says so (the den's TV, a desk). Empty rooms still wait for the total (owner, 2026-10-19).
+        List<string> occupiedRoomsCalling = [];
         double totalDeficit = 0;
 
         _roomsCallingForHeat.RemoveWhere(id => !schedules.Rooms.Exists(r => r.Id == id));
@@ -1188,6 +1190,10 @@ internal class HeatingControlService
                 if (IsBoostRunning(roomSchedule))
                 {
                     boostedRoomsCalling.Add(roomSchedule.Name);
+                }
+                else if (target.Track is { } track && track.Conditions.HasFlag(ConditionType.RoomInUse))
+                {
+                    occupiedRoomsCalling.Add(roomSchedule.Name);
                 }
             }
         }
@@ -1237,8 +1243,12 @@ internal class HeatingControlService
         {
             // Boiler is OFF - should we turn it ON?
             bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
-            if (_roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0))
+            if (_roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0))
             {
+                string why = deficitReached ? "deficit reached the threshold"
+                    : boostedRoomsCalling.Count > 0 ? $"boost running in {string.Join(", ", boostedRoomsCalling)}"
+                    : $"in use: {string.Join(", ", occupiedRoomsCalling)}";
+
                 DateTimeOffset? offSince = _boilerBeliefSince;
 
                 if (PressBoilerFingerbot())
@@ -1248,7 +1258,7 @@ internal class HeatingControlService
                     _boilerMayBeRunning = false;
                     _logger.LogInformation(
                         "Boiler turned ON ({Why}; total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
-                        deficitReached ? "deficit reached the threshold" : $"boost running in {string.Join(", ", boostedRoomsCalling)}",
+                        why,
                         totalDeficit, BoilerDeficitThresholdCelsius, trigger,
                         string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
 

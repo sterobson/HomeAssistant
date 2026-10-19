@@ -69,6 +69,7 @@ row before you finish — that is how this list earns its keep.
 | 16 | Renaming an entity might silently orphan whatever tracks it | Some integrations store a target *entity ID*. The Octopus cost tracker does (`target_entity_id`) — but on 2026-10-19 it **followed** a registry rename live (`loving_room_charging_dock_summation_delivered` → `living_room_plug_tv_summation_delivered`). Whether that survives an HA restart was not checked | Before renaming, search states' attributes and automation configs for the old ID (`tools/ha/rename-device.cjs` leaves other integrations' entities alone, but cannot see what *refers* to them). After the next HA restart, check the tracker's `target_entity_id` |
 | 17 | The NetDaemon app forgets what it saved after an add-on restart | The Supervisor recreates an add-on's container on restart, so anything the app writes outside `/data` (or the mapped `/config`) is gone. Seen 2026-10-19: the boiler belief saved in the user profile was lost, the app assumed the boiler was off, and it never pressed it off. Inferred from the app's behaviour (it skipped a press it would otherwise have made); the add-on log could not be read through the API to confirm | The app's caches go in `/data/HomeAssistant` when it runs as an add-on (`LocalStorageFolder`). Anything else that must survive a restart belongs there too |
 | 18 | The boiler fingerbot changed state with nobody pressing it | At 13:17:08 BST on 2026-10-19 `switch.tz3210_j4pdtz9v_ts0001` went `on` with **no context** in the logbook (no user, automation or service call: the device reported it). Either someone touched the fingerbot's own button or it sent a spurious report. The app counts any change it did not command as a press, flipped its belief and pressed 21 s later. If the report was spurious, that press really toggled the boiler | Run `tools/ha/who-changed.cjs switch.tz3210_j4pdtz9v_ts0001` before trusting any fingerbot change: "Supervisor" is the app, a named user is a person or a script on their token, and no context is the device. If uncommanded reports recur, the outside-press rule needs rethinking |
+| 19 | The Dreame Vacuum login form says only "Could not login, check the credentials." | The form hides the cloud's answer. The real one is in HA's system log (websocket `system_log/list`, logger `custom_components.dreame_vacuum.dreame.protocol`). On 2026-10-19 it was `user password not match` with `maxAttempts 5` and a `remains` count, so the account and region were right, only the password was wrong, and **each failed submit spends one of five attempts** before the account is locked. The account had been created with Google sign-in, which the integration cannot use, so a password had to be set in the Dreamehome app first | Read the system log after the first failure instead of retrying the form. Test the password in the Dreamehome app itself before submitting it again |
 
 ## Recipes
 
@@ -618,6 +619,17 @@ sensor in any list sorted by name — the one the app actually reads is
 `sensor.bedroom_1_climate_temperature` (SNZB-02D). And its `last_reported` shows this
 morning's HA restart rather than a genuine report, which is gotcha 3 in miniature: a
 recent timestamp on an `unavailable` entity means nothing.
+
+**Robot vacuum: Dreame X50 Ultra Complete.** Owned (owner, 2026-10-19); until that day nothing in HA
+knew about it. HA has no core Dreame integration; the community HACS one,
+[Tasshack/dreame-vacuum](https://github.com/Tasshack/dreame-vacuum), lists the X50 Ultra Complete as
+supported (`dreame.vacuum.r2532*` and `r2538*`, per its supported-devices page). **v2.0.2 was
+installed through HACS on 2026-10-19** (`hacs.cjs`, then `restart-core.cjs`; HA 2026.2.2), domain
+`dreame_vacuum`. Its config flow first asks for the account type (`dreame`, `mi`, `mova`, `trouver`,
+`local`); the owner logs in themselves.
+Its per-room entities (cleaning mode, suction, wetness, repeats) need a **cloud** login, not the
+local-only mode, and its `vacuum_clean_segment` service ignores the suction and repeats it is given
+while the robot's "customized cleaning" is switched on.
 
 ## Safety
 

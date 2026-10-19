@@ -25,6 +25,9 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
 | `who-changed.cjs <entity_id> [--hours 6]` | no | Each state change from HA's logbook with its cause: a user ("Supervisor" is the NetDaemon app; your account also covers these scripts, which use your token), an automation or script, or no context (the device reported it by itself) |
 | `addon.cjs <slug>` | no | An add-on's state and version, through the Supervisor over the websocket (REST `/api/hassio` refuses the token) |
+| `hacs.cjs <regex>` | no | HACS repositories matching a name: id, category, installed and latest version |
+| `hacs.cjs --download <owner/repo>` | **yes** | Downloads a HACS repository's latest release into `/config` (how the Dreame vacuum integration was installed, 2026-10-19). An integration then needs `restart-core.cjs`, and adding it is a config flow in the HA UI |
+| `restart-core.cjs` | **yes** | Checks the config, refuses if it is invalid, restarts HA Core and waits until it reports `RUNNING` (about 1–2 minutes). Devices keep their state; rewrites every `last_changed` (gotcha 3) |
 | `addon.cjs <slug> restart` | **yes** | Restarts the add-on and waits for it to report `started`. `c6a2317c_netdaemon6` stops and restarts the heating app (how the 2026-10-19 deploy restarted it); `core_samba` is the config share |
 
 ## Automations kept here

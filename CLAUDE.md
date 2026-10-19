@@ -271,8 +271,11 @@ Four more heating notes:
   - **Calling for heat.** A valve room starts calling once it is `HysteresisOffset` (0.2 °C) below its
     target, the point at which its valve would open, and stops when it reaches its target
     (`_roomsCallingForHeat`).
-  - **On** needs at least one room calling, and either a total deficit ≥ 3 °C (`BoilerDeficitThresholdCelsius`,
-    inclusive) or a calling room with a running boost. The deficit is the sum of target − current over rooms
+  - **On** needs at least one room calling, and one of: a total deficit ≥ 3 °C (`BoilerDeficitThresholdCelsius`,
+    inclusive); a calling room with a running boost; or a calling room that is **in use**, meaning its active
+    track has the "room in use" condition, which is only selected while its presence says someone is there
+    (owner, 2026-10-19). The in-use rule came from the den: its TV was on and its 21 °C in-use track active, but
+    1 °C short on its own it never started the boiler. A room short of an ordinary track still waits for the 3 °C. The deficit is the sum of target − current over rooms
     below target; a room that is too hot adds nothing and does not offset a cold one. Boosts include owner
     zone and group boosts and guest QR overrides. A boost sets the target for every device in its zone, and
     heater plugs follow it whenever their rules allow (`ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow`).

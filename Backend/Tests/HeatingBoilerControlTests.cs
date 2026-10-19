@@ -368,6 +368,59 @@ public sealed class HeatingBoilerControlTests
         context.ValvesAreShut().ShouldBeTrue("evidence that the boiler may still be running is the reason to shut the warm rooms' valves");
     }
 
+    // A room someone is in starts the boiler whatever the total deficit, like a boost (owner, 2026-10-19: the den's
+    // TV was on and its 21 °C "in use" track active, but 1 °C short on its own never started the boiler).
+
+    [TestMethod]
+    public async Task AnOccupiedRoom_StartsTheBoilerUnderTheThreshold()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 15, bedroom2Target: 15);
+        context.GiveLivingRoomAnInUseTrack(16);
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("TV on");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "one degree short is under 3, but someone is in the room");
+        context.Logger.CountMessagesContaining("in use: Living room").ShouldBe(1);
+        context.ValvesAreShut().ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task TheSameRoomEmpty_WaitsForTheThreshold()
+    {
+        // Nobody in: the "not in use" track applies, the room is at its target and nothing calls.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 15, bedroom2Target: 15);
+        context.GiveLivingRoomAnInUseTrack(16);
+        context.Presence.SetRoomValue("Living room", false);
+
+        await context.Service.EvaluateAllSchedules("TV off");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task AnEmptyRoomShort_OfItsOrdinaryTarget_StillWaitsForTheThreshold()
+    {
+        // 1 degree short on an ordinary track (no presence condition): no one is known to be there.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 16, bedroom2Target: 15);
+
+        await context.Service.EvaluateAllSchedules("schedule");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task AnOccupiedRoomAlmostAtTarget_DoesNotStartTheBoiler()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 15, bedroom2Target: 15);
+        context.GiveLivingRoomAnInUseTrack(15.1);
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("TV on, room nearly warm");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0, "0.1 degrees short is inside the band where its valve would not open");
+    }
+
     // A boost starts the boiler whatever the total deficit (owner, 2026-10-19).
 
     [TestMethod]
@@ -683,6 +736,20 @@ public sealed class HeatingBoilerControlTests
         public required FakeDeviceSettingsPersistenceService DeviceSettings { get; init; }
         public required RecordingLogger<HeatingControlService> Logger { get; init; }
         public required List<RoomSchedule> Rooms { get; init; }
+        public required MockPresenceService Presence { get; init; }
+
+        /// <summary>
+        /// Gives the living room the den's real pattern: 15 °C while nobody is in it, and an "in use" track at
+        /// <paramref name="inUseTemperature"/> that is only selected while presence says someone is there.
+        /// </summary>
+        public void GiveLivingRoomAnInUseTrack(double inUseTemperature)
+        {
+            Rooms[0].ScheduleTracks =
+            [
+                new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 15, Conditions = ConditionType.RoomNotInUse },
+                new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(0, 1), Temperature = inUseTemperature, Conditions = ConditionType.RoomInUse }
+            ];
+        }
 
         /// <summary>
         /// Builds a house whose living room and bedroom 2 are both radiator-valve rooms, both at
@@ -782,7 +849,8 @@ public sealed class HeatingBoilerControlTests
                 Verification = provider.GetRequiredService<IBoilerVerificationService>(),
                 DeviceSettings = deviceSettings,
                 Logger = logger,
-                Rooms = rooms
+                Rooms = rooms,
+                Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>()
             };
         }
 
