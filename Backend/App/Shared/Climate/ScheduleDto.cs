@@ -77,6 +77,14 @@ public class BoostDto
     public string? StartTime { get; set; }
     public string? EndTime { get; set; }
     public double? Temperature { get; set; }
+
+    /// <summary>
+    /// The layout group that set this boost, when a group was boosted (the owner's ⚡ on a group card, or a guest's
+    /// group link): the same boost then sits on every zone inside, each tagged with the group. Null for a zone's
+    /// own boost. While a group's boost runs nothing inside it can be boosted on its own (GuestOverride.LockedBy,
+    /// Frontend/src/utils/boosts.js). The NetDaemon app ignores it: a boost is a boost.
+    /// </summary>
+    public string? GroupId { get; set; }
 }
 
 public class ScheduleTrackDto

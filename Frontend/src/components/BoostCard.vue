@@ -25,7 +25,9 @@
         </div>
       </div>
     </div>
-    <button class="btn-cancel" @click="$emit('cancel')">
+    <!-- A group's boost is changed or cancelled on the group, never zone by zone (utils/boosts.js). -->
+    <p v-if="lockedBy" class="boost-locked">Boosted with {{ lockedBy }}. Change or cancel it there.</p>
+    <button v-else class="btn-cancel" @click="$emit('cancel')">
       Cancel boost
     </button>
   </div>
@@ -45,6 +47,11 @@ const props = defineProps({
   boostTemperature: {
     type: Number,
     required: true
+  },
+  // The group whose boost this is, when it was set on a group; then it cannot be cancelled here.
+  lockedBy: {
+    type: String,
+    default: null
   }
 })
 
@@ -180,6 +187,12 @@ const timeRemaining = computed(() => {
 
 .btn-cancel:active {
   transform: translateY(0);
+}
+
+.boost-locked {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 600px) {

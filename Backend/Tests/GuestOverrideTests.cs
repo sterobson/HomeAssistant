@@ -58,6 +58,77 @@ public sealed class GuestOverrideTests
         DateTimeOffset.Parse(boost.EndTime!).ShouldBe(Now.AddHours(3));
     }
 
+    // While a group's boost runs nothing inside it can be boosted on its own (owner, 2026-10-19). The sample
+    // house is Downstairs { zone 1, Den { zones 2, 3 } }.
+
+    [TestMethod]
+    public void AGroupOverride_IsTaggedWithTheGroup()
+    {
+        RoomSchedulesDto schedules = SampleHouse();
+
+        GuestOverride.Apply(schedules, [1, 2, 3], 21, 60, Now, groupId: "downstairs");
+
+        schedules.Rooms.Where(r => r.Id is 1 or 2 or 3).ShouldAllBe(r => r.Boost!.GroupId == "downstairs");
+    }
+
+    [TestMethod]
+    public void WhileAGroupIsBoosted_ItsZonesAndInnerGroupsAreLocked()
+    {
+        RoomSchedulesDto schedules = SampleHouse();
+        GuestOverride.Apply(schedules, [1, 2, 3], 21, 60, Now, groupId: "downstairs");
+
+        GuestOverride.LockedBy(schedules, roomId: 2, groupId: null, Now)?.Id.ShouldBe("downstairs");
+        GuestOverride.LockedBy(schedules, roomId: 1, groupId: null, Now)?.Id.ShouldBe("downstairs");
+        GuestOverride.LockedBy(schedules, roomId: null, groupId: "den", Now)?.Id.ShouldBe("downstairs");
+        GuestOverride.LockedBy(schedules, roomId: null, groupId: "downstairs", Now).ShouldBeNull("the group itself can change or cancel its boost");
+    }
+
+    [TestMethod]
+    public void AZonesOwnBoost_LocksNothing()
+    {
+        RoomSchedulesDto schedules = SampleHouse();
+        GuestOverride.Apply(schedules, [2], 21, 60, Now);
+
+        GuestOverride.LockedBy(schedules, roomId: 2, groupId: null, Now).ShouldBeNull();
+        GuestOverride.LockedBy(schedules, roomId: null, groupId: "den", Now).ShouldBeNull();
+    }
+
+    [TestMethod]
+    public void AnInnerGroupsBoost_DoesNotLockTheGroupAroundIt()
+    {
+        // Downstairs can still be boosted, and its boost supersedes the den's.
+        RoomSchedulesDto schedules = SampleHouse();
+        GuestOverride.Apply(schedules, [2, 3], 21, 60, Now, groupId: "den");
+
+        GuestOverride.LockedBy(schedules, roomId: null, groupId: "downstairs", Now).ShouldBeNull();
+        GuestOverride.LockedBy(schedules, roomId: 2, groupId: null, Now)?.Id.ShouldBe("den");
+
+        GuestOverride.Apply(schedules, [1, 2, 3], 19, 60, Now, groupId: "downstairs");
+        GuestOverride.LockedBy(schedules, roomId: null, groupId: "den", Now)?.Id.ShouldBe("downstairs");
+    }
+
+    [TestMethod]
+    public void TheLockEndsWithTheBoost()
+    {
+        RoomSchedulesDto schedules = SampleHouse();
+        GuestOverride.Apply(schedules, [1, 2, 3], 21, 60, Now, groupId: "downstairs");
+
+        GuestOverride.LockedBy(schedules, roomId: 2, groupId: null, Now.AddMinutes(61)).ShouldBeNull();
+    }
+
+    [TestMethod]
+    public void CancellingAGroup_ClearsOnlyItsOwnBoost()
+    {
+        RoomSchedulesDto schedules = SampleHouse();
+        GuestOverride.Apply(schedules, [1], 22, 60, Now);
+        GuestOverride.Apply(schedules, [2, 3], 21, 60, Now, groupId: "den");
+
+        GuestOverride.Cancel(schedules, [1, 2, 3], groupId: "downstairs").ShouldBe(0, "Downstairs has no boost of its own");
+        GuestOverride.Cancel(schedules, [2, 3], groupId: "den").ShouldBe(2);
+
+        schedules.Rooms.Single(r => r.Id == 1).Boost.ShouldNotBeNull("zone 1's own boost is not the den's to cancel");
+    }
+
     [TestMethod]
     public void Apply_UnknownZone_ChangesNothing()
     {

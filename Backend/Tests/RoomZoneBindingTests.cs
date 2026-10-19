@@ -195,14 +195,16 @@ public sealed class RoomZoneBindingTests
     }
 
     [TestMethod]
-    public async Task DummySwitchesAreNotListedAsDevices()
+    public async Task UpstairsBathroom_IsAThermometerWithNoControls()
     {
-        // The upstairs bathroom is "driven" by a dummy switch so it can be scheduled; that is not hardware.
+        // It has no heater or valve. It used to be "driven" by a dummy switch, which made the UI offer a
+        // boost, schedules and a share link that did nothing (owner, 2026-10-19).
         ZoneTestContext context = ZoneTestContext.Create("upstairs bathroom");
 
         await context.Service.EvaluateAllSchedules("unit test");
 
         context.CapturedStates()[1].Devices.Select(d => d.Role).ShouldBe([RoomDeviceRoles.Thermometer]);
+        context.CapturedStates()[1].Capabilities.ShouldBe(RoomCapabilities.None, "the UI shows controls only for a zone that can set a temperature");
     }
 
     [TestMethod]

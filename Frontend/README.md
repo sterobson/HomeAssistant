@@ -47,11 +47,15 @@ expanded group card one beside "Devices in …"; both open `ShareRoomModal.vue` 
 QR code (the `qrcode` package, rendered in the browser), Copy link, Print, and "Revoke and make a new link"
 (`services/roomShareApi.js`, which takes `{ roomId }` or `{ groupId }`).
 
-**Boosts.** Every boost sets the exact temperature, up or down. A zone card's ⚡ stays available while a boost
-runs, so boosting again changes it. A group card has its own ⚡ (`BoostModal` with `is-group`), which puts the
-same boost on every zone in the group in one save (`handleGroupBoost` in `HeatingView.vue`); an expanded group
-shows "Boost running on …" with **Cancel boost** when any zone inside has one. The server-side rules and the security model are
-in the Functions README and CLAUDE.md → "Access".
+**Boosts.** Every boost sets the exact temperature, up or down. A zone card's ⚡ stays available while its own
+boost runs, so boosting again changes it. A group card has its own ⚡ (`BoostModal` with `is-group`), which puts
+the same boost on every zone in the group in one save, each tagged with the group's id (`handleGroupBoost` in
+`HeatingView.vue`, `groupBoost` in `utils/boosts.js`). That supersedes any boost already inside. While a group's
+boost runs, everything inside it is locked: the zones' and smaller groups' ⚡ are disabled, a zone's boost card
+says "Boosted with …" instead of offering Cancel, and the group itself shows "Boost running: … until …" with
+**Cancel boost**, which clears only its own boost. `LayoutNode` works out each card's `lockedBy` with
+`roomLockedBy` / `groupLockedBy` (tested in `boosts.test.js`). The guest page shows the same lock. The
+server-side rules and the security model are in the Functions README and CLAUDE.md → "Access".
 
 There is no `/settings` route. Settings is a menu component, `SettingsMenu.vue`, which is
 also where OTA updates are triggered.

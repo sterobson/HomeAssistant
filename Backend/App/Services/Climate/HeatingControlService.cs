@@ -75,6 +75,9 @@ internal class HeatingControlService
     // So a room a fraction short that never started calling cannot hold the boiler on with every valve shut.
     private readonly HashSet<int> _roomsCallingForHeat = [];
 
+    // Rooms whose heating EvaluateSchedule switched in the current pass; EnforceDeviceRulesAsync skips them.
+    private readonly HashSet<int> _roomsSwitchedThisPass = [];
+
     // Refreshed at the start of every evaluation pass (PrepareDeviceRulesAsync): the per-device rules in
     // force, whether they are the built-in defaults, and which presence sources are in use right now.
     private Dictionary<string, DeviceRulesDto>? _deviceRules;
@@ -373,6 +376,7 @@ internal class HeatingControlService
 
             // 4. The rooms' devices.
             _valvesWaitForBoiler = fingerbotMode && !_boilerOn && !_boilerMayBeRunning;
+            _roomsSwitchedThisPass.Clear();
             bool hasStateChanged = false;
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
@@ -381,7 +385,12 @@ internal class HeatingControlService
                     hasStateChanged |= await EvaluateSchedule(schedule, target, trigger);
                 }
 
-                hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
+                // A room just switched already set each device by its rules, and HA has not reported the new
+                // states back yet, so enforcing now would read the old ones and send every command twice.
+                if (!_roomsSwitchedThisPass.Contains(schedule.Id))
+                {
+                    hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
+                }
             }
 
             // 5. What the valves did this pass, for the boiler verification, and the verification itself.
@@ -394,6 +403,11 @@ internal class HeatingControlService
             {
                 await UpdateRoomStatesAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            // Evaluations run from timers and event handlers, where an exception would vanish without trace.
+            _logger.LogError(ex, "Heating evaluation failed. Triggered by {Trigger}", trigger);
         }
         finally
         {
@@ -556,6 +570,8 @@ internal class HeatingControlService
         }
 
         double? previousRoomTemperature = roomState.CurrentTemperature;
+        double? previousTargetTemperature = roomState.TargetTemperature;
+        int previousTrackId = roomState.ActiveScheduleTrackId;
         roomState.RoomId = roomHeatingSchedule.Id;
         roomState.CurrentTemperature = currentTemperature;
         roomState.TargetTemperature = desiredTemperature;
@@ -585,6 +601,7 @@ internal class HeatingControlService
 
                 roomState.HeatingActive = false;
                 stateChanged = true;
+                _roomsSwitchedThisPass.Add(roomHeatingSchedule.Id);
             }
         }
         else if (currentTemperature <= desiredTemperature - HysteresisOffset)
@@ -603,19 +620,17 @@ internal class HeatingControlService
 
                 roomState.HeatingActive = true;
                 stateChanged = true;
+                _roomsSwitchedThisPass.Add(roomHeatingSchedule.Id);
             }
         }
 
-        // Update temperature and active track if changed
-        if (roomState.CurrentTemperature != previousRoomTemperature)
+        // Upload when the temperature, the target or the track changed. Until 2026-10-19 the track was
+        // compared after it had been overwritten (so never differed) and the target not at all, so after a
+        // restart the UI showed no targets until some thermometer happened to change.
+        if (roomState.CurrentTemperature != previousRoomTemperature
+            || roomState.TargetTemperature != previousTargetTemperature
+            || roomState.ActiveScheduleTrackId != previousTrackId)
         {
-            roomState.CurrentTemperature = currentTemperature;
-            stateChanged = true;
-        }
-
-        if (roomState.ActiveScheduleTrackId != (effectiveTrack?.Id ?? 0))
-        {
-            roomState.ActiveScheduleTrackId = (effectiveTrack?.Id ?? 0);
             stateChanged = true;
         }
 
@@ -854,7 +869,9 @@ internal class HeatingControlService
             "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
             "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
-            "upstairs bathroom" => [_namedEntities.UpstairsBathroomDummyPlugOnOff],
+            // Thermometer only: nothing to drive, so no boost, schedules or share link in the UI (owner,
+            // 2026-10-19). It used to have a dummy switch here, which made the UI offer controls that did nothing.
+            "upstairs bathroom" => [],
             _ => []
         };
     }
@@ -961,8 +978,6 @@ internal class HeatingControlService
                     valveDevice.TargetTemperature = valve.TargetTemperature;
                     AttachRules(valveDevice);
                     devices.Add(valveDevice);
-                    break;
-                case DummySwitchEntity:
                     break;
                 case ICustomSwitchEntity plug:
                     RoomDeviceDto plugDevice = DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug);
@@ -1434,7 +1449,6 @@ internal class HeatingControlService
     {
         string? entityId = device switch
         {
-            DummySwitchEntity => null,
             ICustomSwitchEntity plug => plug.EntityId,
             ICustomClimateControlEntity valve => valve.EntityId,
             _ => null

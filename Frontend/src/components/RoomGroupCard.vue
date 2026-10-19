@@ -23,12 +23,14 @@
       <!-- Normally the width of a room's three icon buttons, so the temperature sits in the same column as
            every other card and the header is the same height. -->
       <div v-if="!editMode" class="actions-area">
-        <!-- Same column as each zone's boost button. Boosting again changes a running group boost. -->
+        <!-- Same column as each zone's boost button. Boosting again changes a running group boost, and a
+             group's boost supersedes any inside it. Disabled while a group around this one is boosted. -->
         <button
           v-if="canBoost"
           class="icon-btn boost-btn"
-          :title="boostedCount ? 'Change the boost for this group' : 'Boost every zone in this group'"
-          :aria-label="boostedCount ? 'Change the boost for this group' : 'Boost every zone in this group'"
+          :disabled="!!lockedBy"
+          :title="boostButtonTitle"
+          :aria-label="boostButtonTitle"
           @click.stop="showBoost = true"
         >
           <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -75,10 +77,11 @@
           </button>
         </div>
 
-        <div v-if="boostedCount" class="group-boost">
-          <span>
-            Boost running on {{ boostedCount === boostableCount ? (boostableCount === 1 ? 'its zone' : `all ${boostableCount} zones`) : `${boostedCount} of ${boostableCount} zones` }}
-          </span>
+        <div v-if="lockedBy" class="group-boost">
+          <span>Boosted with {{ lockedBy }}. Change or cancel it there.</span>
+        </div>
+        <div v-else-if="ownBoost" class="group-boost">
+          <span>Boost running: {{ formatTempWithUnit(ownBoost.temperature) }} until {{ formatTime(ownBoost.endTime) }}</span>
           <button type="button" class="group-boost-cancel" @click="emit('cancel-boost')">Cancel boost</button>
         </div>
       </template>
@@ -117,10 +120,17 @@ import BoostModal from './BoostModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
+import { groupBoostActive } from '../utils/boosts.js'
 import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
-const { formatTemp, formatTempWithUnit } = useFormatting()
+const { formatTemp, formatTempWithUnit, formatTimeDisplay } = useFormatting()
+
+// A boost's end (an ISO instant) as a local clock time, in the user's 12/24-hour format.
+const formatTime = (iso) => {
+  const end = new Date(iso)
+  return formatTimeDisplay(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`)
+}
 
 // Where the presence zones and the house's drivable devices come from; absent outside the heating view.
 const layoutContext = inject(HEATING_LAYOUT, null)
@@ -151,6 +161,12 @@ const props = defineProps({
   canMoveDown: {
     type: Boolean,
     default: false
+  },
+  // The name of the group around this one whose boost is running, which locks this group's boost
+  // controls (utils/boosts.js). Null when nothing around it is boosted.
+  lockedBy: {
+    type: String,
+    default: null
   }
 })
 
@@ -184,13 +200,18 @@ const showBoost = ref(false)
 const showShare = ref(false)
 const boostableRooms = computed(() => roomsInGroup.value.filter(room => ((room.capabilities ?? 0) & 1) !== 0))
 const canBoost = computed(() => boostableRooms.value.length > 0)
-const boostableCount = computed(() => boostableRooms.value.length)
-const boostedCount = computed(() => boostableRooms.value.filter(isBoostRunning).length)
 
-function isBoostRunning (room) {
-  const end = room.boost?.endTime ? new Date(room.boost.endTime).getTime() : 0
-  return room.boost?.temperature != null && end > Date.now()
-}
+// This group's own boost: the running boost its zones carry, tagged with this group. A zone's own boost, or
+// a smaller group's, does not count; this group's boost would supersede them.
+const ownBoost = computed(() => {
+  if (!groupBoostActive(props.node, props.roomsById)) return null
+  return roomsInGroup.value.map(room => room.boost).find(boost => boost?.groupId === props.node.id) ?? null
+})
+
+const boostButtonTitle = computed(() => {
+  if (props.lockedBy) return `Boosted with ${props.lockedBy}: change it there`
+  return ownBoost.value ? 'Change the boost for this group' : 'Boost every zone in this group'
+})
 </script>
 
 <!-- Sizing and highlighting deliberately mirror RoomCard so a group reads as one more room. If
@@ -358,9 +379,16 @@ function isBoostRunning (room) {
   box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
 }
 
-.boost-btn:hover {
+.boost-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(243, 156, 18, 0.3);
+}
+
+/* Locked by the boost of a group around this one (see utils/boosts.js). */
+.boost-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .group-links {

@@ -9,6 +9,7 @@
     :edit-mode="ctx.editLayout.value"
     :can-move-up="ctx.canMove(node.key, -1)"
     :can-move-down="ctx.canMove(node.key, 1)"
+    :locked-by="groupLock"
     @toggle-expand="ctx.onToggleGroup(node.id)"
     @move="(delta) => ctx.onMove(node.key, delta)"
     @move-to="ctx.onMoveTo(node.key)"
@@ -28,6 +29,7 @@
     :edit-mode="ctx.editLayout.value"
     :can-move-up="ctx.canMove(node.key, -1)"
     :can-move-down="ctx.canMove(node.key, 1)"
+    :locked-by="roomLock"
     @update-schedule="ctx.onUpdateSchedule"
     @delete-schedule="ctx.onDeleteSchedule"
     @add-schedule="ctx.onAddSchedule"
@@ -45,6 +47,7 @@ import { computed, inject } from 'vue'
 import RoomCard from './RoomCard.vue'
 import RoomGroupCard from './RoomGroupCard.vue'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
+import { groupLockedBy, roomLockedBy } from '../utils/boosts.js'
 
 const props = defineProps({
   // A node of the layout tree: a room ({ type: 'room', roomId }) or a group ({ type: 'group', children }).
@@ -57,4 +60,9 @@ const props = defineProps({
 const ctx = inject(HEATING_LAYOUT)
 
 const room = computed(() => (props.node.type === 'room' ? ctx.roomsById.value.get(props.node.roomId) : null))
+
+// While a group's boost runs, nothing inside it can be boosted on its own: these name the group in charge.
+const roomLock = computed(() => (room.value ? roomLockedBy(ctx.layoutTree.value, room.value)?.name ?? null : null))
+const groupLock = computed(() =>
+  props.node.type === 'group' ? groupLockedBy(ctx.layoutTree.value, props.node, ctx.roomsById.value)?.name ?? null : null)
 </script>

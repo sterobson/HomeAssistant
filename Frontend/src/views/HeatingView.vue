@@ -91,6 +91,7 @@ import {
 } from '../utils/roomLayout.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 import { drivableDevices, presenceZones } from '../utils/deviceRules.js'
+import { groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
 
 const props = defineProps({
   occupancyFilter: {
@@ -528,9 +529,10 @@ const showToast = (message, type = 'success', duration = 3000) => {
   toast.visible = true
 }
 
+// A zone's own boost. Refused while a group the zone sits in is boosted: only that group can change it.
 const handleBoost = async (roomId, boostData) => {
   const room = rooms.value.find(r => r.id === roomId)
-  if (room) {
+  if (room && !roomLockedBy(layoutTree.value, room)) {
     // Calculate start and end times in UTC
     const startTime = new Date()
     const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
@@ -571,7 +573,7 @@ const handleBoost = async (roomId, boostData) => {
 
 const handleCancelBoost = async (roomId) => {
   const room = rooms.value.find(r => r.id === roomId)
-  if (room) {
+  if (room && !roomLockedBy(layoutTree.value, room)) {
     room.boost = null
 
     // Save immediately
@@ -586,9 +588,11 @@ const handleCancelBoost = async (roomId) => {
   }
 }
 
-// A group boost is the same boost on every zone in the group, at any depth, saved in one go. Like a zone
-// boost it sets that exact temperature, up or down, and boosting again changes it.
+// A group boost is the same boost on every zone in the group, at any depth, saved in one go and tagged with
+// the group (utils/boosts.js). Like a zone boost it sets that exact temperature, up or down, and boosting
+// again changes it. It replaces any boost already inside the group, a zone's own or a smaller group's.
 const handleGroupBoost = async (groupNode, boostData) => {
+  if (groupLockedBy(layoutTree.value, groupNode, roomsById.value)) return
   const ids = new Set(roomIdsIn(groupNode))
   const startTime = new Date()
   const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
@@ -596,7 +600,7 @@ const handleGroupBoost = async (groupNode, boostData) => {
 
   for (const room of rooms.value) {
     if (ids.has(room.id)) {
-      room.boost = { startTime: startTime.toISOString(), endTime: endTime.toISOString(), temperature: boostData.temperature }
+      room.boost = groupBoost(groupNode, startTime, endTime, boostData.temperature)
     }
   }
 
@@ -610,12 +614,14 @@ const handleGroupBoost = async (groupNode, boostData) => {
   }
 }
 
+// Cancels this group's own boost only: a zone boost set since, or a smaller group's, is left alone.
 const handleCancelGroupBoost = async (groupNode) => {
+  if (groupLockedBy(layoutTree.value, groupNode, roomsById.value)) return
   const ids = new Set(roomIdsIn(groupNode))
   const previous = rooms.value.map(room => room.boost)
 
   for (const room of rooms.value) {
-    if (ids.has(room.id)) room.boost = null
+    if (ids.has(room.id) && room.boost?.groupId === groupNode.id) room.boost = null
   }
 
   try {
@@ -768,6 +774,7 @@ provide(HEATING_LAYOUT, {
   roomsById,
   presenceZones: presenceZoneList,
   drivableDevices: drivableDeviceList,
+  layoutTree,
   editLayout,
   occupancyFilter: toRef(props, 'occupancyFilter'),
   expandedRoomId,

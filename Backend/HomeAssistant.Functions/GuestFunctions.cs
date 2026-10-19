@@ -71,15 +71,23 @@ public class GuestFunctions
                 heatingActive = state?.HeatingActive ?? false
             });
 
-            // The override the guest sees: a running boost on any of the zones (a group's are set together).
-            activeOverride ??= zoneOverride;
+            // The override the guest controls: for a zone its running boost; for a group only the group's own
+            // boost, not a zone's or a smaller group's inside it.
+            if (!target.IsGroup || zoneOverride?.GroupId == share.GroupId)
+            {
+                activeOverride ??= zoneOverride;
+            }
         }
+
+        // While a group around the target is boosted the guest can only look (owner, 2026-10-19).
+        RoomLayoutNodeDto? lockedBy = GuestOverride.LockedBy(schedules!, share.RoomId, share.GroupId, now);
 
         return new OkObjectResult(new
         {
             kind = target.IsGroup ? "group" : "zone",
             name = target.Name,
             icon = target.Icon,
+            lockedBy = lockedBy == null ? null : lockedBy.Name ?? "Group",
             zones,
             @override = activeOverride == null ? null : new { temperature = activeOverride.Temperature, endTime = activeOverride.EndTime },
             limits = new
@@ -124,7 +132,7 @@ public class GuestFunctions
         }
 
         return await ChangeSchedules(share, (schedules, roomIds) =>
-            GuestOverride.Apply(schedules, roomIds, request.Temperature, request.DurationMinutes, DateTimeOffset.UtcNow) > 0,
+            GuestOverride.Apply(schedules, roomIds, request.Temperature, request.DurationMinutes, DateTimeOffset.UtcNow, share.GroupId) > 0,
             $"set to {request.Temperature} °C for {request.DurationMinutes} min");
     }
 
@@ -140,7 +148,7 @@ public class GuestFunctions
 
         return await ChangeSchedules(share, (schedules, roomIds) =>
         {
-            GuestOverride.Cancel(schedules, roomIds);
+            GuestOverride.Cancel(schedules, roomIds, share.GroupId);
             return true;
         }, "cancelled");
     }
@@ -154,7 +162,19 @@ public class GuestFunctions
     {
         RoomSchedulesDto? schedules = await _schedules.GetSchedulesAsync(share.HouseId);
         Target? target = schedules == null ? null : Resolve(share, schedules);
-        if (target == null || !change(schedules!, [.. target.Rooms.Select(r => r.Id)]))
+        if (target == null)
+        {
+            return InvalidLink();
+        }
+
+        // Nothing inside a boosted group can be changed on its own; only that group, or one around it, can.
+        RoomLayoutNodeDto? lockedBy = GuestOverride.LockedBy(schedules!, share.RoomId, share.GroupId, DateTimeOffset.UtcNow);
+        if (lockedBy != null)
+        {
+            return new ConflictObjectResult(new { error = $"{lockedBy.Name ?? "A group"} is boosted, so this can't be changed until that boost ends." });
+        }
+
+        if (!change(schedules!, [.. target.Rooms.Select(r => r.Id)]))
         {
             return InvalidLink();
         }

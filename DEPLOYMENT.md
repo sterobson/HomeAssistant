@@ -150,10 +150,13 @@ The 2026-10-19 deploy (`d3ff40a`) followed the same steps and added these, all c
   `VITE_FUNCTION_KEY` from the config and blanks `VITE_LOCALHOST_KEY`. Then it checks the bundle contains the
   production URL and no `localhost:7159` / `localhost:7071` before running `swa deploy`.
 - **Straight after a restart the room states show every target as null** with `activeScheduleTrackId` 0. That is
-  the app's first upload, sent before its first evaluation. On 2026-10-19 the targets and tracks arrived about
-  three minutes after the restart (upload at 12:27:10, first evaluated upload at 12:30:14). Wait that long before
-  calling it a fault. `EvaluateAllSchedules` has no catch, so a real startup failure would also look like this and
-  log nothing to the API.
+  the app's first upload, sent before its first evaluation. Until the fix in the commit after `a2ffab2`, the
+  evaluated targets then stayed off the API until some room's temperature or heating changed: a new target or
+  track never triggered an upload. That took 2 to 7½ minutes after the four restarts on 2026-10-19, and looked
+  like a slow start, but the add-on log showed the startup evaluation running within 5 s. With the fix the
+  targets arrive with that first evaluation. `EvaluateAllSchedules` also now logs any failure ("Heating
+  evaluation failed") instead of losing it, so the add-on log (Settings → Add-ons → NetDaemon → Log, not
+  readable through the API) is where to look when targets do not appear.
 
 ### The Samba share, and restarting add-ons
 

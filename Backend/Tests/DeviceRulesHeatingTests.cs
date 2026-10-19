@@ -273,6 +273,38 @@ public sealed class DeviceRulesHeatingTests
         context.KitchenHeater.TurnOnCount.ShouldBe(someoneHome ? 1 : 0);
     }
 
+    [TestMethod]
+    public async Task SwitchingAZoneOn_SendsEachDeviceOneCommand()
+    {
+        // 2026-10-19: the kitchen plug was turned on twice in one pass - once by the zone, then again by the
+        // device-rules pass, which read the plug before HA had reported it on.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", true);
+        context.KitchenHeater.ReportsLate = true;
+
+        await context.Service.EvaluateAllSchedules("cold, someone home");
+
+        context.KitchenHeater.TurnOnCount.ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task AChangedTarget_IsUploadedEvenIfNothingElseChanged()
+    {
+        // 2026-10-19: after a restart the UI showed no targets for 7 minutes, because a new target or track
+        // never triggered an upload; only a changed temperature or heating state did.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        await context.Service.EvaluateAllSchedules("first pass");
+        int uploads = context.UploadCount();
+
+        // Still cold and still held off by its rules: only the target moves.
+        context.Rooms[0].ScheduleTracks = [new HeatingScheduleTrack { TargetTime = new TimeOnly(0, 0), Temperature = 22 }];
+        await context.Service.EvaluateAllSchedules("schedule edited");
+
+        context.UploadCount().ShouldBe(uploads + 1);
+        context.CapturedStates()[1].TargetTemperature.ShouldBe(22);
+    }
+
     private sealed class RulesTestContext
     {
         private const double RoomTemperature = 15;
@@ -300,6 +332,11 @@ public sealed class DeviceRulesHeatingTests
         {
             Settings.Settings = new DeviceSettingsDto { Heating = new HeatingSettingsDto { DeviceRules = rules } };
         }
+
+        /// <summary>How many times room states were uploaded. Each upload passes the same live dictionary, so
+        /// <see cref="CapturedStates"/> alone cannot tell whether a change was uploaded.</summary>
+        public int UploadCount() => StatePersistence.ReceivedCalls()
+            .Count(call => call.GetMethodInfo().Name == nameof(IRoomStatePersistenceService.SetStatesAsync));
 
         public IReadOnlyDictionary<int, RoomState> CapturedStates()
         {

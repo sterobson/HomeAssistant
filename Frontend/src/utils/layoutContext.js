@@ -5,6 +5,7 @@
 // recursive component, so they travel by provide/inject instead. The shape is:
 //
 //   roomsById        Map of room id to room, for looking a node's room up
+//   layoutTree       ref(tree)  the whole layout, for working out which group's boost locks a node
 //   presenceZones    computed [{ name, label }] zones that can detect presence, for device rules
 //   drivableDevices  computed [device] every heater plug and radiator valve, for device rules
 //   editLayout       ref(boolean)   reordering / icon mode

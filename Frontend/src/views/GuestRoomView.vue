@@ -56,7 +56,15 @@
         </ul>
       </section>
 
-      <section v-if="activeOverride" class="guest-card override-active" aria-label="Override">
+      <!-- While a group around this zone or group is boosted, nothing inside it can be changed on its own. -->
+      <section v-if="lockedBy" class="guest-card" aria-label="Boosted">
+        <h2>Boosted with {{ lockedBy }}</h2>
+        <p class="fine-print">
+          The whole of {{ lockedBy }} is on a boost, so this can't be changed here until that boost ends.
+        </p>
+      </section>
+
+      <section v-else-if="activeOverride" class="guest-card override-active" aria-label="Override">
         <h2>Override running</h2>
         <p class="override-summary">
           Holding <strong>{{ formatTemperature(activeOverride.temperature) }}</strong>
@@ -68,7 +76,7 @@
       </section>
 
       <!-- Stays available while an override runs: starting another one changes it. -->
-      <section class="guest-card" :aria-label="activeOverride ? 'Change the override' : 'Start an override'">
+      <section v-if="!lockedBy" class="guest-card" :aria-label="activeOverride ? 'Change the override' : 'Start an override'">
         <h2>{{ activeOverride ? 'Change the override' : 'Change the temperature' }}</h2>
 
         <div class="field">
@@ -149,6 +157,8 @@ const durationMinutes = ref(DEFAULT_DURATION_MINUTES)
 const limits = computed(() => ({ ...DEFAULT_LIMITS, ...(room.value?.limits ?? {}) }))
 const durations = computed(() => durationOptions(limits.value))
 const activeOverride = computed(() => (isOverrideActive(room.value?.override) ? room.value.override : null))
+// The group whose boost covers this zone or group, if any; the server refuses changes until it ends.
+const lockedBy = computed(() => room.value?.lockedBy ?? null)
 // The zones the link covers: one for a zone's QR code, several for a group's.
 const zones = computed(() => room.value?.zones ?? [])
 

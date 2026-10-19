@@ -66,7 +66,6 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomNumericSensorEntity UpstairsBathroomTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(UpstairsBathroomTemperature) };
 
-    public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; } = new DummySwitchEntity(false);
 
     // Reachable and reporting "off", as the real one does between presses; a fingerbot with no
     // state at all is unavailable, and the app refuses to press it.
@@ -138,24 +137,47 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
         _stateChangeObserver = observer;
     }
 
+    /// <summary>
+    /// Like a real Zigbee device, the command is sent but HA only reports the new state a moment later, so
+    /// anything reading the switch straight after a command still sees the old state. Call
+    /// <see cref="ReportNow"/> to deliver it.
+    /// </summary>
+    public bool ReportsLate { get; set; }
+
+    private bool? _pendingState;
+
+    public void ReportNow()
+    {
+        if (_pendingState.HasValue)
+        {
+            _state = _pendingState;
+            _pendingState = null;
+        }
+    }
+
     public void TurnOff()
     {
         TurnOffCount++;
-
-        if (_state != false)
-        {
-            _state = false;
-            _stateChangeObserver?.Invoke(this);
-        }
+        Set(false);
     }
 
     public void TurnOn()
     {
         TurnOnCount++;
+        Set(true);
+    }
 
-        if (_state != true)
+    private void Set(bool state)
+    {
+        if (ReportsLate)
         {
-            _state = true;
+            _pendingState = state;
+            return;
+        }
+
+        if (_state != state)
+        {
+            _state = state;
             _stateChangeObserver?.Invoke(this);
         }
     }

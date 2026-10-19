@@ -28,8 +28,9 @@
       </div>
       <div v-if="!editMode" class="header-actions">
         <div class="icon-btn-placeholder">
-          <!-- Stays available while a boost runs: boosting again changes it (any boost can be changed or cancelled). -->
-          <button v-if="canSetTemperature" class="icon-btn boost-btn" @click.stop="handleBoost" :title="isBoostActive ? 'Change boost' : 'Boost heating'">
+          <!-- Stays available while the zone's own boost runs: boosting again changes it. Disabled while a group
+               the zone sits in is boosted: only that group can change or cancel it (utils/boosts.js). -->
+          <button v-if="canSetTemperature" class="icon-btn boost-btn" :disabled="!!lockedBy" @click.stop="handleBoost" :title="boostButtonTitle" :aria-label="boostButtonTitle">
             <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
               <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
             </svg>
@@ -82,6 +83,7 @@
         v-if="isBoostActive"
         :boost-end-time="room.boost.endTime"
         :boost-temperature="room.boost.temperature"
+        :locked-by="lockedBy"
         @cancel="handleCancelBoost"
       />
 
@@ -207,6 +209,12 @@ const props = defineProps({
   canMoveDown: {
     type: Boolean,
     default: false
+  },
+  // The name of the group whose running boost this zone carries, which locks its boost controls
+  // (utils/boosts.js). Null when the zone's boost, if any, is its own.
+  lockedBy: {
+    type: String,
+    default: null
   }
 })
 
@@ -282,6 +290,11 @@ const isBoostActive = computed(() => {
   const endTime = new Date(props.room.boost.endTime)
   const now = new Date()
   return endTime > now
+})
+
+const boostButtonTitle = computed(() => {
+  if (props.lockedBy) return `Boosted with ${props.lockedBy}: change it there`
+  return isBoostActive.value ? 'Change boost' : 'Boost heating'
 })
 
 const toggleCollapse = () => {
@@ -499,9 +512,16 @@ const handleHistoryClose = () => {
   box-shadow: 0 2px 4px rgba(243, 156, 18, 0.2);
 }
 
-.boost-btn:hover {
+.boost-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(243, 156, 18, 0.3);
+}
+
+/* Locked by a group's boost (see utils/boosts.js). */
+.boost-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .boost-btn:active {

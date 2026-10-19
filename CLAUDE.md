@@ -122,7 +122,9 @@ That file also holds the device inventory — battery types and levels, which se
 mains versus battery, and which devices are deliberately offline.
 
 **Use the scripts in [tools/ha/](tools/ha/README.md) before writing your own queries.** They cover
-state history (`entity-history.cjs`), finding entities by friendly name (`find-entities.cjs`),
+state history (`entity-history.cjs`), what caused each change (`who-changed.cjs`: a user, the
+NetDaemon app as "Supervisor", or the device itself), add-on state and restarts (`addon.cjs`),
+finding entities by friendly name (`find-entities.cjs`),
 the device/area registry (`list-devices.cjs`), pairing a Zigbee device with house-style names
 (`pair-zigbee.cjs`) and creating HA automations from version-controlled JSON
 (`put-automation.cjs`, with the files in `tools/ha/automations/`). Only those last two write. They read the token without printing it and already
@@ -216,6 +218,10 @@ Four consequences worth knowing before changing any of this:
   publishes the result as `devices` on each room state, which the web UI shows behind a "Devices" link.
   So adding a zone's hardware to those switches is enough for it to appear; never keep a second copy of
   the wiring in the frontend. A zone that has lost its hardware shows an empty list there.
+  A zone's switches also decide its capabilities: with none it cannot set a temperature, and the UI hides its
+  boost, schedules and share link. The upstairs bathroom is such a zone (thermometer only). It used to have a
+  `DummySwitchEntity` so it could be scheduled, which offered controls that did nothing; that was removed on
+  2026-10-19. Never give a zone a dummy device to make it look controllable.
 
 Four more heating notes:
 
@@ -287,6 +293,11 @@ Four more heating notes:
     5. `RecordValvesAndVerifyAsync`: a valve only counts as heating while open *and* the boiler is believed on.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
+  - **A room switched in a pass is not enforced again in that pass.** HA reports a device's new state only a
+    moment after the command, so `EnforceDeviceRulesAsync` straight after a switch read the old states and sent
+    every command twice (seen 2026-10-19 on the kitchen plug: "Turning on", then "turned on by its device rules").
+    For a TRV each duplicate is battery. `_roomsSwitchedThisPass` prevents it; `SwitchingAZoneOn_SendsEachDeviceOneCommand`
+    pins it with a switch that reports late.
   - Deployed 2026-10-19: the threshold in `20261019112544`; the boost rule and the first version of valve
     waiting in `20261019114902`. The calling/off rule and leaving valves alone in both directions are in code,
     not yet deployed.
@@ -346,6 +357,14 @@ cookie. Two consequences:
   an owner's zone boost, an owner's group boost (the ⚡ on a group card — the same boost on every zone inside),
   and a guest's override all replace the schedule until they end, and boosting again changes a running one.
   Per-device rules still decide whether each heater or valve may actually run.
+- **A group's boost locks everything inside it** (owner, 2026-10-19). A group boost is stored as the same boost on
+  every zone inside, each tagged `boost.groupId`. While it runs, those zones and any smaller groups inside cannot
+  be boosted, changed or cancelled on their own, by the owner or a guest: only that group can, or a group around
+  it, whose boost supersedes it by overwriting every zone inside. Cancelling a group clears only boosts tagged
+  with it. The rules are `utils/boosts.js` in the UI and `GuestOverride.LockedBy` on the server, which refuses a
+  locked guest change with 409. The owner endpoints still trust the house ID, so the owner's lock is UI-only.
+  Before the tag existed a group boost was indistinguishable from identical zone boosts, and cancelling one zone
+  inside a boosted group left the group and the zone disagreeing.
 - **The production house ID is short and guessable** (seven digits). That makes the owner endpoints
   effectively public to anyone who tries. Not fixed by the QR work; replacing it with a long random ID (or
   real auth) is an open follow-up.
