@@ -63,7 +63,7 @@ row before you finish — that is how this list earns its keep.
 | 10 | Entity ID names the wrong room | Entity IDs are **not** renamed when a device is renamed. `sensor.bedroom_3_temperature_and_humidity_battery` is physically the **bathroom** sensor | `friendly_name` is authoritative; entity-ID prefixes are not |
 | 11 | Duplicate-looking entities with `_2` / `_3` suffixes | Genuine additional devices of the same model. Only the *unrenamed* entities keep the model prefix, so `sonoff_snzb_02d_battery_2` and `_3` belong to devices whose temperature entities are named `sensor.livingroom_climate_temperature` and `sensor.diningroom_temperature`. Counting model-prefixed entity IDs **undercounts** the fleet — there are 7 SNZB-02Ds, not 3 | Disambiguate by `friendly_name`; get the real model from the device registry (recipe below) |
 | 12 | A device the C# app uses has no entity ID in the code | Buttons are bound by **IEEE address**, not entity ID (`new SonoffButton(ha, "d4:48:67:...")`) | Grep for `SonoffButton` as well as entity-ID literals when auditing coverage |
-| 13 | The boiler is clearly running (or clearly isn't) and it contradicts everything the app did | The boiler has **two exclusive control paths** — the fingerbot, or a temperature/time scheduler in the kitchen — selected by a **physical switch HA cannot read**, and in scheduler mode the boiler's button is **dead**, so fingerbot presses are no-ops. **As of 2026-10-17 the switch is on the external scheduler.** Since 2026-10-17 the app is *told* which path it is on, by the `heating.boilerControlPath` device setting (**Settings → Boiler control** on the heating page), and it defaults to the external scheduler, so out of the box it does not touch the boiler at all | Never infer the control path from HA — no entity exposes it, and the setting is a statement of belief, not a reading. Check the setting *and* ask which way the switch is set before diagnosing any heating behaviour, and treat radiator warmth as evidence the boiler fired, not that the app caused it |
+| 13 | The boiler is clearly running (or clearly isn't) and it contradicts everything the app did | The boiler has **two exclusive control paths** — the fingerbot, or a boiler thermostat (portable, normally in the kitchen) — selected by a **physical switch HA cannot read**, and in boiler-thermostat mode the boiler's button is **dead**, so fingerbot presses are no-ops. **As of 2026-10-17 the switch is on the boiler thermostat.** Since 2026-10-17 the app is *told* which path it is on, by the `heating.boilerControlPath` device setting (**Settings → Boiler control** on the heating page), and it defaults to the boiler thermostat, so out of the box it does not touch the boiler at all | Never infer the control path from HA — no entity exposes it, and the setting is a statement of belief, not a reading. Check the setting *and* ask which way the switch is set before diagnosing any heating behaviour, and treat radiator warmth as evidence the boiler fired, not that the app caused it |
 | 14 | A configured entity ID reads nothing, with no error anywhere | `new NumericSensorEntity(ha, id)` succeeds for an entity that does not exist. It never throws, never logs, and its state-change subscription simply never fires. The "not configured" warning in `OctopusElectricityMeter` only covers an *empty* setting, not a dead one | Check device-settings entity IDs against `/api/states` rather than assuming a configured ID is a live one. `dotnet nd-codegen` is a good canary: entities vanishing from the generated file means they vanished from HA |
 | 15 | Something "follows" the living room lamp, but minutes late | The lamp (`light.living_room_lamp`, a WiZ Wi-Fi bulb) is switched by cutting its power at the wall, which tells HA nothing. HA only sees it go `unavailable` after the bulb stops answering its polls, and after an HA restart with the lamp off its WiZ config entry sits in `setup_retry`, whose retry interval keeps growing — so "lamp came back on" can wait for the next retry. Measured 2026-10-19 (owner switched on, then off a few seconds later): HA saw **on** within a few seconds (bulb boot + Wi-Fi join, with the WiZ entry `loaded`) but **off ~60 s late**; the light tree automations then followed each within ~0.1 s, so the whole delay is detection | Measure lamp lag against a known flip time before blaming an automation. Ways to speed up "off", not done (owner happy to live with it): a Zigbee button driving the bulb instead of cutting its power (instant both ways); a Zigbee plug under the lamp, only if the switch is on the lamp rather than the socket; or pinging the bulb every few seconds (~5–10 s, needs a fixed IP) |
 | 16 | Renaming an entity might silently orphan whatever tracks it | Some integrations store a target *entity ID*. The Octopus cost tracker does (`target_entity_id`) — but on 2026-10-19 it **followed** a registry rename live (`loving_room_charging_dock_summation_delivered` → `living_room_plug_tv_summation_delivered`). Whether that survives an HA restart was not checked | Before renaming, search states' attributes and automation configs for the old ID (`tools/ha/rename-device.cjs` leaves other integrations' entities alone, but cannot see what *refers* to them). After the next HA restart, check the tracker's `target_entity_id` |
@@ -255,24 +255,26 @@ below), so "active" here means *reporting to HA*, not *controlling the boiler*.
 
 **The boiler has two control paths, and the fingerbot is only one of them** (established by
 the owner, 2026-10-17). The boiler can be driven either by the fingerbot pressing its
-button, or by a **separate temperature- and time-based scheduler/thermostat in the
-kitchen**. A **physical switch at the boiler** chooses between them. That switch is not a
+button, or by the **boiler thermostat**: the boiler's own temperature- and time-based
+thermostat, a **portable unit that normally lives in the kitchen** (owner, 2026-10-19; older notes
+called it the "external" or "kitchen scheduler"). A **physical switch at the boiler** chooses
+between them. That switch is not a
 Zigbee device, not an entity, and not readable from HA in any form, and neither is the
-kitchen scheduler: an `/api/states` sweep on 2026-10-17 found the **only** `climate.*`
+boiler thermostat: an `/api/states` sweep on 2026-10-17 found the **only** `climate.*`
 entities to be the five radiator TRVs and the car — there is no wall-thermostat entity, so
 HA cannot see the mode, the programme, or the setpoint.
 
-**In scheduler mode the boiler's physical button is dead**, so a fingerbot press does
+**In boiler-thermostat mode the boiler's physical button is dead**, so a fingerbot press does
 *nothing at all* — it is not an override, it is a no-op. The two paths are exclusive, not
 additive.
 
-**As of 2026-10-17 the switch is set to the external scheduler**, and has been for the
+**As of 2026-10-17 the switch is set to the boiler thermostat**, and has been for the
 period covering the fingerbot's death. So:
 
 > **Since 2026-10-17 the app knows which path it is on, because someone tells it.** The
-> `heating.boilerControlPath` field in the **device-settings** blob (`externalScheduler` = 0,
-> the default, or `fingerbot` = 1) gates every boiler action in `HeatingControlService`: in
-> external-scheduler mode it makes no fingerbot call, holds no `_boilerOn` belief, runs no
+> `heating.boilerControlPath` field in the **device-settings** blob (a number: 0 = boiler
+> thermostat, the default, or 1 = fingerbot) gates every boiler action in `HeatingControlService`: in
+> boiler-thermostat mode it makes no fingerbot call, holds no `_boilerOn` belief, runs no
 > verification and issues no corrective press, while valves and heater plugs carry on
 > unchanged. Change it in the web UI under **Settings → Boiler control** on the heating page;
 > the change reaches the app over the existing `device-settings-changed` SignalR event. It is
@@ -282,9 +284,9 @@ period covering the fingerbot's death. So:
 
 **2026-10-19, confirmed by the owner by hand:** a single `switch.turn_on` on the fingerbot
 (`switch.tz3210_j4pdtz9v_ts0001`) physically pressed the boiler button and the boiler responded. So
-the boiler's switch was on the **fingerbot** path at that moment, no longer the kitchen scheduler as
+the boiler's switch was on the **fingerbot** path at that moment, no longer the boiler thermostat as
 on 2026-10-17. Nobody checked what `heating.boilerControlPath` was set to; if it is still
-`externalScheduler` the app is not driving a boiler that can now be driven. HA kept the switch at
+0 (boiler thermostat) the app is not driving a boiler that can now be driven. HA kept the switch at
 `on` afterwards and never reverted it (read back from the recorder later that morning), so the
 fingerbot's HA state **latches**: each on/off change is one press, and the state says nothing about
 the boiler. The app relies on that to spot presses made outside it. Whether a `turn_off` also
@@ -293,7 +295,7 @@ physically presses has not been watched. The owner chose to leave it as it was.
 - **`Backend/App` is not currently heating this house.** Every boiler decision
   `HeatingControlService` made in this period was discarded by a dead button — and since
   2026-10-17 it no longer makes them, because the control-path setting defaults to the
-  external scheduler. The kitchen scheduler plus the TRVs' own regulation is what has
+  boiler thermostat. The boiler thermostat plus the TRVs' own regulation is what has
   actually kept the house warm. The app's boiler control only becomes real again when
   someone physically flips the switch at the boiler **and** sets the control path to
   `fingerbot`.
@@ -302,19 +304,19 @@ physically presses has not been watched. The owner chose to leave it as it was.
   currently broken.
 - `BoilerVerificationService` is actively misleading in this mode, both ways. It verifies a
   turn-on by looking for a ≥ threshold rise in TRV `CurrentTemperature`, and a turn-off by
-  looking for a fall after a settling period. A coincidental scheduler burn passes a
-  turn-on that never happened; a scheduler burn during a turn-off window fails a turn-off
+  looking for a fall after a settling period. A coincidental boiler-thermostat burn passes a
+  turn-on that never happened; such a burn during a turn-off window fails a turn-off
   that did. On failure `HeatingControlService` **presses the fingerbot again** to "correct"
   the mismatch ([HeatingControlService.cs](Backend/App/Services/Climate/HeatingControlService.cs)) —
   a press that can never work, against a button that cannot respond, costing mechanical
-  wear and CR2 life for nothing. **Gated since 2026-10-17**: in external-scheduler mode
+  wear and CR2 life for nothing. **Gated since 2026-10-17**: in boiler-thermostat mode
   verification is not run at all and the corrective press cannot be issued, and the
   pending verification is discarded on entering that mode so it cannot resurface later.
 - Radiator warmth is evidence that *the boiler fired*, never evidence that *the app made it
   fire*.
 
 Still unrecorded: how the switch is labelled and which way is which, the make/model of the
-kitchen scheduler, and its programme. Worth capturing next time someone is at the boiler —
+boiler thermostat, and its programme. Worth capturing next time someone is at the boiler —
 without them, nobody can tell from this repo whether the app is live.
 
 **Games room desk climate** — `sensor.sonoff_snzb_02d_temperature`, a Sonoff SNZB-02D.
@@ -333,8 +335,8 @@ Sonoff SNZB-02D in the **Games Room** area (there is no Den area; the den radiat
 button press), with `tools/ha/pair-zigbee.cjs` (the example in its README is this exact run). First readings: 20.8 °C / 55.2 %, against 21.4 °C at Ste's desk at the same moment. It
 measures the whole den, unlike the desk thermometer, and since 2026-10-19 it is what the `den` zone reads
 (`DenClimateTemperature` in `NamedEntities.cs`), so it drives both den radiator valves; the `games desk` zone
-keeps the desk thermometer. Not yet deployed as of that date — check `/api/version` and the NetDaemon
-`version.txt` before assuming the live app reads it. If it dies the den is simply not controlled; the desk
+keeps the desk thermometer. Deployed 2026-10-19 (app `20261019112544`) and verified from production: the den
+zone's room state read 19.2 °C, matching `sensor.den_climate_temperature`, while Ste's desk read 21.6 °C. If it dies the den is simply not controlled; the desk
 thermometer is **not** used as a fallback. Named the way Bedrooms 2 and 3 are: every entity renamed to
 `den_climate_*` and the temperature/humidity entities named after the room. RSSI/LQI are disabled by the
 integration, as on every other unit.
@@ -627,8 +629,8 @@ valves affect comfort, gas use and safety.
 - One fingerbot toggle equals **one press of the boiler's physical button**.
 - A fingerbot press is not the only thing driving the boiler, and right now it is not
   driving it at all. A physical switch at the boiler chooses between the fingerbot and the
-  kitchen scheduler (gotcha 13); HA cannot read it, and **as of 2026-10-17 it is set to
-  the scheduler, which leaves the boiler's button dead**. (`Backend/App` is now gated on
+  boiler thermostat (gotcha 13); HA cannot read it, and **as of 2026-10-17 it is set to
+  the boiler thermostat, which leaves the boiler's button dead**. (`Backend/App` is now gated on
   the `heating.boilerControlPath` device setting and leaves the boiler alone by default,
   but that gate does not apply to a service call you make by hand.) So a press you make may do
   literally nothing, and heat you observe afterwards is probably not yours. Say that

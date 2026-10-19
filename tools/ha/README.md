@@ -23,6 +23,8 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `put-automation.cjs --delete <id> --backup <file.json>` | **yes** | Saves an automation's config to a file, then deletes it from HA |
 | `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
+| `addon.cjs <slug>` | no | An add-on's state and version, through the Supervisor over the websocket (REST `/api/hassio` refuses the token) |
+| `addon.cjs <slug> restart` | **yes** | Restarts the add-on and waits for it to report `started`. `c6a2317c_netdaemon6` stops and restarts the heating app (how the 2026-10-19 deploy restarted it); `core_samba` is the config share |
 
 ## Automations kept here
 

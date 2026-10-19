@@ -133,6 +133,28 @@ in the order that works:
 `nd-codegen` (the tool's pre-build step) was skipped: it regenerates `HomeAssistantGenerated.cs` from the
 live Home Assistant, which makes the deployed build differ from the commit.
 
+The 2026-10-19 deploy (`d3ff40a`) followed the same steps and added these, all checked by hand:
+
+- **Restarting the add-on:** `node tools/ha/addon.cjs c6a2317c_netdaemon6 restart`. The app reported its new
+  `version.txt` to `/api/app-release/running` within about 30 seconds.
+- **Uploading the OTA zip does not trigger an update.** `app-release/upload` only stores the release; the app
+  updates itself only when a desired version is set (`app-release/desired`, from the settings menu).
+- **The publish output has an `apps/` subfolder** (`YamlConfigApp.yaml`). The tool's copy step copies top-level
+  items without `-Recurse`, so it never updates that folder. Copy with `-Recurse` and still skip
+  `appsettings.*.json`. The publish output contains no `appsettings.*.json` at all as of this release, but keep
+  the exclusion.
+- **`frontend.staticWebAppName` in the config holds the default hostname, not the resource name.** The resource is
+  `HomeAssistant-Prod-WebApp` in `HomeAssistant-Production-RG`, which is what `az staticwebapp secrets list` needs.
+- **`Frontend/.env.local` is read by production builds too.** It holds the local stack's `VITE_LOCALHOST_KEY` and
+  API URL. Environment variables beat `.env` files in Vite, so the build sets `VITE_API_URL` and
+  `VITE_FUNCTION_KEY` from the config and blanks `VITE_LOCALHOST_KEY`. Then it checks the bundle contains the
+  production URL and no `localhost:7159` / `localhost:7071` before running `swa deploy`.
+- **Straight after a restart the room states show every target as null** with `activeScheduleTrackId` 0. That is
+  the app's first upload, sent before its first evaluation. On 2026-10-19 the targets and tracks arrived about
+  three minutes after the restart (upload at 12:27:10, first evaluated upload at 12:30:14). Wait that long before
+  calling it a fault. `EvaluateAllSchedules` has no catch, so a real startup failure would also look like this and
+  log nothing to the API.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this

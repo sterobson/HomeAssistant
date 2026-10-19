@@ -171,9 +171,13 @@ public class FakeCustomClimateControlEntity : ICustomClimateControlEntity
 
     public required string EntityId { get; init; }
 
+    /// <summary>How many setpoint commands were sent: each one is a Zigbee message the TRV wakes for.</summary>
+    public int SetCount { get; set; }
+
     public void SetTargetTemperature(double temperature)
     {
         TargetTemperature = temperature;
+        SetCount++;
     }
 
     public void SubscribeToStateChangesAsync(Func<ICustomClimateControlEntity, Task> observer)

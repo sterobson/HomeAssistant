@@ -47,7 +47,7 @@ public class HeatingSettingsDto
     /// to the safe option of leaving the boiler alone. Unrelated to the heating-config stack's
     /// BoilerControlMode, which describes how a boiler switch is actuated.
     /// </summary>
-    public BoilerControlPath BoilerControlPath { get; set; } = BoilerControlPath.ExternalScheduler;
+    public BoilerControlPath BoilerControlPath { get; set; } = BoilerControlPath.BoilerThermostat;
 
     /// <summary>
     /// Per-device heating rules keyed by entity ID; null = never configured. Stored and served as-is:
@@ -65,11 +65,11 @@ public class HeatingSettingsDto
 public enum BoilerControlPath
 {
     /// <summary>
-    /// The boiler is driven by its own temperature/time scheduler in the kitchen, which
+    /// The boiler is driven by the boiler thermostat (portable, normally in the kitchen), which
     /// leaves the boiler's physical button dead. Fingerbot presses are no-ops, so the app
     /// must not attempt boiler control at all. This is the default.
     /// </summary>
-    ExternalScheduler = 0,
+    BoilerThermostat = 0,
 
     /// <summary>
     /// The boiler's button is live and the fingerbot can press it, so the app owns boiler

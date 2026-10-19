@@ -225,27 +225,31 @@ Four more heating notes:
   button (`switch.tz3210_j4pdtz9v_ts0001`), so the app's `_boilerOn` is a belief, not a
   reading. `BoilerVerificationService` infers success from radiator temperature changes.
   Since 2026-10-19 the belief survives restarts (`boiler-state.json` in the local cache folder,
-  reloaded only at startup, never after coming back from the external scheduler); a fingerbot
+  reloaded only at startup, never after coming back from the boiler thermostat); a fingerbot
   movement the app did not command (HA UI, a script) flips it; a press is refused while the
   fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
   pressed. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
-  A press by hand on the boiler itself is still invisible. [HeatingBoilerControlTests](Backend/Tests/HeatingBoilerControlTests.cs)
+  A press by hand on the boiler itself is still invisible. Until 2026-10-19 `NotifyValveStopped` also
+  overwrote a shut valve's "shut since" time on every 5-minute cycle, so a valve could never count as shut for
+  the 30 minutes the turn-on verification wants. It now keeps the first time. [HeatingBoilerControlTests](Backend/Tests/HeatingBoilerControlTests.cs)
   drives all of this through `HeatingControlService` with the real verification service.
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
-  physical switch at the boiler chooses between the fingerbot and a separate
-  temperature/time scheduler in the kitchen. The two are exclusive: in scheduler mode the
+  physical switch at the boiler chooses between the fingerbot and the **boiler thermostat**
+  (the boiler's own thermostat: portable, normally in the kitchen; called "external scheduler" or
+  "kitchen scheduler" in older notes). The two are exclusive: in boiler-thermostat mode the
   boiler's button is **dead**, so fingerbot presses are no-ops. Neither the switch nor the
-  scheduler exists in HA (verified 2026-10-17 — the only `climate.*` entities are the five
+  boiler thermostat exists in HA (verified 2026-10-17 — the only `climate.*` entities are the five
   TRVs), so nothing can *read* which mode the house is in. Since 2026-10-17 it is
-  configuration instead: `heating.boilerControlPath` in the **device-settings** blob
-  (`externalScheduler`, the default, or `fingerbot`), set from the web UI under
+  configuration instead: `heating.boilerControlPath` in the **device-settings** blob, stored as a
+  number (0 = `BoilerThermostat`, the default; 1 = `Fingerbot`), set from the web UI under
   **Settings → Boiler control** on the heating page and delivered by the existing
-  `device-settings-changed` SignalR event. In external-scheduler mode `HeatingControlService`
+  `device-settings-changed` SignalR event. In boiler-thermostat mode `HeatingControlService`
   makes no fingerbot call, holds no `_boilerOn` belief, runs no verification and issues no
-  corrective press; rooms are still controlled normally. **As of 2026-10-17 the switch is on
-  the kitchen scheduler and the setting matches it, so `Backend/App` is deliberately not
-  driving the boiler.** The setting is a claim, not a reading — if someone flips the switch
+  corrective press; rooms are still controlled normally. **On 2026-10-17 the switch was on the
+  boiler thermostat and the setting matched it. By 2026-10-19 production's setting read `fingerbot`
+  (`boilerControlPath: 1`, read from the API), so the app now drives the boiler.** Whether the
+  physical switch was flipped to match was not confirmed. The setting is a claim, not a reading — if someone flips the switch
   without changing it the app is wrong again and cannot tell. Never conclude from radiator
   temperatures that a press worked. See [HOME-ASSISTANT.md](HOME-ASSISTANT.md) → gotcha 13
   and the boiler fingerbot device note.
@@ -255,7 +259,23 @@ Four more heating notes:
   one. The boiler turns **on** when the total reaches 3 °C (`BoilerDeficitThresholdCelsius`, inclusive) and
   **off** only when the total is 0. It replaced a per-room priority score (2 + 2 etc.), so
   `GetRoomBoilerPriority` is gone and a room's name no longer affects the boiler. Heater-plug rooms (kitchen,
-  desks) have no valve and contribute nothing. Not yet deployed or verified against the live house.
+  desks) have no valve and contribute nothing. Deployed 2026-10-19 (app `20261019112544`). The first time the
+  owner tried it the total was 1.9 °C (a 21 °C den boost against 19.2 °C), so it correctly did nothing, which
+  looked like "not controlling the boiler". Two rules followed the same day (in code, not yet deployed):
+  - **A running boost starts the boiler regardless of the threshold.** This covers owner zone and group
+    boosts and guest QR overrides. A boost sets the target for every device in its zone. Heater plugs follow
+    it directly whenever their rules allow (`ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow`). This boiler rule
+    concerns only radiator valves, because the boiler feeds only radiators. It needs a room whose valves its rules allow, at least
+    `HysteresisOffset` (0.2 °C) below the boost target, the margin at which its valve opens. Turning off is
+    unchanged: the total deficit has to reach 0.
+  - **Valves wait for the boiler.** In fingerbot mode, while the boiler is believed off, no radiator valve is
+    opened. An open valve with no hot water behind it heats nothing and spends the TRV's battery. The rooms
+    are evaluated again straight after the press that turns the boiler on, so their valves open in that same
+    pass, and the turn-on verification watches those valves. Waiting never *shuts* a valve that is already
+    open, because that would be another wasted move. The order inside `EvaluateAllSchedules` matters:
+    `UpdateBoilerControlPathAsync` (mode, saved belief, outside presses), then the rooms, then
+    `EvaluateBoilerState`. In boiler-thermostat mode valves follow their rooms as before, since the boiler
+    thermostat may be running the boiler.
 - **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
   rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤

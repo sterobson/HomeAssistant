@@ -57,6 +57,12 @@ internal class HeatingControlService
     private BoilerControlPath? _lastSeenBoilerControlPath = null;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
+    // Set for each pass over the rooms: in fingerbot mode, while the boiler is believed off, radiator valves
+    // are not opened. With no hot water behind it an open valve heats nothing and only spends the TRV's
+    // battery (owner, 2026-10-19). They open in the same pass that turns the boiler on. In boiler thermostat
+    // mode the app cannot know when the boiler runs, so valves follow their rooms as before.
+    private bool _valvesWaitForBoiler = false;
+
     // Refreshed at the start of every evaluation pass (PrepareDeviceRulesAsync): the per-device rules in
     // force, whether they are the built-in defaults, and which presence sources are in use right now.
     private Dictionary<string, DeviceRulesDto>? _deviceRules;
@@ -330,14 +336,19 @@ internal class HeatingControlService
             await _evaluationSemaphore.WaitAsync();
             await PrepareDeviceRulesAsync();
             RoomSchedules schedules = await LoadSchedulesAsync();
-            bool hasStateChanged = false;
-            foreach (RoomSchedule schedule in schedules.Rooms)
-            {
-                hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
-                hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
-            }
 
-            await EvaluateBoilerState(schedules, trigger);
+            // The boiler's mode and belief come first, so the rooms below know whether their valves may open.
+            BoilerControlPath controlPath = await UpdateBoilerControlPathAsync(trigger);
+            bool boilerWasOn = _boilerOn;
+            bool hasStateChanged = await EvaluateRoomsAsync(schedules, controlPath, trigger);
+
+            await EvaluateBoilerState(schedules, controlPath, trigger);
+
+            if (_valvesWaitForBoiler && _boilerOn && !boilerWasOn)
+            {
+                // The boiler has just been turned on, so the valves held shut while it was off can open now.
+                hasStateChanged |= await EvaluateRoomsAsync(schedules, controlPath, $"{trigger}, then the boiler turned on");
+            }
 
             if (hasStateChanged)
             {
@@ -348,6 +359,31 @@ internal class HeatingControlService
         {
             _evaluationSemaphore.Release();
         }
+    }
+
+    private async Task<bool> EvaluateRoomsAsync(RoomSchedules schedules, BoilerControlPath controlPath, string trigger)
+    {
+        _valvesWaitForBoiler = controlPath == BoilerControlPath.Fingerbot && !_boilerOn;
+
+        bool hasStateChanged = false;
+        foreach (RoomSchedule schedule in schedules.Rooms)
+        {
+            hasStateChanged |= await EvaluateSchedule(schedules.HouseOccupancyState, schedule, trigger);
+            hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
+        }
+
+        return hasStateChanged;
+    }
+
+    /// <summary>
+    /// Whether a boost (the owner's, a group boost or a guest's QR override) is running now. Compares
+    /// instants, not clock faces: the end is a DateTimeOffset (the UI sends it in UTC), and comparing its
+    /// .DateTime to the local wall clock ended every boost an hour early in British Summer Time.
+    /// </summary>
+    private bool IsBoostRunning(RoomSchedule room)
+    {
+        return room.Boost is { EndTime: DateTimeOffset boostEnd, Temperature: not null }
+            && boostEnd > _timeProvider.GetUtcNow();
     }
 
     private async Task<bool> EvaluateSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule? roomHeatingSchedule, string trigger)
@@ -384,12 +420,7 @@ internal class HeatingControlService
         }
 
         // Step 0: Is there a boost active?
-        // Compare instants, not clock faces. The end time is a DateTimeOffset (the UI sends it in UTC) and
-        // `now` is the local wall clock, so comparing the end's .DateTime to `now` was wrong by the UTC
-        // offset: in British Summer Time every boost ended an hour early and any boost shorter than an hour
-        // never ran at all.
-        bool hasBoost = roomHeatingSchedule.Boost is { EndTime: DateTimeOffset boostEnd, Temperature: not null }
-            && boostEnd > _timeProvider.GetUtcNow();
+        bool hasBoost = IsBoostRunning(roomHeatingSchedule);
         double desiredTemperature;
         string reason;
         HeatingScheduleTrack? effectiveTrack = null;
@@ -660,8 +691,9 @@ internal class HeatingControlService
     }
 
     /// <summary>
-    /// Switches a zone's heating on or off. Each device only comes on if its own rules allow it (and a
-    /// device asked to come on while its rules forbid it is held off), so "on" reports a change only when
+    /// Switches a zone's heating on or off. Each device only comes on if its own rules allow it (a device
+    /// asked to come on while its rules forbid it is held off), and a radiator valve is left untouched while
+    /// it waits for the boiler (see <see cref="_valvesWaitForBoiler"/>). So "on" reports a change only when
     /// at least one device actually started heating.
     /// </summary>
     private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
@@ -686,6 +718,13 @@ internal class HeatingControlService
             bool anyReachedRequestedState = false;
             foreach ((object device, Func<bool, Task<bool>> toggle) in toggles)
             {
+                if (value && IsWaitingForBoiler(device))
+                {
+                    // Not opened while the boiler is off, and not shut for that reason either: either
+                    // way it would be a wasted move. It opens in the pass that turns the boiler on.
+                    continue;
+                }
+
                 bool desired = value && IsDeviceAllowed(device);
                 bool changed = await toggle(desired);
                 anyReachedRequestedState |= changed && desired == value;
@@ -941,7 +980,12 @@ internal class HeatingControlService
         }
     }
 
-    private async Task EvaluateBoilerState(RoomSchedules schedules, string trigger)
+    /// <summary>
+    /// Reads the boiler control path and brings the belief up to date with it: a mode change, the saved
+    /// belief at startup, and fingerbot movements the app did not command. Runs before the rooms, so they
+    /// see the belief this pass starts from.
+    /// </summary>
+    private async Task<BoilerControlPath> UpdateBoilerControlPathAsync(string trigger)
     {
         BoilerControlPath controlPath = await GetBoilerControlPathAsync();
         BoilerControlPath? previousControlPath = _lastSeenBoilerControlPath;
@@ -949,13 +993,13 @@ internal class HeatingControlService
         _lastSeenBoilerControlPath = controlPath;
         int pressesSeenOutsideTheApp = TakePressesSeenOutsideTheApp();
 
-        if (controlPath == BoilerControlPath.ExternalScheduler)
+        if (controlPath == BoilerControlPath.BoilerThermostat)
         {
             if (pathChanged)
             {
                 // Logged once per transition: this runs on every evaluation cycle.
                 _logger.LogInformation(
-                    "Boiler control is DISABLED: the house is on its external scheduler, which leaves the boiler's button dead, so a fingerbot press would do nothing. Room-level control (valves and heater plugs) continues as normal. Change this in device settings when the switch at the boiler is flipped. Triggered by {Trigger}",
+                    "Boiler control is DISABLED: the house is on its boiler thermostat, which leaves the boiler's button dead, so a fingerbot press would do nothing. Room-level control (valves and heater plugs) continues as normal. Change this in device settings when the switch at the boiler is flipped. Triggered by {Trigger}",
                     trigger);
 
                 // Drop anything left over from fingerbot mode so a stale verification cannot
@@ -968,13 +1012,13 @@ internal class HeatingControlService
             // last saved in fingerbot mode is left alone.
             _boilerOn = false;
             _boilerBeliefSince = null;
-            return;
+            return controlPath;
         }
 
         if (pathChanged)
         {
-            // Only at startup does a saved belief describe the boiler now. Coming from the external
-            // scheduler, the scheduler has been driving it, so whatever was saved is stale.
+            // Only at startup does a saved belief describe the boiler now. Coming from the boiler
+            // thermostat, the thermostat has been driving it, so whatever was saved is stale.
             BoilerBelief? savedBelief = previousControlPath == null ? _boilerStatePersistence.Load() : null;
 
             if (savedBelief != null)
@@ -1013,10 +1057,25 @@ internal class HeatingControlService
             _lastBoilerPressWasCorrection = false;
         }
 
+        return controlPath;
+    }
+
+    private async Task EvaluateBoilerState(RoomSchedules schedules, BoilerControlPath controlPath, string trigger)
+    {
+        if (controlPath == BoilerControlPath.BoilerThermostat)
+        {
+            return;
+        }
+
         // Sum how far each room with a radiator valve is below its target. A room at or above its
         // target contributes nothing: it is disregarded, not a credit against the cold rooms.
         List<(string RoomName, double Deficit)> roomsBelowTarget = [];
         List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves = [];
+        // Valves whose rooms are far enough below target to open (the hysteresis EvaluateSchedule uses). In
+        // fingerbot mode they are still shut while the boiler is off, and open once it is turned on.
+        List<(string RoomName, ICustomClimateControlEntity Valve)> valvesThatWantToOpen = [];
+        // A running boost starts the boiler on its own, whatever the total (owner, 2026-10-19).
+        List<string> boostedRoomsBelowTarget = [];
         List<string> roomsWithValvesShut = [];
         double totalDeficit = 0;
 
@@ -1038,6 +1097,16 @@ internal class HeatingControlService
                 double deficit = target - current;
                 roomsBelowTarget.Add((roomSchedule.Name, deficit));
                 totalDeficit += deficit;
+
+                if (current <= target - HysteresisOffset)
+                {
+                    valvesThatWantToOpen.AddRange(radiatorValves.Select(valve => (roomSchedule.Name, valve)));
+
+                    if (IsBoostRunning(roomSchedule))
+                    {
+                        boostedRoomsBelowTarget.Add(roomSchedule.Name);
+                    }
+                }
             }
 
             if (state is { HeatingActive: true })
@@ -1090,7 +1159,8 @@ internal class HeatingControlService
         if (!_boilerOn)
         {
             // Boiler is OFF - should we turn it ON?
-            if (totalDeficit >= BoilerDeficitThresholdCelsius)
+            bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
+            if (deficitReached || boostedRoomsBelowTarget.Count > 0)
             {
                 DateTimeOffset? offSince = _boilerBeliefSince;
 
@@ -1099,11 +1169,16 @@ internal class HeatingControlService
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _lastBoilerPressWasCorrection = false;
                     _logger.LogInformation(
-                        "Boiler turned ON (total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
+                        "Boiler turned ON ({Why}; total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
+                        deficitReached ? "deficit reached the threshold" : $"boost running in {string.Join(", ", boostedRoomsBelowTarget)}",
                         totalDeficit, BoilerDeficitThresholdCelsius, trigger,
                         string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
 
-                    _boilerVerification.NotifyBoilerToggled(true, activeValves, offSince);
+                    // Watch the valves opening with this press as well as any already open: they were held
+                    // shut while the boiler was off, so they are the radiators that should now warm.
+                    List<(string RoomName, ICustomClimateControlEntity Valve)> valvesToWatch =
+                        [.. activeValves.Concat(valvesThatWantToOpen).DistinctBy(v => v.Valve.EntityId)];
+                    _boilerVerification.NotifyBoilerToggled(true, valvesToWatch, offSince);
                 }
             }
         }
@@ -1166,12 +1241,12 @@ internal class HeatingControlService
         try
         {
             DeviceSettingsDto? settings = await _deviceSettings.GetSettingsAsync();
-            return settings?.Heating?.BoilerControlPath ?? BoilerControlPath.ExternalScheduler;
+            return settings?.Heating?.BoilerControlPath ?? BoilerControlPath.BoilerThermostat;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading the boiler control path from device settings - leaving the boiler alone");
-            return BoilerControlPath.ExternalScheduler;
+            return BoilerControlPath.BoilerThermostat;
         }
     }
 
@@ -1320,6 +1395,12 @@ internal class HeatingControlService
 
             bool allowed = IsDeviceAllowed(device);
             anyAllowed |= allowed;
+            if (allowed && IsWaitingForBoiler(device))
+            {
+                // Its rules would have it open, but the boiler is off: leave it exactly as it is.
+                continue;
+            }
+
             if (await toggle(allowed))
             {
                 changed = true;
@@ -1335,6 +1416,9 @@ internal class HeatingControlService
 
         return changed;
     }
+
+    /// <summary>A radiator valve held shut because, in fingerbot mode, the boiler is believed off.</summary>
+    private bool IsWaitingForBoiler(object device) => _valvesWaitForBoiler && device is ICustomClimateControlEntity;
 
     private static string DeviceName(object device) => device switch
     {

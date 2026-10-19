@@ -11,7 +11,7 @@ namespace HomeAssistant.Tests;
 /// a turn-on from a rise, a turn-off from a fall after a settling period. Nothing in Home
 /// Assistant reports the boiler's real state, so a failed verification is what provokes
 /// HeatingControlService into a corrective press - which is why Reset exists and why the
-/// external-scheduler gate has to stop this running at all.
+/// boiler-thermostat gate has to stop this running at all.
 /// </summary>
 [TestClass]
 public sealed class BoilerVerificationServiceTests
@@ -63,6 +63,25 @@ public sealed class BoilerVerificationServiceTests
 
         // This is the verdict HeatingControlService answers with a corrective press.
         service.GetVerifiedBoilerState().ShouldBe(false);
+    }
+
+    [TestMethod]
+    public async Task AValveReportedShutEveryCycle_KeepsTheTimeItFirstShut()
+    {
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(ColdValveTemperature);
+
+        // The app reports a shut valve on every evaluation, every few minutes.
+        service.NotifyValveStopped(Room);
+        Advance(timeProvider, minutes: 20);
+        service.NotifyValveStopped(Room);
+        Advance(timeProvider, minutes: 11);
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: null);
+
+        Advance(timeProvider, minutes: BoilerVerificationService.TurnOnWaitMinutes + 1);
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(false, "shut for 31 minutes in all, so the press was watched and the cold radiator caught");
     }
 
     [TestMethod]

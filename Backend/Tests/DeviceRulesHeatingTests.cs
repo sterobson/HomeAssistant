@@ -250,6 +250,29 @@ public sealed class DeviceRulesHeatingTests
         context.CapturedStates()[1].TargetTemperature.ShouldBe(boostTemperature);
     }
 
+    [TestMethod]
+    [DataRow(true, DisplayName = "someone home: the boost runs the heater plug")]
+    [DataRow(false, DisplayName = "nobody home: the plug's rules still hold it off")]
+    public async Task ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow(bool someoneHome)
+    {
+        // The kitchen is scheduled below the room's 15 °C, so only the boost can call for heat. Its plug's
+        // default rules (05:30-22:00 and someone in the house) still apply: a boost does not bypass them.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", someoneHome);
+        context.Rooms[0].ScheduleTracks = [new HeatingScheduleTrack { TargetTime = new TimeOnly(0, 0), Temperature = 14 }];
+        context.Rooms[0].Boost = new Boost
+        {
+            StartTime = new DateTimeOffset(2026, 10, 19, 11, 0, 0, TimeSpan.Zero),
+            EndTime = new DateTimeOffset(2026, 10, 19, 14, 0, 0, TimeSpan.Zero),
+            Temperature = 20
+        };
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.KitchenHeater.IsOn().ShouldBe(someoneHome);
+        context.KitchenHeater.TurnOnCount.ShouldBe(someoneHome ? 1 : 0);
+    }
+
     private sealed class RulesTestContext
     {
         private const double RoomTemperature = 15;

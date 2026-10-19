@@ -6,7 +6,7 @@
 // because the TRV's own sensor is at or above its setpoint. The mode is `heat` for all of them
 // whatever they are doing, so it says nothing. The reading is the TRV's onboard sensor, not the room
 // thermometer the schedules use (CLAUDE.md, "Two temperature sources per room"). Even a heating TRV
-// does not mean the boiler is firing: in external-scheduler mode the app never drives it.
+// does not mean the boiler is firing: in boiler-thermostat mode the app never drives it.
 const { rest, run } = require('./lib/ha.cjs');
 
 run(async () => {

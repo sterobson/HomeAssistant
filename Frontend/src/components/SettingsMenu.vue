@@ -133,11 +133,11 @@
                 <div class="setting-options">
                   <button
                     class="setting-btn"
-                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER }"
+                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.BOILER_THERMOSTAT }"
                     :disabled="savingBoilerPath"
-                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER)"
+                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.BOILER_THERMOSTAT)"
                   >
-                    <span>External scheduler</span>
+                    <span>Boiler thermostat</span>
                   </button>
                   <button
                     class="setting-btn"
@@ -149,7 +149,7 @@
                   </button>
                 </div>
                 <p class="setting-description">
-                  On the external scheduler the boiler's button is dead, so the app leaves the
+                  On the boiler thermostat the boiler's button is dead, so the app leaves the
                   boiler alone and only controls radiator valves and heater plugs. On fingerbot
                   the app presses the boiler's button itself.
                 </p>

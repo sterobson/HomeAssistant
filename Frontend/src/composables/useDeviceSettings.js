@@ -3,10 +3,10 @@ import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
 import { firstSaveMap } from '../utils/deviceRules.js'
 
 // Which control path the boiler is physically wired to. A switch at the boiler selects between
-// the fingerbot and the house's own scheduler, and nothing can read it, so this is a statement of
+// the fingerbot and the boiler thermostat, and nothing can read it, so this is a statement of
 // what someone saw at the boiler. Values match the BoilerControlPath enum in the API.
 export const BOILER_CONTROL_PATHS = {
-  EXTERNAL_SCHEDULER: 0,
+  BOILER_THERMOSTAT: 0,
   FINGERBOT: 1
 }
 
@@ -79,7 +79,7 @@ const boilerControlPath = computed(() => {
   const path = settings.value?.heating?.boilerControlPath
   return path === BOILER_CONTROL_PATHS.FINGERBOT
     ? BOILER_CONTROL_PATHS.FINGERBOT
-    : BOILER_CONTROL_PATHS.EXTERNAL_SCHEDULER
+    : BOILER_CONTROL_PATHS.BOILER_THERMOSTAT
 })
 
 // Saves only the boiler control path, keeping everything else in the device settings blob.

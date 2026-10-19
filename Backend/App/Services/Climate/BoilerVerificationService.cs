@@ -22,7 +22,7 @@ internal interface IBoilerVerificationService
 
     /// <summary>
     /// Discards any pending verification and valve history. Called when boiler control is
-    /// handed to the external scheduler, so a verification left over from fingerbot mode
+    /// handed to the boiler thermostat, so a verification left over from fingerbot mode
     /// cannot resurface later and provoke a corrective press.
     /// </summary>
     void Reset();
@@ -190,7 +190,9 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
         if (_valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record))
         {
-            record.HeatingStoppedAt = now;
+            // Reported on every evaluation while the valve stays shut, so keep the time it first shut:
+            // overwriting it each cycle meant a valve could never count as shut for half an hour.
+            record.HeatingStoppedAt ??= now;
         }
         else
         {
