@@ -1,4 +1,5 @@
 ﻿using HomeAssistant.apps;
+using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -28,9 +29,9 @@ internal class PresenceService : IPresenceService
         switch (roomName.ToLower().Trim())
         {
             // Presence is measured from desk plug power draw, so it belongs to the desk
-            // zones only. The radiator zones that share their thermometer ("dining room",
-            // "den") deliberately have no presence: a person at the desk should not make
-            // the whole room's radiator come on.
+            // zones only. The radiator zones in the same rooms ("dining room", "den")
+            // deliberately have no presence: a person at the desk should not make the
+            // whole room's radiator come on.
             case "games desk":
                 if (_namedEntities.GamesRoomDeskPlugOnOff.IsOn())
                 {
@@ -61,11 +62,25 @@ internal class PresenceService : IPresenceService
 
     public bool CanDetectIfRoomInUse(string roomName)
     {
+        return GetPresenceDevices(roomName).Count != 0;
+    }
+
+    public IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName)
+    {
+        // Must agree with IsRoomInUse above: these are the entities it reads.
         return roomName.ToLower().Trim() switch
         {
-            "games desk" => true,
-            "dining desk" => true,
-            _ => false
+            "games desk" =>
+            [
+                (_namedEntities.GamesRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
+                (_namedEntities.GamesRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
+            ],
+            "dining desk" =>
+            [
+                (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
+                (_namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
+            ],
+            _ => []
         };
     }
 

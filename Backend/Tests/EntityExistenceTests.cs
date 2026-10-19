@@ -217,8 +217,8 @@ public sealed class EntityExistenceTests
         // Act & Assert - constructor should not throw
         HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence, boilerVerification, deviceSettings);
 
-        // Verify warnings were logged for the 24 validated entities
-        logger.Received(24).Log(
+        // Verify warnings were logged for the 25 validated entities
+        logger.Received(25).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
             Arg.Any<object>(),

@@ -449,6 +449,11 @@ internal class MockPresenceService : IPresenceService
     {
         return _presenceValue.ContainsKey(roomName);
     }
+
+    public IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName)
+    {
+        return CanDetectIfRoomInUse(roomName) ? [($"{roomName} desk plug", RoomDeviceRoles.DeskPlug)] : [];
+    }
 }
 
 internal class FakeTimeProvider : TimeProvider

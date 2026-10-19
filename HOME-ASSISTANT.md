@@ -208,8 +208,10 @@ the selection is `sensor` domain, `device_class=battery`, entity ID ending `_bat
 `_battery_N`: that trailing number is load-bearing, because the living room and dining room
 thermometers are `_battery_2` and `_battery_3` (gotcha 11), and it is what keeps phones, the
 car and the SolaX home battery — all of which also carry `device_class=battery` — out of a
-list meant for cells someone has to replace. As of 2026-10-17 it selects 21 devices, which
-matches the inventory above exactly.
+list meant for cells someone has to replace. As of 2026-10-19 it selects 24 devices (21 on
+2026-10-17, plus the two den radiators and the den thermometer), which matches the inventory
+above exactly — counted by applying `DeviceBatteryPushService.IsReplaceableBatterySensor`'s
+rules to a live `GET /api/states`.
 
 | Level | Device | Battery entity | Used by the C# app as |
 |---|---|---|---|
@@ -221,7 +223,8 @@ matches the inventory above exactly.
 | 100% | Games Room – Desk – Climate | `sensor.sonoff_snzb_02d_battery` | `GamesRoomDeskTemperature` |
 | 100% | Living Room – Climate | `sensor.sonoff_snzb_02d_battery_2` | `LivingRoomClimateTemperature` |
 | 100% | Dining Room – Climate | `sensor.sonoff_snzb_02d_battery_3` | `DiningRoomClimateTemperature` |
-| 100% | Den – Climate (new 2026-10-19) | `sensor.den_climate_battery` | not used yet |
+| 100% | Den – Climate (new 2026-10-19) | `sensor.den_climate_battery` | `DenClimateTemperature` |
+| 100% | Den – Radiator 1 / 2 (TRVs, new 2026-10-18) | `sensor.den_radiator_*_battery` | `DenRadiator*Thermostat` |
 | 100% | Kitchen temperature and humidity | `sensor.kitchen_temperature_and_humidity_battery` | `KitchenTemperature` |
 | 100% | Bathroom – Climate | `sensor.bedroom_3_temperature_and_humidity_battery` | `UpstairsBathroomTemperature` (gotcha 10) |
 | 100% | Games Room Desk / Dining Bookshelf / Christmas Tree – Buttons | `sensor.*_button_battery` | `*Button` (bound by IEEE) |
@@ -304,20 +307,23 @@ without them, nobody can tell from this repo whether the app is live.
 
 **Games room desk climate** — `sensor.sonoff_snzb_02d_temperature`, a Sonoff SNZB-02D.
 Battery replaced 2026-10-17 after dropping to 5%. Worth watching regardless of level,
-because it is the games room's **only** temperature source: when it dies
-`GetCurrentTemperatureForRoom("games room")` returns null, `EvaluateSchedule` hits its
-`currentTemperature == null` early return, and the games room silently stops being
-controlled — no error, no alert. It is one of **eight** identical SNZB-02Ds (gotcha 11), so
+because it is the `games desk` zone's **only** temperature source: when it dies
+`GetCurrentTemperatureForRoom("games desk")` returns null, `EvaluateSchedule` hits its
+`currentTemperature == null` early return, and Ste's desk heater silently stops being
+controlled — no error, no alert. (The `den` zone read it too until 2026-10-19; it now has
+its own thermometer, below.) The same holds for every room's thermometer. It is one of **eight** identical SNZB-02Ds (gotcha 11), so
 a CR2450 and a small Phillips screwdriver cover every room thermometer in the house except
 the bathroom.
 
 **Den climate** — `sensor.den_climate_temperature` / `_humidity` / `_battery`, device "Den - Climate", a
 Sonoff SNZB-02D in the **Games Room** area (there is no Den area; the den radiators are there too). Paired
 2026-10-19: joined ~90 s after the ZHA join window opened, as soon as it was powered on (a new unit needed no
-button press), with `tools/ha/pair-zigbee.cjs` (the example in its README is this exact run). First
-readings: 20.8 °C / 55.2 %, against 21.4 °C at Ste's desk at the same moment. It
-measures the whole den, unlike the desk thermometer, but **is not yet bound in `Backend/App`**: the `den` zone
-still reads the games desk thermometer. Named the way Bedrooms 2 and 3 are: every entity renamed to
+button press), with `tools/ha/pair-zigbee.cjs` (the example in its README is this exact run). First readings: 20.8 °C / 55.2 %, against 21.4 °C at Ste's desk at the same moment. It
+measures the whole den, unlike the desk thermometer, and since 2026-10-19 it is what the `den` zone reads
+(`DenClimateTemperature` in `NamedEntities.cs`), so it drives both den radiator valves; the `games desk` zone
+keeps the desk thermometer. Not yet deployed as of that date — check `/api/version` and the NetDaemon
+`version.txt` before assuming the live app reads it. If it dies the den is simply not controlled; the desk
+thermometer is **not** used as a fallback. Named the way Bedrooms 2 and 3 are: every entity renamed to
 `den_climate_*` and the temperature/humidity entities named after the room. RSSI/LQI are disabled by the
 integration, as on every other unit.
 

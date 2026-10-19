@@ -14,8 +14,9 @@ using System.Reactive.Concurrency;
 namespace HomeAssistant.Tests;
 
 /// <summary>
-/// The dining room and the den each hold two independently scheduled zones that share one
-/// thermometer: a desk (heater plug) and the room itself (radiator valve). Room names are the
+/// The dining room and the den each hold two independently scheduled zones: a desk (heater plug)
+/// and the room itself (radiator valve). The dining zones share one thermometer; the den and Ste's
+/// desk each have their own. Room names are the
 /// join key to that hardware, and a name that matches no switch arm falls through to an empty
 /// device list with no error at all - the room simply stops being heated. These tests pin each
 /// zone to the hardware it is supposed to own, so a rename cannot unbind one silently.
@@ -131,6 +132,89 @@ public sealed class RoomZoneBindingTests
     }
 
     [TestMethod]
+    public async Task DenAndGamesDesk_EachReadTheirOwnThermometer()
+    {
+        // Until 2026-10-19 the den borrowed Ste's desk thermometer. It now has its own room
+        // thermometer, so the two zones must report different readings when the sensors differ.
+        ZoneTestContext context = ZoneTestContext.Create("den", "games desk");
+        ((FakeCustomNumericSensorEntity)context.Entities.DenClimateTemperature).State = 16;
+        ((FakeCustomNumericSensorEntity)context.Entities.GamesRoomDeskTemperature).State = 17;
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        IReadOnlyDictionary<int, RoomState> states = context.CapturedStates();
+        states[1].CurrentTemperature.ShouldBe(16, "the den reads the den room thermometer");
+        states[2].CurrentTemperature.ShouldBe(17, "the games desk reads the desk thermometer");
+    }
+
+    [TestMethod]
+    public async Task Den_WithNoThermometerReadingIsNotControlled()
+    {
+        // The desk thermometer reading must not stand in for a missing den reading.
+        ZoneTestContext context = ZoneTestContext.Create("den");
+        ((FakeCustomNumericSensorEntity)context.Entities.DenClimateTemperature).State = null;
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.DenRadiator1.TargetTemperature.ShouldBe(ZoneTestContext.IdleRadiatorTarget);
+        context.DenRadiator2.TargetTemperature.ShouldBe(ZoneTestContext.IdleRadiatorTarget);
+    }
+
+    [TestMethod]
+    public async Task Den_ListsItsThermometerAndBothRadiators()
+    {
+        ZoneTestContext context = ZoneTestContext.Create("den");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        List<RoomDeviceDto> devices = context.CapturedStates()[1].Devices;
+        devices.Select(d => (d.EntityId, d.Role)).ShouldBe(
+        [
+            (nameof(FakeNamedEntities.DenClimateTemperature), RoomDeviceRoles.Thermometer),
+            (nameof(FakeNamedEntities.DenRadiator1Thermostat), RoomDeviceRoles.RadiatorValve),
+            (nameof(FakeNamedEntities.DenRadiator2Thermostat), RoomDeviceRoles.RadiatorValve)
+        ]);
+        devices[1].TargetTemperature.ShouldBe(ZoneTestContext.HeatingRadiatorTarget, "a valve carries its live target");
+    }
+
+    [TestMethod]
+    public async Task GamesDesk_ListsItsThermometerHeaterPlugAndPresencePlug()
+    {
+        ZoneTestContext context = ZoneTestContext.Create("games desk");
+        context.Presence.SetRoomValue("games desk", true);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].Devices.Select(d => (d.EntityId, d.Role)).ShouldBe(
+        [
+            (nameof(FakeNamedEntities.GamesRoomDeskTemperature), RoomDeviceRoles.Thermometer),
+            (nameof(FakeNamedEntities.GamesRoomHeaterSmartPlugOnOff), RoomDeviceRoles.HeaterPlug),
+            ("games desk desk plug", RoomDeviceRoles.DeskPlug)
+        ]);
+    }
+
+    [TestMethod]
+    public async Task DummySwitchesAreNotListedAsDevices()
+    {
+        // The upstairs bathroom is "driven" by a dummy switch so it can be scheduled; that is not hardware.
+        ZoneTestContext context = ZoneTestContext.Create("upstairs bathroom");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].Devices.Select(d => d.Role).ShouldBe([RoomDeviceRoles.Thermometer]);
+    }
+
+    [TestMethod]
+    public async Task AnUnknownRoomNameListsNoDevices()
+    {
+        ZoneTestContext context = ZoneTestContext.Create("dining rooom");
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].Devices.ShouldBeEmpty();
+    }
+
+    [TestMethod]
     public async Task GamesDesk_DoesNotDriveTheDenRadiators()
     {
         ZoneTestContext context = ZoneTestContext.Create("games desk");
@@ -175,6 +259,7 @@ public sealed class RoomZoneBindingTests
         public required HeatingControlService Service { get; init; }
         public required FakeNamedEntities Entities { get; init; }
         public required IRoomStatePersistenceService StatePersistence { get; init; }
+        public required MockPresenceService Presence { get; init; }
 
         public FakeCustomSwitchEntity DiningRoomHeaterPlug => (FakeCustomSwitchEntity)Entities.DiningRoomHeaterSmartPlugOnOff;
         public FakeCustomClimateControlEntity DiningRoomRadiator => (FakeCustomClimateControlEntity)Entities.DiningRoomRadiatorThermostat;
@@ -243,6 +328,7 @@ public sealed class RoomZoneBindingTests
             // Every zone reads below target, so each one calls for heat.
             ((FakeCustomNumericSensorEntity)entities.DiningRoomClimateTemperature).State = RoomTemperature;
             ((FakeCustomNumericSensorEntity)entities.GamesRoomDeskTemperature).State = RoomTemperature;
+            ((FakeCustomNumericSensorEntity)entities.DenClimateTemperature).State = RoomTemperature;
             FakeCustomClimateControlEntity diningRadiator = (FakeCustomClimateControlEntity)entities.DiningRoomRadiatorThermostat;
             diningRadiator.CurrentTemperature = RoomTemperature;
             diningRadiator.SetTargetTemperature(IdleRadiatorTarget);
@@ -281,7 +367,8 @@ public sealed class RoomZoneBindingTests
             {
                 Service = ActivatorUtilities.CreateInstance<HeatingControlService>(provider),
                 Entities = entities,
-                StatePersistence = statePersistence
+                StatePersistence = statePersistence,
+                Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>()
             };
         }
     }

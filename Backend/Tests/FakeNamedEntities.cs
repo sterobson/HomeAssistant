@@ -48,6 +48,8 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomClimateControlEntity Bedroom2RadiatorThermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(Bedroom2RadiatorThermostat) };
 
+    public ICustomNumericSensorEntity DenClimateTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(DenClimateTemperature) };
+
     public ICustomClimateControlEntity DenRadiator1Thermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(DenRadiator1Thermostat) };
 
     public ICustomClimateControlEntity DenRadiator2Thermostat { get; } = new FakeCustomClimateControlEntity { EntityId = nameof(DenRadiator2Thermostat) };
@@ -58,7 +60,7 @@ internal class FakeNamedEntities : INamedEntities
 
     public ICustomNumericSensorEntity UpstairsBathroomTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(UpstairsBathroomTemperature) };
 
-    public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; } = new FakeCustomSwitchEntity { EntityId = nameof(UpstairsBathroomDummyPlugOnOff) };
+    public ICustomSwitchEntity UpstairsBathroomDummyPlugOnOff { get; } = new DummySwitchEntity(false);
 
     public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot) };
 }

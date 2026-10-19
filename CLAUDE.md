@@ -37,8 +37,8 @@ October 2026; that is what this section exists to prevent.
 | `Frontend` | Vue 3 + Vite SPA. | Azure Static Web Apps, at `https://homeassistant.everymilesoftware.com`. |
 
 `Backend/Tests` (MSTest + NSubstitute + Shouldly) covers `Backend/App` only. There are
-no tests for the Functions app or the frontend beyond one Vitest file
-(`Frontend/src/utils/energyDistribution.test.js`).
+no tests for the Functions app, and the frontend's are Vitest files for the pure helpers in
+`Frontend/src/utils/` only (no component tests).
 
 Solution file: `Backend/HomeAssistant.sln`.
 
@@ -160,15 +160,15 @@ stays as the canonical hardware key. Two traps if you touch this:
 - Render room names via `roomLabel`, not `room.name`, or renamed rooms will show their
   old name in whichever corner you missed.
 
-**A "room" is really a heating zone, and two of them share a thermometer.** The dining
-room and the den each hold two zones that are scheduled and controlled independently:
+**A "room" is really a heating zone, and the two dining zones share a thermometer.** The
+dining room and the den each hold two zones that are scheduled and controlled independently:
 
-| Group | Zone (`name`) | Drives | Presence |
-|---|---|---|---|
-| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | yes — desk plug power |
-| Dining room | `dining room` ("Dining room") | dining TRV | no |
-| Den | `games desk` ("Ste's desk") | games heater plug | yes — desk plug power |
-| Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | no |
+| Group | Zone (`name`) | Drives | Reads | Presence |
+|---|---|---|---|---|
+| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug power |
+| Dining room | `dining room` ("Dining room") | dining TRV | dining room thermometer | no |
+| Den | `games desk` ("Ste's desk") | games heater plug | desk thermometer (`sensor.sonoff_snzb_02d_temperature`) | yes — desk plug power |
+| Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | den thermometer (`sensor.den_climate_temperature`, since 2026-10-19) | no |
 
 Which zones sit together, and in what order, is the **layout**: an ordered tree saved as `layout` next to the
 room list, whose nodes are rooms (`{ roomId }`) or groups (`{ id, name, icon, children }`), nested to any
@@ -179,18 +179,25 @@ the two cannot get stuck out of step. The UI is [RoomGroupCard](Frontend/src/com
 the recursive [LayoutNode](Frontend/src/components/LayoutNode.vue); all the tree rules live in
 [roomLayout.js](Frontend/src/utils/roomLayout.js) with tests. Rooms also carry an optional `icon` (an emoji).
 
-Three consequences worth knowing before changing any of this:
+Four consequences worth knowing before changing any of this:
 
 - **Presence belongs to the desks, not the rooms.** `IsRoomInUse` returns `false` for any
   name it doesn't recognise, so a `RoomInUse` track on a presence-blind zone silently
   never fires, and a `RoomNotInUse` track always fires. That asymmetry is why the dining
   radiator took only the presence-free baseline tracks in the split.
 - `"games room"` no longer exists — it was only ever the desk's plug and thermometer, so
-  it became `games desk`. `den` drives both den radiators and shares the games desk's
-  thermometer; before they were fitted its arm was deliberately empty so it read as "no controls".
+  it became `games desk`. `den` drives both den radiators and, since 2026-10-19, reads its
+  own room thermometer; until then it borrowed the games desk's, which read ~0.6 °C warmer
+  than the room at pairing. Before the radiators were fitted its arm was deliberately empty so
+  it read as "no controls".
 - [RoomZoneBindingTests.cs](Backend/Tests/RoomZoneBindingTests.cs) pins each zone to the
   hardware it owns, including that an unknown name binds to nothing. If you rename a zone
   and those fail, that is the silent unbinding being caught for once.
+- **The UI's device list comes from the same switches.** `GetDevicesForRoom` in `HeatingControlService`
+  reads `GetThermometerForRoom`, `GetSwitchesForRoom` and `IPresenceService.GetPresenceDevices` and
+  publishes the result as `devices` on each room state, which the web UI shows behind a "Devices" link.
+  So adding a zone's hardware to those switches is enough for it to appear; never keep a second copy of
+  the wiring in the frontend. A zone that has lost its hardware shows an empty list there.
 
 Four more heating notes:
 
