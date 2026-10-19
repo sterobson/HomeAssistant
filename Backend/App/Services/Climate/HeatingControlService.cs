@@ -344,7 +344,7 @@ internal partial class HeatingControlService
             }
 
             // Upload to API (SignalR notification will be broadcast automatically)
-            await _statePersistence.SetStatesAsync(_roomStates);
+            await _statePersistence.SetStatesAsync(_roomStates, DescribeBoiler());
             _logger.LogDebug("Updated room states");
         }
         catch (Exception ex)
@@ -369,6 +369,7 @@ internal partial class HeatingControlService
             RoomSchedules schedules = await LoadSchedulesAsync();
 
             // 1. The boiler's mode and belief: a mode change, the saved belief at startup, outside presses.
+            BoilerStateDto boilerBefore = DescribeBoiler();
             BoilerControlPath controlPath = await UpdateBoilerControlPathAsync(trigger);
             bool fingerbotMode = controlPath == BoilerControlPath.Fingerbot;
 
@@ -406,6 +407,12 @@ internal partial class HeatingControlService
             {
                 await RecordValvesAndVerifyAsync(schedules);
             }
+
+            // The UI shows the boiler too, so a change of mode or belief is worth an upload on its own.
+            BoilerStateDto boilerAfter = DescribeBoiler();
+            hasStateChanged |= boilerAfter.AppControlsBoiler != boilerBefore.AppControlsBoiler
+                || boilerAfter.BelievedOn != boilerBefore.BelievedOn
+                || boilerAfter.Since != boilerBefore.Since;
 
             if (hasStateChanged)
             {
@@ -1427,6 +1434,18 @@ internal partial class HeatingControlService
         }
 
         return inUse;
+    }
+
+    /// <summary>What the app believes the boiler is doing, for the UI. Only meaningful in fingerbot mode.</summary>
+    private BoilerStateDto DescribeBoiler()
+    {
+        bool appControls = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot;
+        return new BoilerStateDto
+        {
+            AppControlsBoiler = appControls,
+            BelievedOn = appControls && _boilerOn,
+            Since = appControls ? _boilerBeliefSince?.ToString("O") : null
+        };
     }
 
     /// <summary>The zone's presence detectors for the UI: those that count for it, and every one there is.</summary>

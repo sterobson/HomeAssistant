@@ -263,7 +263,10 @@ Four more heating notes:
   fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
   pressed. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
-  A press by hand on the boiler itself is still invisible. Until 2026-10-19 `NotifyValveStopped` also
+  A press by hand on the boiler itself is still invisible. The UI shows the belief in fingerbot mode ("Boiler
+  on since …" at the top of the heating page; owner, 2026-10-19): the app sends it as `boiler` on every
+  room-state upload (`RoomStatesResponse.Boiler`, uploaded whenever the belief or mode changes, and when a
+  valve exercise starts). Until 2026-10-19 `NotifyValveStopped` also
   overwrote a shut valve's "shut since" time on every 5-minute cycle, so a valve could never count as shut for
   the 30 minutes the turn-on verification wants. It now keeps the first time. [HeatingBoilerControlTests](Backend/Tests/HeatingBoilerControlTests.cs)
   drives all of this through `HeatingControlService` with the real verification service.

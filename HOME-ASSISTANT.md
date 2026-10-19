@@ -70,6 +70,7 @@ row before you finish — that is how this list earns its keep.
 | 17 | The NetDaemon app forgets what it saved after an add-on restart | The Supervisor recreates an add-on's container on restart, so anything the app writes outside `/data` (or the mapped `/config`) is gone. Seen 2026-10-19: the boiler belief saved in the user profile was lost, the app assumed the boiler was off, and it never pressed it off. Inferred from the app's behaviour (it skipped a press it would otherwise have made); the add-on log could not be read through the API to confirm | The app's caches go in `/data/HomeAssistant` when it runs as an add-on (`LocalStorageFolder`). Anything else that must survive a restart belongs there too |
 | 18 | The boiler fingerbot changed state with nobody pressing it | At 13:17:08 BST on 2026-10-19 `switch.tz3210_j4pdtz9v_ts0001` went `on` with **no context** in the logbook (no user, automation or service call: the device reported it). Either someone touched the fingerbot's own button or it sent a spurious report. The app counts any change it did not command as a press, flipped its belief and pressed 21 s later. If the report was spurious, that press really toggled the boiler | Run `tools/ha/who-changed.cjs switch.tz3210_j4pdtz9v_ts0001` before trusting any fingerbot change: "Supervisor" is the app, a named user is a person or a script on their token, and no context is the device. If uncommanded reports recur, the outside-press rule needs rethinking |
 | 19 | The Dreame Vacuum login form says only "Could not login, check the credentials." | The form hides the cloud's answer. The real one is in HA's system log (websocket `system_log/list`, logger `custom_components.dreame_vacuum.dreame.protocol`). On 2026-10-19 it was `user password not match` with `maxAttempts 5` and a `remains` count, so the account and region were right, only the password was wrong, and **each failed submit spends one of five attempts** before the account is locked. The account had been created with Google sign-in, which the integration cannot use, so a password had to be set in the Dreamehome app first | Read the system log after the first failure instead of retrying the form. Test the password in the Dreamehome app itself before submitting it again |
+| 20 | The phones' trackers say "home" all day, even when they are miles away | Home Assistant is only reachable on the home network (no external URL, Home Assistant Cloud not logged in; read from `/api/config` and `cloud/status`, 2026-10-19). Away from the Wi-Fi a phone's Companion app cannot reach it, so it sends nothing and the tracker keeps its last state, "home". Ste's and Ruth's trackers said "home" for all 10 days of history while the owner confirmed both phones were out many times; every one of their ~1,300 position reports was within ~150 m of home. Ellie's and Kevin's phones have location off as well ("unknown") | Do not use `device_tracker.*` or `person.*` for presence until remote access exists (Home Assistant Cloud, a VPN such as Tailscale, or router-based presence). Check a tracker's history for any "not_home" before trusting it |
 
 ## Recipes
 
@@ -237,6 +238,15 @@ rules to a live `GET /api/states`.
 | 100% | Kitchen flood detector | `sensor.sonoff_snzb_05p_battery` | not used |
 
 ### Per-device notes
+
+**Router: Linksys MX5500 Velop AX** (mesh), the default gateway at `192.168.1.1`, firmware 1.1.7.216940
+(2026-07-09). Read from the router on 2026-10-19: its JNAP API (`POST /JNAP/` with an `X-JNAP-Action` header)
+answers `core/GetDeviceInfo` without a login, but the connected-devices list (`devicelist/GetDevices`) needs the
+admin password. Home Assistant has discovered it over UPnP as "Linksys10796" (a pending, un-set-up `upnp` flow,
+which gives traffic stats only, not devices). The phone trackers are useless while HA is only reachable at home
+(gotcha 20), so this is the candidate for presence: the community **Linksys Velop** integration
+(`uvjim/linksys_velop`, HACS custom repository, maintained; release 2026.10.1) has device trackers for chosen
+Wi-Fi devices. Its README does not name the MX5500; not yet tried.
 
 **Boiler fingerbot** — `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
 Tuya TS0001 (`_TZ3210_j4pdtz9v`) on ZHA. Takes a **CR2 battery**, and replacing it is

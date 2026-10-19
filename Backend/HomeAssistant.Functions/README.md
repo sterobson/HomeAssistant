@@ -72,7 +72,7 @@ achieves nothing until they require one. See
 | Method | Route | Function |
 |---|---|---|
 | GET/POST | `schedules` | Room schedules — the legacy model that actually runs the house |
-| GET/POST | `room-states` | Live room temperature, heating state, active track, and `devices` (the HA entities each zone is bound to, with their state). The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app |
+| GET/POST | `room-states` | Live room temperature, heating state, active track, `devices` (the HA entities each zone is bound to, with their state) and `occupancy` (the zone's presence detectors), plus a house-wide `boiler`: `{ appControlsBoiler, believedOn, since }`, what the app believes the boiler is doing (since 2026-10-19). The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app |
 | GET | `room-history` | Temperature history for one room over a date range |
 | GET/POST | `heating-config` | Newer device/rule config model — **stored but not yet consumed** by the NetDaemon app |
 | GET/POST | `house-details` | House name and occupancy |

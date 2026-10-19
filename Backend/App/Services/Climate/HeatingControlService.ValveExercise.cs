@@ -107,6 +107,13 @@ internal partial class HeatingControlService
 
             _scheduler.Schedule(ValveExerciseFlipFor, async () => await RestoreValvesAfterExerciseAsync());
             _scheduler.Schedule(ValveExerciseBoilerFor, async () => await EndValveExerciseAsync());
+
+            // Normal evaluations wait for the exercise, so show the boiler going on now rather than in 5 minutes.
+            if (_boilerOnForExercise)
+            {
+                await UpdateRoomStatesAsync();
+            }
+
             return true;
         }
         finally

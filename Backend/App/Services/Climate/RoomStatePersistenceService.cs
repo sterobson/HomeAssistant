@@ -1,3 +1,4 @@
+using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -11,10 +12,10 @@ namespace HomeAssistant.Services.Climate;
 internal interface IRoomStatePersistenceService
 {
     /// <summary>
-    /// Uploads room states to Azure API
+    /// Uploads room states to Azure API, with what the app believes the boiler is doing.
     /// The Azure Function will automatically broadcast a SignalR "RoomStatesUpdated" notification to all connected clients
     /// </summary>
-    Task SetStatesAsync(Dictionary<int, RoomState> states);
+    Task SetStatesAsync(Dictionary<int, RoomState> states, BoilerStateDto? boiler = null);
 }
 
 internal class RoomStatePersistenceService : IRoomStatePersistenceService
@@ -33,7 +34,7 @@ internal class RoomStatePersistenceService : IRoomStatePersistenceService
         _scheduleApiClient = scheduleApiClient;
     }
 
-    public async Task SetStatesAsync(Dictionary<int, RoomState> states)
+    public async Task SetStatesAsync(Dictionary<int, RoomState> states, BoilerStateDto? boiler = null)
     {
         if (_scheduleApiClient == null || string.IsNullOrEmpty(_configuration.HouseId))
         {
@@ -44,7 +45,7 @@ internal class RoomStatePersistenceService : IRoomStatePersistenceService
         try
         {
             List<RoomState> statesList = states.Values.ToList();
-            await _scheduleApiClient.SetRoomStatesAsync(_configuration.HouseId, statesList);
+            await _scheduleApiClient.SetRoomStatesAsync(_configuration.HouseId, statesList, boiler);
             _logger.LogDebug("Successfully uploaded room states to API for house {HouseId} (SignalR notification will be broadcast automatically)", _configuration.HouseId);
         }
         catch (Exception ex)

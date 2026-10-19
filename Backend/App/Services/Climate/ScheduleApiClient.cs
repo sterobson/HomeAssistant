@@ -14,7 +14,7 @@ namespace HomeAssistant.Services;
 public interface IScheduleApiClient
 {
     Task<RoomSchedules> GetSchedulesAsync(string houseId);
-    Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates);
+    Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates, BoilerStateDto? boiler = null);
 }
 
 public class ScheduleApiClient : IScheduleApiClient
@@ -57,13 +57,14 @@ public class ScheduleApiClient : IScheduleApiClient
         }
     }
 
-    public async Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates)
+    public async Task SetRoomStatesAsync(string houseId, List<RoomState> roomStates, BoilerStateDto? boiler = null)
     {
         try
         {
             RoomStatesResponse dto = new RoomStatesResponse
             {
-                RoomStates = roomStates.Select(ScheduleMapper.MapRoomStateToDto).ToList()
+                RoomStates = roomStates.Select(ScheduleMapper.MapRoomStateToDto).ToList(),
+                Boiler = boiler
             };
 
             string json = JsonSerializer.Serialize(dto, _jsonOptions);

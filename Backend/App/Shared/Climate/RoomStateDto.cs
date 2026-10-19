@@ -5,6 +5,24 @@ namespace HomeAssistant.Shared.Climate;
 public class RoomStatesResponse
 {
     public List<RoomStateDto> RoomStates { get; set; } = [];
+
+    /// <summary>
+    /// What the NetDaemon app believes the boiler is doing, for the UI (owner, 2026-10-19). Null from an app too old
+    /// to send it. A belief, not a reading: nothing in Home Assistant can see the boiler itself.
+    /// </summary>
+    public BoilerStateDto? Boiler { get; set; }
+}
+
+public class BoilerStateDto
+{
+    /// <summary>True in fingerbot mode, when the app drives the boiler; false while the boiler thermostat does.</summary>
+    public bool AppControlsBoiler { get; set; }
+
+    /// <summary>Whether the app believes the boiler is on. Meaningless unless <see cref="AppControlsBoiler"/>.</summary>
+    public bool BelievedOn { get; set; }
+
+    /// <summary>When the app came to believe that, ISO 8601, or null when it does not know.</summary>
+    public string? Since { get; set; }
 }
 
 public class RoomStateDto

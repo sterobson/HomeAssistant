@@ -23,6 +23,19 @@
       </div>
 
       <div v-if="rooms.length > 0" class="layout-toolbar">
+        <!-- Only in fingerbot mode, when the app drives the boiler. A belief, not a reading: nothing sees the
+             boiler itself (CLAUDE.md, "The boiler has no feedback"). -->
+        <span
+          v-if="boilerState?.appControlsBoiler"
+          class="boiler-status"
+          :class="{ on: boilerState.believedOn }"
+          :title="'What the app believes, from its own presses: nothing can read the boiler itself.'"
+        >
+          <svg v-if="boilerState.believedOn" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
+          </svg>
+          {{ boilerStatusText }}
+        </span>
         <button v-if="editLayout" class="btn-layout" title="Add an empty group at the top level" @click="openAddGroup">
           Add group
         </button>
@@ -92,6 +105,7 @@ import {
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 import { drivableDevices, presenceZones } from '../utils/deviceRules.js'
 import { groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
+import { useFormatting } from '../composables/useFormatting.js'
 
 const props = defineProps({
   occupancyFilter: {
@@ -114,6 +128,19 @@ const expandedGroupIds = ref(new Set())
 
 // How the rooms are arranged: a tree of rooms and groups to any depth. See utils/roomLayout.js.
 const layoutTree = ref([])
+
+// What the NetDaemon app believes the boiler is doing ({ appControlsBoiler, believedOn, since }), from room states.
+const { formatTimeDisplay } = useFormatting()
+const boilerState = ref(null)
+const boilerStatusText = computed(() => {
+  const state = boilerState.value
+  if (!state) return ''
+  const since = state.since ? new Date(state.since) : null
+  const sinceText = since && !Number.isNaN(since.getTime())
+    ? ` since ${formatTimeDisplay(`${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`)}`
+    : ''
+  return `Boiler ${state.believedOn ? 'on' : 'off'}${sinceText}`
+})
 const roomsById = computed(() => new Map(rooms.value.map(room => [room.id, room])))
 // What the device rules editor needs: the zones a presence rule can name, and every device it could be saved for.
 const presenceZoneList = computed(() => presenceZones(rooms.value))
@@ -425,6 +452,7 @@ const loadSchedules = async (silent = false) => {
     try {
       const statesData = await heatingApi.getRoomStates()
       roomStates.value = statesData.roomStates || []
+      boilerState.value = statesData.boiler ?? null
     } catch (stateErr) {
       console.warn('Failed to load room states, using defaults:', stateErr)
       roomStates.value = []
@@ -449,6 +477,7 @@ const loadRoomStates = async () => {
   try {
     const statesData = await heatingApi.getRoomStates()
     roomStates.value = statesData.roomStates || []
+    boilerState.value = statesData.boiler ?? null
 
     // Update room states without affecting schedule configuration
     rooms.value = rooms.value.map(room => {
@@ -903,8 +932,28 @@ provide(HEATING_LAYOUT, {
 .layout-toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+/* Pushed to the left of the toolbar, opposite the layout buttons. */
+.boiler-status {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.boiler-status.on {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
 }
 
 .btn-layout {

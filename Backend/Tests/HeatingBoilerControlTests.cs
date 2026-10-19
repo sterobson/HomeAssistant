@@ -444,6 +444,47 @@ public sealed class HeatingBoilerControlTests
         context.BoilerFingerbot.ToggleCount.ShouldBe(presses);
     }
 
+    // The UI shows what the app believes the boiler is doing, in fingerbot mode (owner, 2026-10-19).
+
+    [TestMethod]
+    public async Task TheBoilersBelief_IsUploadedWithTheRoomStates()
+    {
+        BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot);
+
+        await context.Service.EvaluateAllSchedules("cold");
+
+        BoilerStateDto boiler = context.LastUploadedBoiler()!;
+        boiler.AppControlsBoiler.ShouldBeTrue();
+        boiler.BelievedOn.ShouldBeTrue();
+        boiler.Since.ShouldNotBeNull();
+    }
+
+    [TestMethod]
+    public async Task TheValveExercise_ShowsTheBoilerOnStraightAway()
+    {
+        // Evaluations wait for the exercise, so without its own upload the UI would show the boiler off throughout.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10);
+        await context.Service.EvaluateAllSchedules("warm, boiler off");
+        context.LastUploadedBoiler()!.BelievedOn.ShouldBeFalse();
+
+        await context.Service.StartValveExerciseAsync("unit test");
+
+        context.LastUploadedBoiler()!.BelievedOn.ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task OnTheBoilerThermostat_TheAppDoesNotClaimTheBoiler()
+    {
+        BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.BoilerThermostat);
+
+        await context.Service.EvaluateAllSchedules("cold");
+
+        BoilerStateDto boiler = context.LastUploadedBoiler()!;
+        boiler.AppControlsBoiler.ShouldBeFalse();
+        boiler.BelievedOn.ShouldBeFalse();
+        boiler.Since.ShouldBeNull();
+    }
+
     // The monthly valve exercise (owner, 2026-10-19, after a TRV seized from not moving for months).
 
     [TestMethod]
@@ -855,6 +896,13 @@ public sealed class HeatingBoilerControlTests
         public required RecordingLogger<HeatingControlService> Logger { get; init; }
         public required List<RoomSchedule> Rooms { get; init; }
         public required MockPresenceService Presence { get; init; }
+        public required IRoomStatePersistenceService StatePersistence { get; init; }
+
+        /// <summary>The boiler state sent with the most recent room-state upload.</summary>
+        public BoilerStateDto? LastUploadedBoiler() => StatePersistence.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IRoomStatePersistenceService.SetStatesAsync))
+            .Select(call => (BoilerStateDto?)call.GetArguments()[1])
+            .LastOrDefault();
 
         /// <summary>
         /// Gives the living room the den's real pattern: 15 °C while nobody is in it, and an "in use" track at
@@ -968,7 +1016,8 @@ public sealed class HeatingBoilerControlTests
                 DeviceSettings = deviceSettings,
                 Logger = logger,
                 Rooms = rooms,
-                Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>()
+                Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>(),
+                StatePersistence = provider.GetRequiredService<IRoomStatePersistenceService>()
             };
         }
 

@@ -161,6 +161,9 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
   on/off or active track changes, so a device-only change (plug switched, TV power, valve target) waits for
   the next such upload. Left that way deliberately (2026-10-19).
+- **Boiler indicator.** In fingerbot mode the heating page's toolbar shows "Boiler on/off since …" from the
+  `boiler` that comes with room states (`boilerState` in `HeatingView.vue`). It is the app's belief from its
+  own presses, not a reading; nothing is shown while the boiler thermostat drives the boiler.
 - **Zone occupancy.** Each zone in a devices list shows which presence detectors make it count as in use
   ("In use when: …") and an **Occupancy** button opening `ZoneOccupancyModal`. It ticks from every detector the
   app offers, with whether each is on now and whether it counts towards House. The detectors arrive on room
