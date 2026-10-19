@@ -4,6 +4,8 @@ import {
   effectiveRules,
   firstSaveMap,
   normaliseRules,
+  PRE_HEAT_OPTIONS,
+  preHeatFor,
   presenceZones,
   summariseRules,
   validateWindow
@@ -130,6 +132,42 @@ describe('drivableDevices', () => {
       { devices: [plug, { entityId: 'climate.v', role: 'radiatorValve' }] }
     ]
     expect(drivableDevices(rooms).map(d => d.entityId)).toEqual(['switch.p', 'climate.v'])
+  })
+})
+
+describe('pre-heat', () => {
+  it('defaults to 30 minutes for a radiator valve and none for a heater plug', () => {
+    expect(preHeatFor(null, 'radiatorValve')).toBe(30)
+    expect(preHeatFor({}, 'radiatorValve')).toBe(30)
+    expect(preHeatFor(null, 'heaterPlug')).toBe(0)
+    expect(preHeatFor({}, 'heaterPlug')).toBe(0)
+  })
+
+  it('is clamped to 0–60', () => {
+    expect(preHeatFor({ preHeatMinutes: 0 }, 'radiatorValve')).toBe(0)
+    expect(preHeatFor({ preHeatMinutes: 45 }, 'heaterPlug')).toBe(45)
+    expect(preHeatFor({ preHeatMinutes: 90 }, 'radiatorValve')).toBe(60)
+    expect(preHeatFor({ preHeatMinutes: -5 }, 'heaterPlug')).toBe(0)
+  })
+
+  it('offers every 5 minutes from none to an hour', () => {
+    expect(PRE_HEAT_OPTIONS[0]).toBe(0)
+    expect(PRE_HEAT_OPTIONS.at(-1)).toBe(60)
+    expect(PRE_HEAT_OPTIONS).toHaveLength(13)
+  })
+
+  it('is mentioned in the summary only when it is not the default for that kind of device', () => {
+    expect(summariseRules(rules([]), label, 'radiatorValve')).toBe('Any time · no presence needed')
+    expect(summariseRules(rules([]), label, 'heaterPlug')).toBe('Any time · no presence needed')
+    expect(summariseRules({ ...rules([]), preHeatMinutes: 10 }, label, 'radiatorValve')).toBe('Any time · no presence needed · pre-heat 10 min')
+    expect(summariseRules({ ...rules([], { match: 0, sources: ['house'] }), preHeatMinutes: 30 }, label, 'heaterPlug'))
+      .toBe('Any time · House · pre-heat 30 min')
+  })
+
+  it('is kept when rules are tidied for saving, which would otherwise wipe it', () => {
+    expect(normaliseRules({ ...rules([]), preHeatMinutes: 15 }, 'radiatorValve').preHeatMinutes).toBe(15)
+    expect(normaliseRules(rules([]), 'radiatorValve').preHeatMinutes).toBe(30)
+    expect(normaliseRules(rules([]), 'heaterPlug').preHeatMinutes).toBe(0)
   })
 })
 

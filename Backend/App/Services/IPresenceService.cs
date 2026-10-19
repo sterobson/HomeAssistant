@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using HomeAssistant.Shared.Climate;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services;
@@ -17,9 +18,18 @@ internal interface IPresenceService
     /// <summary>The canonical names of every zone that can detect presence.</summary>
     IReadOnlyList<string> PresenceZones { get; }
 
-    /// <summary>
-    /// The presence zones that mean someone is home: the "house" presence source is any of these in use. A
-    /// subset of <see cref="PresenceZones"/>.
-    /// </summary>
-    IReadOnlyList<string> HouseZones { get; }
+    /// <summary>Every presence detector the app knows, for the UI to choose from.</summary>
+    IReadOnlyList<PresenceDetectorDto> Detectors { get; }
+
+    /// <summary>The ids of the detectors that count for a zone.</summary>
+    IReadOnlyList<string> DetectorsFor(string roomName);
+
+    /// <summary>True while no choice of detectors has been saved, so the built-in defaults apply.</summary>
+    bool ZoneOccupancyIsDefault { get; }
+
+    /// <summary>The saved choice of detectors per zone (device settings <c>heating.zoneOccupancy</c>), or null for the defaults.</summary>
+    void UseZoneOccupancy(IReadOnlyDictionary<string, List<string>>? saved);
+
+    /// <summary>Every detector checked once, with each zone and "house" worked out from them.</summary>
+    Task<PresenceSnapshot> GetSnapshotAsync();
 }

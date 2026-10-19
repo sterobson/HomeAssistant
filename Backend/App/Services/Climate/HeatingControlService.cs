@@ -77,14 +77,17 @@ internal partial class HeatingControlService
     // So a room a fraction short that never started calling cannot hold the boiler on with every valve shut.
     private readonly HashSet<int> _roomsCallingForHeat = [];
 
-    // Rooms whose heating EvaluateSchedule switched in the current pass; EnforceDeviceRulesAsync skips them.
-    private readonly HashSet<int> _roomsSwitchedThisPass = [];
+    // Whether each device (by entity ID) wants heat, for its hysteresis. Kept per device rather than read from the
+    // device, because a device can want heat while its rules hold it off, and pre-heat differs between devices.
+    // Not saved: after a restart each device starts from what it is doing.
+    private readonly Dictionary<string, bool> _devicesWantingHeat = new(StringComparer.OrdinalIgnoreCase);
 
     // Refreshed at the start of every evaluation pass (PrepareDeviceRulesAsync): the per-device rules in
     // force, whether they are the built-in defaults, and which presence sources are in use right now.
     private Dictionary<string, DeviceRulesDto>? _deviceRules;
     private bool _deviceRulesAreDefault = true;
     private Dictionary<string, bool> _presenceInUse = new(StringComparer.OrdinalIgnoreCase);
+    private PresenceSnapshot? _presence;
 
     public HeatingControlService(
         IHaContext ha,
@@ -285,7 +288,6 @@ internal partial class HeatingControlService
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
                 schedule.GetCurrentTemperature = () => Task.FromResult(GetCurrentTemperatureForRoom(schedule));
-                schedule.OnToggleHeating = GetOnToggleFunc(schedule);
             }
 
             _logger.LogDebug("Loaded {Count} schedules", schedules.Rooms.Count);
@@ -303,7 +305,8 @@ internal partial class HeatingControlService
                         ActiveScheduleTrackId = 0,
                         LastUpdated = DateTimeOffset.UtcNow,
                         Capabilities = GetRoomCapabilities(schedule),
-                        Devices = GetDevicesForRoom(schedule)
+                        Devices = GetDevicesForRoom(schedule),
+                        Occupancy = DescribeOccupancy(schedule)
                     };
                 }
             }
@@ -335,6 +338,7 @@ internal partial class HeatingControlService
 
                     kvp.Value.Capabilities = GetRoomCapabilities(schedule);
                     kvp.Value.Devices = GetDevicesForRoom(schedule);
+                    kvp.Value.Occupancy = DescribeOccupancy(schedule);
                     kvp.Value.CurrentTemperature = GetCurrentTemperatureForRoom(schedule);
                 }
             }
@@ -388,20 +392,12 @@ internal partial class HeatingControlService
 
             // 4. The rooms' devices.
             _valvesWaitForBoiler = fingerbotMode && !_boilerOn && !_boilerMayBeRunning;
-            _roomsSwitchedThisPass.Clear();
             bool hasStateChanged = false;
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
                 if (targets.TryGetValue(schedule.Id, out RoomTarget? target))
                 {
                     hasStateChanged |= await EvaluateSchedule(schedule, target, trigger);
-                }
-
-                // A room just switched already set each device by its rules, and HA has not reported the new
-                // states back yet, so enforcing now would read the old ones and send every command twice.
-                if (!_roomsSwitchedThisPass.Contains(schedule.Id))
-                {
-                    hasStateChanged |= await EnforceDeviceRulesAsync(schedule);
                 }
             }
 
@@ -427,8 +423,48 @@ internal partial class HeatingControlService
         }
     }
 
-    /// <summary>A room's target this pass and why, with the thermometer reading it is judged against.</summary>
-    private sealed record RoomTarget(double CurrentTemperature, double Temperature, HeatingScheduleTrack? Track, string Reason);
+    /// <summary>
+    /// What a room wants this pass, with the thermometer reading it is judged against. The base is what it wants now
+    /// (a boost, or its active track). Each device may start early for a warmer track later today, by its own
+    /// pre-heat (<see cref="DeviceRulesDto.PreHeatMinutes"/>), so devices in one room can aim at different
+    /// temperatures at the same moment: a radiator 30 minutes ahead, a fan heater 10.
+    /// </summary>
+    private sealed record RoomTarget(
+        double CurrentTemperature,
+        DeviceTarget Base,
+        IReadOnlyList<(TimeSpan StartsAt, HeatingScheduleTrack Track)> UpcomingWarmer,
+        TimeSpan Now)
+    {
+        /// <summary>The target for a device that pre-heats this many minutes ahead.</summary>
+        public DeviceTarget For(int preHeatMinutes)
+        {
+            foreach ((TimeSpan startsAt, HeatingScheduleTrack track) in UpcomingWarmer)
+            {
+                if (Now >= startsAt - TimeSpan.FromMinutes(preHeatMinutes))
+                {
+                    return new DeviceTarget(track.Temperature, track, "pre-heating for upcoming schedule");
+                }
+            }
+
+            return Base;
+        }
+    }
+
+    private sealed record DeviceTarget(double Temperature, HeatingScheduleTrack? Track, string Reason);
+
+    private static string? EntityIdOf(object device) => device switch
+    {
+        ICustomSwitchEntity plug => plug.EntityId,
+        ICustomClimateControlEntity valve => valve.EntityId,
+        _ => null
+    };
+
+    /// <summary>This device's target: the room's, brought forward by the device's own pre-heat.</summary>
+    private DeviceTarget TargetFor(RoomTarget target, object device)
+    {
+        string? entityId = EntityIdOf(device);
+        return target.For(DeviceRulesDto.PreHeatFor(entityId == null ? null : GetRulesFor(entityId), device is ICustomClimateControlEntity));
+    }
 
     /// <summary>
     /// Whether a boost (the owner's, a group boost or a guest's QR override) is running now. Compares
@@ -470,104 +506,98 @@ internal partial class HeatingControlService
         }
 
         // A room with nothing to switch is not evaluated at all.
-        if ((roomHeatingSchedule.OnToggleHeating ?? GetOnToggleFunc(roomHeatingSchedule)) == null)
+        if (GetSwitchesForRoom(roomHeatingSchedule).Length == 0)
         {
             return null;
         }
 
-        // Step 0: Is there a boost active?
-        bool hasBoost = IsBoostRunning(roomHeatingSchedule);
-        double desiredTemperature;
-        string reason;
-        HeatingScheduleTrack? effectiveTrack = null;
-
         // A boost — the owner's, a group boost, or a guest's QR override — sets the exact temperature, up or
-        // down, until it ends (owner, 2026-10-19). Per-device rules still decide whether each device may run.
-        if (hasBoost)
+        // down, until it ends (owner, 2026-10-19), with no pre-heat. Per-device rules still decide whether each
+        // device may run.
+        if (IsBoostRunning(roomHeatingSchedule))
         {
-            desiredTemperature = roomHeatingSchedule.Boost?.Temperature ?? 0;
-            reason = "boost is active";
-        }
-        else
-        {
-            // Step 1: Find the current active schedule (what temperature should it be RIGHT NOW?)
-            HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(houseOccupancyState, roomHeatingSchedule, now, currentDay);
-            if (currentActiveTrack == null)
-            {
-                return null;
-            }
-
-            // Step 2: Check if there's an upcoming schedule we should pre-heat for
-            HeatingScheduleTrack? preHeatTrack = await FindPreHeatSchedule(houseOccupancyState, roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
-
-            // Step 3: Determine which schedule to use
-            effectiveTrack = currentActiveTrack;
-            reason = "current active schedule";
-
-            if (preHeatTrack != null)
-            {
-                // Only use pre-heat if it has a HIGHER target than current (never pre-cool)
-                if (preHeatTrack.Temperature > currentActiveTrack.Temperature)
-                {
-                    effectiveTrack = preHeatTrack;
-                    reason = "pre-heating for upcoming schedule";
-                }
-            }
-
-            // Step 4: Control heating based on effective track
-            desiredTemperature = effectiveTrack.Temperature;
+            return new RoomTarget(currentTemperature.Value,
+                new DeviceTarget(roomHeatingSchedule.Boost?.Temperature ?? 0, null, "boost is active"),
+                [], now.TimeOfDay);
         }
 
-        return new RoomTarget(currentTemperature.Value, desiredTemperature, effectiveTrack, reason);
+        // What it should be RIGHT NOW: the latest track that has started.
+        HeatingScheduleTrack? currentActiveTrack = await FindCurrentActiveSchedule(houseOccupancyState, roomHeatingSchedule, now, currentDay);
+        if (currentActiveTrack == null)
+        {
+            return null;
+        }
+
+        // And the warmer tracks still to come today, which a device may pre-heat for (never pre-cool).
+        List<(TimeSpan StartsAt, HeatingScheduleTrack Track)> upcoming =
+            await FindUpcomingWarmerTracks(houseOccupancyState, roomHeatingSchedule, now, currentDay, currentActiveTrack.Temperature);
+
+        return new RoomTarget(currentTemperature.Value,
+            new DeviceTarget(currentActiveTrack.Temperature, currentActiveTrack, "current active schedule"),
+            upcoming, now.TimeOfDay);
     }
 
+    /// <summary>
+    /// Decides each of the room's devices on its own: whether it wants heat against its own target (its pre-heat
+    /// may have started while another device's has not), with the hysteresis remembered per device, and whether
+    /// its rules let it run. A device whose rules stop passing is switched off even if it still wants heat, and back
+    /// on when they pass again. A valve waiting for the boiler is not moved at all (see _valvesWaitForBoiler). Each
+    /// device gets at most one command per pass. Records the room's state for the UI; returns whether it changed.
+    /// </summary>
     private async Task<bool> EvaluateSchedule(RoomSchedule roomHeatingSchedule, RoomTarget target, string trigger)
     {
-        // Get the toggle action, either from the supplied action, or the service's own function.
-        Func<bool, Task<bool>>? onToggleHeating = roomHeatingSchedule.OnToggleHeating ?? GetOnToggleFunc(roomHeatingSchedule);
-        if (onToggleHeating == null)
-        {
-            return false;
-        }
-
         double currentTemperature = target.CurrentTemperature;
-        double desiredTemperature = target.Temperature;
-        HeatingScheduleTrack? effectiveTrack = target.Track;
-        string reason = target.Reason;
+        DeviceTarget roomTarget = target.Base;
+        bool anyHeating = false;
 
-        // Figure out the actual current state of the room.
-        object[] roomControlDevices = GetSwitchesForRoom(roomHeatingSchedule);
-        bool? currentHeatingState = null;
-        foreach (object roomControlDevice in roomControlDevices)
+        foreach (object device in GetSwitchesForRoom(roomHeatingSchedule))
         {
-            bool? thisDeviceHeatingState = null;
-            if (roomControlDevice is ICustomSwitchEntity plug)
+            string? entityId = EntityIdOf(device);
+            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
+            if (entityId == null || toggle == null)
             {
-                if (plug?.IsOn() == true) thisDeviceHeatingState = true;
-                if (plug?.IsOff() == true) thisDeviceHeatingState = false;
-            }
-            else if (IsWaitingForBoiler(roomControlDevice))
-            {
-                // An open valve with the boiler off is not heating the room, whatever its setpoint says.
-                thisDeviceHeatingState = false;
-            }
-            else if (roomControlDevice is ICustomClimateControlEntity climateController)
-            {
-                if (climateController.TargetTemperature >= climateController.CurrentTemperature) thisDeviceHeatingState = true;
-                if (climateController.TargetTemperature < climateController.CurrentTemperature) thisDeviceHeatingState = false;
+                continue;
             }
 
-            if (thisDeviceHeatingState != null)
+            DeviceTarget deviceTarget = TargetFor(target, device);
+            if (deviceTarget.Temperature > roomTarget.Temperature)
             {
-                if (currentHeatingState == null)
-                {
-                    currentHeatingState = thisDeviceHeatingState;
-                }
-                else
-                {
-                    currentHeatingState |= thisDeviceHeatingState;
-                }
+                roomTarget = deviceTarget;
             }
+
+            // Hysteresis: once wanting heat, carry on until HysteresisOffset above the target; once not, wait until
+            // HysteresisOffset below it. Remembered per device, starting from what the device is doing now.
+            bool isOn = IsDeviceOn(device);
+            bool wanting = _devicesWantingHeat.TryGetValue(entityId, out bool remembered) ? remembered : isOn;
+            if (wanting && currentTemperature >= deviceTarget.Temperature + HysteresisOffset)
+            {
+                wanting = false;
+            }
+            else if (!wanting && currentTemperature <= deviceTarget.Temperature - HysteresisOffset)
+            {
+                wanting = true;
+            }
+
+            _devicesWantingHeat[entityId] = wanting;
+
+            if (IsWaitingForBoiler(device))
+            {
+                // With the boiler off a valve's position makes no difference, so it is neither opened nor shut,
+                // and it is not heating the room whatever its setpoint says.
+                continue;
+            }
+
+            bool allowed = IsDeviceAllowed(device);
+            bool desiredOn = wanting && allowed;
+            if (desiredOn != isOn && await toggle(desiredOn))
+            {
+                _logger.LogInformation(
+                    "Room {Room}: {Device} turned {State} (current {Current}°C, target {Target}°C, {Reason}{Rules}). Triggered by {Trigger}",
+                    roomHeatingSchedule.Name, entityId, desiredOn ? "on" : "off", currentTemperature, deviceTarget.Temperature, deviceTarget.Reason,
+                    wanting && !allowed ? "; held off by its device rules" : "", trigger);
+            }
+
+            anyHeating |= desiredOn;
         }
 
         // Ensure that our cached state is updated.
@@ -584,74 +614,31 @@ internal partial class HeatingControlService
         double? previousRoomTemperature = roomState.CurrentTemperature;
         double? previousTargetTemperature = roomState.TargetTemperature;
         int previousTrackId = roomState.ActiveScheduleTrackId;
+
+        // The room shows the highest target any of its devices is aiming at, so a device pre-heating shows.
         roomState.RoomId = roomHeatingSchedule.Id;
         roomState.CurrentTemperature = currentTemperature;
-        roomState.TargetTemperature = desiredTemperature;
-        roomState.HeatingActive = currentHeatingState ?? false;
-        roomState.ActiveScheduleTrackId = effectiveTrack?.Id ?? 0;
+        roomState.TargetTemperature = roomTarget.Temperature;
+        roomState.HeatingActive = anyHeating;
+        roomState.ActiveScheduleTrackId = roomTarget.Track?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;
         roomState.Capabilities = GetRoomCapabilities(roomHeatingSchedule);
         roomState.Devices = GetDevicesForRoom(roomHeatingSchedule);
+        roomState.Occupancy = DescribeOccupancy(roomHeatingSchedule);
         _roomStates[roomHeatingSchedule.Id] = roomState;
-
-        // Apply hysteresis to prevent flapping
-        // If heating is ON: turn OFF only when temp >= target + offset
-        // If heating is OFF: turn ON only when temp <= target - offset
-        if (roomState.HeatingActive && currentTemperature >= desiredTemperature + HysteresisOffset)
-        {
-            // Heating is currently ON
-            // Turn off
-            if (await onToggleHeating(false))
-            {
-                _logger.LogInformation("\n * Room {Room}\n" +
-                    " * Turning {NewState}\n" +
-                    " * Current temperature {CurrentTemperature}°C\n" +
-                    " * Target temperature {TargetTemperature}°C + {HysteresisOffset}°C\n" +
-                    " * {Reason}\n" +
-                    " * Triggered by {Trigger}",
-                     roomHeatingSchedule.Name, "off", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
-
-                roomState.HeatingActive = false;
-                stateChanged = true;
-                _roomsSwitchedThisPass.Add(roomHeatingSchedule.Id);
-            }
-        }
-        else if (currentTemperature <= desiredTemperature - HysteresisOffset)
-        {
-            // Heating is currently OFF
-            // Turn on
-            if (await onToggleHeating(true))
-            {
-                _logger.LogInformation(" * Room {Room}\n" +
-                    " * Turning {NewState}\n" +
-                    " * Current temperature {CurrentTemperature}°C\n" +
-                    " * Target temperature {TargetTemperature}°C - {HysteresisOffset}°C\n" +
-                    " * {Reason}\n" +
-                    " * Triggered by {Trigger}",
-                     roomHeatingSchedule.Name, "on", currentTemperature, desiredTemperature, HysteresisOffset, reason, trigger);
-
-                roomState.HeatingActive = true;
-                stateChanged = true;
-                _roomsSwitchedThisPass.Add(roomHeatingSchedule.Id);
-            }
-        }
 
         // Upload when the temperature, the target or the track changed. Until 2026-10-19 the track was
         // compared after it had been overwritten (so never differed) and the target not at all, so after a
         // restart the UI showed no targets until some thermometer happened to change.
         if (roomState.CurrentTemperature != previousRoomTemperature
             || roomState.TargetTemperature != previousTargetTemperature
-            || roomState.ActiveScheduleTrackId != previousTrackId)
+            || roomState.ActiveScheduleTrackId != previousTrackId
+            || previousHeatingActive == null
+            || roomState.HeatingActive != previousHeatingActive)
         {
             stateChanged = true;
         }
 
-        if (previousHeatingActive == null || roomState.HeatingActive != previousHeatingActive)
-        {
-            stateChanged = true;
-        }
-
-        // Update timestamp and persist if anything changed
         if (stateChanged)
         {
             roomState.LastUpdated = DateTimeOffset.UtcNow;
@@ -659,6 +646,14 @@ internal partial class HeatingControlService
 
         return stateChanged;
     }
+
+    /// <summary>Whether a device is heating: a plug switched on, or a valve whose setpoint is at or above its own reading.</summary>
+    private static bool IsDeviceOn(object device) => device switch
+    {
+        ICustomSwitchEntity plug => plug.IsOn(),
+        ICustomClimateControlEntity valve => IsValveOpen(valve),
+        _ => false
+    };
 
     private async Task<HeatingScheduleTrack?> FindCurrentActiveSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule schedule, DateTime now, Days currentDay)
     {
@@ -713,45 +708,37 @@ internal partial class HeatingControlService
         return bestTrack;
     }
 
-    private async Task<HeatingScheduleTrack?> FindPreHeatSchedule(HouseOccupancyState houseOccupancyState, RoomSchedule schedule, DateTime now, Days currentDay, double currentActiveTemperature)
+    /// <summary>
+    /// Today's tracks still to come that are warmer than now and whose conditions hold, earliest first: what a
+    /// device can pre-heat for. Only the earliest one within a device's pre-heat counts (see RoomTarget.For).
+    /// Pre-heat is per device since 2026-10-19; a track's own RampUpMinutes is no longer read.
+    /// </summary>
+    private async Task<List<(TimeSpan StartsAt, HeatingScheduleTrack Track)>> FindUpcomingWarmerTracks(
+        HouseOccupancyState houseOccupancyState, RoomSchedule schedule, DateTime now, Days currentDay, double currentActiveTemperature)
     {
         TimeSpan currentTime = now.TimeOfDay;
-        HeatingScheduleTrack? bestTrack = null;
+        List<(TimeSpan StartsAt, HeatingScheduleTrack Track)> upcoming = [];
 
-        // Look through today's upcoming schedules
         foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
         {
-            // Check if valid for today
             if (track.Days != Days.Unspecified && (track.Days & currentDay) == 0)
                 continue;
 
-            // Is this schedule upcoming (not yet arrived)?
-            if (track.TargetTime.ToTimeSpan() > currentTime)
-            {
-                // Calculate ramp-up start time
-                TimeSpan rampUpStartTime = track.TargetTime.ToTimeSpan().Add(TimeSpan.FromMinutes(-track.RampUpMinutes));
+            TimeSpan startsAt = track.TargetTime.ToTimeSpan();
+            if (startsAt <= currentTime || track.Temperature <= currentActiveTemperature)
+                continue;
 
-                // Are we within the ramp-up period?
-                if (currentTime >= rampUpStartTime)
-                {
-                    // Only consider if temperature is higher than current active (never pre-cool)
-                    if (track.Temperature <= currentActiveTemperature)
-                        continue;
+            // Only look up presence etc. for tracks within the longest pre-heat any device can have.
+            if (currentTime < startsAt - TimeSpan.FromMinutes(DeviceRulesDto.MaxPreHeatMinutes))
+                continue;
 
-                    // Check special conditions
-                    if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
-                        continue;
+            if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
+                continue;
 
-                    // Find the earliest upcoming schedule in ramp-up
-                    if (bestTrack == null || track.TargetTime < bestTrack.TargetTime)
-                    {
-                        bestTrack = track;
-                    }
-                }
-            }
+            upcoming.Add((startsAt, track));
         }
 
-        return bestTrack;
+        return [.. upcoming.OrderBy(u => u.StartsAt)];
     }
 
     private static Days GetPreviousDay(Days currentDay)
@@ -766,51 +753,6 @@ internal partial class HeatingControlService
             Days.Saturday => Days.Friday,
             Days.Sunday => Days.Saturday,
             _ => Days.Monday
-        };
-    }
-
-    /// <summary>
-    /// Switches a zone's heating on or off. Each device only comes on if its own rules allow it (a device
-    /// asked to come on while its rules forbid it is held off), and a radiator valve is not moved at all
-    /// while the boiler is off (see <see cref="_valvesWaitForBoiler"/>). So "on" reports a change only when
-    /// at least one device actually started heating.
-    /// </summary>
-    private Func<bool, Task<bool>>? GetOnToggleFunc(RoomSchedule roomHeatingSchedule)
-    {
-        List<(object Device, Func<bool, Task<bool>> Toggle)> toggles = [];
-        foreach (object device in GetSwitchesForRoom(roomHeatingSchedule))
-        {
-            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
-            if (toggle != null)
-            {
-                toggles.Add((device, toggle));
-            }
-        }
-
-        if (toggles.Count == 0)
-        {
-            return null;
-        }
-
-        return async (value) =>
-        {
-            bool anyReachedRequestedState = false;
-            foreach ((object device, Func<bool, Task<bool>> toggle) in toggles)
-            {
-                if (IsWaitingForBoiler(device))
-                {
-                    // With the boiler off a valve's position makes no difference, so it is neither opened
-                    // nor shut: either would spend the TRV's battery for nothing. It is brought into line
-                    // in the pass that turns the boiler on.
-                    continue;
-                }
-
-                bool desired = value && IsDeviceAllowed(device);
-                bool changed = await toggle(desired);
-                anyReachedRequestedState |= changed && desired == value;
-            }
-
-            return anyReachedRequestedState;
         };
     }
 
@@ -938,16 +880,18 @@ internal partial class HeatingControlService
             return false;
         }
 
+        // From this pass's presence snapshot (PrepareDeviceRulesAsync), so every track and device sees the same answer
+        // and each detector is checked only once.
+        bool roomInUse = _presenceInUse.TryGetValue(roomSchedule.Name.Trim(), out bool inUse) && inUse;
+
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomInUse))
         {
-            bool roomInUse = await _presenceService.IsRoomInUse(roomSchedule.Name);
             meetsAllConditions &= roomInUse;
         }
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomNotInUse))
         {
-            bool roomNotInUse = !await _presenceService.IsRoomInUse(roomSchedule.Name);
-            meetsAllConditions &= roomNotInUse;
+            meetsAllConditions &= !roomInUse;
         }
 
         // All conditions must be met (AND logic)
@@ -1178,19 +1122,22 @@ internal partial class HeatingControlService
 
             openValves.AddRange(radiatorValves.Where(IsValveOpen).Select(valve => (roomSchedule.Name, valve)));
 
+            // The room's demand on the boiler is its valves' target, brought forward by the valves' own pre-heat:
+            // a radiator pre-heating for a warmer track calls for the boiler from the start of its pre-heat.
+            DeviceTarget valveTarget = radiatorValves.Select(valve => TargetFor(target, valve)).MaxBy(t => t.Temperature)!;
             double current = target.CurrentTemperature;
-            if (target.Temperature > current)
+            if (valveTarget.Temperature > current)
             {
-                double deficit = target.Temperature - current;
+                double deficit = valveTarget.Temperature - current;
                 roomsBelowTarget.Add((roomSchedule.Name, deficit));
                 totalDeficit += deficit;
             }
 
-            if (current <= target.Temperature - HysteresisOffset)
+            if (current <= valveTarget.Temperature - HysteresisOffset)
             {
                 _roomsCallingForHeat.Add(roomSchedule.Id);
             }
-            else if (current >= target.Temperature)
+            else if (current >= valveTarget.Temperature)
             {
                 _roomsCallingForHeat.Remove(roomSchedule.Id);
             }
@@ -1203,7 +1150,7 @@ internal partial class HeatingControlService
                 {
                     boostedRoomsCalling.Add(roomSchedule.Name);
                 }
-                else if (target.Track is { } track && track.Conditions.HasFlag(ConditionType.RoomInUse))
+                else if (valveTarget.Track is { } track && track.Conditions.HasFlag(ConditionType.RoomInUse))
                 {
                     occupiedRoomsCalling.Add(roomSchedule.Name);
                 }
@@ -1427,17 +1374,19 @@ internal partial class HeatingControlService
     }
 
     /// <summary>
-    /// Loads the per-device rules and works out which presence sources are in use, once per evaluation
-    /// pass. Saved rules (device settings <c>heating.deviceRules</c>) win; if none have ever been saved, or
-    /// the settings cannot be read, the built-in defaults apply, which still keep the heaters restricted.
+    /// Loads the per-device rules and each zone's presence detectors, and works out presence, once per evaluation
+    /// pass. Saved settings (device settings <c>heating.deviceRules</c> and <c>heating.zoneOccupancy</c>) win; if
+    /// none have ever been saved, or the settings cannot be read, the built-in defaults apply.
     /// </summary>
     private async Task PrepareDeviceRulesAsync()
     {
         Dictionary<string, DeviceRulesDto>? saved = null;
+        Dictionary<string, List<string>>? zoneOccupancy = null;
         try
         {
             DeviceSettingsDto? settings = await _deviceSettings.GetSettingsAsync();
             saved = settings?.Heating?.DeviceRules;
+            zoneOccupancy = settings?.Heating?.ZoneOccupancy;
         }
         catch (Exception ex)
         {
@@ -1449,34 +1398,52 @@ internal partial class HeatingControlService
             ? new Dictionary<string, DeviceRulesDto>(saved, StringComparer.OrdinalIgnoreCase)
             : DefaultDeviceRules.For(_namedEntities);
 
-        // Presence is only worth looking up (it costs a history query per zone) if some rule asks for it.
-        bool anyPresenceRule = _deviceRules.Values.Any(rules => rules.Presence?.Sources.Count > 0);
-        _presenceInUse = anyPresenceRule ? await GetPresenceInUseAsync() : new(StringComparer.OrdinalIgnoreCase);
+        _presenceService.UseZoneOccupancy(zoneOccupancy);
+        _presenceInUse = await GetPresenceInUseAsync();
     }
 
     /// <summary>
-    /// Each presence zone's in-use state, plus <see cref="PresenceSources.House"/> = any of them. Motion
-    /// sensors are deliberately not presence sources. A zone whose check fails counts as not in use.
+    /// Each presence zone's in-use state, plus <see cref="PresenceSources.House"/> = someone is home (any detector
+    /// that shows someone is there). Motion sensors are deliberately not presence detectors. If presence cannot be
+    /// worked out at all, nothing counts as in use.
     /// </summary>
     private async Task<Dictionary<string, bool>> GetPresenceInUseAsync()
     {
         Dictionary<string, bool> inUse = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string zone in _presenceService.PresenceZones)
+        try
         {
-            try
+            _presence = await _presenceService.GetSnapshotAsync();
+            foreach ((string zone, bool zoneInUse) in _presence.Zones)
             {
-                inUse[zone] = await _presenceService.IsRoomInUse(zone);
+                inUse[zone] = zoneInUse;
             }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not check presence in {Zone} - treating it as not in use", zone);
-                inUse[zone] = false;
-            }
+
+            inUse[PresenceSources.House] = _presence.SomeoneHome;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not check presence - treating every zone as not in use");
+            _presence = null;
         }
 
-        // "House" is someone home, so only the zones that mean that: not, say, a desk plug merely switched on.
-        inUse[PresenceSources.House] = _presenceService.HouseZones.Any(zone => inUse.TryGetValue(zone, out bool value) && value);
         return inUse;
+    }
+
+    /// <summary>The zone's presence detectors for the UI: those that count for it, and every one there is.</summary>
+    private RoomOccupancyDto DescribeOccupancy(RoomSchedule room)
+    {
+        return new RoomOccupancyDto
+        {
+            DetectorIds = [.. _presenceService.DetectorsFor(room.Name)],
+            IsDefault = _presenceService.ZoneOccupancyIsDefault,
+            Available = [.. _presenceService.Detectors.Select(detector => new PresenceDetectorDto
+            {
+                Id = detector.Id,
+                Label = detector.Label,
+                MeansSomeoneHome = detector.MeansSomeoneHome,
+                Active = _presence?.Detectors.TryGetValue(detector.Id, out bool active) == true && active
+            })]
+        };
     }
 
     private DeviceRulesDto? GetRulesFor(string entityId)
@@ -1503,53 +1470,6 @@ internal partial class HeatingControlService
             GetRulesFor(entityId),
             _timeProvider.GetLocalNow().DateTime,
             source => _presenceInUse.TryGetValue(source.Trim(), out bool inUse) && inUse);
-    }
-
-    /// <summary>
-    /// After a zone has been evaluated, makes each of its devices follow its own rules while the zone is
-    /// heating: a device whose rules have stopped passing is turned off (the owner's choice — a heater must
-    /// not keep running after everyone has gone), and one whose rules pass again is turned back on. If the
-    /// rules hold every device off, the zone stops counting as heating. Returns whether anything changed.
-    /// </summary>
-    private async Task<bool> EnforceDeviceRulesAsync(RoomSchedule room)
-    {
-        if (!_roomStates.TryGetValue(room.Id, out RoomState? state) || !state.HeatingActive)
-        {
-            return false;
-        }
-
-        bool changed = false;
-        bool anyAllowed = false;
-        foreach (object device in GetSwitchesForRoom(room))
-        {
-            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
-            if (toggle == null)
-            {
-                continue;
-            }
-
-            bool allowed = IsDeviceAllowed(device);
-            anyAllowed |= allowed;
-            if (IsWaitingForBoiler(device))
-            {
-                // The boiler is off, so the valve's position makes no difference: leave it exactly as it is.
-                continue;
-            }
-
-            if (await toggle(allowed))
-            {
-                changed = true;
-                _logger.LogInformation("Room {Room}: {Device} turned {State} by its device rules", room.Name, DeviceName(device), allowed ? "on" : "off");
-            }
-        }
-
-        if (!anyAllowed)
-        {
-            state.HeatingActive = false;
-            changed = true;
-        }
-
-        return changed;
     }
 
     /// <summary>A radiator valve held shut because, in fingerbot mode, the boiler is believed off.</summary>

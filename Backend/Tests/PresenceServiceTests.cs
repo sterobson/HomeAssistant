@@ -148,13 +148,96 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public void House_LeavesOutTheDiningRoom_ADeskSwitchedOnIsNotSomeoneHome()
+    public async Task House_ADeskSwitchedOnIsNotSomeoneHome()
+    {
+        // Ruth's desk plug on but idle: the dining room zone is in use, but nobody need be home.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetSwitch(DiningDeskSwitch, "on");
+        context.History[DiningDeskPower] = [3];
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Zones["dining room"].ShouldBeTrue();
+        snapshot.Zones["dining desk"].ShouldBeFalse();
+        snapshot.SomeoneHome.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task House_IsAnyDetectorThatShowsSomeoneIsThere_WhicheverZoneHasIt()
+    {
+        // Even with no zone using the den TV's detector, the TV being on means someone is home.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = [] });
+        context.History[DenTvPower] = [45];
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Zones["den"].ShouldBeFalse("the den was configured with no detectors");
+        snapshot.SomeoneHome.ShouldBeTrue();
+    }
+
+    // Which detectors count for each zone is configurable (owner, 2026-10-19).
+
+    [TestMethod]
+    public void TheDefaults_AreWhatEachZoneHadBeforeItWasConfigurable()
     {
         PresenceTestContext context = PresenceTestContext.Create();
 
-        context.Service.PresenceZones.ShouldContain("dining room");
-        context.Service.HouseZones.ShouldNotContain("dining room");
-        context.Service.HouseZones.ShouldBe(context.Service.PresenceZones.Where(zone => zone != "dining room"));
+        context.Service.ZoneOccupancyIsDefault.ShouldBeTrue();
+        context.Service.DetectorsFor("games desk").ShouldBe([PresenceService.GamesDeskInUse]);
+        context.Service.DetectorsFor("dining desk").ShouldBe([PresenceService.DiningDeskInUse]);
+        context.Service.DetectorsFor("dining room").ShouldBe([PresenceService.DiningDeskSwitchedOn]);
+        context.Service.DetectorsFor("den").ShouldBe([PresenceService.DenTvOn]);
+        context.Service.DetectorsFor("living room").ShouldBe([PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn]);
+        context.Service.DetectorsFor("kitchen").ShouldBeEmpty();
+    }
+
+    [TestMethod]
+    public async Task AZoneCanBeGivenAnotherZonesDetectors()
+    {
+        // The kitchen counts as in use while the living room's lights are on, once configured so.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetSwitch(StickLightsSwitch, "on");
+        context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["kitchen"] = [PresenceService.LivingRoomLightsOn] });
+
+        (await context.Service.IsRoomInUse("kitchen")).ShouldBeTrue();
+        context.Service.CanDetectIfRoomInUse("kitchen").ShouldBeTrue();
+        context.Service.GetPresenceDevices("kitchen").ShouldBe([(StickLightsSwitch, RoomDeviceRoles.LightsPlug)]);
+    }
+
+    [TestMethod]
+    public async Task OnceSaved_AZoneLeftOutHasNoPresence()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.History[DenTvPower] = [45];
+        context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["kitchen"] = [PresenceService.DenTvOn] });
+
+        context.Service.ZoneOccupancyIsDefault.ShouldBeFalse();
+        (await context.Service.IsRoomInUse("den")).ShouldBeFalse("the saved choice is the whole truth");
+        context.Service.CanDetectIfRoomInUse("den").ShouldBeFalse();
+        context.Service.PresenceZones.ShouldBe(["kitchen"]);
+    }
+
+    [TestMethod]
+    public void UnknownDetectorIds_AreIgnored()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = ["no-such-detector", PresenceService.DenTvOn] });
+
+        context.Service.DetectorsFor("den").ShouldBe([PresenceService.DenTvOn]);
+    }
+
+    [TestMethod]
+    public void EveryDetector_IsOfferedWithItsLabel()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+
+        context.Service.Detectors.Select(d => d.Id).ShouldBe([
+            PresenceService.GamesDeskInUse, PresenceService.DiningDeskInUse, PresenceService.DiningDeskSwitchedOn,
+            PresenceService.DenTvOn, PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn
+        ]);
+        context.Service.Detectors.Single(d => d.Id == PresenceService.DiningDeskSwitchedOn).MeansSomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.ShouldAllBe(d => d.Label.Length > 0);
     }
 
     [TestMethod]

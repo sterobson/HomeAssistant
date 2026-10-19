@@ -273,6 +273,119 @@ public sealed class DeviceRulesHeatingTests
         context.KitchenHeater.TurnOnCount.ShouldBe(someoneHome ? 1 : 0);
     }
 
+    // Pre-heat is per device, 0-60 minutes, default 30 (owner, 2026-10-19). Bedroom 1 has both kinds of device: at
+    // 15 °C now and 21 °C from 18:00, a radiator pre-heating 30 minutes ahead and a heater 10.
+
+    [TestMethod]
+    [DataRow(17, 25, false, false, DisplayName = "17:25: neither has started")]
+    [DataRow(17, 40, true, false, DisplayName = "17:40: the radiator has, the heater has not")]
+    [DataRow(17, 55, true, true, DisplayName = "17:55: both")]
+    public async Task EachDevicePreHeatsByItsOwnTime(int hour, int minute, bool radiatorOn, bool heaterOn)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new()
+        {
+            [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto { PreHeatMinutes = 30 },
+            [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatMinutes = 10 }
+        });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        (context.Bedroom1Radiator.TargetTemperature == RulesTestContext.HeatingValveTarget).ShouldBe(radiatorOn);
+        context.Bedroom1Heater.IsOn().ShouldBe(heaterOn);
+    }
+
+    [TestMethod]
+    public async Task ARoomShowsTheHighestTargetAnyOfItsDevicesIsAimingAt()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 40, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new()
+        {
+            [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto { PreHeatMinutes = 30 },
+            [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatMinutes = 10 }
+        });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].TargetTemperature.ShouldBe(21, "the radiator is already pre-heating for 18:00");
+        context.CapturedStates()[1].ActiveScheduleTrackId.ShouldBe(2);
+    }
+
+    [TestMethod]
+    [DataRow(17, 29, false)]
+    [DataRow(17, 31, true)]
+    public async Task PreHeatDefaultsTo30Minutes(int hour, int minute, bool radiatorOn)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        (context.Bedroom1Radiator.TargetTemperature == RulesTestContext.HeatingValveTarget).ShouldBe(radiatorOn);
+    }
+
+    [TestMethod]
+    public async Task NoPreHeat_WaitsForTheTrackItself()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 59, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto { PreHeatMinutes = 0 } });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget);
+    }
+
+    [TestMethod]
+    [DataRow(null, true, 30, DisplayName = "a radiator valve defaults to 30 minutes")]
+    [DataRow(null, false, 0, DisplayName = "a heater plug defaults to none")]
+    [DataRow(0, true, 0)]
+    [DataRow(45, false, 45)]
+    [DataRow(90, true, 60)]
+    [DataRow(-5, false, 0)]
+    public void PreHeatDefaultsByKind_AndIsClampedTo0To60Minutes(int? saved, bool isRadiatorValve, int expected)
+    {
+        DeviceRulesDto.PreHeatFor(new DeviceRulesDto { PreHeatMinutes = saved }, isRadiatorValve).ShouldBe(expected);
+    }
+
+    [TestMethod]
+    public async Task AHeaterWithNoPreHeatSet_WaitsForTheTrack_WhileTheRadiatorPreHeats()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 55, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new()
+        {
+            [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto(),
+            [context.Bedroom1Heater.EntityId] = new DeviceRulesDto()
+        });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.HeatingValveTarget, "30 minutes by default");
+        context.Bedroom1Heater.TurnOnCount.ShouldBe(0, "none by default: a heater warms a room quickly");
+    }
+
+    private static List<HeatingScheduleTrack> Bedroom1WarmsAt18() =>
+    [
+        new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 15 },
+        new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(18, 0), Temperature = 21 }
+    ];
+
+    [TestMethod]
+    public async Task EachPass_UsesTheSavedChoiceOfDetectorsPerZone()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        Dictionary<string, List<string>> occupancy = new() { ["kitchen"] = [PresenceService.LivingRoomLightsOn] };
+        context.Settings.Settings = new DeviceSettingsDto { Heating = new HeatingSettingsDto { ZoneOccupancy = occupancy } };
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.Presence.LastZoneOccupancy.ShouldBeSameAs(occupancy);
+    }
+
     [TestMethod]
     public async Task House_IsOnlyTheZonesThatMeanSomeoneIsHome()
     {

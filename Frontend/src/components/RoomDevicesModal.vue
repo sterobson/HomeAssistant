@@ -20,6 +20,14 @@
             <span v-if="section.icon" class="section-icon" aria-hidden="true">{{ section.icon }}</span>{{ section.title }}
           </h4>
 
+          <!-- Which presence detectors make this zone count as in use; only once the app reports them. -->
+          <div v-if="section.occupancy" class="occupancy-row">
+            <span class="occupancy-summary">
+              {{ occupancySummary(section) }}<span v-if="zoneOccupancy === null" class="rules-default"> (built-in)</span>
+            </span>
+            <button type="button" class="rules-btn" @click="openOccupancy(section)">Occupancy</button>
+          </div>
+
           <p v-if="section.devices.length === 0" class="no-devices">
             No devices. Nothing is bound to this name, or the house has not reported yet.
           </p>
@@ -59,6 +67,7 @@
       v-if="editingDevice"
       :key="editingDevice.entityId"
       :device-title="deviceName(editingDevice)"
+      :device-role="editingDevice.role"
       :rules="effectiveRules(editingDevice, deviceRules)"
       :is-default="rulesAreBuiltIn(editingDevice)"
       :presence-zones="presenceZones"
@@ -68,19 +77,35 @@
       @save="saveRules"
       @cancel="closeRules"
     />
+
+    <ZoneOccupancyModal
+      v-if="editingZone"
+      :key="editingZone.roomId"
+      :zone-title="editingZone.title"
+      :detector-ids="effectiveDetectorIds(editingZone, zoneOccupancy)"
+      :available="editingZone.occupancy.available"
+      :is-default="zoneOccupancy === null"
+      :saving="savingOccupancy"
+      :error="occupancyError"
+      :z-index="zIndex + 100"
+      @save="saveOccupancy"
+      @cancel="closeOccupancy"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import DeviceRulesModal from './DeviceRulesModal.vue'
+import ZoneOccupancyModal from './ZoneOccupancyModal.vue'
 import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { describeState, deviceName, groupDevices, isUnavailable, roleLabel } from '../utils/roomDevices.js'
 import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
+import { effectiveDetectorIds, summariseOccupancy } from '../utils/zoneOccupancy.js'
 
 const { formatTempWithUnit } = useFormatting()
-const { deviceRules, loadSettings, saveDeviceRules } = useDeviceSettings()
+const { deviceRules, loadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
 
 const props = defineProps({
   title: {
@@ -105,6 +130,11 @@ const props = defineProps({
   allDevices: {
     type: Array,
     default: () => []
+  },
+  // Every zone ({ name, occupancy }), so the first occupancy save can keep the other zones' built-in detectors.
+  allZones: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -117,7 +147,7 @@ const showSectionTitles = computed(() => props.sections.length > 1)
 onMounted(() => loadSettings())
 
 const zoneLabel = (name) => props.presenceZones.find(z => z.name === name)?.label ?? name
-const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel)
+const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel, device.role)
 // Built-in defaults only apply while nothing has been saved.
 const rulesAreBuiltIn = (device) => deviceRules.value === null && device.rulesAreDefault === true
 
@@ -132,6 +162,35 @@ const openRules = (device) => {
 
 const closeRules = () => {
   if (!savingRules.value) editingDevice.value = null
+}
+
+const occupancySummary = (section) =>
+  summariseOccupancy(effectiveDetectorIds(section, zoneOccupancy.value), section.occupancy?.available ?? [])
+
+const editingZone = ref(null)
+const savingOccupancy = ref(false)
+const occupancyError = ref('')
+
+const openOccupancy = (section) => {
+  occupancyError.value = ''
+  editingZone.value = section
+}
+
+const closeOccupancy = () => {
+  if (!savingOccupancy.value) editingZone.value = null
+}
+
+const saveOccupancy = async (detectorIds) => {
+  savingOccupancy.value = true
+  occupancyError.value = ''
+  try {
+    await saveZoneOccupancy(editingZone.value.name, detectorIds, props.allZones)
+    editingZone.value = null
+  } catch (err) {
+    occupancyError.value = err?.message || 'The occupancy could not be saved. Try again.'
+  } finally {
+    savingOccupancy.value = false
+  }
 }
 
 const saveRules = async (rules) => {
@@ -329,6 +388,25 @@ const saveRules = async (rules) => {
 }
 
 .rules-summary {
+  flex: 1 1 10rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.occupancy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.occupancy-summary {
   flex: 1 1 10rem;
   font-size: 0.85rem;
   color: var(--text-primary);

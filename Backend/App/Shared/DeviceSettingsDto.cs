@@ -59,6 +59,14 @@ public class HeatingSettingsDto
     /// with no entry has no rules. Keep in step with the copy in the Functions project.
     /// </summary>
     public Dictionary<string, HomeAssistant.Shared.Climate.DeviceRulesDto>? DeviceRules { get; set; }
+
+    /// <summary>
+    /// Which presence detectors count for each zone, keyed by the zone's canonical name, each a list of detector
+    /// ids (PresenceService). A zone is in use while any of its detectors is. <c>null</c> means never configured:
+    /// the built-in defaults apply. Once saved it is authoritative and a zone with no entry has no presence.
+    /// Keep in step with the copy in the Functions project.
+    /// </summary>
+    public Dictionary<string, List<string>>? ZoneOccupancy { get; set; }
 }
 
 /// <summary>

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace HomeAssistant.Shared.Climate;
@@ -14,6 +15,22 @@ public class DeviceRulesDto
 
     /// <summary>Who must be present. Null, or no sources, means no presence is needed.</summary>
     public PresenceRuleDto? Presence { get; set; }
+
+    /// <summary>
+    /// How many minutes before a warmer schedule track starts this device begins heating for it ("pre-heat",
+    /// formerly the track's ramp-up), 0 to <see cref="MaxPreHeatMinutes"/>. Null means the default for its kind:
+    /// <see cref="DefaultValvePreHeatMinutes"/> for a radiator valve, <see cref="DefaultHeaterPreHeatMinutes"/> for
+    /// a heater plug. Per device because a radiator warms a room far more slowly than a fan heater (owner, 2026-10-19).
+    /// </summary>
+    public int? PreHeatMinutes { get; set; }
+
+    public const int DefaultValvePreHeatMinutes = 30;
+    public const int DefaultHeaterPreHeatMinutes = 0;
+    public const int MaxPreHeatMinutes = 60;
+
+    /// <summary>The pre-heat a device with these rules (or none) uses, clamped to 0 to <see cref="MaxPreHeatMinutes"/>.</summary>
+    public static int PreHeatFor(DeviceRulesDto? rules, bool isRadiatorValve) =>
+        Math.Clamp(rules?.PreHeatMinutes ?? (isRadiatorValve ? DefaultValvePreHeatMinutes : DefaultHeaterPreHeatMinutes), 0, MaxPreHeatMinutes);
 }
 
 public class TimeWindowDto

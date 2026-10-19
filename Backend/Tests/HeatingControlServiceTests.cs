@@ -195,12 +195,23 @@ public sealed class HeatingControlServiceTests
 
         FakeNamedEntities namedEntities = serviceProvider.GetRequiredService<FakeNamedEntities>();
 
+        FakeNamedEntities namedEntitiesForRules = serviceProvider.GetRequiredService<FakeNamedEntities>();
+
         // These rows test SCHEDULE selection (which track applies, pre-heat, hysteresis, DST) and read
-        // the answer off the heater plug. Saved-but-empty device rules switch the per-device rules off,
-        // so the plug follows the schedule alone. The rules themselves are covered by DeviceRulesHeatingTests.
+        // the answer off the heater plug. Each plug's saved rules have no windows and no presence, so the
+        // plug follows the schedule alone, and 30 minutes' pre-heat, the old fixed ramp-up these rows were
+        // written for (a heater plug defaults to none since 2026-10-19). The rules themselves are covered
+        // by DeviceRulesHeatingTests.
         serviceProvider.GetRequiredService<FakeDeviceSettingsPersistenceService>().Settings = new DeviceSettingsDto
         {
-            Heating = new HeatingSettingsDto { DeviceRules = [] }
+            Heating = new HeatingSettingsDto
+            {
+                DeviceRules = new[]
+                {
+                    namedEntitiesForRules.GamesRoomHeaterSmartPlugOnOff, namedEntitiesForRules.KitchenHeaterSmartPlugOnOff,
+                    namedEntitiesForRules.Bedroom1HeaterSmartPlugOnOff, namedEntitiesForRules.DiningRoomHeaterSmartPlugOnOff
+                }.ToDictionary(plug => plug.EntityId, _ => new DeviceRulesDto { PreHeatMinutes = 30 })
+            }
         };
 
         HeatingControlService sut = ActivatorUtilities.CreateInstance<HeatingControlService>(serviceProvider);
@@ -461,10 +472,29 @@ internal class MockPresenceService : IPresenceService
     /// <summary>Every zone given a value with <see cref="SetRoomValue"/>.</summary>
     public IReadOnlyList<string> PresenceZones => [.. _presenceValue.Keys];
 
-    /// <summary>Every presence zone, unless a test narrows it.</summary>
+    /// <summary>The zones whose presence means someone is home: every presence zone, unless a test narrows it.</summary>
     public IReadOnlyList<string>? HouseZonesOverride { get; set; }
 
-    public IReadOnlyList<string> HouseZones => HouseZonesOverride ?? PresenceZones;
+    public IReadOnlyList<PresenceDetectorDto> Detectors => [];
+
+    public IReadOnlyList<string> DetectorsFor(string roomName) => [];
+
+    public bool ZoneOccupancyIsDefault => true;
+
+    /// <summary>The choice of detectors the heating service last passed on, to check it reads the setting.</summary>
+    public IReadOnlyDictionary<string, List<string>>? LastZoneOccupancy { get; private set; }
+
+    public void UseZoneOccupancy(IReadOnlyDictionary<string, List<string>>? saved)
+    {
+        LastZoneOccupancy = saved;
+    }
+
+    public Task<PresenceSnapshot> GetSnapshotAsync()
+    {
+        Dictionary<string, bool> zones = new(_presenceValue, StringComparer.OrdinalIgnoreCase);
+        bool someoneHome = (HouseZonesOverride ?? PresenceZones).Any(zone => _presenceValue.TryGetValue(zone, out bool inUse) && inUse);
+        return Task.FromResult(new PresenceSnapshot(zones, someoneHome, new Dictionary<string, bool>()));
+    }
 }
 
 internal class FakeTimeProvider : TimeProvider

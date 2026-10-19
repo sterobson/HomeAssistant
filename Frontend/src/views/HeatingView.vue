@@ -365,7 +365,9 @@ const mergeSchedulesWithStates = (schedules, states) => {
       activeScheduleId: state?.activeScheduleTrackId ?? null,
       capabilities: state?.capabilities ?? 3, // Default to both capabilities if state not found
       // What the zone is bound to, from the NetDaemon app. Display only; never sent back.
-      devices: state?.devices ?? []
+      devices: state?.devices ?? [],
+      // Which presence detectors count for the zone, and all there are (utils/zoneOccupancy.js). Display only.
+      occupancy: state?.occupancy ?? null
     }
   })
 }
@@ -456,7 +458,10 @@ const loadRoomStates = async () => {
         currentTemperature: state?.currentTemperature ?? room.currentTemperature,
         heatingActive: state?.heatingActive ?? room.heatingActive,
         activeScheduleId: state?.activeScheduleTrackId ?? room.activeScheduleId,
-        devices: state?.devices ?? room.devices
+        // A zone's occupancy can change its capabilities (gaining or losing presence), so refresh both.
+        capabilities: state?.capabilities ?? room.capabilities,
+        devices: state?.devices ?? room.devices,
+        occupancy: state?.occupancy ?? room.occupancy ?? null
       }
     })
   } catch (err) {
@@ -774,6 +779,8 @@ provide(HEATING_LAYOUT, {
   roomsById,
   presenceZones: presenceZoneList,
   drivableDevices: drivableDeviceList,
+  // Every zone with its occupancy, for the first save of the zones' presence detectors.
+  zones: rooms,
   layoutTree,
   editLayout,
   occupancyFilter: toRef(props, 'occupancyFilter'),

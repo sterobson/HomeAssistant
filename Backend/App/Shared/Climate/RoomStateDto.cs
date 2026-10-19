@@ -23,6 +23,38 @@ public class RoomStateDto
     /// the binding, so a zone that has lost its hardware shows an empty list here. Display only.
     /// </summary>
     public List<RoomDeviceDto> Devices { get; set; } = [];
+
+    /// <summary>
+    /// Which presence detectors count for this zone, and every detector there is to choose from, so the UI can
+    /// show and edit it (owner, 2026-10-19). Display only; the choice is saved in device settings as
+    /// <c>heating.zoneOccupancy</c>.
+    /// </summary>
+    public RoomOccupancyDto? Occupancy { get; set; }
+}
+
+public class RoomOccupancyDto
+{
+    /// <summary>The detectors that count for this zone; it is in use while any of them is active.</summary>
+    public List<string> DetectorIds { get; set; } = [];
+
+    /// <summary>True while nothing has been saved, so these are the built-in defaults.</summary>
+    public bool IsDefault { get; set; }
+
+    /// <summary>Every detector the app knows, with whether each is active right now.</summary>
+    public List<PresenceDetectorDto> Available { get; set; } = [];
+}
+
+/// <summary>One way of telling someone is using something, from plugs. Defined in the NetDaemon app (PresenceService).</summary>
+public class PresenceDetectorDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>Whether it counts towards "house" (someone is home). A desk merely switched on does not.</summary>
+    public bool MeansSomeoneHome { get; set; }
+
+    /// <summary>Whether it was active when the room state was published.</summary>
+    public bool Active { get; set; }
 }
 
 /// <summary>

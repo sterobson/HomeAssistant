@@ -54,9 +54,6 @@ public class RoomSchedule
 
     [System.Text.Json.Serialization.JsonIgnore]
     public Func<Task<double?>>? GetCurrentTemperature { get; set; }
-
-    [System.Text.Json.Serialization.JsonIgnore]
-    public Func<bool, Task<bool>>? OnToggleHeating { get; set; }
 }
 
 // Room state - separate from schedule configuration
@@ -70,6 +67,9 @@ public class RoomState
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
     public RoomCapabilities Capabilities { get; set; }
     public List<RoomDeviceDto> Devices { get; set; } = [];
+
+    /// <summary>Which presence detectors count for this zone, and all there are to choose from. Display only.</summary>
+    public RoomOccupancyDto? Occupancy { get; set; }
 }
 
 public class HeatingScheduleTrack
@@ -77,6 +77,11 @@ public class HeatingScheduleTrack
     public int Id { get; set; }
     public required double Temperature { get; set; }
     public required TimeOnly TargetTime { get; set; }
+
+    /// <summary>
+    /// Stored and round-tripped, but no longer read: since 2026-10-19 pre-heat is per device
+    /// (DeviceRulesDto.PreHeatMinutes), not per track.
+    /// </summary>
     public int RampUpMinutes { get; set; } = 30;
     public Days Days { get; set; } = Days.Unspecified;
     public ConditionType Conditions { get; set; } = ConditionType.None;

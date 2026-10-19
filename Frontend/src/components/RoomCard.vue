@@ -158,6 +158,7 @@
       :sections="deviceSectionsForRoom"
       :presence-zones="layoutContext?.presenceZones.value ?? []"
       :all-devices="layoutContext?.drivableDevices.value ?? []"
+      :all-zones="layoutContext?.zones.value ?? []"
       @close="showDevices = false"
     />
   </div>

@@ -186,7 +186,19 @@ the recursive [LayoutNode](Frontend/src/components/LayoutNode.vue); all the tree
 
 Four consequences worth knowing before changing any of this:
 
-- **Presence comes from plugs, and only some zones have it.** Ste's desk (`games desk`) uses its desk
+- **Presence comes from fixed detectors, and which ones count for each zone is configurable** (owner,
+  2026-10-19). The detectors, each a way of telling from plugs that something is in use with its own wattage
+  and hold, are defined in code in `PresenceService`. Each zone's choice of them is saved in device settings
+  as `heating.zoneOccupancy` (zone canonical name → detector ids), edited from the zone's **Devices** list →
+  **Occupancy** ([ZoneOccupancyModal](Frontend/src/components/ZoneOccupancyModal.vue)). A zone is in use while
+  any of its detectors is. `null` means the built-in defaults (`DefaultZoneDetectors`), which reproduce
+  exactly what follows. Once saved the map is authoritative, so the UI's first save writes every zone's
+  current detectors plus the edit, and a zone it leaves out has no presence. "House" is any detector that
+  shows someone is there (`MeansSomeoneHome`), whichever zone it belongs to. Each room state carries its
+  `occupancy` (its detector ids, whether default, and every detector with whether it is active now). Every
+  detector is checked once per pass (`GetSnapshotAsync`), and both schedule conditions and device rules read
+  that snapshot. Adding a *new kind* of detector is still a code change. The built-in defaults:
+  Ste's desk (`games desk`) uses its desk
   plug (on, and ≥ 40 W within the last 5 minutes). **Ruth's desk plug gives two detectors** (owner,
   2026-10-19): `dining desk` is in use while the plug is on **and** has drawn ≥ 30 W for the whole of the last
   5 s, with no hold (the desk is really being used, which her heater's default rule needs); `dining room` is
@@ -297,7 +309,7 @@ Four more heating notes:
     1. `UpdateBoilerControlPathAsync`: the mode, the saved belief, and presses made outside the app.
     2. `ResolveTargetAsync` for every room: what each room wants, before anything moves.
     3. `DecideBoiler`: verification corrections, then on/off presses.
-    4. The rooms' devices.
+    4. The rooms' devices, each decided on its own in `EvaluateSchedule` (see "Each device decides for itself" below).
     5. `RecordValvesAndVerifyAsync`: a valve only counts as heating while open *and* the boiler is believed on.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
@@ -309,24 +321,28 @@ Four more heating notes:
     (`_boilerOnForExercise` in `DecideBoiler`). Normal evaluations are skipped while it runs, and the turn-on
     verification is reset, since a 5-minute burn would fail it and provoke a corrective press. In
     boiler-thermostat mode only the valves are exercised. [HeatingControlService.ValveExercise.cs](Backend/App/Services/Climate/HeatingControlService.ValveExercise.cs)
-  - **A room switched in a pass is not enforced again in that pass.** HA reports a device's new state only a
-    moment after the command, so `EnforceDeviceRulesAsync` straight after a switch read the old states and sent
-    every command twice (seen 2026-10-19 on the kitchen plug: "Turning on", then "turned on by its device rules").
-    For a TRV each duplicate is battery. `_roomsSwitchedThisPass` prevents it; `SwitchingAZoneOn_SendsEachDeviceOneCommand`
-    pins it with a switch that reports late.
-  - Deployed 2026-10-19: the threshold in `20261019112544`; the boost rule and the first version of valve
-    waiting in `20261019114902`. The calling/off rule and leaving valves alone in both directions are in code,
-    not yet deployed.
+  - **One command per device per pass.** HA reports a device's new state only a moment after the command, so
+    anything that reads a device again in the same pass sees the old state and sends the command again (seen
+    2026-10-19 on the kitchen plug, when a separate rules pass followed the room's switch). Each device is now
+    decided once per pass; `SwitchingAZoneOn_SendsEachDeviceOneCommand` pins it with a switch that reports late.
+  - Deployed 2026-10-19, in stages; everything above is live except per-device pre-heat (below) until it ships.
 - **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
   rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤
   start runs past midnight and belongs to the start day; none = any time) AND a presence rule (sources
   combined Any/All; none = no presence needed). A source is a presence zone's canonical name or `house` =
   any of the zones that mean someone is home in use (games desk, dining desk, den, living room; not the
-  dining room's "desk switched on"; never motion sensors, the cat sets them off). Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
-  once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`, enforced both ways by
-  `EnforceDeviceRulesAsync`: a device whose rules stop passing is **switched off** even if the room is still
-  cold (owner's choice), and back on if they pass again while the zone still wants heat. A boost does not
+  dining room's "desk switched on"; never motion sensors, the cat sets them off). Each device also has a
+  **pre-heat** (`PreHeatMinutes`, 0–60; owner, 2026-10-19): how long before a warmer track starts it begins
+  heating for it. Unset means 30 minutes for a radiator valve and none for a heater plug. It replaced the per-track `RampUpMinutes`, which is still stored but no longer read,
+  because a radiator warms a room far more slowly than a fan heater. Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
+  once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`.
+  **Each device decides for itself** in `EvaluateSchedule`: its own target (the room's, brought forward by its
+  own pre-heat, so in one room a radiator can be pre-heating while the heater waits), its own 0.2 °C hysteresis
+  (`_devicesWantingHeat`, not read from the device, since rules can hold a device off while it wants heat), then
+  its rules. A device whose rules stop passing is **switched off** even if it still wants heat (owner's choice),
+  and back on when they pass again. The room reports the highest target any of its devices is aiming at, and
+  the boiler judges a room by its valves' targets, so a radiator's pre-heat calls for the boiler early. A boost does not
   bypass rules. Valves held off by their rules add no boiler demand. `deviceRules: null` (never saved) means
   the built-in [DefaultDeviceRules](Backend/App/Services/Climate/DefaultDeviceRules.cs): kitchen
   05:30–22:00 + House; Bedroom 1 08:00–08:30 and 21:00–21:15 + House; Ste's desk heater needs the games

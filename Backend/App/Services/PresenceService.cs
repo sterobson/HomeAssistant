@@ -6,6 +6,24 @@ using System.Threading.Tasks;
 
 namespace HomeAssistant.Services;
 
+/// <summary>A presence detector: one way of telling, from plugs, that someone is using something.</summary>
+internal sealed record PresenceDetector(
+    string Id,
+    string Label,
+    bool MeansSomeoneHome,
+    IReadOnlyList<(string EntityId, string Role)> Devices,
+    Func<Task<bool>> IsActiveAsync);
+
+/// <summary>Presence worked out once for an evaluation pass: each zone, "house", and each detector.</summary>
+internal sealed record PresenceSnapshot(IReadOnlyDictionary<string, bool> Zones, bool SomeoneHome, IReadOnlyDictionary<string, bool> Detectors);
+
+/// <summary>
+/// Room presence. The detectors (what counts as in use, with their thresholds) are fixed here in code; which of them
+/// count for each zone is configured from the web UI (owner, 2026-10-19) and saved in device settings as
+/// <c>heating.zoneOccupancy</c>. A zone is in use while any of its detectors is. Until anything is saved,
+/// <see cref="DefaultZoneDetectors"/> applies, which is what the zones had before it was configurable.
+/// "House" means any detector that shows someone is there is active, whichever zone it belongs to.
+/// </summary>
 internal class PresenceService : IPresenceService
 {
     /// <summary>Ste's desk is in use once its plug has drawn this much within <see cref="InUseLookBack"/>.</summary>
@@ -20,10 +38,10 @@ internal class PresenceService : IPresenceService
     internal static readonly TimeSpan DiningDeskSteadyFor = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// The den is in use while its TV draws this much. The same threshold as the Home Assistant
+    /// The den's TV is on while it draws this much. The same threshold as the Home Assistant
     /// automations that cut the den's motion lights while the TV is on (tools/ha/automations).
     /// Its standby draw is about 4 W; just after its plug is switched on it draws ~40 W for a couple
-    /// of minutes, which counts as in use.
+    /// of minutes, which counts as on.
     /// </summary>
     internal const double DenTvInUseWatts = 30;
 
@@ -32,106 +50,149 @@ internal class PresenceService : IPresenceService
 
     /// <summary>
     /// The living room TV must have drawn <see cref="LivingRoomTvInUseWatts"/> for this long, unbroken.
-    /// Unlike the den's look-back there is no hold: presence ends once the draw has been below the
-    /// threshold for a moment.
+    /// Unlike the den's look-back there is no hold: it ends once the draw has been below the threshold for a moment.
     /// </summary>
     internal static readonly TimeSpan LivingRoomTvSteadyFor = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// How far back a power reading still counts for the desks and the den. It doubles as a hold: a zone
-    /// stays in use for this long after the draw stops, so a brief dip does not flip the schedule.
+    /// How far back a power reading still counts for Ste's desk and the den's TV. It doubles as a hold: the detector
+    /// stays active for this long after the draw stops, so a brief dip does not flip the schedule.
     /// </summary>
     private static readonly TimeSpan InUseLookBack = TimeSpan.FromMinutes(5);
 
-    private readonly NamedEntities _namedEntities;
+    internal const string GamesDeskInUse = "games-desk-in-use";
+    internal const string DiningDeskInUse = "dining-desk-in-use";
+    internal const string DiningDeskSwitchedOn = "dining-desk-switched-on";
+    internal const string DenTvOn = "den-tv-on";
+    internal const string LivingRoomTvOn = "living-room-tv-on";
+    internal const string LivingRoomLightsOn = "living-room-lights-on";
+
+    /// <summary>
+    /// Which detectors count for each zone until the owner saves their own: exactly what each zone had when this
+    /// became configurable. Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone needs it in
+    /// use, the dining room radiator zone only needs it switched on. The TVs go by their power alone: a TV plug
+    /// switched off reads 0 W anyway.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, IReadOnlyList<string>> DefaultZoneDetectors =
+        new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["games desk"] = [GamesDeskInUse],
+            ["dining desk"] = [DiningDeskInUse],
+            ["dining room"] = [DiningDeskSwitchedOn],
+            ["den"] = [DenTvOn],
+            ["living room"] = [LivingRoomTvOn, LivingRoomLightsOn]
+        };
+
     private readonly HistoryService _historyService;
+    private readonly IReadOnlyList<PresenceDetector> _detectors;
+    private readonly Dictionary<string, PresenceDetector> _detectorsById;
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> _zoneDetectors = DefaultZoneDetectors;
 
     public PresenceService(IHaContext ha, NamedEntities namedEntities, HistoryService historyService, ILogger<PresenceService> logger)
     {
-        _namedEntities = namedEntities;
         _historyService = historyService;
 
+        _detectors =
+        [
+            new(GamesDeskInUse, "Ste's desk in use (plug on, 40 W or more in the last 5 minutes)", true,
+                [(namedEntities.GamesRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug), (namedEntities.GamesRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)],
+                async () => namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts)),
+            new(DiningDeskInUse, "Ruth's desk in use (plug on, 30 W or more for 5 seconds)", true,
+                [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug), (namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)],
+                async () => namedEntities.DiningRoomDeskPlugOnOff.IsOn()
+                    && await IsDrawingSteadily(namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts, DiningDeskSteadyFor)),
+            // Says the desk is set up, not that anyone is at it, so it does not count towards "house".
+            new(DiningDeskSwitchedOn, "Ruth's desk switched on", false,
+                [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)],
+                () => Task.FromResult(namedEntities.DiningRoomDeskPlugOnOff.IsOn())),
+            new(DenTvOn, "Den TV on (30 W or more in the last 5 minutes)", true,
+                [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
+                () => IsDrawing(namedEntities.DenTvPlugPower, DenTvInUseWatts)),
+            new(LivingRoomTvOn, "Living room TV on (30 W or more for 5 seconds)", true,
+                [(namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
+                () => IsDrawingSteadily(namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor)),
+            // Follows the WiZ lamp through two HA automations, so it inherits that lamp's lag (HOME-ASSISTANT.md gotcha 15).
+            new(LivingRoomLightsOn, "Living room stick lights on", true,
+                [(namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)],
+                () => Task.FromResult(namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()))
+        ];
+        _detectorsById = _detectors.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
+
         EntityExistenceValidator.ValidateEntities(ha, logger,
-            namedEntities.GamesRoomDeskPlugOnOff.EntityId,
-            namedEntities.GamesRoomDeskPlugPower.EntityId,
-            namedEntities.DiningRoomDeskPlugOnOff.EntityId,
-            namedEntities.DiningRoomDeskPlugPower.EntityId,
-            namedEntities.DenTvPlugPower.EntityId,
-            namedEntities.LivingRoomTvPlugPower.EntityId,
-            namedEntities.LivingRoomStickLightsPlugOnOff.EntityId);
+            [.. _detectors.SelectMany(d => d.Devices.Select(device => device.EntityId)).Distinct()]);
     }
+
+    public IReadOnlyList<PresenceDetectorDto> Detectors =>
+        [.. _detectors.Select(d => new PresenceDetectorDto { Id = d.Id, Label = d.Label, MeansSomeoneHome = d.MeansSomeoneHome })];
+
+    public bool ZoneOccupancyIsDefault { get; private set; } = true;
+
+    /// <summary>
+    /// The owner's saved choice of detectors per zone, or null for the defaults. Once saved it is the whole truth:
+    /// a zone it leaves out has no presence. Unknown detector ids are ignored.
+    /// </summary>
+    public void UseZoneOccupancy(IReadOnlyDictionary<string, List<string>>? saved)
+    {
+        ZoneOccupancyIsDefault = saved == null;
+        _zoneDetectors = saved == null
+            ? DefaultZoneDetectors
+            : saved.ToDictionary(
+                zone => zone.Key.Trim(),
+                zone => (IReadOnlyList<string>)[.. zone.Value.Where(_detectorsById.ContainsKey).Distinct(StringComparer.OrdinalIgnoreCase)],
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    public IReadOnlyList<string> DetectorsFor(string roomName) =>
+        _zoneDetectors.TryGetValue(roomName.Trim(), out IReadOnlyList<string>? ids) ? ids : [];
+
+    /// <summary>The zones with at least one detector.</summary>
+    public IReadOnlyList<string> PresenceZones => [.. _zoneDetectors.Where(zone => zone.Value.Count > 0).Select(zone => zone.Key)];
 
     public async Task<bool> IsRoomInUse(string roomName)
     {
-        // Presence is measured from plugs. The desk zones use their desk plug; the den uses its TV;
-        // the living room uses its TV or its stick lights being switched on. The den and living room
-        // are different because a TV or the room's lights mean the room itself is being used.
-        //
-        // Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone is in use while the
-        // plug is on and drawing 30 W steadily (the desk is actually being used, which her heater
-        // needs), and the dining room zone while the plug is merely switched on, so the radiator can
-        // have a track for "the desk is set up" without waiting for it to be used.
-        //
-        // The TVs use their power reading alone (owner, 2026-10-19): a TV plug switched off reads 0 W
-        // anyway, so also checking its switch added a second "presence device" and nothing else.
-        return roomName.ToLower().Trim() switch
+        foreach (string id in DetectorsFor(roomName))
         {
-            "games desk" => _namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(_namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts),
-            "dining desk" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn()
-                && await IsDrawingSteadily(_namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts, DiningDeskSteadyFor),
-            "dining room" => _namedEntities.DiningRoomDeskPlugOnOff.IsOn(),
-            "den" => await IsDrawing(_namedEntities.DenTvPlugPower, DenTvInUseWatts),
-            "living room" => _namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()
-                || await IsDrawingSteadily(_namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor),
-            _ => false
-        };
+            if (await _detectorsById[id].IsActiveAsync())
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
-    /// <summary>Must list exactly the zones with an arm in IsRoomInUse and GetPresenceDevices.</summary>
-    public IReadOnlyList<string> PresenceZones { get; } = ["games desk", "dining desk", "dining room", "den", "living room"];
+    public bool CanDetectIfRoomInUse(string roomName) => DetectorsFor(roomName).Count != 0;
+
+    public IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName) =>
+        [.. DetectorsFor(roomName).SelectMany(id => _detectorsById[id].Devices).Distinct()];
 
     /// <summary>
-    /// The zones whose presence means someone is home. The dining room is left out: its detector is only Ruth's
-    /// desk plug being switched on, which says nothing about anyone being there, and "house" drives the kitchen
-    /// and bedroom heaters.
+    /// Every detector checked once, then each zone (any of its detectors) and "house" (any detector that shows
+    /// someone is there). A detector whose check fails counts as inactive.
     /// </summary>
-    public IReadOnlyList<string> HouseZones { get; } = ["games desk", "dining desk", "den", "living room"];
-
-    public bool CanDetectIfRoomInUse(string roomName)
+    public async Task<PresenceSnapshot> GetSnapshotAsync()
     {
-        return GetPresenceDevices(roomName).Count != 0;
-    }
-
-    public IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName)
-    {
-        // Must agree with IsRoomInUse above: these are the entities it reads.
-        return roomName.ToLower().Trim() switch
+        Dictionary<string, bool> detectors = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PresenceDetector detector in _detectors)
         {
-            "games desk" =>
-            [
-                (_namedEntities.GamesRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
-                (_namedEntities.GamesRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
-            ],
-            "dining desk" =>
-            [
-                (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug),
-                (_namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)
-            ],
-            "dining room" =>
-            [
-                (_namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)
-            ],
-            "den" =>
-            [
-                (_namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)
-            ],
-            "living room" =>
-            [
-                (_namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower),
-                (_namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)
-            ],
-            _ => []
-        };
+            try
+            {
+                detectors[detector.Id] = await detector.IsActiveAsync();
+            }
+            catch
+            {
+                detectors[detector.Id] = false;
+            }
+        }
+
+        Dictionary<string, bool> zones = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string zone, IReadOnlyList<string> ids) in _zoneDetectors)
+        {
+            zones[zone] = ids.Any(id => detectors[id]);
+        }
+
+        bool someoneHome = _detectors.Any(d => d.MeansSomeoneHome && detectors[d.Id]);
+        return new PresenceSnapshot(zones, someoneHome, detectors);
     }
 
     /// <summary>

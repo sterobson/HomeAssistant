@@ -91,6 +91,22 @@
           </div>
         </section>
 
+        <section class="rules-section">
+          <h4 class="section-title">Pre-heat</h4>
+          <p class="section-help">
+            How long before a warmer schedule starts this device begins heating for it. Radiators warm a room
+            slowly, so usually need longer than a heater.
+          </p>
+          <label class="pre-heat-field">
+            <span class="visually-hidden">Pre-heat</span>
+            <select v-model.number="draft.preHeatMinutes">
+              <option v-for="minutes in PRE_HEAT_OPTIONS" :key="minutes" :value="minutes">
+                {{ minutes === 0 ? 'None' : `${minutes} minutes` }}{{ minutes === defaultPreHeat ? ' (default)' : '' }}
+              </option>
+            </select>
+          </label>
+        </section>
+
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
       </div>
 
@@ -109,9 +125,12 @@ import { computed, reactive, ref } from 'vue'
 import {
   ALL_DAYS,
   DAYS,
+  defaultPreHeatFor,
   HOUSE_SOURCE,
+  PRE_HEAT_OPTIONS,
   PRESENCE_MATCH,
   normaliseRules,
+  preHeatFor,
   validateWindow
 } from '../utils/deviceRules.js'
 
@@ -125,6 +144,11 @@ const props = defineProps({
   rules: {
     type: Object,
     default: null
+  },
+  // 'radiatorValve' or 'heaterPlug': decides the default pre-heat (30 minutes for a valve, none for a heater).
+  deviceRole: {
+    type: String,
+    default: 'heaterPlug'
   },
   // True when `rules` are the built-in defaults rather than saved by the user.
   isDefault: {
@@ -161,8 +185,11 @@ const draft = reactive({
   presence: {
     match: props.rules?.presence?.match === PRESENCE_MATCH.ALL ? PRESENCE_MATCH.ALL : PRESENCE_MATCH.ANY,
     sources: [...(props.rules?.presence?.sources ?? [])]
-  }
+  },
+  // Rounded to the 5-minute steps on offer, so a saved value always appears selected.
+  preHeatMinutes: Math.round(preHeatFor(props.rules, props.deviceRole) / 5) * 5
 })
+const defaultPreHeat = computed(() => defaultPreHeatFor(props.deviceRole))
 const submitted = ref(false)
 
 // House first, then each zone. A source the rules already name but that no zone offers any more is kept
@@ -208,7 +235,7 @@ const windowError = (timeWindow) => validateWindow(timeWindow)
 const handleSave = () => {
   submitted.value = true
   if (draft.timeWindows.some(w => validateWindow(w) !== null)) return
-  emit('save', normaliseRules(draft))
+  emit('save', normaliseRules(draft, props.deviceRole))
 }
 </script>
 
@@ -447,6 +474,25 @@ const handleSave = () => {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
   color: white;
+}
+
+.pre-heat-field select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .rules-actions {

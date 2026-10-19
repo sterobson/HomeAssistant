@@ -161,8 +161,20 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
   on/off or active track changes, so a device-only change (plug switched, TV power, valve target) waits for
   the next such upload. Left that way deliberately (2026-10-19).
+- **Zone occupancy.** Each zone in a devices list shows which presence detectors make it count as in use
+  ("In use when: …") and an **Occupancy** button opening `ZoneOccupancyModal`. It ticks from every detector the
+  app offers, with whether each is on now and whether it counts towards House. The detectors arrive on room
+  states as `occupancy`, and `mergeSchedulesWithStates` / `loadRoomStates` must copy it across. The choice is
+  saved as `heating.zoneOccupancy` through `useDeviceSettings().saveZoneOccupancy`; the first save writes every
+  zone's built-in detectors plus the edit (`occupancyFirstSaveMap`). Pure helpers and tests are in
+  `utils/zoneOccupancy.js`.
 - **Device rules.** Each heater plug and radiator valve in a devices list shows its rules summary and a
-  **Rules** button opening `DeviceRulesModal` (schedule windows + presence sources with Any/All). Rules live
+  **Rules** button opening `DeviceRulesModal` (schedule windows, presence sources with Any/All, and the device's
+  **pre-heat**, 0–60 minutes in 5-minute steps; unset is 30 for a radiator valve and none for a heater plug, so
+  the dialog takes the device's `role`, and the summary mentions pre-heat only when it differs from that default).
+  `normaliseRules` must carry `preHeatMinutes`, or saving the dialog would wipe it. Tracks still carry a
+  `rampUpMinutes` (the schedule editor always sends 30), but since 2026-10-19 the app ignores it: pre-heat is
+  per device. Rules live
   in the device-settings blob as `heating.deviceRules` (see CLAUDE.md → heating). While that is `null` each
   drivable device carries the app's built-in `rules` (`rulesAreDefault: true`); the first save writes every
   device's defaults plus the edit (`firstSaveMap`), because once saved a missing entry means "no rules".

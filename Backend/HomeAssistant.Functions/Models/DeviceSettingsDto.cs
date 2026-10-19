@@ -55,6 +55,12 @@ public class HeatingSettingsDto
     /// missing here is dropped on save, so keep the two in step.
     /// </summary>
     public Dictionary<string, HomeAssistant.Shared.Climate.DeviceRulesDto>? DeviceRules { get; set; }
+
+    /// <summary>
+    /// Presence detector ids per zone (canonical name); null = never configured. Stored and served as-is: the
+    /// NetDaemon app evaluates them. Mirrors Backend/App/Shared/DeviceSettingsDto.cs — keep the two in step.
+    /// </summary>
+    public Dictionary<string, List<string>>? ZoneOccupancy { get; set; }
 }
 
 /// <summary>

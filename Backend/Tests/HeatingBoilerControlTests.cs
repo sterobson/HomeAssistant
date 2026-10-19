@@ -421,6 +421,29 @@ public sealed class HeatingBoilerControlTests
         context.BoilerFingerbot.ToggleCount.ShouldBe(0, "0.1 degrees short is inside the band where its valve would not open");
     }
 
+    [TestMethod]
+    [DataRow(45, 1, DisplayName = "45 minutes' pre-heat: the 12:30 track has started for this valve")]
+    [DataRow(15, 0, DisplayName = "15 minutes' pre-heat: not yet")]
+    public async Task AValvesPreHeat_CallsForTheBoilerEarly(int preHeatMinutes, int presses)
+    {
+        // At 12:00 the living room is 15 °C on a 15 °C track, with 21 °C from 12:30: 6 degrees short once its
+        // valve starts pre-heating.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 15, bedroom2Target: 15);
+        context.Rooms[0].ScheduleTracks =
+        [
+            new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 15 },
+            new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(12, 30), Temperature = 21 }
+        ];
+        context.DeviceSettings.Settings.Heating!.DeviceRules = new()
+        {
+            [context.LivingRoomThermostat.EntityId] = new DeviceRulesDto { PreHeatMinutes = preHeatMinutes }
+        };
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(presses);
+    }
+
     // The monthly valve exercise (owner, 2026-10-19, after a TRV seized from not moving for months).
 
     [TestMethod]

@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
 import { firstSaveMap } from '../utils/deviceRules.js'
+import { occupancyFirstSaveMap } from '../utils/zoneOccupancy.js'
 
 // Which control path the boiler is physically wired to. A switch at the boiler selects between
 // the fingerbot and the boiler thermostat, and nothing can read it, so this is a statement of
@@ -123,6 +124,32 @@ async function saveDeviceRules(entityId, rules, allDrivableDevices) {
   })
 }
 
+// Which presence detectors count for each zone: null until someone first saves, then zone name -> detector ids.
+const zoneOccupancy = computed(() => settings.value?.heating?.zoneOccupancy ?? null)
+
+// Saves one zone's detectors, keeping everything else in the device settings blob. While nothing has been saved
+// the app runs on its built-in defaults, so the first save writes every zone's current detectors too.
+async function saveZoneOccupancy(zoneName, detectorIds, allZones) {
+  await loadSettings()
+
+  if (!settings.value) {
+    throw new Error('Device settings have not loaded, so the occupancy was not saved.')
+  }
+
+  const current = settings.value.heating?.zoneOccupancy ?? null
+  const next = current === null
+    ? occupancyFirstSaveMap(allZones, zoneName, detectorIds)
+    : { ...Object.fromEntries(Object.entries(current).filter(([key]) => key.trim().toLowerCase() !== zoneName.trim().toLowerCase())), [zoneName]: [...detectorIds] }
+
+  await saveSettings({
+    ...settings.value,
+    heating: {
+      ...(settings.value.heating || {}),
+      zoneOccupancy: next
+    }
+  })
+}
+
 const isPowerMonitorConfigured = computed(() => {
   const rp = settings.value?.realtimePower
   if (!rp) return false
@@ -150,6 +177,8 @@ export function useDeviceSettings() {
     saveBoilerControlPath,
     deviceRules,
     saveDeviceRules,
+    zoneOccupancy,
+    saveZoneOccupancy,
     BOILER_CONTROL_PATHS
   }
 }

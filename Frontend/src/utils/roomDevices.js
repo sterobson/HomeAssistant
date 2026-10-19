@@ -114,9 +114,13 @@ export const deviceSections = (rooms) =>
     .filter(Boolean)
     .map(room => ({
       roomId: room.id,
+      // The canonical zone name, which the occupancy setting is keyed by; title is only for display.
+      name: room.name,
       title: roomLabel(room),
       icon: room.icon,
-      devices: sortDevices(room.devices)
+      devices: sortDevices(room.devices),
+      // Which presence detectors count for this zone (from the app); null from an app too old to send it.
+      occupancy: room.occupancy ?? null
     }))
 
 /** How many distinct entities the rooms use between them, counting a shared one once. */

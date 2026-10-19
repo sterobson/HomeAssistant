@@ -162,7 +162,8 @@ public static class ScheduleMapper
             ActiveScheduleTrackId = dto.ActiveScheduleTrackId,
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated),
             Capabilities = dto.Capabilities,
-            Devices = [.. dto.Devices ?? []]
+            Devices = [.. dto.Devices ?? []],
+            Occupancy = dto.Occupancy
         };
     }
 
@@ -183,7 +184,8 @@ public static class ScheduleMapper
             ActiveScheduleTrackId = state.ActiveScheduleTrackId,
             LastUpdated = state.LastUpdated.ToString("O"),
             Capabilities = state.Capabilities,
-            Devices = [.. state.Devices]
+            Devices = [.. state.Devices],
+            Occupancy = state.Occupancy
         };
     }
 }

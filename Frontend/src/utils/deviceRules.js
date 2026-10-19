@@ -3,8 +3,11 @@
 // Stored in the device-settings blob as `heating.deviceRules`, which is either null (never
 // configured, so the app uses its built-in defaults) or an object keyed by Home Assistant entity ID:
 //
-//   { timeWindows: [{ days, start: 'HH:mm', end: 'HH:mm' }], presence: { match, sources } | null }
+//   { timeWindows: [{ days, start: 'HH:mm', end: 'HH:mm' }], presence: { match, sources } | null,
+//     preHeatMinutes }
 //
+// - `preHeatMinutes` (0–60) is how long before a warmer schedule track starts the device begins heating for it.
+//   Per device since 2026-10-19: when missing, 30 for a radiator valve and none for a heater plug.
 // - `days` is the Days flags enum used by schedules (Mon = 1 ... Sun = 64, 127 = every day).
 // - An `end` at or before `start` means the window runs past midnight.
 // - No windows means any time. Null presence, or no sources, means no presence is needed.
@@ -19,6 +22,24 @@ import { roomLabel } from './rooms.js'
 export const HOUSE_SOURCE = 'house'
 export const PRESENCE_MATCH = { ANY: 0, ALL: 1 }
 export const ALL_DAYS = 127
+
+// Match DeviceRulesDto's DefaultValvePreHeatMinutes / DefaultHeaterPreHeatMinutes / MaxPreHeatMinutes in the app:
+// a radiator valve pre-heats 30 minutes by default, a heater plug not at all (owner, 2026-10-19).
+export const MAX_PRE_HEAT_MINUTES = 60
+
+/** The choices offered: every 5 minutes from none to an hour. */
+export const PRE_HEAT_OPTIONS = Array.from({ length: MAX_PRE_HEAT_MINUTES / 5 + 1 }, (_, i) => i * 5)
+
+/** The pre-heat a device of this role uses when nothing is set. */
+export const defaultPreHeatFor = (role) => (role === 'radiatorValve' ? 30 : 0)
+
+/** The pre-heat a device with these rules (or none) uses, clamped to 0–60 like the app does. */
+export const preHeatFor = (rules, role) => {
+  const fallback = defaultPreHeatFor(role)
+  const minutes = Number(rules?.preHeatMinutes ?? fallback)
+  if (!Number.isFinite(minutes)) return fallback
+  return Math.min(MAX_PRE_HEAT_MINUTES, Math.max(0, Math.round(minutes)))
+}
 
 // Display order is Monday first, matching the flag values.
 export const DAYS = [
@@ -91,8 +112,9 @@ const joinList = (items, word) =>
  * A short sentence-case description, e.g. "05:30–22:00 every day · House".
  * @param {object|null} rules
  * @param {(source: string) => string} zoneLabel label for a zone name; 'house' is handled here
+ * @param {string} [role] the device's role, for its default pre-heat
  */
-export const summariseRules = (rules, zoneLabel = (name) => name) => {
+export const summariseRules = (rules, zoneLabel = (name) => name, role = 'heaterPlug') => {
   const windows = rules?.timeWindows ?? []
   const everyDay = windows.every(w => w.days === ALL_DAYS)
 
@@ -108,12 +130,16 @@ export const summariseRules = (rules, zoneLabel = (name) => name) => {
     if (everyDay && windows.length === 1) timeText += ' every day'
   }
 
+  // Only worth saying when it differs from the default.
+  const preHeat = preHeatFor(rules, role)
+  const preHeatText = preHeat === defaultPreHeatFor(role) ? '' : ` · pre-heat ${preHeat} min`
+
   const sources = rules?.presence?.sources ?? []
-  if (sources.length === 0) return `${timeText} · no presence needed`
+  if (sources.length === 0) return `${timeText} · no presence needed${preHeatText}`
 
   const labels = sources.map(s => (s === HOUSE_SOURCE ? 'House' : zoneLabel(s)))
   const word = rules.presence.match === PRESENCE_MATCH.ALL ? 'and' : 'or'
-  return `${timeText} · ${joinList(labels, word)}`
+  return `${timeText} · ${joinList(labels, word)}${preHeatText}`
 }
 
 /**
@@ -156,12 +182,13 @@ export const drivableDevices = (rooms) => {
 }
 
 /** Tidies rules for saving: drops a presence rule with no sources and keeps only known fields. */
-export const normaliseRules = (rules) => {
+export const normaliseRules = (rules, role = 'heaterPlug') => {
   const sources = [...new Set(rules?.presence?.sources ?? [])]
   return {
     timeWindows: (rules?.timeWindows ?? []).map(w => ({ days: w.days, start: w.start, end: w.end })),
     presence: sources.length === 0
       ? null
-      : { match: sources.length > 1 ? (rules.presence.match ?? PRESENCE_MATCH.ANY) : PRESENCE_MATCH.ANY, sources }
+      : { match: sources.length > 1 ? (rules.presence.match ?? PRESENCE_MATCH.ANY) : PRESENCE_MATCH.ANY, sources },
+    preHeatMinutes: preHeatFor(rules, role)
   }
 }

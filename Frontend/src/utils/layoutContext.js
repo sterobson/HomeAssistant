@@ -8,6 +8,7 @@
 //   layoutTree       ref(tree)  the whole layout, for working out which group's boost locks a node
 //   presenceZones    computed [{ name, label }] zones that can detect presence, for device rules
 //   drivableDevices  computed [device] every heater plug and radiator valve, for device rules
+//   zones            ref([room]) every zone with its `occupancy`, for the first save of zone occupancy
 //   editLayout       ref(boolean)   reordering / icon mode
 //   occupancyFilter  ref(string|null)
 //   expandedRoomId   ref(number|null)  one room's schedule open at a time
