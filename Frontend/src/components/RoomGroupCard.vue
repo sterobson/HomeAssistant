@@ -39,7 +39,7 @@
             <path d="M11.251.068a.5.5 0 01.227.58L9.677 6.5H13a.5.5 0 01.364.843l-8 8.5a.5.5 0 01-.842-.49L6.323 9.5H3a.5.5 0 01-.364-.843l8-8.5a.5.5 0 01.615-.09z"/>
           </svg>
         </button>
-        <span class="room-count">{{ roomCountLabel }}</span>
+        <span class="room-count">{{ zoneCountLabel }}</span>
       </div>
       <div v-else class="edit-actions" @click.stop>
         <button class="icon-btn edit-btn" title="Edit name and icon" aria-label="Edit name and icon" @click.stop="emit('edit')">
@@ -196,8 +196,10 @@ const temperatureText = computed(() => {
   return `${formatTemp(summary.low)}–${formatTempWithUnit(summary.high)}`
 })
 
-const roomCount = computed(() => roomIdsIn(props.node).length)
-const roomCountLabel = computed(() => (roomCount.value === 1 ? '1 room' : `${roomCount.value} rooms`))
+// What sits directly inside, rooms and groups alike: "Downstairs" holding the Dining room group, a Kitchen and a
+// Hallway is 3 zones, not however many rooms are nested below.
+const zoneCount = computed(() => props.node.children.length)
+const zoneCountLabel = computed(() => (zoneCount.value === 1 ? '1 zone' : `${zoneCount.value} zones`))
 const empty = computed(() => props.node.children.length === 0)
 
 // Every zone at any depth below this group, in layout order, each listed separately.
@@ -277,8 +279,7 @@ const boostButtonTitle = computed(() => {
   padding: 1rem;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
-  /* A thin accent marks this as a group rather than a single room. */
-  border-left: 3px solid var(--color-primary);
+  /* No accent of its own: a group's header looks like any zone's (owner, 2026-10-20). */
   cursor: pointer;
   user-select: none;
   transition: all 0.2s;

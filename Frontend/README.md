@@ -198,9 +198,9 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   Pure helpers and their tests are in `utils/deviceRules.js`; saving goes through
   `useDeviceSettings().saveDeviceRules`.
 
-  `RoomGroupCard` that shows the shared temperature and a flame if any zone is heating,
-  but has no controls of its own — the controls live on the zone cards inside it. The
-  grouping is built in `roomEntries` in `HeatingView.vue`, and a group takes the position
-  of its first zone, so the blob's room order still decides the layout. Rooms with no
-  `group` render exactly as before. Group expansion is not persisted (the expanded-room
-  cookie stores a room id, and groups have none).
+- **What is open is remembered** (owner, 2026-10-20). Any number of groups can be open at once, and one zone
+  card at a time. Both are kept in `localStorage` as `heating-expanded` (`{ roomId, groupIds }`), saved by a watch
+  in `HeatingView.vue` and restored on mount. It replaced the `heating-app-expanded-room` cookie, which stored the
+  room id as text and so never matched the numeric id again; the old cookie is deleted on load.
+- **A group's header counts what sits directly inside it** as zones ("4 zones"), rooms and groups alike, not
+  every room nested below.

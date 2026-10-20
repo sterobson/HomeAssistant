@@ -267,29 +267,35 @@ watch(() => props.occupancyFilter, async (newFilter, oldFilter) => {
 // SignalR connection - will be recreated when houseId changes
 let signalR = useSignalR(houseId.value)
 
-// Cookie helpers
-const EXPANDED_ROOM_COOKIE = 'heating-app-expanded-room'
+// Which zone and which groups are open survives a reload. Kept as JSON so a room's id comes back as the number it
+// is: the cookie this replaced stored it as text, which never matched the room again.
+const EXPANDED_STORAGE_KEY = 'heating-expanded'
+const LEGACY_EXPANDED_ROOM_COOKIE = 'heating-app-expanded-room'
 
-const setCookie = (name, value, days = 365) => {
-  const expires = new Date()
-  expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000)
-  document.cookie = `${name}=${encodeURIComponent(value)};expires=${expires.toUTCString()};path=/`
-}
-
-const getCookie = (name) => {
-  const nameEQ = name + "="
-  const ca = document.cookie.split(';')
-  for (let i = 0; i < ca.length; i++) {
-    let c = ca[i]
-    while (c.charAt(0) === ' ') c = c.substring(1, c.length)
-    if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length))
+const loadExpanded = () => {
+  document.cookie = `${LEGACY_EXPANDED_ROOM_COOKIE}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
+  try {
+    const saved = JSON.parse(localStorage.getItem(EXPANDED_STORAGE_KEY) ?? 'null')
+    if (!saved) return
+    expandedRoomId.value = saved.roomId ?? null
+    expandedGroupIds.value = new Set(Array.isArray(saved.groupIds) ? saved.groupIds : [])
+  } catch {
+    // Unreadable or blocked storage: start with everything closed.
   }
-  return null
 }
 
-const deleteCookie = (name) => {
-  document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`
+const saveExpanded = () => {
+  try {
+    localStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify({
+      roomId: expandedRoomId.value,
+      groupIds: [...expandedGroupIds.value]
+    }))
+  } catch {
+    // Storage blocked: the page still works, it just won't remember.
+  }
 }
+
+watch([expandedRoomId, expandedGroupIds], saveExpanded)
 
 // Initialize SignalR connection
 const initializeConnection = async () => {
@@ -405,11 +411,7 @@ onMounted(async () => {
   // Where each HA area's battery devices show. Not awaited: until it loads they warn at the top of the page.
   loadSettings()
 
-  // Load previously expanded room from cookie
-  const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
-  if (savedExpandedRoom && savedExpandedRoom !== 'null') {
-    expandedRoomId.value = savedExpandedRoom
-  }
+  loadExpanded()
 
   // Only load schedules and connect to SignalR if we have a house ID
   if (!houseId.value) {
@@ -736,8 +738,6 @@ const handleCancelGroupBoost = async (groupNode) => {
   }
 }
 
-// Groups expand one at a time, matching how rooms already behave. Not persisted: the
-// expanded-room cookie holds a room id, and a group has no id to store.
 // ---- Layout editing --------------------------------------------------------------------------
 // Each change saves immediately, like boosts and renames. If the save fails everything is put back,
 // so the screen never shows an arrangement that was not stored.
@@ -858,16 +858,9 @@ const handleDeleteGroup = async () => {
   await saveLayout(previous, 'Group deleted. Its rooms were kept.')
 }
 
+// One zone open at a time: opening one closes the other. Saved by the watch on the expanded state.
 const handleToggleExpand = (roomId) => {
-  // If clicking the already-expanded room, collapse it
-  if (expandedRoomId.value === roomId) {
-    expandedRoomId.value = null
-    deleteCookie(EXPANDED_ROOM_COOKIE)
-  } else {
-    // Otherwise, expand this room and collapse others
-    expandedRoomId.value = roomId
-    setCookie(EXPANDED_ROOM_COOKIE, roomId)
-  }
+  expandedRoomId.value = expandedRoomId.value === roomId ? null : roomId
 }
 
 
