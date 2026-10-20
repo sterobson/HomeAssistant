@@ -125,7 +125,7 @@ in the order that works:
    `GET /api/app-release/running?houseId=1234567` reporting the new `version.txt`.
 4. **Data migration, if the release changes room names.** The app matches room names in code, so the new
    app on old names (or the reverse) leaves those rooms unbound until the blob is migrated. Do it straight
-   after the app restarts, with `LocalEnv/migrate-rooms.mjs` (dry run first; writing to production needs
+   after the app restarts, with `LocalEnv/migrate-rooms.mjs` (or `LocalEnv/add-room.mjs` to add one new room; dry run first; writing to production needs
    `--apply --i-mean-production`). The live app picks up the change over SignalR within seconds.
 5. **Frontend.** Build with `VITE_API_URL` and `VITE_FUNCTION_KEY`, then `swa deploy` with the token from
    `az staticwebapp secrets list`. Compare the live `index-*.js` name to the local build to prove it.
@@ -157,6 +157,16 @@ The 2026-10-19 deploy (`d3ff40a`) followed the same steps and added these, all c
   targets arrive with that first evaluation. `EvaluateAllSchedules` also now logs any failure ("Heating
   evaluation failed") instead of losing it, so the add-on log (Settings → Add-ons → NetDaemon → Log, not
   readable through the API) is where to look when targets do not appear.
+
+The 2026-10-20 deploys (`659216c`-era fix, then `d60474c`) added these:
+
+- **Run `func azure functionapp publish ... --dotnet-cli-params "/p:DeploymentVersion=..."` from PowerShell, not Git Bash.** Git Bash
+  rewrites `/p:...` as a path, and the publish fails with `MSB1009: Project file does not exist`.
+- **`Resolve-TemplateValue` needs three modules dot-sourced, not one:** `Output.ps1`, `SecretsManagement.ps1` and `ConfigManagement.ps1`
+  (it calls `Get-StoredSecrets`). With only `ConfigManagement.ps1` it fails with "The term 'Get-StoredSecrets' is not recognized".
+- **The OTA zip is built from the publish folder and uploaded to `app-release/upload?version=<version.txt>` with the `x-functions-key` header.**
+  The publish folder can be anywhere (a scratch folder worked); only `version.txt` and the zip contents matter.
+- **Adding one room needs `LocalEnv/add-room.mjs`** after the app that knows its name is live (see CLAUDE.md → hallway).
 
 ### The Samba share, and restarting add-ons
 

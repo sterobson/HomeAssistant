@@ -261,7 +261,7 @@ Four consequences worth knowing before changing any of this:
   (role `towelRail`) has the app's own ID, and its state is the boiler belief in fingerbot mode, null otherwise.
 
 **The hallway** (since 2026-10-20) is a zone of its own that is only a thermometer: `hallway` reads `sensor.hallway_climate_temperature`
-(`HallwayClimateTemperature`) and has no switches, so it reports a temperature and nothing else (no boost, schedules or share link). Like every zone it exists only once a room named "Hallway" is in the schedules blob and the layout; the heating page cannot add rooms, so that is done by editing the blob (see `LocalEnv/migrate-rooms.mjs` for the pattern), after the app that knows the name is deployed.
+(`HallwayClimateTemperature`) and has no switches, so it reports a temperature and nothing else (no boost, schedules or share link). Like every zone it exists only once a room named "Hallway" is in the schedules blob and the layout; the heating page cannot add rooms, so that is done with `LocalEnv/add-room.mjs` (dry run first; production needs `--apply --i-mean-production`), after the app that knows the name is deployed. It was added to production on 2026-10-20 as room 11 in the Downstairs group (`g3`), with no icon.
 
 Four more heating notes:
 
