@@ -11,6 +11,8 @@ const ROLE_LABELS = {
   thermometer: 'Thermometer',
   radiatorValve: 'Radiator valve',
   heaterPlug: 'Heater plug',
+  // No valve or switch: hot whenever the boiler runs, so its zone is heated by running the boiler.
+  towelRail: 'Towel rail on the boiler',
   deskPlug: 'Desk plug',
   deskPower: 'Desk power',
   tvPower: 'TV power',
@@ -22,7 +24,7 @@ const ROLE_LABELS = {
 // How a zone's devices are grouped in the UI: what it reads, what heats, and how it detects presence.
 export const DEVICE_GROUPS = [
   { key: 'readers', title: 'Readers', roles: ['thermometer'] },
-  { key: 'heaters', title: 'Heaters', roles: ['radiatorValve', 'heaterPlug'] },
+  { key: 'heaters', title: 'Heaters', roles: ['radiatorValve', 'heaterPlug', 'towelRail'] },
   { key: 'presence', title: 'Presence', roles: ['deskPlug', 'deskPower', 'tvPower', 'lightsPlug', 'routerDevices'] }
 ]
 
@@ -37,9 +39,11 @@ export const deviceName = (device) => device?.name?.trim() || device?.entityId |
 /**
  * Home Assistant reports a device it cannot reach as `unavailable` (or `unknown` before it has
  * reported). A missing state means the entity was not found at all. None of those are readings.
+ * A towel rail is not in Home Assistant at all, so it is never unavailable.
  */
 export const isUnavailable = (device) =>
-  device?.state == null || device.state === 'unavailable' || device.state === 'unknown'
+  device?.role !== 'towelRail' &&
+  (device?.state == null || device.state === 'unavailable' || device.state === 'unknown')
 
 /**
  * A short description of what the device says now.
@@ -47,6 +51,12 @@ export const isUnavailable = (device) =>
  * @param {(celsius: number) => string} formatTempWithUnit from useFormatting, so the user's unit applies
  */
 export const describeState = (device, formatTempWithUnit) => {
+  // Not in Home Assistant: its state is the boiler's, sent only while the app runs the boiler.
+  if (device?.role === 'towelRail') {
+    if (device.state === 'on') return 'Hot, the boiler is on'
+    if (device.state === 'off') return 'Cold, the boiler is off'
+    return 'Hot whenever the boiler runs'
+  }
   if (device?.state == null) return 'Not found in Home Assistant'
   if (device.state === 'unavailable') return 'Unavailable'
   if (device.state === 'unknown') return 'Unknown'

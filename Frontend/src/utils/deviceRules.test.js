@@ -3,7 +3,9 @@ import {
   drivableDevices,
   effectiveRules,
   firstSaveMap,
+  isAutoPreHeat,
   normaliseRules,
+  PRE_HEAT_AUTO,
   PRE_HEAT_OPTIONS,
   preHeatFor,
   presenceZones,
@@ -156,18 +158,34 @@ describe('pre-heat', () => {
     expect(PRE_HEAT_OPTIONS).toHaveLength(13)
   })
 
+  it('is Auto for a radiator valve with none set, and never for a heater plug', () => {
+    expect(isAutoPreHeat(null, 'radiatorValve')).toBe(true)
+    expect(isAutoPreHeat({}, 'radiatorValve')).toBe(true)
+    expect(isAutoPreHeat({ preHeatMinutes: null }, 'radiatorValve')).toBe(true)
+    expect(isAutoPreHeat({ preHeatMinutes: PRE_HEAT_AUTO }, 'radiatorValve')).toBe(true)
+    expect(isAutoPreHeat({ preHeatMinutes: 30 }, 'radiatorValve')).toBe(false)
+    expect(isAutoPreHeat({ preHeatMinutes: 0 }, 'radiatorValve')).toBe(false)
+    expect(isAutoPreHeat(null, 'heaterPlug')).toBe(false)
+  })
+
   it('is mentioned in the summary only when it is not the default for that kind of device', () => {
     expect(summariseRules(rules([]), label, 'radiatorValve')).toBe('Any time · no presence needed')
     expect(summariseRules(rules([]), label, 'heaterPlug')).toBe('Any time · no presence needed')
     expect(summariseRules({ ...rules([]), preHeatMinutes: 10 }, label, 'radiatorValve')).toBe('Any time · no presence needed · pre-heat 10 min')
+    expect(summariseRules({ ...rules([]), preHeatMinutes: 30 }, label, 'radiatorValve')).toBe('Any time · no presence needed · pre-heat 30 min')
     expect(summariseRules({ ...rules([], { match: 0, sources: ['house'] }), preHeatMinutes: 30 }, label, 'heaterPlug'))
       .toBe('Any time · House · pre-heat 30 min')
   })
 
   it('is kept when rules are tidied for saving, which would otherwise wipe it', () => {
     expect(normaliseRules({ ...rules([]), preHeatMinutes: 15 }, 'radiatorValve').preHeatMinutes).toBe(15)
-    expect(normaliseRules(rules([]), 'radiatorValve').preHeatMinutes).toBe(30)
+    expect(normaliseRules({ ...rules([]), preHeatMinutes: 0 }, 'radiatorValve').preHeatMinutes).toBe(0)
     expect(normaliseRules(rules([]), 'heaterPlug').preHeatMinutes).toBe(0)
+  })
+
+  it('is saved as no value when it is Auto', () => {
+    expect(normaliseRules(rules([]), 'radiatorValve').preHeatMinutes).toBeNull()
+    expect(normaliseRules({ ...rules([]), preHeatMinutes: PRE_HEAT_AUTO }, 'radiatorValve').preHeatMinutes).toBeNull()
   })
 })
 

@@ -100,11 +100,15 @@
           <label class="pre-heat-field">
             <span class="visually-hidden">Pre-heat</span>
             <select v-model.number="draft.preHeatMinutes">
+              <option v-if="isRadiator" :value="PRE_HEAT_AUTO">Auto (default)</option>
               <option v-for="minutes in PRE_HEAT_OPTIONS" :key="minutes" :value="minutes">
-                {{ minutes === 0 ? 'None' : `${minutes} minutes` }}{{ minutes === defaultPreHeat ? ' (default)' : '' }}
+                {{ minutes === 0 ? 'None' : `${minutes} minutes` }}{{ !isRadiator && minutes === defaultPreHeat ? ' (default)' : '' }}
               </option>
             </select>
           </label>
+          <p v-if="isRadiator && draft.preHeatMinutes === PRE_HEAT_AUTO" class="auto-help">
+            {{ autoExplanation }}
+          </p>
         </section>
 
         <p v-if="error" class="error-text" role="alert">{{ error }}</p>
@@ -127,12 +131,18 @@ import {
   DAYS,
   defaultPreHeatFor,
   HOUSE_SOURCE,
+  isAutoPreHeat,
+  PRE_HEAT_AUTO,
   PRE_HEAT_OPTIONS,
   PRESENCE_MATCH,
   normaliseRules,
   preHeatFor,
   validateWindow
 } from '../utils/deviceRules.js'
+import { useFormatting } from '../composables/useFormatting.js'
+import { describeWarmUpRate, expectedWarmUp, formatMinutes, FALLBACK_WARM_UP_MINUTES } from '../utils/warmUp.js'
+
+const { currentTempUnit } = useFormatting()
 
 const props = defineProps({
   // Name to show in the title, already resolved from the device.
@@ -145,10 +155,15 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  // 'radiatorValve' or 'heaterPlug': decides the default pre-heat (30 minutes for a valve, none for a heater).
+  // 'radiatorValve' or 'heaterPlug': decides the default pre-heat (Auto for a valve, none for a heater).
   deviceRole: {
     type: String,
     default: 'heaterPlug'
+  },
+  // The device as published in the room state, for what Auto amounts to: its measured warm-up rate and expected time.
+  device: {
+    type: Object,
+    default: null
   },
   // True when `rules` are the built-in defaults rather than saved by the user.
   isDefault: {
@@ -186,10 +201,28 @@ const draft = reactive({
     match: props.rules?.presence?.match === PRESENCE_MATCH.ALL ? PRESENCE_MATCH.ALL : PRESENCE_MATCH.ANY,
     sources: [...(props.rules?.presence?.sources ?? [])]
   },
-  // Rounded to the 5-minute steps on offer, so a saved value always appears selected.
-  preHeatMinutes: Math.round(preHeatFor(props.rules, props.deviceRole) / 5) * 5
+  // Auto for a radiator with none set; otherwise rounded to the 5-minute steps on offer, so a saved value always
+  // appears selected.
+  preHeatMinutes: isAutoPreHeat(props.rules, props.deviceRole)
+    ? PRE_HEAT_AUTO
+    : Math.round(preHeatFor(props.rules, props.deviceRole) / 5) * 5
 })
 const defaultPreHeat = computed(() => defaultPreHeatFor(props.deviceRole))
+const isRadiator = computed(() => props.deviceRole === 'radiatorValve')
+
+// What Auto means for this radiator right now: how it is worked out, what it has measured and the time that implies.
+const autoExplanation = computed(() => {
+  const rate = describeWarmUpRate(props.device, currentTempUnit.value)
+  const warmUp = expectedWarmUp(props.device)
+  const how = 'It starts early enough for the room to reach the new temperature as the schedule begins.'
+  if (props.device?.heatingRateCelsiusPerHour == null) {
+    return `${how} Nothing has been measured for this radiator yet, so it starts ${FALLBACK_WARM_UP_MINUTES} minutes ahead until it has.`
+  }
+  const expected = warmUp
+    ? `That would take about ${formatMinutes(warmUp.minutes)} to reach the next warmer schedule from the room's temperature now.`
+    : 'No warmer schedule is coming up, so there is nothing to warm up for.'
+  return `${how} ${rate}. ${expected}`
+})
 const submitted = ref(false)
 
 // House first, then each zone. A source the rules already name but that no zone offers any more is kept
@@ -474,6 +507,12 @@ const handleSave = () => {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
   color: white;
+}
+
+.auto-help {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 .pre-heat-field select {

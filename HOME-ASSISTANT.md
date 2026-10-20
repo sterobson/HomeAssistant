@@ -73,6 +73,8 @@ row before you finish — that is how this list earns its keep.
 | 18 | The boiler fingerbot changed state with nobody pressing it | At 13:17:08 BST on 2026-10-19 `switch.tz3210_j4pdtz9v_ts0001` went `on` with **no context** in the logbook (no user, automation or service call: the device reported it). Either someone touched the fingerbot's own button or it sent a spurious report. The app counts any change it did not command as a press, flipped its belief and pressed 21 s later. If the report was spurious, that press really toggled the boiler | Run `tools/ha/who-changed.cjs switch.tz3210_j4pdtz9v_ts0001` before trusting any fingerbot change: "Supervisor" is the app, a named user is a person or a script on their token, and no context is the device. If uncommanded reports recur, the outside-press rule needs rethinking |
 | 19 | The Dreame Vacuum login form says only "Could not login, check the credentials." | The form hides the cloud's answer. The real one is in HA's system log (websocket `system_log/list`, logger `custom_components.dreame_vacuum.dreame.protocol`). On 2026-10-19 it was `user password not match` with `maxAttempts 5` and a `remains` count, so the account and region were right, only the password was wrong, and **each failed submit spends one of five attempts** before the account is locked. The account had been created with Google sign-in, which the integration cannot use, so a password had to be set in the Dreamehome app first | Read the system log after the first failure instead of retrying the form. Test the password in the Dreamehome app itself before submitting it again |
 | 20 | The phones' trackers say "home" all day, even when they are miles away | Home Assistant is only reachable on the home network (no external URL, Home Assistant Cloud not logged in; read from `/api/config` and `cloud/status`, 2026-10-19). Away from the Wi-Fi a phone's Companion app cannot reach it, so it sends nothing and the tracker keeps its last state, "home". Ste's and Ruth's trackers said "home" for all 10 days of history while the owner confirmed both phones were out many times; every one of their ~1,300 position reports was within ~150 m of home. Ellie's and Kevin's phones have location off as well ("unknown") | Do not use `device_tracker.*` or `person.*` for presence until remote access exists (Home Assistant Cloud, a VPN such as Tailscale, or router-based presence). Check a tracker's history for any "not_home" before trusting it |
+| 21 | A "power ≥ X W for the last 5 s" check flaps a heater on and off every few seconds | `/api/history/period` runs behind live state by the recorder's commit interval: measured 2026-10-20 with the app's own query shape (second-truncated window ending now), the newest row was 4–6 s old in about half of 12 probes while `/api/states` already held the newer value. So a 5-second window cannot see its own last few seconds. Separately, a plug that is switched off keeps its last power reading (Ruth's desk plug showed a stale 32 W, yesterday 43 W, until it came back on; the heater plug likewise 1,875 W), so a state change to "on" is judged against that old number. On 2026-10-20 at 12:00 BST Ruth's desk plug was switched on and its load pulsed (~450 W for ~4 s, ~5–12 W for ~5 s). `IsDrawingSteadily` was fooled by the lag after each rise and the heater plug went on/off five times in 2 minutes (11:00:03 to 11:02:22 UTC; every switch matched a `Ruth's desk turned on/off` re-evaluation 6 s after a 30 W crossing) | Never build a short-window "steady for N s" rule on the history API. Fixed 2026-10-20: the three "for 5 seconds" presence detectors (Ruth's desk, den TV on now, living room TV) use `SustainedCondition`, which notes from live readings when a condition last became true; use it for any new rule of that kind. A 5-minute look-back on history is fine, since a few seconds of lag does not matter there. To inspect a flap: `who-changed.cjs` for the plug's switch, `entity-history.cjs` for the power sensor, and line the 6 s re-evaluation delay up against the 30 W crossings |
+| 22 | A newly paired battery thermometer shows up as a device with no entities, and removing it is not in the usual place | On 2026-10-20 a SNZB-02D (the hallway one) joined ZHA with a device in the registry but **no entities**; `zha/devices` showed it with endpoints and quirk but an empty entity list, so nothing created `sensor.*_temperature`. It had gone back to sleep before ZHA finished its interview. A first attempt, plus a ZHA reconfigure (`zha/devices/reconfigure`), did not help. The second pairing sat at 0 entities for 4 minutes of button presses and then produced all 14 on its own (read from the registry; no ZHA reload was needed). Removing the broken device: `config/device_registry/remove_config_entry` fails ("Config entry does not support device removal") and `zha/devices/remove` does not exist. The service **`zha.remove` with the device's `ieee`** worked (it left the registry entry gone) | `pair-zigbee.cjs` now waits up to 10 minutes for the first entities (it used to accept 0 and rename only the device, leaving generic entity names) and says to press the device's button. To discard a half-paired device: call `zha.remove` with its IEEE, reset the device (hold its button ~5 s) and pair again. Removing a device does not forget its name: the re-joined one came back as `hallway_hall_climate_*` from the registry and was renamed again |
 
 ## Recipes
 
@@ -232,6 +234,7 @@ rules to a live `GET /api/states`.
 | 100% | Living Room – Climate | `sensor.sonoff_snzb_02d_battery_2` | `LivingRoomClimateTemperature` |
 | 100% | Dining Room – Climate | `sensor.sonoff_snzb_02d_battery_3` | `DiningRoomClimateTemperature` |
 | 100% | Den – Climate (new 2026-10-19) | `sensor.den_climate_battery` | `DenClimateTemperature` |
+| 100% | Hallway – Climate (new 2026-10-20) | `sensor.hallway_climate_battery` | `HallwayClimateTemperature` |
 | 100% | Den – Radiator 1 / 2 (TRVs, new 2026-10-18) | `sensor.den_radiator_*_battery` | `DenRadiator*Thermostat` |
 | 100% | Kitchen temperature and humidity | `sensor.kitchen_temperature_and_humidity_battery` | `KitchenTemperature` |
 | 100% | Bathroom – Climate | `sensor.bedroom_3_temperature_and_humidity_battery` | `UpstairsBathroomTemperature` (gotcha 10) |
@@ -292,6 +295,24 @@ left on their old versions, which all loaded. Compared with a snapshot taken bef
 that worked became unavailable, no errors in the system log; ZHA gained ~50 entities (TRV boost/timer controls,
 plug LED switches) that nothing uses. The NetDaemon app reconnected by itself within about a minute and resumed
 from its saved boiler belief.
+
+**Zigbee mesh** (read from ZHA's neighbour tables on 2026-10-20 with `tools/ha/zigbee-mesh.cjs`; LQI 0–255).
+The coordinator is a SONOFF ZBDongle-E in the living room; the 15 routers are the smart plugs. Strong near the
+hub and upstairs (bedroom 3 plugs relay most of upstairs). **The den is the weak spot:** its four plugs reach the
+hub at only 41–73 and none hears it directly; den traffic leaves via the kitchen heater plug (60 to the hub). The
+**boiler fingerbot's parent is the games room desk plug**, so boiler control depends on that weak path. The
+washing machine plug is barely heard (10). The porch sensor's last parent was the bedroom 3 lamp plug; there is no
+router near the porch. **"Bookcase Light Strip" is a dead router** (not seen since 2026-08-10) still in ZHA;
+remove it or power it. Bedroom 2 and the bathroom have no router of their own. Most useful addition: a mains
+Zigbee plug between the den and the living room or hallway; another near the front door for the porch sensor.
+
+**Porch motion detector** — eWeLink SNZB-03P, `binary_sensor.ewelink_snzb_03p_occupancy` (drives the porch
+light automation). **Drops off Zigbee repeatedly**, read from recorder history on 2026-10-20: unavailable spells
+on 15, 16 (twice), 17 and 18 October, from seconds to two hours, each ending by itself, and again from 04:19 BST
+on 20 October. Its battery read 100% each time just before, so a weak link from outside the house is the more
+likely cause than the cell. While unavailable it sees no motion at all (gotcha 6). Fixes if it persists: a mains
+Zigbee device nearer the porch to act as a repeater, or re-pairing. Last motion before the 20 October outage:
+22:15 BST on the 19th.
 
 **Boiler fingerbot** — `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
 Tuya TS0001 (`_TZ3210_j4pdtz9v`) on ZHA. Takes a **CR2 battery**, and replacing it is
@@ -399,6 +420,12 @@ thermometer is **not** used as a fallback. Named the way Bedrooms 2 and 3 are: e
 `den_climate_*` and the temperature/humidity entities named after the room. RSSI/LQI are disabled by the
 integration, as on every other unit.
 
+**Hallway climate** — `sensor.hallway_climate_temperature` / `_humidity` / `_battery`, device "Hallway - Climate", a Sonoff
+SNZB-02D in the **Hallway** area, paired 2026-10-20 with `tools/ha/pair-zigbee.cjs`. Its first reading was 25.7 °C / 50.1 % with the
+battery at 100%. It was awkward to pair: see gotcha 22. In `Backend/App` it is `HallwayClimateTemperature`, read by the
+`hallway` zone, which is a thermometer only (no switches, so no boost, schedules or share link). That zone also needs a room
+named "Hallway" in the schedules blob and a place in the layout (the heating page cannot add rooms): see CLAUDE.md → Heating.
+
 **Radiator TRVs** — `climate.{room}_radiator_thermostat` in bedrooms 1–3, dining and living
 rooms, plus `climate.den_radiator_1_thermostat` and `climate.den_radiator_2_thermostat` (paired 2026-10-18, named "Den - Radiator 1/2", in the Games
 Room area; wired into `Backend/App` as the `den` zone). Battery powered, 94–95%
@@ -491,6 +518,13 @@ and kitchen. **Mains powered**, each with `_power`, `_current`, `_voltage` and
 `_summation_delivered` sensors. The power sensors are not yet bound in `NamedEntities.cs`
 despite being useful for detecting electric-heat contribution. The kitchen one is
 deliberately unplugged, so its `unavailable` is expected, not a fault.
+
+**Upstairs bathroom towel rail** — a heated towel rail on the boiler's circuit with **no valve and no switch**
+(told to us by the owner, 2026-10-20): it is hot whenever the boiler runs and cannot be turned on or off on its own,
+and there is nothing for it in Home Assistant. Its only reading is the room thermometer
+(`sensor.bathroom_temperature`, an SNZB-02P). Since 2026-10-20 the app treats it as a radiator that is always open
+(`TowelRail` in `Backend/App/Services/Climate`), so the bathroom can be scheduled and boosted and calls for the
+boiler like a valve room. The flip side: it is also hot whenever the boiler runs for any other room.
 
 **Octopus electricity — no import tariff is visible to anything (open fault, found and
 investigated 2026-10-17).** `device-settings → battery.electricityRateSensorId` points at

@@ -195,16 +195,34 @@ public sealed class RoomZoneBindingTests
     }
 
     [TestMethod]
-    public async Task UpstairsBathroom_IsAThermometerWithNoControls()
+    public async Task Hallway_IsAThermometerAndNothingElse()
     {
-        // It has no heater or valve. It used to be "driven" by a dummy switch, which made the UI offer a
-        // boost, schedules and a share link that did nothing (owner, 2026-10-19).
+        ZoneTestContext context = ZoneTestContext.Create("hallway");
+        ((FakeCustomNumericSensorEntity)context.Entities.HallwayClimateTemperature).State = 17.4;
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        RoomState state = context.CapturedStates()[1];
+        state.Devices.Select(d => (d.EntityId, d.Role)).ShouldBe([(nameof(FakeNamedEntities.HallwayClimateTemperature), RoomDeviceRoles.Thermometer)]);
+        state.CurrentTemperature.ShouldBe(17.4);
+        state.Capabilities.ShouldBe(RoomCapabilities.None, "nothing to drive, so no boost, schedules or share link");
+    }
+
+    [TestMethod]
+    public async Task UpstairsBathroom_IsAThermometerAndATowelRailOnTheBoiler()
+    {
+        // The towel rail has no valve or switch, but runs whenever the boiler does, so the zone can be given a
+        // temperature and calls for the boiler to reach it (owner, 2026-10-20).
         ZoneTestContext context = ZoneTestContext.Create("upstairs bathroom");
 
         await context.Service.EvaluateAllSchedules("unit test");
 
-        context.CapturedStates()[1].Devices.Select(d => d.Role).ShouldBe([RoomDeviceRoles.Thermometer]);
-        context.CapturedStates()[1].Capabilities.ShouldBe(RoomCapabilities.None, "the UI shows controls only for a zone that can set a temperature");
+        context.CapturedStates()[1].Devices.Select(d => (d.EntityId, d.Role)).ShouldBe(
+        [
+            (nameof(FakeNamedEntities.UpstairsBathroomTemperature), RoomDeviceRoles.Thermometer),
+            (TowelRail.UpstairsBathroom.Id, RoomDeviceRoles.TowelRail)
+        ]);
+        context.CapturedStates()[1].Capabilities.ShouldBe(RoomCapabilities.CanSetTemperature, "it can be scheduled and boosted, through the boiler");
     }
 
     [TestMethod]

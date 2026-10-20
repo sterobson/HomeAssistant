@@ -136,6 +136,24 @@ public class RoomDeviceDto
 
     /// <summary>True when <see cref="Rules"/> are the app's built-in defaults rather than saved ones.</summary>
     public bool RulesAreDefault { get; set; }
+
+    /// <summary>Radiator valves only: whether the pre-heat is Auto, worked out from the warm-up rate below.</summary>
+    public bool PreHeatAuto { get; set; }
+
+    /// <summary>
+    /// Radiator valves only: how fast this valve has warmed its room, in degrees Celsius an hour, averaged over its
+    /// last <see cref="HeatingRateSamples"/> warm-ups with the boiler on; null until there is one.
+    /// </summary>
+    public double? HeatingRateCelsiusPerHour { get; set; }
+
+    /// <summary>Radiator valves only: how many warm-ups <see cref="HeatingRateCelsiusPerHour"/> averages (up to 5).</summary>
+    public int HeatingRateSamples { get; set; }
+
+    /// <summary>
+    /// Radiator valves only: how long this valve would likely take to bring its room up to the next warmer schedule
+    /// track, from the room's temperature now; null without a rate, or with no warmer track to warm up for.
+    /// </summary>
+    public int? WarmUpMinutes { get; set; }
 }
 
 public static class RoomDeviceRoles
@@ -143,6 +161,11 @@ public static class RoomDeviceRoles
     public const string Thermometer = "thermometer";
     public const string RadiatorValve = "radiatorValve";
     public const string HeaterPlug = "heaterPlug";
+    /// <summary>
+    /// A towel rail on the boiler with no valve: not in Home Assistant, so its entity ID is the app's own name for it,
+    /// and its state is "on"/"off" with the boiler while the app runs the boiler, null otherwise.
+    /// </summary>
+    public const string TowelRail = "towelRail";
     public const string DeskPlug = "deskPlug";
     public const string DeskPower = "deskPower";
     public const string TvPower = "tvPower";

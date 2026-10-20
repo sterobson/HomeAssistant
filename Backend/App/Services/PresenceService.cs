@@ -119,9 +119,20 @@ internal class PresenceService : IPresenceService
     private readonly Dictionary<string, PresenceDetector> _detectorsById;
     private IReadOnlyDictionary<string, IReadOnlyList<string>> _zoneDetectors = DefaultZoneDetectors;
 
-    public PresenceService(IHaContext ha, NamedEntities namedEntities, HistoryService historyService, ILogger<PresenceService> logger)
+    public PresenceService(IHaContext ha, NamedEntities namedEntities, HistoryService historyService, TimeProvider timeProvider, ILogger<PresenceService> logger)
     {
         _historyService = historyService;
+
+        // The "for 5 seconds" detectors work from live readings (SustainedCondition), never from the history API,
+        // which lags live state by a few seconds (HOME-ASSISTANT.md, gotcha 21).
+        // The desk's plug must be on as well, because a plug that is off keeps its last power reading.
+        SustainedCondition diningDeskDrawing = WatchSustained(timeProvider,
+            () => namedEntities.DiningRoomDeskPlugOnOff.IsOn() && DrawsAtLeast(namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts),
+            namedEntities.DiningRoomDeskPlugOnOff, namedEntities.DiningRoomDeskPlugPower);
+        SustainedCondition denTvDrawing = WatchSustained(timeProvider,
+            () => DrawsAtLeast(namedEntities.DenTvPlugPower, DenTvInUseWatts), namedEntities.DenTvPlugPower);
+        SustainedCondition livingRoomTvDrawing = WatchSustained(timeProvider,
+            () => DrawsAtLeast(namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts), namedEntities.LivingRoomTvPlugPower);
 
         _detectors =
         [
@@ -130,8 +141,7 @@ internal class PresenceService : IPresenceService
                 async () => namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts)),
             new(DiningDeskInUse, "Ruth's desk in use (plug on, 30 W or more for 5 seconds)", true,
                 [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug), (namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)],
-                async () => namedEntities.DiningRoomDeskPlugOnOff.IsOn()
-                    && await IsDrawingSteadily(namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts, DiningDeskSteadyFor)),
+                () => Task.FromResult(diningDeskDrawing.HeldFor(DiningDeskSteadyFor))),
             // Says the desk is set up, not that anyone is at it, so it does not count towards "house".
             new(DiningDeskSwitchedOn, "Ruth's desk switched on", false,
                 [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)],
@@ -144,10 +154,10 @@ internal class PresenceService : IPresenceService
                 () => IsDrawing(namedEntities.DenTvPlugPower, DenTvInUseWatts)),
             new(DenTvOnNow, "Den TV on now (30 W or more for 5 seconds)", true,
                 [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
-                () => IsDrawingSteadily(namedEntities.DenTvPlugPower, DenTvInUseWatts, DenTvSteadyFor)),
+                () => Task.FromResult(denTvDrawing.HeldFor(DenTvSteadyFor))),
             new(LivingRoomTvOn, "Living room TV on (30 W or more for 5 seconds)", true,
                 [(namedEntities.LivingRoomTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
-                () => IsDrawingSteadily(namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts, LivingRoomTvSteadyFor)),
+                () => Task.FromResult(livingRoomTvDrawing.HeldFor(LivingRoomTvSteadyFor))),
             // Follows the WiZ lamp through two HA automations, so it inherits that lamp's lag (HOME-ASSISTANT.md gotcha 15).
             new(LivingRoomLightsOn, "Living room stick lights on", true,
                 [(namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)],
@@ -268,7 +278,9 @@ internal class PresenceService : IPresenceService
     /// <summary>
     /// True when the power reached <paramref name="thresholdWatts"/> at any point within
     /// <see cref="InUseLookBack"/>. Recorder history includes the reading in force at the start of the
-    /// window, so a steady draw with no recent change still counts.
+    /// window, so a steady draw with no recent change still counts. History lags live state by a few seconds, which
+    /// is harmless for a five-minute look-back but is why the "for 5 seconds" detectors use
+    /// <see cref="SustainedCondition"/> instead.
     /// </summary>
     private async Task<bool> IsDrawing(ICustomNumericSensorEntity power, double thresholdWatts)
     {
@@ -277,15 +289,30 @@ internal class PresenceService : IPresenceService
         return histories.Count > 0 && histories.Max(h => h.State) >= thresholdWatts;
     }
 
+    private static bool DrawsAtLeast(ICustomNumericSensorEntity power, double thresholdWatts) => power.State >= thresholdWatts;
+
     /// <summary>
-    /// True when the power has been at or above <paramref name="thresholdWatts"/> for the whole of the last
-    /// <paramref name="steadyFor"/>: every reading in that window, including the one in force at its start,
-    /// meets the threshold. A non-numeric reading (unavailable) counts as 0 W.
+    /// A <see cref="SustainedCondition"/> that is told about every change to the given sensors and switches, so a
+    /// short break in the condition is never missed. A reading that cannot be read (unavailable) is below any threshold.
     /// </summary>
-    private async Task<bool> IsDrawingSteadily(ICustomNumericSensorEntity power, double thresholdWatts, TimeSpan steadyFor)
+    private static SustainedCondition WatchSustained(TimeProvider timeProvider, Func<bool> condition, params object[] entities)
     {
-        DateTime now = DateTime.Now;
-        IReadOnlyList<NumericHistoryEntry> histories = await _historyService.GetEntityNumericHistory(power.EntityId, now.Subtract(steadyFor), now);
-        return histories.Count > 0 && histories.All(h => h.State >= thresholdWatts);
+        SustainedCondition sustained = new(condition, timeProvider);
+        foreach (object entity in entities)
+        {
+            switch (entity)
+            {
+                case ICustomNumericSensorEntity sensor:
+                    sensor.SubscribeToStateChangesAsync(_ => { sustained.Observe(); return Task.CompletedTask; });
+                    break;
+                case ICustomSwitchEntity plug:
+                    plug.SubscribeToStateChangesAsync(_ => { sustained.Observe(); return Task.CompletedTask; });
+                    break;
+                default:
+                    throw new ArgumentException($"Cannot watch {entity.GetType().Name} for changes.", nameof(entities));
+            }
+        }
+
+        return sustained;
     }
 }

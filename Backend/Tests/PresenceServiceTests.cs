@@ -7,6 +7,7 @@ using NetDaemon.HassModel.Entities;
 using NSubstitute;
 using Shouldly;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Text.Json;
 
 namespace HomeAssistant.Tests;
@@ -95,36 +96,135 @@ public sealed class PresenceServiceTests
 
     // Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone is in use while the plug is on and
     // drawing 30 W for the whole of the last 5 s, and the dining room zone while the plug is merely switched on.
+    // The 5 s is measured from live readings (SustainedCondition), never from the history API, which lags (gotcha 21).
 
     private const string DiningDeskSwitch = "switch.dining_room_desk_plug";
     private const string DiningDeskPower = "sensor.dining_room_desk_plug_power";
 
     [TestMethod]
-    [DataRow("on", new[] { 35.0 }, true, DisplayName = "on and drawing steadily")]
-    [DataRow("on", new[] { 30.0, 31.0 }, true, DisplayName = "exactly the threshold counts")]
-    [DataRow("on", new[] { 4.0, 45.0 }, false, DisplayName = "only just started drawing: not yet 5 s")]
-    [DataRow("on", new[] { 45.0, 4.0 }, false, DisplayName = "just stopped: no hold")]
-    [DataRow("on", new[] { 4.0 }, false, DisplayName = "on but idle")]
-    [DataRow("off", new[] { 45.0 }, false, DisplayName = "switched off")]
-    public async Task DiningDesk_IsInUseWhileOnAndDrawing30WattsForTheLast5Seconds(string plug, double[] watts, bool expected)
+    public async Task DiningDesk_IsInUseOnceThePlugIsOnAndHasDrawn30WattsFor5Seconds()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.SetSwitch(DiningDeskSwitch, plug);
-        context.History[DiningDeskPower] = watts;
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse("only just started drawing");
+        context.Advance(TimeSpan.FromSeconds(4.9));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse("not yet 5 s");
+        context.Advance(TimeSpan.FromSeconds(0.1));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    [DataRow(30.0, true, DisplayName = "exactly the threshold counts")]
+    [DataRow(29.0, false, DisplayName = "just under")]
+    [DataRow(4.0, false, DisplayName = "on but idle")]
+    public async Task DiningDesk_NeedsAtLeast30Watts(double watts, bool expected)
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, watts);
+        context.Advance(TimeSpan.FromSeconds(10));
 
         (await context.Service.IsRoomInUse("dining desk")).ShouldBe(expected);
     }
 
     [TestMethod]
-    public async Task DiningDesk_AsksForExactlyTheLast5SecondsOfPower()
+    public async Task DiningDesk_EndsAsSoonAsTheDrawDrops_WithNoHold()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.SetSwitch(DiningDeskSwitch, "on");
-        context.History[DiningDeskPower] = [45];
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue();
 
-        await context.Service.IsRoomInUse("dining desk");
+        context.SetPower(DiningDeskPower, 4);
 
-        context.RequestedWindows[DiningDeskPower].ShouldBe(TimeSpan.FromSeconds(5));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_SwitchedOffIsNotInUse_WhateverTheLastReadingWas()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
+
+        context.SetPlug(DiningDeskSwitch, on: false);
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_AStaleReadingFromBeforeThePlugWasSwitchedOnDoesNotCount()
+    {
+        // The plug keeps its last power reading while it is off (HOME-ASSISTANT.md, gotcha 21): 32 W sat there for
+        // hours, then the plug was switched on and the heater came on at once on the strength of it.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPower(DiningDeskPower, 32);
+        context.Advance(TimeSpan.FromHours(3));
+
+        context.SetPlug(DiningDeskSwitch, on: true);
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse("the plug has only just come on");
+
+        context.SetPower(DiningDeskPower, 0);
+        context.Advance(TimeSpan.FromSeconds(10));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse("and it reports nothing is drawing");
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_ALoadPulsingAroundThe30WattMark_IsNeverInUse()
+    {
+        // Ruth's desk on 2026-10-20 at 12:00 BST: about 450 W for 4 s, then 5 W for 5 s, over and over. Each burst was
+        // judged just after it began (the history API had not yet recorded the drop that followed), so the heater
+        // went on and off five times in two minutes.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+
+        for (int cycle = 0; cycle < 6; cycle++)
+        {
+            context.SetPower(DiningDeskPower, 450);
+            context.Advance(TimeSpan.FromSeconds(4));
+            (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse($"burst {cycle}, still on after 4 s");
+
+            context.SetPower(DiningDeskPower, 5);
+            context.Advance(TimeSpan.FromSeconds(5));
+            (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse($"gap {cycle}");
+        }
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_ADipBetweenTwoChecksBreaksTheRun()
+    {
+        // 45 W, a 1 s dip to 4 W, 45 W again: 8 s in all, but never 5 s unbroken, and nothing asked in between.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(3));
+        context.SetPower(DiningDeskPower, 4);
+        context.Advance(TimeSpan.FromSeconds(1));
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(4));
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+
+        context.Advance(TimeSpan.FromSeconds(1));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_AnUnavailableReadingBreaksTheRun()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
+
+        context.SetPowerState(DiningDeskPower, "unavailable");
+
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
     }
 
     [TestMethod]
@@ -134,7 +234,7 @@ public sealed class PresenceServiceTests
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(DiningDeskSwitch, plug);
-        context.History[DiningDeskPower] = [0];
+        context.SetPower(DiningDeskPower, 0);
 
         (await context.Service.IsRoomInUse("dining room")).ShouldBe(expected);
     }
@@ -154,7 +254,7 @@ public sealed class PresenceServiceTests
         // Ruth's desk plug on but idle: the dining room zone is in use, but nobody need be home.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(DiningDeskSwitch, "on");
-        context.History[DiningDeskPower] = [3];
+        context.SetPower(DiningDeskPower, 3);
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
 
@@ -169,7 +269,8 @@ public sealed class PresenceServiceTests
         // Even with no zone using the den TV's detector, the TV being on means someone is home.
         PresenceTestContext context = PresenceTestContext.Create();
         context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = [] });
-        context.History[DenTvPower] = [45];
+        context.SetPower(DenTvPower, 45);
+        context.Advance(TimeSpan.FromSeconds(6));
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
 
@@ -180,19 +281,41 @@ public sealed class PresenceServiceTests
     // The den TV has two detectors (owner, 2026-10-19): on recently (5-minute hold), and on now (5 s, no hold).
 
     [TestMethod]
-    [DataRow(new[] { 45.0 }, true, true, DisplayName = "on: both")]
-    [DataRow(new[] { 45.0, 4.0 }, true, false, DisplayName = "just turned off: recently, but not now")]
-    [DataRow(new[] { 4.0, 45.0 }, true, false, DisplayName = "only just switched on: recently, but not yet 5 s")]
-    [DataRow(new[] { 4.0 }, false, false, DisplayName = "standby: neither")]
-    public async Task DenTv_OnRecentlyAndOnNow(double[] watts, bool recently, bool now)
+    public async Task DenTv_OnRecentlyAndOnNow()
+    {
+        // "Recently" reads the 5-minute history, "now" the live readings.
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.History[DenTvPower] = [45];
+        context.SetPower(DenTvPower, 45);
+
+        PresenceSnapshot justSwitchedOn = await context.Service.GetSnapshotAsync();
+        justSwitchedOn.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
+        justSwitchedOn.Detectors[PresenceService.DenTvOnNow].ShouldBeFalse("only just switched on: not yet 5 s");
+
+        context.Advance(TimeSpan.FromSeconds(5));
+        PresenceSnapshot on = await context.Service.GetSnapshotAsync();
+        on.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
+        on.Detectors[PresenceService.DenTvOnNow].ShouldBeTrue();
+
+        context.History[DenTvPower] = [45, 4];
+        context.SetPower(DenTvPower, 4);
+        PresenceSnapshot justOff = await context.Service.GetSnapshotAsync();
+        justOff.Detectors[PresenceService.DenTvOn].ShouldBeTrue("the 5-minute hold");
+        justOff.Detectors[PresenceService.DenTvOnNow].ShouldBeFalse("no hold");
+    }
+
+    [TestMethod]
+    public async Task DenTv_Standby_IsNeitherOnRecentlyNorOnNow()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = watts;
+        context.History[DenTvPower] = [4];
+        context.SetPower(DenTvPower, 4);
+        context.Advance(TimeSpan.FromSeconds(10));
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
 
-        snapshot.Detectors[PresenceService.DenTvOn].ShouldBe(recently);
-        snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBe(now);
+        snapshot.Detectors[PresenceService.DenTvOn].ShouldBeFalse();
+        snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBeFalse();
     }
 
     [TestMethod]
@@ -209,6 +332,7 @@ public sealed class PresenceServiceTests
         // Turned off a moment ago: the den is still in use for its hold, but that is not someone being home.
         PresenceTestContext context = PresenceTestContext.Create();
         context.History[DenTvPower] = [45, 4];
+        context.SetPower(DenTvPower, 4);
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
 
@@ -303,36 +427,38 @@ public sealed class PresenceServiceTests
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "on");
-        context.History[LivingTvPower] = [0];
+        context.SetPower(LivingTvPower, 0);
 
         (await context.Service.IsRoomInUse("living room")).ShouldBeTrue();
     }
 
     [TestMethod]
-    [DataRow(new[] { 45.0 }, true, DisplayName = "steady 45 W for the whole window")]
-    [DataRow(new[] { 30.0, 31.0 }, true, DisplayName = "exactly the threshold counts")]
-    [DataRow(new[] { 4.0, 45.0 }, false, DisplayName = "only just switched on: not yet 5 s")]
-    [DataRow(new[] { 45.0, 4.0 }, false, DisplayName = "just turned off: no hold")]
-    [DataRow(new[] { 4.0 }, false, DisplayName = "standby")]
-    public async Task LivingRoom_TvMustDraw30WattsForTheWholeLast5Seconds(double[] watts, bool expected)
+    public async Task LivingRoom_TvMustDraw30WattsForTheWholeLast5Seconds()
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
-        context.History[LivingTvPower] = watts;
+        context.SetPower(LivingTvPower, 45);
 
-        (await context.Service.IsRoomInUse("living room")).ShouldBe(expected);
+        (await context.Service.IsRoomInUse("living room")).ShouldBeFalse("only just switched on: not yet 5 s");
+        context.Advance(TimeSpan.FromSeconds(5));
+        (await context.Service.IsRoomInUse("living room")).ShouldBeTrue();
+
+        context.SetPower(LivingTvPower, 4);
+        (await context.Service.IsRoomInUse("living room")).ShouldBeFalse("just turned off: no hold");
     }
 
     [TestMethod]
-    public async Task LivingRoom_AsksForExactlyTheLast5SecondsOfTvPower()
+    [DataRow(30.0, true, DisplayName = "exactly the threshold counts")]
+    [DataRow(29.0, false, DisplayName = "just under")]
+    [DataRow(4.0, false, DisplayName = "standby")]
+    public async Task LivingRoom_TvThresholdIs30Watts(double watts, bool expected)
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
-        context.History[LivingTvPower] = [45];
+        context.SetPower(LivingTvPower, watts);
+        context.Advance(TimeSpan.FromSeconds(10));
 
-        await context.Service.IsRoomInUse("living room");
-
-        context.RequestedWindows[LivingTvPower].ShouldBe(TimeSpan.FromSeconds(5));
+        (await context.Service.IsRoomInUse("living room")).ShouldBe(expected);
     }
 
     [TestMethod]
@@ -341,11 +467,12 @@ public sealed class PresenceServiceTests
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(StickLightsSwitch, "off");
         context.SetSwitch(LivingTvSwitch, "off");
-        context.History[LivingTvPower] = [45];
+        context.SetPower(LivingTvPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
 
         (await context.Service.IsRoomInUse("living room")).ShouldBeTrue("the switch is not read; the 45 W draw is");
 
-        context.History[LivingTvPower] = [4];
+        context.SetPower(LivingTvPower, 4);
         (await context.Service.IsRoomInUse("living room")).ShouldBeFalse("standby, and the lights are off");
     }
 
@@ -418,7 +545,26 @@ public sealed class PresenceServiceTests
         public required PresenceService Service { get; init; }
         public required IHaContext Ha { get; init; }
         public required Dictionary<string, double[]> History { get; init; }
-        public required Dictionary<string, TimeSpan> RequestedWindows { get; init; }
+        public required FakeTimeProvider Clock { get; init; }
+        public required Subject<StateChange> Changes { get; init; }
+
+        public void Advance(TimeSpan by) => Clock.SetSpecificDateTime(Clock.GetUtcNow() + by);
+
+        /// <summary>A plug's switch changing state, announced to the app as Home Assistant would.</summary>
+        public void SetPlug(string entityId, bool on) => Publish(entityId, on ? "on" : "off");
+
+        /// <summary>A power sensor taking a new reading, announced to the app as Home Assistant would.</summary>
+        public void SetPower(string entityId, double watts) => Publish(entityId, watts.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        public void SetPowerState(string entityId, string state) => Publish(entityId, state);
+
+        private void Publish(string entityId, string state)
+        {
+            EntityState? previous = Ha.GetState(entityId);
+            EntityState current = new() { EntityId = entityId, State = state };
+            Ha.GetState(entityId).Returns(current);
+            Changes.OnNext(new StateChange(new Entity(Ha, entityId), previous, current));
+        }
 
         public void SetSwitch(string entityId, string state)
         {
@@ -443,25 +589,29 @@ public sealed class PresenceServiceTests
             ha.StateAllChanges().Returns(Observable.Empty<StateChange>());
             ha.Events.Returns(Observable.Empty<Event>());
 
-            Dictionary<string, double[]> history = [];
-            Dictionary<string, TimeSpan> windows = [];
-            ScriptedHistoryService historyService = new(history, windows);
-            PresenceService service = new(ha, new NamedEntities(ha), historyService, Substitute.For<ILogger<PresenceService>>());
+            Subject<StateChange> changes = new();
+            ha.StateAllChanges().Returns(changes);
 
-            return new PresenceTestContext { Service = service, Ha = ha, History = history, RequestedWindows = windows };
+            FakeTimeProvider clock = new();
+            clock.SetSpecificDateTime(new DateTimeOffset(2026, 10, 20, 11, 0, 0, TimeSpan.Zero));
+
+            Dictionary<string, double[]> history = [];
+            ScriptedHistoryService historyService = new(history);
+            PresenceService service = new(ha, new NamedEntities(ha), historyService, clock, Substitute.For<ILogger<PresenceService>>());
+
+            return new PresenceTestContext { Service = service, Ha = ha, History = history, Clock = clock, Changes = changes };
         }
     }
 
     /// <summary>
-    /// Returns the given power readings for an entity, whatever window is asked for, and records how
-    /// long a window was asked for.
+    /// Returns the given power readings for an entity, whatever window is asked for. Only the detectors with a hold
+    /// (Ste's desk, the den TV "on recently") read history; the "for 5 seconds" ones read live readings.
     /// </summary>
-    private sealed class ScriptedHistoryService(Dictionary<string, double[]> readings, Dictionary<string, TimeSpan> windows)
+    private sealed class ScriptedHistoryService(Dictionary<string, double[]> readings)
         : HistoryService(new HomeAssistantConfiguration(), Substitute.For<ILogger<HistoryService>>())
     {
         public override Task<IReadOnlyList<NumericHistoryEntry>> GetEntityNumericHistory(string entityId, DateTime from, DateTime to)
         {
-            windows[entityId] = to - from;
             IReadOnlyList<NumericHistoryEntry> entries = readings.TryGetValue(entityId, out double[]? values)
                 ? [.. values.Select(v => new NumericHistoryEntry { State = v, LastChanged = to })]
                 : [];

@@ -29,6 +29,11 @@
             <button type="button" class="rules-btn" @click="openOccupancy(section)">Occupancy</button>
           </div>
 
+          <!-- How long this zone's radiators are expected to take to warm it: the longest of them. -->
+          <p v-if="warmUpFor(section)" class="warm-up-row">
+            {{ warmUpFor(section) }}
+          </p>
+
           <p v-if="section.devices.length === 0 && !section.batteries?.length" class="no-devices">
             No devices. Nothing is bound to this name, or the house has not reported yet.
           </p>
@@ -45,6 +50,7 @@
                   <div class="device-meta">
                     <span class="device-role">{{ roleLabel(device.role) }}</span>
                   </div>
+                  <p v-if="warmUpRateFor(device)" class="device-warm-up">{{ warmUpRateFor(device) }}</p>
                   <!-- Only the devices the heating code switches have rules. -->
                   <div v-if="isDrivable(device)" class="device-rules">
                     <span class="rules-summary">
@@ -91,6 +97,7 @@
       :key="editingDevice.entityId"
       :device-title="deviceName(editingDevice)"
       :device-role="editingDevice.role"
+      :device="editingDevice"
       :rules="effectiveRules(editingDevice, deviceRules)"
       :is-default="rulesAreBuiltIn(editingDevice)"
       :presence-zones="presenceZones"
@@ -127,12 +134,13 @@ import { describeState, deviceName, groupDevices, isUnavailable, roleLabel } fro
 import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
 import { effectiveDetectorIds, summariseOccupancy } from '../utils/zoneOccupancy.js'
 import { isLow } from '../utils/batteries.js'
+import { describeWarmUpRate, formatMinutes, zoneWarmUp } from '../utils/warmUp.js'
 
 // Lowest first, so a battery that needs changing is at the top; then by name.
 const sortedBatteries = (batteries) => [...batteries].sort((a, b) =>
   (a.percent ?? 101) - (b.percent ?? 101) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
 
-const { formatTempWithUnit } = useFormatting()
+const { formatTempWithUnit, currentTempUnit } = useFormatting()
 const { deviceRules, loadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
 
 const props = defineProps({
@@ -173,6 +181,17 @@ const showSectionTitles = computed(() => props.sections.length > 1)
 
 // The rules blob decides what a device's rules are once it exists, so it has to be loaded to show them.
 onMounted(() => loadSettings())
+
+// "Radiators take about 45 min to warm this room": the longest of the zone's radiators, or the 30 minutes an Auto
+// radiator assumes until it has been measured.
+const warmUpFor = (section) => {
+  const warmUp = zoneWarmUp(section.devices)
+  if (!warmUp) return ''
+  return warmUp.assumed
+    ? `Radiators are assumed to take about ${formatMinutes(warmUp.minutes)} to warm this room until they have been measured.`
+    : `Radiators take about ${formatMinutes(warmUp.minutes)} to warm this room.`
+}
+const warmUpRateFor = (device) => describeWarmUpRate(device, currentTempUnit.value)
 
 const zoneLabel = (name) => props.presenceZones.find(z => z.name === name)?.label ?? name
 const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel, device.role)
@@ -428,6 +447,18 @@ const saveRules = async (rules) => {
   flex: 1 1 10rem;
   font-size: 0.85rem;
   color: var(--text-primary);
+}
+
+.warm-up-row {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.device-warm-up {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
 }
 
 .occupancy-row {

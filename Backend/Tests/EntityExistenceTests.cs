@@ -186,7 +186,7 @@ public sealed class EntityExistenceTests
         ILogger<PresenceService> logger = CreateLogger<PresenceService>();
 
         // Act & Assert - constructor should not throw
-        PresenceService sut = new(ha, namedEntities, historyService, logger);
+        PresenceService sut = new(ha, namedEntities, historyService, TimeProvider.System, logger);
 
         // Verify warnings were logged for the 8 validated entities: two desk plugs (switch + power), the
         // two TV plugs' power sensors, the living room stick lights plug, and the router's online list (phones).
@@ -219,8 +219,8 @@ public sealed class EntityExistenceTests
         IBoilerStatePersistence boilerStatePersistence = Substitute.For<IBoilerStatePersistence>();
         HeatingControlService sut = new(ha, namedEntities, scheduler, logger, homeBattery, electricityMeter, presenceService, timeProvider, schedulePersistence, statePersistence, boilerVerification, deviceSettings, boilerStatePersistence);
 
-        // Verify warnings were logged for the 25 validated entities
-        logger.Received(25).Log(
+        // Verify warnings were logged for the 26 validated entities
+        logger.Received(26).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
             Arg.Any<object>(),

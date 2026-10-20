@@ -18,9 +18,11 @@ public class DeviceRulesDto
 
     /// <summary>
     /// How many minutes before a warmer schedule track starts this device begins heating for it ("pre-heat",
-    /// formerly the track's ramp-up), 0 to <see cref="MaxPreHeatMinutes"/>. Null means the default for its kind:
-    /// <see cref="DefaultValvePreHeatMinutes"/> for a radiator valve, <see cref="DefaultHeaterPreHeatMinutes"/> for
-    /// a heater plug. Per device because a radiator warms a room far more slowly than a fan heater (owner, 2026-10-19).
+    /// formerly the track's ramp-up), 0 to <see cref="MaxPreHeatMinutes"/>. Per device because a radiator warms a room
+    /// far more slowly than a fan heater (owner, 2026-10-19). Null means the default for its kind: for a heater plug
+    /// none; for a radiator valve <b>Auto</b> (owner, 2026-10-20), which works the time out from how fast that valve
+    /// has actually warmed its room (see <see cref="IsAutoPreHeat"/>), and is <see cref="DefaultValvePreHeatMinutes"/>
+    /// until there is data to go on.
     /// </summary>
     public int? PreHeatMinutes { get; set; }
 
@@ -28,7 +30,22 @@ public class DeviceRulesDto
     public const int DefaultHeaterPreHeatMinutes = 0;
     public const int MaxPreHeatMinutes = 60;
 
-    /// <summary>The pre-heat a device with these rules (or none) uses, clamped to 0 to <see cref="MaxPreHeatMinutes"/>.</summary>
+    /// <summary>The longest an Auto pre-heat may run: a cold room can need more than the 60 minutes a fixed one offers.</summary>
+    public const int MaxAutoPreHeatMinutes = 120;
+
+    /// <summary>The longest any pre-heat can be, so how far ahead the schedule needs to be looked at.</summary>
+    public const int LongestPreHeatMinutes = MaxAutoPreHeatMinutes;
+
+    /// <summary>
+    /// Whether the pre-heat is worked out from the valve's measured warm-up rate rather than fixed: a radiator valve
+    /// with no pre-heat set. A heater plug is never automatic (it warms a room quickly and is not measured).
+    /// </summary>
+    public static bool IsAutoPreHeat(DeviceRulesDto? rules, bool isRadiatorValve) => isRadiatorValve && rules?.PreHeatMinutes == null;
+
+    /// <summary>
+    /// The fixed pre-heat a device with these rules (or none) uses, clamped to 0 to <see cref="MaxPreHeatMinutes"/>.
+    /// For an Auto valve this is the figure used until its warm-up has been measured.
+    /// </summary>
     public static int PreHeatFor(DeviceRulesDto? rules, bool isRadiatorValve) =>
         Math.Clamp(rules?.PreHeatMinutes ?? (isRadiatorValve ? DefaultValvePreHeatMinutes : DefaultHeaterPreHeatMinutes), 0, MaxPreHeatMinutes);
 }

@@ -7,7 +7,9 @@
 //     preHeatMinutes }
 //
 // - `preHeatMinutes` (0–60) is how long before a warmer schedule track starts the device begins heating for it.
-//   Per device since 2026-10-19: when missing, 30 for a radiator valve and none for a heater plug.
+//   Per device since 2026-10-19. When missing, a heater plug has none and a radiator valve is on Auto (since
+//   2026-10-20): the app works the time out from how fast that valve has warmed its room, and uses 30 minutes until
+//   it has measured one. Fixed values for a valve are still honoured.
 // - `days` is the Days flags enum used by schedules (Mon = 1 ... Sun = 64, 127 = every day).
 // - An `end` at or before `start` means the window runs past midnight.
 // - No windows means any time. Null presence, or no sources, means no presence is needed.
@@ -30,10 +32,20 @@ export const MAX_PRE_HEAT_MINUTES = 60
 /** The choices offered: every 5 minutes from none to an hour. */
 export const PRE_HEAT_OPTIONS = Array.from({ length: MAX_PRE_HEAT_MINUTES / 5 + 1 }, (_, i) => i * 5)
 
-/** The pre-heat a device of this role uses when nothing is set. */
+/** The value the pre-heat choice takes for Auto while it is being edited; saved as no value at all. */
+export const PRE_HEAT_AUTO = 'auto'
+
+/** The fixed pre-heat a device of this role uses when nothing is set: for a radiator valve, until Auto has data. */
 export const defaultPreHeatFor = (role) => (role === 'radiatorValve' ? 30 : 0)
 
-/** The pre-heat a device with these rules (or none) uses, clamped to 0–60 like the app does. */
+/** Whether the pre-heat is worked out from the valve's measured warm-up: a radiator valve with none set. */
+export const isAutoPreHeat = (rules, role) =>
+  role === 'radiatorValve' && (rules?.preHeatMinutes == null || rules.preHeatMinutes === PRE_HEAT_AUTO)
+
+/**
+ * The fixed pre-heat a device with these rules (or none) uses, clamped to 0–60 like the app does. For an Auto
+ * valve that is the figure used until it has been measured.
+ */
 export const preHeatFor = (rules, role) => {
   const fallback = defaultPreHeatFor(role)
   const minutes = Number(rules?.preHeatMinutes ?? fallback)
@@ -130,9 +142,9 @@ export const summariseRules = (rules, zoneLabel = (name) => name, role = 'heater
     if (everyDay && windows.length === 1) timeText += ' every day'
   }
 
-  // Only worth saying when it differs from the default.
-  const preHeat = preHeatFor(rules, role)
-  const preHeatText = preHeat === defaultPreHeatFor(role) ? '' : ` · pre-heat ${preHeat} min`
+  // Only worth saying when it differs from the default: none for a heater, Auto for a radiator.
+  const isDefaultPreHeat = role === 'radiatorValve' ? isAutoPreHeat(rules, role) : preHeatFor(rules, role) === 0
+  const preHeatText = isDefaultPreHeat ? '' : ` · pre-heat ${preHeatFor(rules, role)} min`
 
   const sources = rules?.presence?.sources ?? []
   if (sources.length === 0) return `${timeText} · no presence needed${preHeatText}`
@@ -189,6 +201,7 @@ export const normaliseRules = (rules, role = 'heaterPlug') => {
     presence: sources.length === 0
       ? null
       : { match: sources.length > 1 ? (rules.presence.match ?? PRESENCE_MATCH.ANY) : PRESENCE_MATCH.ANY, sources },
-    preHeatMinutes: preHeatFor(rules, role)
+    // Auto is saved as no value, so it stays Auto if the rules are ever read back without this field.
+    preHeatMinutes: isAutoPreHeat(rules, role) ? null : preHeatFor(rules, role)
   }
 }

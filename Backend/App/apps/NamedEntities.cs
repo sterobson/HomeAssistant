@@ -123,6 +123,9 @@ public interface INamedEntities
     ICustomNumericSensorEntity DenClimateTemperature { get; }
     ICustomClimateControlEntity DenRadiator1Thermostat { get; }
     ICustomClimateControlEntity DenRadiator2Thermostat { get; }
+
+    // Hallway (thermometer only)
+    ICustomNumericSensorEntity HallwayClimateTemperature { get; }
     ICustomNumericSensorEntity DenTvPlugPower { get; }
 
     // Bedroom 3
@@ -203,6 +206,9 @@ public class NamedEntities : INamedEntities
     private readonly ICustomNumericSensorEntity _denClimateTemperature;
     private readonly ICustomClimateControlEntity _denRadiator1Thermostat;
     private readonly ICustomClimateControlEntity _denRadiator2Thermostat;
+
+    // Hallway
+    private readonly ICustomNumericSensorEntity _hallwayClimateTemperature;
     private readonly ICustomNumericSensorEntity _denTvPlugPower;
 
     // Bedroom 3
@@ -287,6 +293,9 @@ public class NamedEntities : INamedEntities
         _denClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.den_climate_temperature"));
         _denRadiator1Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_1_thermostat"));
         _denRadiator2Thermostat = new CustomClimateControlEntity(new ClimateEntity(ha, "climate.den_radiator_2_thermostat"));
+
+        // Hallway
+        _hallwayClimateTemperature = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.hallway_climate_temperature"));
         _denTvPlugPower = new CustomNumericSensorEntity(new NumericSensorEntity(ha, "sensor.den_plug_tv_power"));
 
         // Bedroom 3
@@ -363,6 +372,9 @@ public class NamedEntities : INamedEntities
     public ICustomNumericSensorEntity DenClimateTemperature => _denClimateTemperature;
     public ICustomClimateControlEntity DenRadiator1Thermostat => _denRadiator1Thermostat;
     public ICustomClimateControlEntity DenRadiator2Thermostat => _denRadiator2Thermostat;
+
+    // Hallway
+    public ICustomNumericSensorEntity HallwayClimateTemperature => _hallwayClimateTemperature;
     public ICustomNumericSensorEntity DenTvPlugPower => _denTvPlugPower;
 
     // Bedroom 3

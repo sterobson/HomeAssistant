@@ -676,6 +676,88 @@ public sealed class HeatingBoilerControlTests
         context.BoilerFingerbot.ToggleCount.ShouldBe(2, "with no room short the deficit is zero, so the boiler goes off as usual");
     }
 
+    // The upstairs bathroom's towel rail has no valve: it is hot whenever the boiler runs, so the only way to heat the
+    // bathroom is to run the boiler, and it calls for it like a valve room (owner, 2026-10-20).
+
+    [TestMethod]
+    public async Task TheBathroomsShortfall_CountsTowardsTheThreshold()
+    {
+        // Living room 2 degrees short, bathroom 1: only the two together reach 3.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 17, bedroom2Target: 15, bathroomTarget: 16);
+
+        await context.Service.EvaluateAllSchedules("rooms short");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.Logger.CountMessagesContaining("Upstairs bathroom (1.0°C)").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task TheBathroomAlone_StartsTheBoilerAtTheThreshold()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10, bathroomTarget: 18);
+
+        await context.Service.EvaluateAllSchedules("bathroom cold");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.ValvesAreShut().ShouldBeTrue("the warm rooms' valves stay shut: only the bathroom wants the heat");
+    }
+
+    [TestMethod]
+    public async Task ABathroomBoost_StartsTheBoilerUnderTheThreshold()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10, bathroomTarget: 15);
+        context.BoostBathroom(17);
+
+        await context.Service.EvaluateAllSchedules("bathroom boosted");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.Logger.CountMessagesContaining("boost running in Upstairs bathroom").ShouldBe(1);
+        context.LastUploadedBathroom().TargetTemperature.ShouldBe(17);
+    }
+
+    [TestMethod]
+    public async Task TheBathroomReachingItsTarget_TurnsTheBoilerOff()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 10, bedroom2Target: 10, bathroomTarget: 18);
+        await context.Service.EvaluateAllSchedules("bathroom cold");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        context.BathroomTemperature.State = 17.5;
+        await context.Service.EvaluateAllSchedules("warming");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "still calling until it reaches its target");
+
+        context.BathroomTemperature.State = 18;
+        await context.Service.EvaluateAllSchedules("at target");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2);
+    }
+
+    [TestMethod]
+    public async Task TheTowelRail_IsShownHeatingWhileTheBoilerIsOn()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, bathroomTarget: 10);
+
+        await context.Service.EvaluateAllSchedules("the other rooms are cold");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        RoomState bathroom = context.LastUploadedBathroom();
+        bathroom.HeatingActive.ShouldBeTrue("the rail has no valve, so it is hot whenever the boiler runs, wanted or not");
+        bathroom.Devices.Single(device => device.Role == RoomDeviceRoles.TowelRail).State.ShouldBe("on");
+    }
+
+    [TestMethod]
+    public async Task OnTheBoilerThermostat_TheBathroomIsNotClaimedToBeHeating()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.BoilerThermostat, livingRoomTarget: 10, bedroom2Target: 10, bathroomTarget: 18);
+
+        await context.Service.EvaluateAllSchedules("bathroom cold");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+        RoomState bathroom = context.LastUploadedBathroom();
+        bathroom.TargetTemperature.ShouldBe(18);
+        bathroom.HeatingActive.ShouldBeFalse("nothing can tell whether the boiler thermostat is running the boiler");
+        bathroom.Devices.Single(device => device.Role == RoomDeviceRoles.TowelRail).State.ShouldBeNull();
+    }
+
     [TestMethod]
     public async Task FingerbotMode_IssuesTheCorrectivePressOnAVerificationMismatch()
     {
@@ -920,6 +1002,46 @@ public sealed class HeatingBoilerControlTests
         context.Logger.CountMessagesContaining("disagreed again").ShouldBe(2);
     }
 
+    // How fast a radiator warms its room (owner, 2026-10-20): measured while its valve is open and the boiler is on.
+
+    [TestMethod]
+    public async Task AValveOpenWithTheBoilerOn_IsTimedFromWhenItOpenedToWhenItsRoomReachedTarget()
+    {
+        // The living room is 15 °C against 18: 3 degrees short, enough to start the boiler. It then rises 1 °C every
+        // 30 minutes and reaches 18 after 90 minutes: 2 °C an hour.
+        InMemoryWarmUpRateStore store = new();
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 18, bedroom2Target: 15, warmUpStore: store);
+
+        for (int minutes = 0; minutes <= 90; minutes += 15)
+        {
+            context.LivingRoomTemperature.State = 15 + 2.0 * minutes / 60;
+            await context.Service.EvaluateAllSchedules("room warming");
+            context.AdvanceMinutes(15);
+        }
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "on for the warm-up, then off once the room reached its target, in the pass that ended the run");
+        store.Saved.ShouldContainKey(context.LivingRoomThermostat.EntityId);
+        store.Saved[context.LivingRoomThermostat.EntityId].ShouldHaveSingleItem().DegreesPerHour.ShouldBe(2, 0.001);
+        store.Saved.ShouldNotContainKey(context.Bedroom2Thermostat.EntityId, "that room was never short of its target");
+    }
+
+    [TestMethod]
+    public async Task WithTheBoilerOnTheBoilerThermostat_NoWarmUpIsTimed()
+    {
+        // In boiler-thermostat mode nothing says when the boiler runs, so no valve counts as warming its room.
+        InMemoryWarmUpRateStore store = new();
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.BoilerThermostat, livingRoomTarget: 18, bedroom2Target: 15, warmUpStore: store);
+
+        for (int minutes = 0; minutes <= 90; minutes += 15)
+        {
+            context.LivingRoomTemperature.State = 15 + 2.0 * minutes / 60;
+            await context.Service.EvaluateAllSchedules("room warming");
+            context.AdvanceMinutes(15);
+        }
+
+        store.Saved.ShouldBeEmpty();
+    }
+
     private sealed class BoilerTestContext
     {
         public required HeatingControlService Service { get; init; }
@@ -930,6 +1052,7 @@ public sealed class HeatingBoilerControlTests
         public required FakeCustomClimateControlEntity Bedroom2Thermostat { get; init; }
         public required FakeCustomNumericSensorEntity LivingRoomTemperature { get; init; }
         public required FakeCustomNumericSensorEntity Bedroom2Temperature { get; init; }
+        public required FakeCustomNumericSensorEntity BathroomTemperature { get; init; }
         public required IBoilerVerificationService Verification { get; init; }
         public required FakeDeviceSettingsPersistenceService DeviceSettings { get; init; }
         public required RecordingLogger<HeatingControlService> Logger { get; init; }
@@ -987,9 +1110,17 @@ public sealed class HeatingBoilerControlTests
             double bedroom2Target,
             bool realVerification = false,
             InMemoryBoilerStatePersistence? boilerState = null,
-            IBatteryOverview? batteries = null)
+            IBatteryOverview? batteries = null,
+            InMemoryWarmUpRateStore? warmUpStore = null,
+            double? bathroomTarget = null)
         {
             ServiceCollection services = new();
+            if (warmUpStore != null)
+            {
+                services.AddSingleton<IWarmUpRateStore>(warmUpStore);
+                services.AddSingleton<IWarmUpRates, WarmUpRates>();
+            }
+
             if (batteries != null)
             {
                 services.AddSingleton(batteries);
@@ -1050,6 +1181,13 @@ public sealed class HeatingBoilerControlTests
                 BuildRoom(1, "Living room", livingRoomTarget),
                 BuildRoom(2, "Bedroom 2", bedroom2Target)
             ];
+
+            // The upstairs bathroom, heated only by a towel rail with no valve, at the same 15 degrees.
+            ((FakeCustomNumericSensorEntity)namedEntities.UpstairsBathroomTemperature).State = roomTemperature;
+            if (bathroomTarget.HasValue)
+            {
+                rooms.Add(BuildRoom(3, "Upstairs bathroom", bathroomTarget.Value));
+            }
             ISchedulePersistenceService schedulePersistence = provider.GetRequiredService<ISchedulePersistenceService>();
             schedulePersistence.GetSchedulesAsync().Returns(Task.FromResult(new RoomSchedules { Rooms = rooms }));
             livingRoomThermostat.SetCount = 0;
@@ -1065,6 +1203,7 @@ public sealed class HeatingBoilerControlTests
                 Bedroom2Thermostat = bedroom2Thermostat,
                 LivingRoomTemperature = (FakeCustomNumericSensorEntity)namedEntities.LivingRoomClimateTemperature,
                 Bedroom2Temperature = (FakeCustomNumericSensorEntity)namedEntities.Bedroom2Temperature,
+                BathroomTemperature = (FakeCustomNumericSensorEntity)namedEntities.UpstairsBathroomTemperature,
                 Verification = provider.GetRequiredService<IBoilerVerificationService>(),
                 DeviceSettings = deviceSettings,
                 Logger = logger,
@@ -1087,6 +1226,18 @@ public sealed class HeatingBoilerControlTests
             DateTimeOffset now = TimeProvider.GetUtcNow();
             Rooms[0].Boost = new Boost { StartTime = now, EndTime = now.AddHours(1), Temperature = temperature };
         }
+
+        public void BoostBathroom(double temperature)
+        {
+            DateTimeOffset now = TimeProvider.GetUtcNow();
+            Rooms.Single(room => room.Id == 3).Boost = new Boost { StartTime = now, EndTime = now.AddHours(1), Temperature = temperature };
+        }
+
+        /// <summary>The upstairs bathroom's state from the most recent room-state upload.</summary>
+        public RoomState LastUploadedBathroom() => StatePersistence.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IRoomStatePersistenceService.SetStatesAsync))
+            .Select(call => (Dictionary<int, RoomState>)call.GetArguments()[0]!)
+            .Last()[3];
 
         public void AdvanceMinutes(int minutes)
         {

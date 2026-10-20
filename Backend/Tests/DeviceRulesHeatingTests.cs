@@ -476,6 +476,23 @@ public sealed class DeviceRulesHeatingTests
     }
 
     [TestMethod]
+    public async Task ARoomWithNothingToEvaluate_StillUploadsItsChangedTemperature()
+    {
+        // A zone with no schedule applying is not evaluated, so its thermometer used to reach the UI only when some
+        // other room happened to upload.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Rooms[0].ScheduleTracks = [];
+        await context.Service.EvaluateAllSchedules("first pass");
+        int uploads = context.UploadCount();
+
+        ((FakeCustomNumericSensorEntity)context.Entities.KitchenTemperature).State = 16.5;
+        await context.Service.EvaluateAllSchedules("kitchen temperature changed");
+
+        context.UploadCount().ShouldBe(uploads + 1);
+        context.CapturedStates()[1].CurrentTemperature.ShouldBe(16.5);
+    }
+
+    [TestMethod]
     public async Task ChangingOnlyAReading_DoesNotUploadAgain()
     {
         // A device's live state changes constantly and must not, by itself, be a reason to upload.
@@ -487,6 +504,200 @@ public sealed class DeviceRulesHeatingTests
         await context.Service.EvaluateAllSchedules("nothing changed");
 
         context.UploadCount().ShouldBe(uploads);
+    }
+
+    // An Auto pre-heat (a radiator valve with none set, owner 2026-10-20) is worked out from how fast that valve has
+    // warmed its room. Bedroom 1 is 15 °C now and 21 °C from 18:00: 6 degrees to find.
+
+    [TestMethod]
+    [DataRow(16, 25, false, DisplayName = "4 °C an hour needs 90 minutes: not yet at 16:25")]
+    [DataRow(16, 35, true, DisplayName = "16:35: it has started")]
+    public async Task AnAutoValve_StartsWhenItsMeasuredWarmUpReachesBackFromTheTrack(int hour, int minute, bool radiatorOn)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        (context.Bedroom1Radiator.TargetTemperature == RulesTestContext.HeatingValveTarget).ShouldBe(radiatorOn);
+    }
+
+    [TestMethod]
+    public async Task AnAutoValve_WithAFasterRate_StartsLater()
+    {
+        // 12 °C an hour: 6 degrees takes only 30 minutes, so it starts at 17:30 and 17:20 is too early.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 20, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 12);
+
+        await context.Service.EvaluateAllSchedules("17:20");
+
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget, "30 minutes before 18:00 is 17:30");
+    }
+
+    [TestMethod]
+    public async Task AnAutoValve_NeverStartsMoreThanTwoHoursAhead()
+    {
+        // 1 °C an hour would want six hours.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(15, 50, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 1);
+
+        await context.Service.EvaluateAllSchedules("15:50");
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget, "more than 120 minutes before 18:00");
+
+        context.SetLocalTime(new TimeSpan(16, 5, 0));
+        await context.Service.EvaluateAllSchedules("16:05");
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.HeatingValveTarget);
+    }
+
+    [TestMethod]
+    public async Task AnAutoValve_WithNoDataYet_UsesThirtyMinutes()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 29, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+
+        await context.Service.EvaluateAllSchedules("17:29");
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget);
+
+        context.SetLocalTime(new TimeSpan(17, 31, 0));
+        await context.Service.EvaluateAllSchedules("17:31");
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.HeatingValveTarget);
+    }
+
+    [TestMethod]
+    public async Task AFixedPreHeat_IsNotAutomatic_EvenForAMeasuredValve()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 35, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto { PreHeatMinutes = 30 } });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("16:35");
+
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget);
+    }
+
+    [TestMethod]
+    public async Task AnAutoPreHeat_OnceStarted_IsKeptUntilTheTrackBegins()
+    {
+        // As the room warms the time still needed shrinks as fast as the time left does, so a rate a little too
+        // pessimistic would otherwise shut the valve again part-way and start over.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 35, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 4);
+        await context.Service.EvaluateAllSchedules("16:35");
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.HeatingValveTarget);
+
+        // The room warmed much faster than expected: 20.5 °C at 16:50, when only 0.5 degrees (8 minutes) is left to find.
+        ((FakeCustomNumericSensorEntity)context.Entities.Bedroom1Temperature).State = 20.5;
+        context.Bedroom1Radiator.CurrentTemperature = 20.5;
+        context.SetLocalTime(new TimeSpan(16, 50, 0));
+        await context.Service.EvaluateAllSchedules("16:50");
+
+        context.CapturedStates()[1].TargetTemperature.ShouldBe(21, "still pre-heating for 18:00");
+    }
+
+    [TestMethod]
+    public async Task ARadiatorValve_PublishesItsRateAndHowLongItWouldTake()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto() });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        RoomDeviceDto valve = context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.RadiatorValve);
+        valve.PreHeatAuto.ShouldBeTrue();
+        valve.HeatingRateSamples.ShouldBe(1);
+        valve.HeatingRateCelsiusPerHour.ShouldNotBeNull().ShouldBe(4, 0.01);
+        valve.WarmUpMinutes.ShouldBe(90, "15 °C to the 21 °C at 18:00, 6 degrees at 4 °C an hour");
+    }
+
+    [TestMethod]
+    public async Task AValveWithNoData_PublishesNoRate_ButIsStillAuto()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        RoomDeviceDto valve = context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.RadiatorValve);
+        valve.PreHeatAuto.ShouldBeTrue();
+        valve.HeatingRateSamples.ShouldBe(0);
+        valve.HeatingRateCelsiusPerHour.ShouldBeNull();
+        valve.WarmUpMinutes.ShouldBeNull();
+    }
+
+    [TestMethod]
+    public async Task AHeaterPlug_IsNeverAuto()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).PreHeatAuto.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public void TheNextWarmerTrack_IsWhatAWarmUpIsMeasuredAgainst()
+    {
+        RoomSchedule room = new()
+        {
+            Id = 1,
+            Name = "bedroom 1",
+            ScheduleTracks =
+            [
+                new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(6, 0), Temperature = 15 },
+                new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(18, 0), Temperature = 21 }
+            ]
+        };
+
+        HeatingControlService.NextWarmerTrackTemperature(room, new DateTime(2026, 10, 20, 12, 0, 0), 15).ShouldBe(21);
+        HeatingControlService.NextWarmerTrackTemperature(room, new DateTime(2026, 10, 20, 12, 0, 0), 21).ShouldBeNull("the room is already as warm as any track");
+    }
+
+    [TestMethod]
+    public void TheNextWarmerTrack_AfterTheLastOfTheDay_IsTomorrowsFirst()
+    {
+        RoomSchedule room = new()
+        {
+            Id = 1,
+            Name = "bedroom 1",
+            ScheduleTracks =
+            [
+                new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(6, 30), Temperature = 20 },
+                new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(22, 0), Temperature = 15 }
+            ]
+        };
+
+        HeatingControlService.NextWarmerTrackTemperature(room, new DateTime(2026, 10, 20, 23, 0, 0), 15).ShouldBe(20);
+    }
+
+    [TestMethod]
+    public void TheNextWarmerTrack_RespectsTheDaysATrackRuns()
+    {
+        // 2026-10-20 is a Tuesday, so the Wednesday-only 21 °C track is tomorrow's, and Tuesday's own 22 °C comes first.
+        RoomSchedule room = new()
+        {
+            Id = 1,
+            Name = "bedroom 1",
+            ScheduleTracks =
+            [
+                new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(18, 0), Temperature = 21, Days = Days.Wednesday },
+                new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(19, 0), Temperature = 22, Days = Days.Tuesday }
+            ]
+        };
+
+        HeatingControlService.NextWarmerTrackTemperature(room, new DateTime(2026, 10, 20, 12, 0, 0), 15).ShouldBe(22);
     }
 
     private sealed class RulesTestContext
@@ -503,6 +714,17 @@ public sealed class DeviceRulesHeatingTests
 
         /// <summary>The zones the service evaluates (each scheduled at 21 °C); tests may set a boost on one.</summary>
         public required List<RoomSchedule> Rooms { get; init; }
+
+        /// <summary>Measured warm-ups, empty until a test gives a valve a rate with <see cref="GiveRadiatorARate"/>.</summary>
+        public required WarmUpRates WarmUp { get; init; }
+        public required FakeTimeProvider Clock { get; init; }
+
+        /// <summary>Makes the valve's measured rate this many degrees an hour, as if it had warmed its room at that pace.</summary>
+        public void GiveRadiatorARate(string entityId, double degreesPerHour) =>
+            WarmUpRatesTests.HeatToTarget(WarmUp, entityId, new DateTimeOffset(2026, 10, 1, 6, 0, 0, TimeSpan.Zero), 14, 17, degreesPerHour);
+
+        public void SetLocalTime(TimeSpan localTimeOfDay) =>
+            Clock.SetSpecificDateTime(new DateTimeOffset(new DateTime(2026, 10, 19).Add(localTimeOfDay), TimeSpan.Zero));
 
         public FakeCustomSwitchEntity KitchenHeater => (FakeCustomSwitchEntity)Entities.KitchenHeaterSmartPlugOnOff;
         public FakeCustomSwitchEntity Bedroom1Heater => (FakeCustomSwitchEntity)Entities.Bedroom1HeaterSmartPlugOnOff;
@@ -557,6 +779,9 @@ public sealed class DeviceRulesHeatingTests
             services.AddSingleton(Substitute.For<IBoilerVerificationService>());
             services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
             services.AddSingleton<IDeviceSettingsPersistenceService>(settings);
+            services.AddSingleton<IWarmUpRateStore, InMemoryWarmUpRateStore>();
+            services.AddSingleton<WarmUpRates>();
+            services.AddSingleton<IWarmUpRates>(provider => provider.GetRequiredService<WarmUpRates>());
 
             ServiceProvider provider = services.BuildServiceProvider();
 
@@ -601,7 +826,9 @@ public sealed class DeviceRulesHeatingTests
                 Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>(),
                 Settings = settings,
                 StatePersistence = statePersistence,
-                Rooms = rooms
+                Rooms = rooms,
+                WarmUp = provider.GetRequiredService<WarmUpRates>(),
+                Clock = provider.GetRequiredService<FakeTimeProvider>()
             };
         }
     }

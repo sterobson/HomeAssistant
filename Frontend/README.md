@@ -148,7 +148,8 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   losing its rooms, reconciling a layout with the room list) are pure functions in `utils/roomLayout.js`.
   Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
-- **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs and
+- **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs, the
+  upstairs bathroom's towel rail (role `towelRail`: not in HA, never shown as unavailable, its state the boiler's) and
   presence devices — desk plugs and their power, TV power, the living room's lights plug, the router's online
   list for phones — each with its live HA state), built by the NetDaemon app from the same switches that
   bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
@@ -182,8 +183,12 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   `utils/zoneOccupancy.js`.
 - **Device rules.** Each heater plug and radiator valve in a devices list shows its rules summary and a
   **Rules** button opening `DeviceRulesModal` (schedule windows, presence sources with Any/All, and the device's
-  **pre-heat**, 0–60 minutes in 5-minute steps; unset is 30 for a radiator valve and none for a heater plug, so
+  **pre-heat**, 0–60 minutes in 5-minute steps; unset is **Auto** for a radiator valve (the app works it out from how
+  fast that valve has warmed its room; saved as no value, `PRE_HEAT_AUTO` while editing) and none for a heater plug, so
   the dialog takes the device's `role`, and the summary mentions pre-heat only when it differs from that default).
+  The dialog also takes the `device` to say what Auto amounts to, from the `preHeatAuto`, `heatingRateCelsiusPerHour`,
+  `heatingRateSamples` and `warmUpMinutes` the app publishes on a valve; `utils/warmUp.js` formats them, and the
+  devices list shows each valve's rate and, per zone, the longest expected warm-up.
   `normaliseRules` must carry `preHeatMinutes`, or saving the dialog would wipe it. Tracks still carry a
   `rampUpMinutes` (the schedule editor always sends 30), but since 2026-10-19 the app ignores it: pre-heat is
   per device. Rules live

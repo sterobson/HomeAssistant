@@ -76,6 +76,22 @@ describe('isUnavailable', () => {
     expect(isUnavailable({ state: null })).toBe(true)
     expect(isUnavailable({ state: 'on' })).toBe(false)
   })
+
+  it('never greys out a towel rail, which is not in Home Assistant', () => {
+    expect(isUnavailable({ role: 'towelRail', state: null })).toBe(false)
+  })
+})
+
+describe('towel rail', () => {
+  it('is a heater', () => {
+    expect(groupDevices([{ role: 'towelRail', name: 'Heated towel rail' }]).map(g => g.key)).toEqual(['heaters'])
+  })
+
+  it('follows the boiler when the app runs it, and says what it does otherwise', () => {
+    expect(describeState({ role: 'towelRail', state: 'on' }, celsius)).toBe('Hot, the boiler is on')
+    expect(describeState({ role: 'towelRail', state: 'off' }, celsius)).toBe('Cold, the boiler is off')
+    expect(describeState({ role: 'towelRail', state: null }, celsius)).toBe('Hot whenever the boiler runs')
+  })
 })
 
 describe('labels', () => {

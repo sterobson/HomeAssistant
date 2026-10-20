@@ -224,7 +224,12 @@ Four consequences worth knowing before changing any of this:
   only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
   power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
-  gotcha 15). Heating re-evaluates 6 s after either TV's or Ruth's desk's power crosses 30 W.
+  gotcha 15). Heating re-evaluates 6 s after either TV's or Ruth's desk's power crosses 30 W. Every "for 5
+  seconds" detector (Ruth's desk, den TV on now, living room TV) is a `SustainedCondition` fed by live
+  readings, not a history query: the history API lags a few seconds, which made Ruth's heater flap on a
+  pulsing load on 2026-10-20 (HOME-ASSISTANT.md gotcha 21). Ruth's also requires the plug to be on in the
+  same condition, since an off plug keeps its last power reading. After an app restart a steady draw counts
+  as "on now" only 5 s later.
   `IsRoomInUse` returns `false` for any name it doesn't recognise, so a `RoomInUse`
   track on a presence-blind zone silently never fires, and a `RoomNotInUse` track always
   fires. That asymmetry is why the dining radiator took only the presence-free baseline
@@ -247,9 +252,16 @@ Four consequences worth knowing before changing any of this:
   So adding a zone's hardware to those switches is enough for it to appear; never keep a second copy of
   the wiring in the frontend. A zone that has lost its hardware shows an empty list there.
   A zone's switches also decide its capabilities: with none it cannot set a temperature, and the UI hides its
-  boost, schedules and share link. The upstairs bathroom is such a zone (thermometer only). It used to have a
-  `DummySwitchEntity` so it could be scheduled, which offered controls that did nothing; that was removed on
-  2026-10-19. Never give a zone a dummy device to make it look controllable.
+  boost, schedules and share link. The upstairs bathroom used to have a `DummySwitchEntity` so it could be
+  scheduled, which offered controls that did nothing; that was removed on 2026-10-19. Never give a zone a dummy
+  device to make it look controllable. **Since 2026-10-20 it has a real one instead: its towel rail** (`TowelRail`),
+  which sits on the boiler's circuit with no valve or switch, so it is hot whenever the boiler runs (owner). It is
+  listed with the zone's switches, so the bathroom can be scheduled and boosted; nothing is ever sent to it, and it
+  counts in the boiler decision as a radiator that is always open (below). It is not in HA, so its `devices` entry
+  (role `towelRail`) has the app's own ID, and its state is the boiler belief in fingerbot mode, null otherwise.
+
+**The hallway** (since 2026-10-20) is a zone of its own that is only a thermometer: `hallway` reads `sensor.hallway_climate_temperature`
+(`HallwayClimateTemperature`) and has no switches, so it reports a temperature and nothing else (no boost, schedules or share link). Like every zone it exists only once a room named "Hallway" is in the schedules blob and the layout; the heating page cannot add rooms, so that is done by editing the blob (see `LocalEnv/migrate-rooms.mjs` for the pattern), after the app that knows the name is deployed.
 
 Four more heating notes:
 
@@ -299,6 +311,11 @@ Four more heating notes:
 - **In fingerbot mode the boiler follows the rooms with radiator valves (since 2026-10-18, reworked
   2026-10-19).** Only valves whose device rules allow them count; heater-plug rooms (kitchen, desks) have no
   valve and never involve the boiler. Temperatures are the room thermometer's, not the TRV's own sensor.
+  - **The upstairs bathroom counts too (since 2026-10-20)**, through its towel rail: a radiator with no valve,
+    so always open. It calls for heat, adds to the deficit and starts the boiler on a boost exactly like a valve
+    room, with a radiator's default 30-minute pre-heat. It has no rules, no verification (no TRV to read) and
+    nothing to wait for the boiler. Because it cannot be shut it is also hot whenever the boiler runs for another
+    room, and reports `heatingActive` whenever the app believes the boiler on.
   - **Calling for heat.** A valve room starts calling once it is `HysteresisOffset` (0.2 °C) below its
     target, the point at which its valve would open, and stops when it reaches its target
     (`_roomsCallingForHeat`).
@@ -348,8 +365,23 @@ Four more heating notes:
   any of the zones that mean someone is home in use (games desk, dining desk, den, living room; not the
   dining room's "desk switched on"; never motion sensors, the cat sets them off). Each device also has a
   **pre-heat** (`PreHeatMinutes`, 0–60; owner, 2026-10-19): how long before a warmer track starts it begins
-  heating for it. Unset means 30 minutes for a radiator valve and none for a heater plug. It replaced the per-track `RampUpMinutes`, which is still stored but no longer read,
-  because a radiator warms a room far more slowly than a fan heater. Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
+  heating for it. Unset means **Auto** for a radiator valve (owner, 2026-10-20) and none for a heater plug; a valve can
+  still be given a fixed value. It replaced the per-track `RampUpMinutes`, which is still stored but no longer read,
+  because a radiator warms a room far more slowly than a fan heater.
+  **Auto works the time out from how fast that valve has actually warmed its room.** [WarmUpRates](Backend/App/Services/Climate/WarmUpRates.cs)
+  times each run of a valve being open with the boiler believed on, from the moment it began until the room's
+  thermometer first reached the valve's target. A run counts only if that took 30 minutes or more and did reach the
+  target (a run cut short by the boiler going off, or by the target moving, is dropped), and gives one sample; the
+  rate is the mean °C/h of the last 5 per valve, kept in `warm-up-rates.json` in the local cache folder. Fingerbot
+  mode only, since in boiler-thermostat mode nothing says when the boiler runs. Auto then starts the valve when
+  (target − room now) ÷ rate, rounded up and at most 120 minutes, reaches back to the track; once started it carries
+  on until the track begins (`_autoPreHeatTrackIds`), or a rate a little pessimistic would shut it again part-way as
+  the room warmed. With no samples it uses 30 minutes. The rate is the room thermometer's, so it includes the radiator
+  warming up, which is why a small deficit comes out a little under. Passes have to see the reading that reached the
+  target: when that room was the last calling, the boiler is turned off in the same pass, so the observation counts the
+  boiler as on if it was at the start of the pass (`_boilerWasOnAtStartOfPass`). Each valve publishes `preHeatAuto`,
+  `heatingRateCelsiusPerHour`, `heatingRateSamples` and `warmUpMinutes` (time to the next warmer track, from the
+  room's temperature now) on its room-state device, and the UI shows the longest per zone. Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
   once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`.
   **Each device decides for itself** in `EvaluateSchedule`: its own target (the room's, brought forward by its
   own pre-heat, so in one room a radiator can be pre-heating while the heater waits), its own 0.2 °C hysteresis

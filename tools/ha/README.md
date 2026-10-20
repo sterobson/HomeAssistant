@@ -25,6 +25,7 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
 | `who-changed.cjs <entity_id> [--hours 6]` | no | Each state change from HA's logbook with its cause: a user ("Supervisor" is the NetDaemon app; your account also covers these scripts, which use your token), an automation or script, or no context (the device reported it by itself) |
 | `addon.cjs <slug>` | no | An add-on's state and version, through the Supervisor over the websocket (REST `/api/hassio` refuses the token for this) |
+| `zigbee-mesh.cjs [--json]` | no | The Zigbee mesh from ZHA's neighbour tables: each router plug's link quality to the coordinator (both ways) and its best router neighbours, and each battery device's parent router with that link's LQI. Offline devices show when they were last seen |
 | `addon.cjs <slug> log [regex] [--lines 80]` | no | The add-on's log (the last 100 lines the Supervisor returns), optionally only lines matching the regex. REST `/api/hassio/addons/<slug>/logs` serves this one, while the websocket fails on it. `c6a2317c_netdaemon6 log "Boiler turned"` shows the app's boiler decisions and why |
 | `hacs.cjs <regex>` | no | HACS repositories matching a name: id, category, installed and latest version |
 | `hacs.cjs --download <owner/repo>` | **yes** | Downloads a HACS repository's latest release into `/config` (how the Dreame vacuum integration was installed, 2026-10-19). An integration then needs `restart-core.cjs`, and adding it is a config flow in the HA UI |
@@ -89,7 +90,10 @@ the desk plugs) predate it and are not worth copying. Before pairing, dry-run th
 the same model (`list-devices.cjs` gives you its `device_id`); that shows the exact entity list and
 any target IDs already taken.
 
-When pairing for real: start the script **first**, then put the device into pairing mode. A
+When pairing for real: start the script **first**, then put the device into pairing mode. A battery device can join and then
+sleep through its interview, leaving a device with no entities (HOME-ASSISTANT.md gotcha 22): the script waits up to 10 minutes
+for the first ones and says to press the device's button. To start over, `zha.remove` (service, with the device's `ieee`) drops the
+half-paired device. A
 brand-new SNZB-02D joins as soon as it is powered on; a TRVZB needs the button sequence in
 HOME-ASSISTANT.md → Radiator TRVs. The window is 254 s, ZHA's maximum. The script ignores any other
 model that joins in that time, waits for the entity count to stop changing before renaming, and stops

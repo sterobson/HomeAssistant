@@ -45,6 +45,11 @@ internal partial class HeatingControlService
     private bool _lastBoilerPressWasCorrection = false;
     private bool _hasLoggedFingerbotUnavailable = false;
 
+    // Whether the boiler was believed on when the pass began, before it was decided. A room reaching its target is
+    // usually the last one calling, which turns the boiler off in that very pass, and a warm-up that ends that way
+    // still had the boiler on right up to the reading that finished it (see WarmUpRates).
+    private bool _boilerWasOnAtStartOfPass = false;
+
     // Fingerbot movements the app did not command (the HA UI, a script, an automation). Guarded by
     // _fingerbotLock because state changes arrive outside the evaluation semaphore.
     private readonly object _fingerbotLock = new();
@@ -94,6 +99,15 @@ internal partial class HeatingControlService
     private readonly IBatteryOverview? _batteryOverview;
     private string? _uploadedBatteries;
 
+    // How fast each radiator valve has warmed its room (owner, 2026-10-20), which an Auto pre-heat is worked out from.
+    // Optional so tests need not supply it; without it every Auto valve uses the 30-minute fallback.
+    private readonly IWarmUpRates? _warmUpRates;
+
+    // The warmer track an Auto valve has begun pre-heating for, by entity ID, so that the pre-heat, once started, is
+    // kept until the track begins. Without it the time needed would shrink as the room warmed, and a valve whose rate
+    // was a little pessimistic would shut again part-way and start over.
+    private readonly Dictionary<string, int> _autoPreHeatTrackIds = new(StringComparer.OrdinalIgnoreCase);
+
     public HeatingControlService(
         IHaContext ha,
         INamedEntities namedEntities,
@@ -108,9 +122,11 @@ internal partial class HeatingControlService
         IBoilerVerificationService boilerVerification,
         IDeviceSettingsPersistenceService deviceSettings,
         IBoilerStatePersistence boilerStatePersistence,
-        IBatteryOverview? batteryOverview = null)
+        IBatteryOverview? batteryOverview = null,
+        IWarmUpRates? warmUpRates = null)
     {
         _batteryOverview = batteryOverview;
+        _warmUpRates = warmUpRates;
         _ha = ha;
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -144,6 +160,7 @@ internal partial class HeatingControlService
             namedEntities.DiningRoomClimateTemperature.EntityId,
             namedEntities.LivingRoomClimateTemperature.EntityId,
             namedEntities.DenClimateTemperature.EntityId,
+            namedEntities.HallwayClimateTemperature.EntityId,
             namedEntities.DiningRoomRadiatorThermostat.EntityId,
             namedEntities.LivingRoomRadiatorThermostat.EntityId,
             namedEntities.Bedroom1RadiatorThermostat.EntityId,
@@ -189,10 +206,15 @@ internal partial class HeatingControlService
         _namedEntities.GamesRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("games room desk plug state changed"));
         _namedEntities.KitchenTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("kitchen temperature changed"));
         _namedEntities.Bedroom1Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("bedroom 1 temperature changed"));
+        // These two used to be left to the 5-minute recheck; a warm-up is timed from the readings, so they count too.
+        _namedEntities.Bedroom2Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("bedroom 2 temperature changed"));
+        _namedEntities.Bedroom3Temperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("bedroom 3 temperature changed"));
         _namedEntities.DiningRoomDeskPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room desk plug state changed"));
         _namedEntities.DiningRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("dining room temperature changed"));
         _namedEntities.LivingRoomClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room temperature changed"));
         _namedEntities.DenClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("den temperature changed"));
+        _namedEntities.HallwayClimateTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("hallway temperature changed"));
+        _namedEntities.UpstairsBathroomTemperature.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("upstairs bathroom temperature changed"));
 
         // Room presence from TVs and lights (PresenceService). A TV is normally switched with its
         // remote, not its plug, so its power draw is what changes.
@@ -395,6 +417,7 @@ internal partial class HeatingControlService
 
             // 3. The boiler, decided and pressed before any valve moves, so that valves are only moved when
             //    there may be hot water behind them.
+            _boilerWasOnAtStartOfPass = _boilerOn;
             if (fingerbotMode)
             {
                 DecideBoiler(schedules, targets, trigger);
@@ -408,6 +431,16 @@ internal partial class HeatingControlService
                 if (targets.TryGetValue(schedule.Id, out RoomTarget? target))
                 {
                     hasStateChanged |= await EvaluateSchedule(schedule, target, trigger);
+                }
+            }
+
+            // A room with nothing to switch (the upstairs bathroom) is never evaluated above, so its reading would only
+            // reach the UI when something else happened to upload. A changed reading is worth an upload on its own.
+            foreach (RoomSchedule schedule in schedules.Rooms)
+            {
+                if (_roomStates.TryGetValue(schedule.Id, out RoomState? shown) && shown.CurrentTemperature != GetCurrentTemperatureForRoom(schedule))
+                {
+                    hasStateChanged = true;
                 }
             }
 
@@ -482,7 +515,54 @@ internal partial class HeatingControlService
     private DeviceTarget TargetFor(RoomTarget target, object device)
     {
         string? entityId = EntityIdOf(device);
-        return target.For(DeviceRulesDto.PreHeatFor(entityId == null ? null : GetRulesFor(entityId), device is ICustomClimateControlEntity));
+        DeviceRulesDto? rules = entityId == null ? null : GetRulesFor(entityId);
+        // A towel rail is a radiator too, warming its room as slowly, so it takes a radiator's default pre-heat.
+        bool isValve = device is ICustomClimateControlEntity or TowelRail;
+
+        if (entityId != null && DeviceRulesDto.IsAutoPreHeat(rules, isValve) && _warmUpRates?.RateFor(entityId) != null)
+        {
+            return AutoPreHeatTarget(target, entityId);
+        }
+
+        // A fixed pre-heat, or an Auto valve not yet measured (which then uses the 30-minute fallback).
+        return target.For(DeviceRulesDto.PreHeatFor(rules, isValve));
+    }
+
+    /// <summary>
+    /// An Auto valve's target: it starts for a warmer track once the time its measured warm-up rate says the room
+    /// needs, from the temperature it is at now, reaches back to now (never more than
+    /// <see cref="DeviceRulesDto.MaxAutoPreHeatMinutes"/>). Once started it carries on until the track begins.
+    /// </summary>
+    private DeviceTarget AutoPreHeatTarget(RoomTarget target, string entityId)
+    {
+        if (_autoPreHeatTrackIds.TryGetValue(entityId, out int startedTrackId))
+        {
+            foreach ((TimeSpan startsAt, HeatingScheduleTrack track) in target.UpcomingWarmer)
+            {
+                if (track.Id == startedTrackId && target.Now < startsAt)
+                {
+                    return new DeviceTarget(track.Temperature, track, "pre-heating for upcoming schedule");
+                }
+            }
+
+            // The track has begun, or no longer applies.
+            _autoPreHeatTrackIds.Remove(entityId);
+        }
+
+        foreach ((TimeSpan startsAt, HeatingScheduleTrack track) in target.UpcomingWarmer)
+        {
+            int minutes = Math.Min(
+                _warmUpRates?.MinutesToRise(entityId, track.Temperature - target.CurrentTemperature) ?? DeviceRulesDto.DefaultValvePreHeatMinutes,
+                DeviceRulesDto.MaxAutoPreHeatMinutes);
+
+            if (target.Now >= startsAt - TimeSpan.FromMinutes(minutes))
+            {
+                _autoPreHeatTrackIds[entityId] = track.Id;
+                return new DeviceTarget(track.Temperature, track, "pre-heating for upcoming schedule");
+            }
+        }
+
+        return target.Base;
     }
 
     /// <summary>
@@ -571,6 +651,20 @@ internal partial class HeatingControlService
 
         foreach (object device in GetSwitchesForRoom(roomHeatingSchedule))
         {
+            if (device is TowelRail)
+            {
+                // Nothing to switch: the boiler was already decided for it (DecideBoiler). It sets the room's target
+                // all the same, and is heating whenever the app has the boiler on.
+                DeviceTarget railTarget = TargetFor(target, device);
+                if (railTarget.Temperature > roomTarget.Temperature)
+                {
+                    roomTarget = railTarget;
+                }
+
+                anyHeating |= IsTowelRailHot();
+                continue;
+            }
+
             string? entityId = EntityIdOf(device);
             Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
             if (entityId == null || toggle == null)
@@ -602,12 +696,26 @@ internal partial class HeatingControlService
             if (IsWaitingForBoiler(device))
             {
                 // With the boiler off a valve's position makes no difference, so it is neither opened nor shut,
-                // and it is not heating the room whatever its setpoint says.
+                // and it is not heating the room whatever its setpoint says. The exception is the pass in which the
+                // boiler was just turned off: the valve is still open from before, and the reading that finished its
+                // warm-up arrived in this pass.
+                _warmUpRates?.Observe(
+                    entityId,
+                    _boilerWasOnAtStartOfPass && wanting && IsDeviceAllowed(device),
+                    currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow());
                 continue;
             }
 
             bool allowed = IsDeviceAllowed(device);
             bool desiredOn = wanting && allowed;
+
+            // A valve counts as warming its room while it is meant to be open and the boiler is believed on. The
+            // intended state rather than the one read back: HA reports a command a moment after it is sent.
+            if (device is ICustomClimateControlEntity)
+            {
+                _warmUpRates?.Observe(entityId, (_boilerOn || _boilerWasOnAtStartOfPass) && desiredOn, currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow());
+            }
+
             if (desiredOn != isOn && await toggle(desiredOn))
             {
                 _logger.LogInformation(
@@ -681,7 +789,8 @@ internal partial class HeatingControlService
     /// </summary>
     private static string DescribeDeviceSetup(List<RoomDeviceDto> devices) =>
         string.Join('|', devices.Select(device =>
-            $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"));
+            $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"
+            + $"/{device.PreHeatAuto}/{device.HeatingRateCelsiusPerHour}/{device.HeatingRateSamples}"));
 
     /// <summary>The zone's chosen detectors and whether they are the defaults, for spotting a change. Null when none is described.</summary>
     private static string? DescribeDetectorChoice(RoomOccupancyDto? occupancy) =>
@@ -769,7 +878,7 @@ internal partial class HeatingControlService
                 continue;
 
             // Only look up presence etc. for tracks within the longest pre-heat any device can have.
-            if (currentTime < startsAt - TimeSpan.FromMinutes(DeviceRulesDto.MaxPreHeatMinutes))
+            if (currentTime < startsAt - TimeSpan.FromMinutes(DeviceRulesDto.LongestPreHeatMinutes))
                 continue;
 
             if (!await MeetsSpecialConditions(houseOccupancyState, schedule, track))
@@ -860,12 +969,16 @@ internal partial class HeatingControlService
 
             "living room" => [_namedEntities.LivingRoomRadiatorThermostat],
             "downstairs bathroom" => [],
+            // Thermometer only (owner, 2026-10-20): nothing to drive, so no boost, schedules or share link in the UI.
+            "hallway" => [],
             "bedroom 1" => [_namedEntities.Bedroom1HeaterSmartPlugOnOff, _namedEntities.Bedroom1RadiatorThermostat],
             "bedroom 2" => [_namedEntities.Bedroom2RadiatorThermostat],
             "bedroom 3" => [_namedEntities.Bedroom3RadiatorThermostat],
-            // Thermometer only: nothing to drive, so no boost, schedules or share link in the UI (owner,
-            // 2026-10-19). It used to have a dummy switch here, which made the UI offer controls that did nothing.
-            "upstairs bathroom" => [],
+            // A towel rail on the boiler's circuit with no valve (owner, 2026-10-20): it cannot be switched, but the
+            // room can be heated by running the boiler, so it has a target and calls for the boiler like a valve
+            // room. Until then it had nothing here; before 2026-10-19 it had a dummy switch, which offered
+            // controls that did nothing. The towel rail is real hardware and its demand really runs the boiler.
+            "upstairs bathroom" => [TowelRail.UpstairsBathroom],
             _ => []
         };
     }
@@ -888,6 +1001,9 @@ internal partial class HeatingControlService
             "dining room" => _namedEntities.DiningRoomClimateTemperature,
             "games desk" => _namedEntities.GamesRoomDeskTemperature,
             "den" => _namedEntities.DenClimateTemperature,
+
+            // A thermometer and nothing to drive (owner, 2026-10-20): the zone just reports the hallway's temperature.
+            "hallway" => _namedEntities.HallwayClimateTemperature,
 
             "living room" => _namedEntities.LivingRoomClimateTemperature,
             "downstairs bathroom" => null,
@@ -972,12 +1088,23 @@ internal partial class HeatingControlService
                     valveDevice.CurrentTemperature = valve.CurrentTemperature;
                     valveDevice.TargetTemperature = valve.TargetTemperature;
                     AttachRules(valveDevice);
+                    AttachWarmUp(valveDevice, room);
                     devices.Add(valveDevice);
                     break;
                 case ICustomSwitchEntity plug:
                     RoomDeviceDto plugDevice = DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug);
                     AttachRules(plugDevice);
                     devices.Add(plugDevice);
+                    break;
+                case TowelRail rail:
+                    // Not in Home Assistant, so nothing to look up. Its state is the boiler's, when the app runs it.
+                    devices.Add(new RoomDeviceDto
+                    {
+                        EntityId = rail.Id,
+                        Role = RoomDeviceRoles.TowelRail,
+                        Name = rail.Name,
+                        State = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot ? (IsTowelRailHot() ? "on" : "off") : null
+                    });
                     break;
             }
         }
@@ -996,6 +1123,69 @@ internal partial class HeatingControlService
         device.Rules = GetRulesFor(device.EntityId);
         device.RulesAreDefault = _deviceRulesAreDefault;
     }
+
+    /// <summary>
+    /// Publishes how fast a radiator valve has warmed its room and how long it would likely take to reach the next
+    /// warmer schedule track, so the UI can say what an Auto pre-heat amounts to (owner, 2026-10-20).
+    /// </summary>
+    private void AttachWarmUp(RoomDeviceDto valveDevice, RoomSchedule room)
+    {
+        valveDevice.PreHeatAuto = DeviceRulesDto.IsAutoPreHeat(GetRulesFor(valveDevice.EntityId), true);
+
+        double? rate = _warmUpRates?.RateFor(valveDevice.EntityId);
+        valveDevice.HeatingRateSamples = _warmUpRates?.SampleCount(valveDevice.EntityId) ?? 0;
+        valveDevice.HeatingRateCelsiusPerHour = rate == null ? null : Math.Round(rate.Value, 2);
+
+        double? roomTemperature = GetCurrentTemperatureForRoom(room);
+        if (rate == null || roomTemperature == null)
+        {
+            return;
+        }
+
+        double? nextTarget = NextWarmerTrackTemperature(room, _timeProvider.GetLocalNow().DateTime, roomTemperature.Value);
+        if (nextTarget != null)
+        {
+            valveDevice.WarmUpMinutes = _warmUpRates?.MinutesToRise(valveDevice.EntityId, nextTarget.Value - roomTemperature.Value);
+        }
+    }
+
+    /// <summary>
+    /// The temperature of the next schedule track, today after now or else tomorrow, that is warmer than the room is
+    /// now: what a warm-up estimate is measured against. Conditions (presence and the like) are ignored, since this is
+    /// only a guide to how long the radiator needs, not a prediction of which track will run.
+    /// </summary>
+    internal static double? NextWarmerTrackTemperature(RoomSchedule room, DateTime now, double roomTemperature)
+    {
+        for (int dayOffset = 0; dayOffset <= 1; dayOffset++)
+        {
+            Days day = ToDays(now.AddDays(dayOffset).DayOfWeek);
+            foreach (HeatingScheduleTrack track in room.ScheduleTracks.OrderBy(t => t.TargetTime))
+            {
+                if (track.Days != Days.Unspecified && (track.Days & day) == 0)
+                    continue;
+
+                if (dayOffset == 0 && track.TargetTime.ToTimeSpan() <= now.TimeOfDay)
+                    continue;
+
+                if (track.Temperature > roomTemperature + HysteresisOffset)
+                    return track.Temperature;
+            }
+        }
+
+        return null;
+    }
+
+    private static Days ToDays(DayOfWeek dayOfWeek) => dayOfWeek switch
+    {
+        DayOfWeek.Monday => Days.Monday,
+        DayOfWeek.Tuesday => Days.Tuesday,
+        DayOfWeek.Wednesday => Days.Wednesday,
+        DayOfWeek.Thursday => Days.Thursday,
+        DayOfWeek.Friday => Days.Friday,
+        DayOfWeek.Saturday => Days.Saturday,
+        DayOfWeek.Sunday => Days.Sunday,
+        _ => Days.Everyday
+    };
 
     private RoomDeviceDto DescribeDevice(string entityId, string role)
     {
@@ -1151,10 +1341,13 @@ internal partial class HeatingControlService
         {
             // Only valves their device rules currently allow can take heat from the boiler; a room whose
             // valves are all held off by their rules adds no demand.
-            List<ICustomClimateControlEntity> radiatorValves = [.. GetSwitchesForRoom(roomSchedule).OfType<ICustomClimateControlEntity>().Where(IsDeviceAllowed)];
+            object[] devices = GetSwitchesForRoom(roomSchedule);
+            List<ICustomClimateControlEntity> radiatorValves = [.. devices.OfType<ICustomClimateControlEntity>().Where(IsDeviceAllowed)];
+            // A towel rail has no valve and is always open, so it always takes heat (owner, 2026-10-20).
+            List<object> boilerRadiators = [.. radiatorValves, .. devices.OfType<TowelRail>()];
 
-            // A room with no such valve, or no reading or target, has no known demand.
-            if (radiatorValves.Count == 0 || !targets.TryGetValue(roomSchedule.Id, out RoomTarget? target))
+            // A room with no such radiator, or no reading or target, has no known demand.
+            if (boilerRadiators.Count == 0 || !targets.TryGetValue(roomSchedule.Id, out RoomTarget? target))
             {
                 _roomsCallingForHeat.Remove(roomSchedule.Id);
                 continue;
@@ -1162,9 +1355,9 @@ internal partial class HeatingControlService
 
             openValves.AddRange(radiatorValves.Where(IsValveOpen).Select(valve => (roomSchedule.Name, valve)));
 
-            // The room's demand on the boiler is its valves' target, brought forward by the valves' own pre-heat:
+            // The room's demand on the boiler is its radiators' target, brought forward by their own pre-heat:
             // a radiator pre-heating for a warmer track calls for the boiler from the start of its pre-heat.
-            DeviceTarget valveTarget = radiatorValves.Select(valve => TargetFor(target, valve)).MaxBy(t => t.Temperature)!;
+            DeviceTarget valveTarget = boilerRadiators.Select(radiator => TargetFor(target, radiator)).MaxBy(t => t.Temperature)!;
             double current = target.CurrentTemperature;
             if (valveTarget.Temperature > current)
             {
@@ -1295,7 +1488,7 @@ internal partial class HeatingControlService
                 SetBoilerBelief(false, _timeProvider.GetUtcNow());
                 _lastBoilerPressWasCorrection = false;
                 _boilerMayBeRunning = false;
-                _logger.LogInformation("Boiler turned OFF (no room with a radiator valve is calling for heat). Triggered by {Trigger}", trigger);
+                _logger.LogInformation("Boiler turned OFF (no room with a radiator valve or towel rail is calling for heat). Triggered by {Trigger}", trigger);
 
                 _boilerVerification.NotifyBoilerToggled(false, openValves, null);
             }
@@ -1335,6 +1528,12 @@ internal partial class HeatingControlService
 
     /// <summary>A valve is open when its setpoint is at or above its own reading, which is how the app sets it.</summary>
     private static bool IsValveOpen(ICustomClimateControlEntity valve) => valve.TargetTemperature >= valve.CurrentTemperature;
+
+    /// <summary>
+    /// Whether a towel rail is known to be hot: the app runs the boiler and believes it on. On the boiler thermostat
+    /// nobody can tell, so it is not claimed.
+    /// </summary>
+    private bool IsTowelRailHot() => _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot && _boilerOn;
 
     private void SetBoilerBelief(bool boilerOn, DateTimeOffset since)
     {

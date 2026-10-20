@@ -111,6 +111,8 @@ try
                 .AddScoped<IBatteryOverview, BatteryOverview>()
                 .AddScoped<IBoilerVerificationService, BoilerVerificationService>()
                 .AddScoped<IBoilerStatePersistence, BoilerStatePersistence>()
+                .AddScoped<IWarmUpRateStore, WarmUpRateStore>()
+                .AddScoped<IWarmUpRates, WarmUpRates>()
                 .AddScoped<HeatingControlService>()
                 .AddScoped<BatteryControlService>()
                 .AddHttpClient<IBatteryRulesApiClient, BatteryRulesApiClient>((serviceProvider, client) =>

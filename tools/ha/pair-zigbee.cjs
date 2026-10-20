@@ -25,6 +25,7 @@ const { plan, entitiesOf, problems, apply, show } = require('./lib/naming.cjs');
 
 const JOIN_SECONDS = 254;           // ZHA's maximum
 const EXPECT_SETTLED_MS = 20000;    // entities appear as the interview runs; wait until the count is stable this long
+const SETUP_TIMEOUT_MS = 10 * 60 * 1000; // a battery device can sleep through its interview; give it this long to wake and finish
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const time = () => new Date().toLocaleTimeString();
 
@@ -56,12 +57,25 @@ async function pair(ha, { model, name, area, prefix, label, 'main-suffix': mainS
   if (!device) { console.log(`No new ${model} joined before the window closed. Nothing renamed.`); return; }
   console.log(`${time()} Joined: ${device.manufacturer} ${device.model} device_id=${device.id}`);
 
+  // "No entities yet" is not settled: a battery device that goes back to sleep mid-interview (seen 2026-10-20, a
+  // hallway SNZB-02D) shows a device with no entities until it is woken. Naming that device alone leaves its entities
+  // with generic names, so keep waiting for the first ones, and say how to wake it.
   let count = -1;
   let stableSince = Date.now();
-  while (Date.now() - stableSince < EXPECT_SETTLED_MS) {
+  const waitingSince = Date.now();
+  let lastHint = Date.now();
+  while (count <= 0 || Date.now() - stableSince < EXPECT_SETTLED_MS) {
     await sleep(2000);
     const n = (await entitiesOf(ha, device.id)).length;
     if (n !== count) { count = n; stableSince = Date.now(); console.log(`  entities so far: ${n}`); }
+    if (count <= 0 && Date.now() - lastHint > 60000) {
+      lastHint = Date.now();
+      console.log(`${time()} Still no entities: press the device's button to wake it so the interview can finish.`);
+    }
+    if (count <= 0 && Date.now() - waitingSince > SETUP_TIMEOUT_MS) {
+      console.log(`Gave up: the device joined (device_id=${device.id}) but never finished setting up, so nothing was renamed.`);
+      return;
+    }
   }
 
   const steps = plan(await entitiesOf(ha, device.id), { prefix, label, mainSuffix });
