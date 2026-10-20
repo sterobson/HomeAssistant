@@ -641,6 +641,9 @@ internal partial class HeatingControlService
         roomState.HeatingActive = anyHeating;
         roomState.ActiveScheduleTrackId = roomTarget.Track?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;
+        RoomCapabilities previousCapabilities = roomState.Capabilities;
+        string? previousDetectors = DescribeDetectorChoice(roomState.Occupancy);
+        string previousDeviceSetup = DescribeDeviceSetup(roomState.Devices);
         roomState.Capabilities = GetRoomCapabilities(roomHeatingSchedule);
         roomState.Devices = GetDevicesForRoom(roomHeatingSchedule);
         roomState.Occupancy = DescribeOccupancy(roomHeatingSchedule);
@@ -653,7 +656,13 @@ internal partial class HeatingControlService
             || roomState.TargetTemperature != previousTargetTemperature
             || roomState.ActiveScheduleTrackId != previousTrackId
             || previousHeatingActive == null
-            || roomState.HeatingActive != previousHeatingActive)
+            || roomState.HeatingActive != previousHeatingActive
+            // Choosing a zone's presence detectors gains or loses its occupancy tracks, which the UI reads from here.
+            // Until 2026-10-20 this was not compared, so a new choice reached the UI only when something else changed.
+            || roomState.Capabilities != previousCapabilities
+            || DescribeDetectorChoice(roomState.Occupancy) != previousDetectors
+            // Likewise the Devices list: which devices a zone has and the rules on them, not their live readings.
+            || DescribeDeviceSetup(roomState.Devices) != previousDeviceSetup)
         {
             stateChanged = true;
         }
@@ -665,6 +674,18 @@ internal partial class HeatingControlService
 
         return stateChanged;
     }
+
+    /// <summary>
+    /// What the Devices list is made of, for spotting a change: each device, its role and the rules on it. Leaves
+    /// out the readings (state, temperatures), which change constantly and have their own reasons to upload.
+    /// </summary>
+    private static string DescribeDeviceSetup(List<RoomDeviceDto> devices) =>
+        string.Join('|', devices.Select(device =>
+            $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"));
+
+    /// <summary>The zone's chosen detectors and whether they are the defaults, for spotting a change. Null when none is described.</summary>
+    private static string? DescribeDetectorChoice(RoomOccupancyDto? occupancy) =>
+        occupancy == null ? null : $"{occupancy.IsDefault}:{string.Join(',', occupancy.DetectorIds)}";
 
     /// <summary>Whether a device is heating: a plug switched on, or a valve whose setpoint is at or above its own reading.</summary>
     private static bool IsDeviceOn(object device) => device switch

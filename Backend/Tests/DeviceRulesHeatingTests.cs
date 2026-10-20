@@ -433,6 +433,62 @@ public sealed class DeviceRulesHeatingTests
         context.CapturedStates()[1].TargetTemperature.ShouldBe(22);
     }
 
+    [TestMethod]
+    public async Task AZoneGainingPresence_IsUploadedEvenIfNothingElseChanged()
+    {
+        // 2026-10-20: choosing a presence detector for Ellie's room did not offer the in-use / not-in-use tracks in
+        // the schedule editor, because the zone's new capability was recomputed but never uploaded until some
+        // other part of its state (temperature, target, track) happened to change.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        await context.Service.EvaluateAllSchedules("first pass");
+        context.CapturedStates()[1].Capabilities.HasFlag(RoomCapabilities.CanDetectRoomOccupancy).ShouldBeFalse();
+        int uploads = context.UploadCount();
+
+        context.Presence.SetRoomValue("kitchen", false);
+        await context.Service.EvaluateAllSchedules("occupancy chosen for the zone");
+
+        context.UploadCount().ShouldBe(uploads + 1);
+        context.CapturedStates()[1].Capabilities.HasFlag(RoomCapabilities.CanDetectRoomOccupancy).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task ChangedDeviceRules_AreUploadedEvenIfNothingElseChanged()
+    {
+        // Same gap as above for the Devices list: the rules shown on a device only reached the UI when something else
+        // about the zone changed.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        await context.Service.EvaluateAllSchedules("first pass");
+        int uploads = context.UploadCount();
+
+        // Still held off at noon, so only the rules shown on the device differ.
+        context.SaveRules(new()
+        {
+            [context.KitchenHeater.EntityId] = new DeviceRulesDto
+            {
+                TimeWindows = [new TimeWindowDto { Start = "01:00", End = "02:00" }]
+            }
+        });
+        await context.Service.EvaluateAllSchedules("rules saved");
+
+        context.UploadCount().ShouldBe(uploads + 1);
+    }
+
+    [TestMethod]
+    public async Task ChangingOnlyAReading_DoesNotUploadAgain()
+    {
+        // A device's live state changes constantly and must not, by itself, be a reason to upload.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        await context.Service.EvaluateAllSchedules("first pass");
+        int uploads = context.UploadCount();
+
+        await context.Service.EvaluateAllSchedules("nothing changed");
+
+        context.UploadCount().ShouldBe(uploads);
+    }
+
     private sealed class RulesTestContext
     {
         private const double RoomTemperature = 15;
