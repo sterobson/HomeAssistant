@@ -150,6 +150,27 @@ async function saveZoneOccupancy(zoneName, detectorIds, allZones) {
   })
 }
 
+// Where battery devices outside any zone's heating are shown, by HA area name: 'room:{id}' or 'group:{id}'.
+// Empty until someone saves; an area with no entry shows its devices at the top of the heating page.
+const areaPlacement = computed(() => settings.value?.heating?.areaPlacement ?? {})
+
+// Saves the whole area -> place map (the batteries dialog edits every area at once), keeping everything else.
+async function saveAreaPlacement(placement) {
+  await loadSettings()
+
+  if (!settings.value) {
+    throw new Error('Device settings have not loaded, so the areas were not saved.')
+  }
+
+  await saveSettings({
+    ...settings.value,
+    heating: {
+      ...(settings.value.heating || {}),
+      areaPlacement: Object.fromEntries(Object.entries(placement).filter(([, place]) => !!place))
+    }
+  })
+}
+
 const isPowerMonitorConfigured = computed(() => {
   const rp = settings.value?.realtimePower
   if (!rp) return false
@@ -179,6 +200,8 @@ export function useDeviceSettings() {
     saveDeviceRules,
     zoneOccupancy,
     saveZoneOccupancy,
+    areaPlacement,
+    saveAreaPlacement,
     BOILER_CONTROL_PATHS
   }
 }

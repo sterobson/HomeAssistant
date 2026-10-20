@@ -188,9 +188,9 @@ public sealed class EntityExistenceTests
         // Act & Assert - constructor should not throw
         PresenceService sut = new(ha, namedEntities, historyService, logger);
 
-        // Verify warnings were logged for the 7 validated entities: two desk plugs (switch + power), the
-        // two TV plugs' power sensors, and the living room stick lights plug.
-        logger.Received(7).Log(
+        // Verify warnings were logged for the 8 validated entities: two desk plugs (switch + power), the
+        // two TV plugs' power sensors, the living room stick lights plug, and the router's online list (phones).
+        logger.Received(8).Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
             Arg.Any<object>(),

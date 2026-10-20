@@ -23,19 +23,35 @@
       </div>
 
       <div v-if="rooms.length > 0" class="layout-toolbar">
-        <!-- Only in fingerbot mode, when the app drives the boiler. A belief, not a reading: nothing sees the
-             boiler itself (CLAUDE.md, "The boiler has no feedback"). -->
-        <span
-          v-if="boilerState?.appControlsBoiler"
-          class="boiler-status"
-          :class="{ on: boilerState.believedOn }"
-          :title="'What the app believes, from its own presses: nothing can read the boiler itself.'"
-        >
-          <svg v-if="boilerState.believedOn" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
-          </svg>
-          {{ boilerStatusText }}
-        </span>
+        <!-- Status on the left, opposite the layout buttons. -->
+        <div class="toolbar-status">
+          <!-- Only in fingerbot mode, when the app drives the boiler. A belief, not a reading: nothing sees the
+               boiler itself (CLAUDE.md, "The boiler has no feedback"). -->
+          <span
+            v-if="boilerState?.appControlsBoiler"
+            class="boiler-status"
+            :class="{ on: boilerState.believedOn }"
+            :title="'What the app believes, from its own presses: nothing can read the boiler itself.'"
+          >
+            <svg v-if="boilerState.believedOn" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
+            </svg>
+            {{ boilerStatusText }}
+          </span>
+          <!-- A low battery that belongs to no zone or group (no HA area, or an area not placed anywhere). -->
+          <button
+            v-if="unplacedLowest"
+            type="button"
+            class="battery-alert"
+            title="See every battery and choose where each area's devices show"
+            @click="showBatteries = true"
+          >
+            <BatteryBadge :battery="unplacedLowest" :others-low="unplacedLow.length - 1" />
+          </button>
+        </div>
+        <button v-if="editLayout" class="btn-layout" title="Every battery, and where each area's devices show" @click="showBatteries = true">
+          Batteries
+        </button>
         <button v-if="editLayout" class="btn-layout" title="Add an empty group at the top level" @click="openAddGroup">
           Add group
         </button>
@@ -69,6 +85,18 @@
       @cancel="iconTarget = null"
     />
 
+    <BatteriesModal
+      v-if="showBatteries"
+      :batteries="batteries"
+      :rooms="rooms"
+      :targets="batteryTargets"
+      :area-placement="areaPlacement"
+      :saving="savingAreas"
+      :error="areasError"
+      @save="handleSaveAreas"
+      @cancel="closeBatteries"
+    />
+
     <MoveToModal
       v-if="moveTarget"
       :title="moveTarget.title"
@@ -94,7 +122,11 @@ import LayoutNode from '../components/LayoutNode.vue'
 import MoveToModal from '../components/MoveToModal.vue'
 import IconPickerModal from '../components/IconPickerModal.vue'
 import Toast from '../components/Toast.vue'
+import BatteryBadge from '../components/BatteryBadge.vue'
+import BatteriesModal from '../components/BatteriesModal.vue'
 import { heatingApi } from '../services/heatingApi.js'
+import { useDeviceSettings } from '../composables/useDeviceSettings.js'
+import { isLow, lowestLow, placeBatteries, placeTargets } from '../utils/batteries.js'
 import { useSignalR } from '../composables/useSignalR.js'
 import { getHouseId } from '../utils/cookies.js'
 import { roomLabel } from '../utils/rooms.js'
@@ -142,6 +174,37 @@ const boilerStatusText = computed(() => {
   return `Boiler ${state.believedOn ? 'on' : 'off'}${sinceText}`
 })
 const roomsById = computed(() => new Map(rooms.value.map(room => [room.id, room])))
+
+// Every replaceable battery in the house, from room states, and where each shows (utils/batteries.js): on the zone
+// whose heating uses it, else on the zone or group its HA area is mapped to, else at the top of the page.
+const batteries = ref([])
+const { loadSettings, areaPlacement, saveAreaPlacement } = useDeviceSettings()
+const batteryPlacement = computed(() => placeBatteries(batteries.value, rooms.value, layoutTree.value, areaPlacement.value))
+const unplacedLow = computed(() => batteryPlacement.value.unplaced.filter(isLow))
+const unplacedLowest = computed(() => lowestLow(unplacedLow.value))
+const batteryTargets = computed(() => placeTargets(layoutTree.value, roomsById.value))
+const showBatteries = ref(false)
+const savingAreas = ref(false)
+const areasError = ref('')
+
+const closeBatteries = () => {
+  if (savingAreas.value) return
+  areasError.value = ''
+  showBatteries.value = false
+}
+
+const handleSaveAreas = async (placement) => {
+  savingAreas.value = true
+  areasError.value = ''
+  try {
+    await saveAreaPlacement(placement)
+    showBatteries.value = false
+  } catch (err) {
+    areasError.value = err?.message || 'The areas could not be saved. Try again.'
+  } finally {
+    savingAreas.value = false
+  }
+}
 // What the device rules editor needs: the zones a presence rule can name, and every device it could be saved for.
 const presenceZoneList = computed(() => presenceZones(rooms.value))
 const drivableDeviceList = computed(() => drivableDevices(rooms.value))
@@ -339,6 +402,9 @@ const handleVisibilityChange = async () => {
 }
 
 onMounted(async () => {
+  // Where each HA area's battery devices show. Not awaited: until it loads they warn at the top of the page.
+  loadSettings()
+
   // Load previously expanded room from cookie
   const savedExpandedRoom = getCookie(EXPANDED_ROOM_COOKIE)
   if (savedExpandedRoom && savedExpandedRoom !== 'null') {
@@ -453,6 +519,7 @@ const loadSchedules = async (silent = false) => {
       const statesData = await heatingApi.getRoomStates()
       roomStates.value = statesData.roomStates || []
       boilerState.value = statesData.boiler ?? null
+      batteries.value = statesData.batteries ?? []
     } catch (stateErr) {
       console.warn('Failed to load room states, using defaults:', stateErr)
       roomStates.value = []
@@ -478,6 +545,7 @@ const loadRoomStates = async () => {
     const statesData = await heatingApi.getRoomStates()
     roomStates.value = statesData.roomStates || []
     boilerState.value = statesData.boiler ?? null
+    batteries.value = statesData.batteries ?? []
 
     // Update room states without affecting schedule configuration
     rooms.value = rooms.value.map(room => {
@@ -811,6 +879,7 @@ provide(HEATING_LAYOUT, {
   // Every zone with its occupancy, for the first save of the zones' presence detectors.
   zones: rooms,
   layoutTree,
+  batteryPlacement,
   editLayout,
   occupancyFilter: toRef(props, 'occupancyFilter'),
   expandedRoomId,
@@ -938,8 +1007,15 @@ provide(HEATING_LAYOUT, {
 }
 
 /* Pushed to the left of the toolbar, opposite the layout buttons. */
-.boiler-status {
+.toolbar-status {
   margin-right: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.boiler-status {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -954,6 +1030,20 @@ provide(HEATING_LAYOUT, {
 .boiler-status.on {
   border-color: var(--color-warning);
   color: var(--color-warning);
+}
+
+.battery-alert {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--color-warning);
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+}
+
+.battery-alert:hover {
+  background-color: var(--hover-bg);
 }
 
 .btn-layout {

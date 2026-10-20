@@ -11,6 +11,33 @@ public class RoomStatesResponse
     /// to send it. A belief, not a reading: nothing in Home Assistant can see the boiler itself.
     /// </summary>
     public BoilerStateDto? Boiler { get; set; }
+
+    /// <summary>
+    /// Every replaceable battery in the house (owner, 2026-10-20): the cells in TRVs, thermometers, buttons, motion
+    /// and flood sensors and the boiler fingerbot; not phones, the car or the home battery. The UI places each on a
+    /// zone (one that uses any of the device's entities), else by its Home Assistant area, else at the top of the
+    /// page, and warns at 20% or below. Null from an app too old to send it.
+    /// </summary>
+    public List<BatteryDeviceDto>? Batteries { get; set; }
+}
+
+/// <summary>One device's replaceable battery, with what the UI needs to say where the device is.</summary>
+public class BatteryDeviceDto
+{
+    /// <summary>The battery sensor, e.g. sensor.bedroom_1_radiator_battery.</summary>
+    public string EntityId { get; set; } = string.Empty;
+
+    /// <summary>The device's name in Home Assistant (the owner's name for it if set), else the sensor's.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>The charge in percent, or null while the sensor is unavailable (a silent device is not a flat one).</summary>
+    public double? Percent { get; set; }
+
+    /// <summary>The Home Assistant area of the sensor or its device, or null for none.</summary>
+    public string? Area { get; set; }
+
+    /// <summary>Every entity of the battery's device, so the UI can tell which zone's heating uses it.</summary>
+    public List<string> DeviceEntityIds { get; set; } = [];
 }
 
 public class BoilerStateDto
@@ -120,4 +147,6 @@ public static class RoomDeviceRoles
     public const string DeskPower = "deskPower";
     public const string TvPower = "tvPower";
     public const string LightsPlug = "lightsPlug";
+    /// <summary>The router's list of devices online, which phone presence is read from.</summary>
+    public const string RouterDevices = "routerDevices";
 }

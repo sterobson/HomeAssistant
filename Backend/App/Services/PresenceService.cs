@@ -2,11 +2,12 @@
 using HomeAssistant.Shared.Climate;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace HomeAssistant.Services;
 
-/// <summary>A presence detector: one way of telling, from plugs, that someone is using something.</summary>
+/// <summary>A presence detector: one way of telling, from plugs or the router, that someone is there or using something.</summary>
 internal sealed record PresenceDetector(
     string Id,
     string Label,
@@ -74,6 +75,28 @@ internal class PresenceService : IPresenceService
     internal static readonly TimeSpan DenTvSteadyFor = TimeSpan.FromSeconds(5);
     internal const string LivingRoomTvOn = "living-room-tv-on";
     internal const string LivingRoomLightsOn = "living-room-lights-on";
+    internal const string StePhoneHome = "ste-phone-home";
+    internal const string RuthPhoneHome = "ruth-phone-home";
+    internal const string EllePhoneHome = "ellie-phone-home";
+
+    /// <summary>
+    /// Every device the Linksys Velop router lists as online, in its <c>devices</c> attribute (each with the router's
+    /// own <c>id</c>). Phones are looked for here rather than through the integration's device trackers, which see
+    /// nothing of a phone joined to a secondary Velop unit (HOME-ASSISTANT.md, router note).
+    /// </summary>
+    internal const string RouterOnlineDevices = "sensor.mesh_online_devices";
+
+    /// <summary>The router's id for Ste's phone (it gives no name, so the router lists it as "unknown").</summary>
+    internal const string StePhoneRouterId = "ce8b9c19-dd29-4250-8b90-6fccf8cef4b9";
+
+    /// <summary>
+    /// The router's id for Ruth's phone, listed as "Android_SBFUAFP4". Found 2026-10-20 as the one device that came
+    /// online when she woke (her phone is in flight mode overnight, so this reads "away" while she sleeps).
+    /// </summary>
+    internal const string RuthPhoneRouterId = "ec6744ee-6707-4f8d-8fa4-6de13650bdb7";
+
+    /// <summary>The router's id for Ellie's phone, listed as "Android_17YGONY5".</summary>
+    internal const string EllePhoneRouterId = "0461c717-bf51-4b13-b17a-f58c2e0cada0";
 
     /// <summary>
     /// Which detectors count for each zone until the owner saves their own: exactly what each zone had when this
@@ -128,7 +151,18 @@ internal class PresenceService : IPresenceService
             // Follows the WiZ lamp through two HA automations, so it inherits that lamp's lag (HOME-ASSISTANT.md gotcha 15).
             new(LivingRoomLightsOn, "Living room stick lights on", true,
                 [(namedEntities.LivingRoomStickLightsPlugOnOff.EntityId, RoomDeviceRoles.LightsPlug)],
-                () => Task.FromResult(namedEntities.LivingRoomStickLightsPlugOnOff.IsOn()))
+                () => Task.FromResult(namedEntities.LivingRoomStickLightsPlugOnOff.IsOn())),
+            // Phones on the home Wi-Fi (owner, 2026-10-20): for individual zones only, not "house". No zone uses
+            // them until the owner chooses them. The router refreshes its list about once a minute.
+            new(StePhoneHome, "Ste's phone on the home Wi-Fi", false,
+                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
+                () => Task.FromResult(IsOnRouter(ha, StePhoneRouterId))),
+            new(RuthPhoneHome, "Ruth's phone on the home Wi-Fi", false,
+                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
+                () => Task.FromResult(IsOnRouter(ha, RuthPhoneRouterId))),
+            new(EllePhoneHome, "Ellie's phone on the home Wi-Fi", false,
+                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
+                () => Task.FromResult(IsOnRouter(ha, EllePhoneRouterId)))
         ];
         _detectorsById = _detectors.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
 
@@ -207,6 +241,28 @@ internal class PresenceService : IPresenceService
 
         bool someoneHome = _detectors.Any(d => d.MeansSomeoneHome && detectors[d.Id]);
         return new PresenceSnapshot(zones, someoneHome, detectors);
+    }
+
+    /// <summary>
+    /// True when the router's online list (<see cref="RouterOnlineDevices"/>) holds a device with this router id.
+    /// A missing or unavailable list counts as nobody online.
+    /// </summary>
+    internal static bool IsOnRouter(IHaContext ha, string routerId)
+    {
+        JsonElement? attributes = ha.GetState(RouterOnlineDevices)?.AttributesJson;
+        if (!attributes.HasValue
+            || attributes.Value.ValueKind != JsonValueKind.Object
+            || !attributes.Value.TryGetProperty("devices", out JsonElement devices)
+            || devices.ValueKind != JsonValueKind.Array)
+        {
+            return false;
+        }
+
+        return devices.EnumerateArray().Any(device =>
+            device.ValueKind == JsonValueKind.Object
+            && device.TryGetProperty("id", out JsonElement id)
+            && id.ValueKind == JsonValueKind.String
+            && string.Equals(id.GetString(), routerId, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

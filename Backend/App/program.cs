@@ -108,6 +108,7 @@ try
                 .Services
                 .AddScoped<ISchedulePersistenceService, SchedulePersistenceService>()
                 .AddScoped<IRoomStatePersistenceService, RoomStatePersistenceService>()
+                .AddScoped<IBatteryOverview, BatteryOverview>()
                 .AddScoped<IBoilerVerificationService, BoilerVerificationService>()
                 .AddScoped<IBoilerStatePersistence, BoilerStatePersistence>()
                 .AddScoped<HeatingControlService>()

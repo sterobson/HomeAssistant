@@ -1,17 +1,28 @@
-// Read or restart a Home Assistant add-on through the Supervisor, over the websocket.
+// Read or restart a Home Assistant add-on through the Supervisor.
 //
-//   node tools/ha/addon.cjs <slug>            state and version
-//   node tools/ha/addon.cjs <slug> restart    restart it, then wait until it reports started again
+//   node tools/ha/addon.cjs <slug>                       state and version
+//   node tools/ha/addon.cjs <slug> log [regex] [--lines 80]   the current run's log, optionally only matching lines
+//   node tools/ha/addon.cjs <slug> restart               restart it, then wait until it reports started again
 //
 // Slugs: c6a2317c_netdaemon6 (the NetDaemon app), core_samba (the config share).
-// The REST /api/hassio proxy returns 401 for a long-lived token, so this goes through the websocket's
-// `supervisor/api` command instead (see DEPLOYMENT.md → "The Samba share, and restarting add-ons").
-const { connect, parseArgs, run } = require('./lib/ha.cjs');
+// State and restart go through the websocket's `supervisor/api` command, because the REST /api/hassio proxy
+// returns 401 for them with a long-lived token (see DEPLOYMENT.md → "The Samba share, and restarting add-ons").
+// The log is the other way round: REST `/api/hassio/addons/<slug>/logs` serves it as plain text, while the
+// websocket command fails on it (it expects JSON). Only the current run: the log starts again at each restart.
+const { connect, restText, parseArgs, run } = require('./lib/ha.cjs');
 
 run(async () => {
   const args = parseArgs();
-  const [slug, action] = args._;
-  if (!slug) throw new Error('usage: node tools/ha/addon.cjs <slug> [restart]');
+  const [slug, action, pattern] = args._;
+  if (!slug) throw new Error('usage: node tools/ha/addon.cjs <slug> [log [regex] | restart]');
+
+  if (action === 'log') {
+    const text = await restText('GET', `/hassio/addons/${slug}/logs`);
+    const filter = pattern ? new RegExp(pattern, 'i') : null;
+    const lines = text.split('\n').map((l) => l.replace(/\x1b\[[0-9;]*m/g, '')).filter((l) => !filter || filter.test(l));
+    for (const line of lines.slice(-Number(args.lines ?? 80))) console.log(line);
+    return;
+  }
 
   const ha = await connect();
   const info = () => ha.call({ type: 'supervisor/api', endpoint: `/addons/${slug}/info`, method: 'get' });

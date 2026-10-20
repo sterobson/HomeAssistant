@@ -12,7 +12,8 @@
 
       <div class="devices-body">
         <p class="devices-hint">
-          What the heating uses here, with each device's state when the house last reported.
+          What the heating uses here and the batteries that belong here, with each device's state when the house
+          last reported.
         </p>
 
         <section v-for="section in sections" :key="section.roomId" class="devices-section">
@@ -28,11 +29,11 @@
             <button type="button" class="rules-btn" @click="openOccupancy(section)">Occupancy</button>
           </div>
 
-          <p v-if="section.devices.length === 0" class="no-devices">
+          <p v-if="section.devices.length === 0 && !section.batteries?.length" class="no-devices">
             No devices. Nothing is bound to this name, or the house has not reported yet.
           </p>
 
-          <template v-else>
+          <template v-if="section.devices.length > 0">
             <div v-for="group in groupDevices(section.devices)" :key="group.key" class="device-group">
               <h5 class="group-title">{{ group.title }}</h5>
               <ul class="device-list">
@@ -55,6 +56,28 @@
               </ul>
             </div>
           </template>
+
+          <!-- Every replaceable battery shown here: the heating devices' own, and buttons and sensors placed here
+               by their Home Assistant area (utils/batteries.js). -->
+          <div v-if="section.batteries?.length" class="device-group">
+            <h5 class="group-title">Batteries</h5>
+            <ul class="device-list">
+              <li
+                v-for="battery in sortedBatteries(section.batteries)"
+                :key="battery.entityId"
+                class="device"
+                :class="{ unavailable: battery.percent == null, 'battery-low': isLow(battery) }"
+              >
+                <div class="device-main">
+                  <span class="device-name">{{ battery.name }}</span>
+                  <span class="device-state">{{ battery.percent == null ? 'Unavailable' : `${Math.round(battery.percent)}%` }}</span>
+                </div>
+                <div v-if="battery.area" class="device-meta">
+                  <span class="device-role">{{ battery.area }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
         </section>
       </div>
 
@@ -103,6 +126,11 @@ import { useFormatting } from '../composables/useFormatting.js'
 import { describeState, deviceName, groupDevices, isUnavailable, roleLabel } from '../utils/roomDevices.js'
 import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
 import { effectiveDetectorIds, summariseOccupancy } from '../utils/zoneOccupancy.js'
+import { isLow } from '../utils/batteries.js'
+
+// Lowest first, so a battery that needs changing is at the top; then by name.
+const sortedBatteries = (batteries) => [...batteries].sort((a, b) =>
+  (a.percent ?? 101) - (b.percent ?? 101) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
 
 const { formatTempWithUnit } = useFormatting()
 const { deviceRules, loadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
@@ -367,6 +395,15 @@ const saveRules = async (rules) => {
 
 .device.unavailable .device-state {
   color: var(--color-danger, #e74c3c);
+  font-weight: 600;
+}
+
+.device.battery-low {
+  border-color: var(--color-warning);
+}
+
+.device.battery-low .device-state {
+  color: var(--color-warning);
   font-weight: 600;
 }
 

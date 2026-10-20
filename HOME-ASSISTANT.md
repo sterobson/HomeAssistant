@@ -38,7 +38,9 @@ curl -s -o /dev/null -w "%{http_code}\n" http://homeassistant.local:8123/
 | `/api/history/period/{start}` | GET | works | Recorder history — **see gotcha 1** |
 | `/api/config/config_entries/entry` | GET | works | Every integration + load state. High value |
 | `/api/services/{domain}/{service}` | POST | works | Write. Physical effects — see Safety |
-| `/api/error_log` | GET | **404** | Unavailable. Do not plan around logs |
+| `/api/error_log` | GET | **404** | Unavailable. Use the two below, or `system_log/list` over the websocket for warnings and errors with tracebacks |
+| `/api/hassio/addons/{slug}/logs` | GET | works | An add-on's log as plain text, last 100 lines (`tools/ha/addon.cjs <slug> log`). Verified 2026-10-19; the same proxy refuses `/info` with 401 |
+| `/api/hassio/core/logs` | GET | works | HA Core's own log, plain text, including debug lines after `logger.set_level` |
 | `/api/config/config_entries/flow` | GET | **405** | Cannot enumerate the discovery queue over REST |
 
 ## Gotchas
@@ -67,7 +69,7 @@ row before you finish — that is how this list earns its keep.
 | 14 | A configured entity ID reads nothing, with no error anywhere | `new NumericSensorEntity(ha, id)` succeeds for an entity that does not exist. It never throws, never logs, and its state-change subscription simply never fires. The "not configured" warning in `OctopusElectricityMeter` only covers an *empty* setting, not a dead one | Check device-settings entity IDs against `/api/states` rather than assuming a configured ID is a live one. `dotnet nd-codegen` is a good canary: entities vanishing from the generated file means they vanished from HA |
 | 15 | Something "follows" the living room lamp, but minutes late | The lamp (`light.living_room_lamp`, a WiZ Wi-Fi bulb) is switched by cutting its power at the wall, which tells HA nothing. HA only sees it go `unavailable` after the bulb stops answering its polls, and after an HA restart with the lamp off its WiZ config entry sits in `setup_retry`, whose retry interval keeps growing — so "lamp came back on" can wait for the next retry. Measured 2026-10-19 (owner switched on, then off a few seconds later): HA saw **on** within a few seconds (bulb boot + Wi-Fi join, with the WiZ entry `loaded`) but **off ~60 s late**; the light tree automations then followed each within ~0.1 s, so the whole delay is detection | Measure lamp lag against a known flip time before blaming an automation. Ways to speed up "off", not done (owner happy to live with it): a Zigbee button driving the bulb instead of cutting its power (instant both ways); a Zigbee plug under the lamp, only if the switch is on the lamp rather than the socket; or pinging the bulb every few seconds (~5–10 s, needs a fixed IP) |
 | 16 | Renaming an entity might silently orphan whatever tracks it | Some integrations store a target *entity ID*. The Octopus cost tracker does (`target_entity_id`) — but on 2026-10-19 it **followed** a registry rename live (`loving_room_charging_dock_summation_delivered` → `living_room_plug_tv_summation_delivered`). Whether that survives an HA restart was not checked | Before renaming, search states' attributes and automation configs for the old ID (`tools/ha/rename-device.cjs` leaves other integrations' entities alone, but cannot see what *refers* to them). After the next HA restart, check the tracker's `target_entity_id` |
-| 17 | The NetDaemon app forgets what it saved after an add-on restart | The Supervisor recreates an add-on's container on restart, so anything the app writes outside `/data` (or the mapped `/config`) is gone. Seen 2026-10-19: the boiler belief saved in the user profile was lost, the app assumed the boiler was off, and it never pressed it off. Inferred from the app's behaviour (it skipped a press it would otherwise have made); the add-on log could not be read through the API to confirm | The app's caches go in `/data/HomeAssistant` when it runs as an add-on (`LocalStorageFolder`). Anything else that must survive a restart belongs there too |
+| 17 | The NetDaemon app forgets what it saved after an add-on restart | The Supervisor recreates an add-on's container on restart, so anything the app writes outside `/data` (or the mapped `/config`) is gone. Seen 2026-10-19: the boiler belief saved in the user profile was lost, the app assumed the boiler was off, and it never pressed it off. Inferred from the app's behaviour (it skipped a press it would otherwise have made). The add-on log can be read after all (`tools/ha/addon.cjs c6a2317c_netdaemon6 log`), but only the last 100 lines of the current run | The app's caches go in `/data/HomeAssistant` when it runs as an add-on (`LocalStorageFolder`). Anything else that must survive a restart belongs there too |
 | 18 | The boiler fingerbot changed state with nobody pressing it | At 13:17:08 BST on 2026-10-19 `switch.tz3210_j4pdtz9v_ts0001` went `on` with **no context** in the logbook (no user, automation or service call: the device reported it). Either someone touched the fingerbot's own button or it sent a spurious report. The app counts any change it did not command as a press, flipped its belief and pressed 21 s later. If the report was spurious, that press really toggled the boiler | Run `tools/ha/who-changed.cjs switch.tz3210_j4pdtz9v_ts0001` before trusting any fingerbot change: "Supervisor" is the app, a named user is a person or a script on their token, and no context is the device. If uncommanded reports recur, the outside-press rule needs rethinking |
 | 19 | The Dreame Vacuum login form says only "Could not login, check the credentials." | The form hides the cloud's answer. The real one is in HA's system log (websocket `system_log/list`, logger `custom_components.dreame_vacuum.dreame.protocol`). On 2026-10-19 it was `user password not match` with `maxAttempts 5` and a `remains` count, so the account and region were right, only the password was wrong, and **each failed submit spends one of five attempts** before the account is locked. The account had been created with Google sign-in, which the integration cannot use, so a password had to be set in the Dreamehome app first | Read the system log after the first failure instead of retrying the form. Test the password in the Dreamehome app itself before submitting it again |
 | 20 | The phones' trackers say "home" all day, even when they are miles away | Home Assistant is only reachable on the home network (no external URL, Home Assistant Cloud not logged in; read from `/api/config` and `cloud/status`, 2026-10-19). Away from the Wi-Fi a phone's Companion app cannot reach it, so it sends nothing and the tracker keeps its last state, "home". Ste's and Ruth's trackers said "home" for all 10 days of history while the owner confirmed both phones were out many times; every one of their ~1,300 position reports was within ~150 m of home. Ellie's and Kevin's phones have location off as well ("unknown") | Do not use `device_tracker.*` or `person.*` for presence until remote access exists (Home Assistant Cloud, a VPN such as Tailscale, or router-based presence). Check a tracker's history for any "not_home" before trusting it |
@@ -245,8 +247,51 @@ answers `core/GetDeviceInfo` without a login, but the connected-devices list (`d
 admin password. Home Assistant has discovered it over UPnP as "Linksys10796" (a pending, un-set-up `upnp` flow,
 which gives traffic stats only, not devices). The phone trackers are useless while HA is only reachable at home
 (gotcha 20), so this is the candidate for presence: the community **Linksys Velop** integration
-(`uvjim/linksys_velop`, HACS custom repository, maintained; release 2026.10.1) has device trackers for chosen
-Wi-Fi devices. Its README does not name the MX5500; not yet tried.
+(`uvjim/linksys_velop`, HACS custom repository, maintained) has device trackers for chosen Wi-Fi devices.
+
+**Installed 2026-10-19; working since HA Core was upgraded on 2026-10-20** (integration 2026.10.1 on HA
+2026.10.2). The trackers update every ~10 s with the phone's IP, and away is declared 180 s after a phone drops
+off (`consider_home`). History, from HA's system log and states:
+- **On HA 2026.2.2 it could not work.** Release 2026.10.1 does not load there (it uses
+  `SensorDeviceClass.UPTIME`, which that HA lacks, though its `hacs.json` claims HA 2026.1 is enough), and
+  under 2026.9.1 the entities were written only when the entry loaded, never on later polls, so trackers were
+  stuck at whatever was true at load. A config entry created by a newer release fails with `migration_error`
+  under an older one; downgrading means deleting and re-adding it (the owner types the router password).
+- The router's node status sensors (`binary_sensor.router_status`, `child_node_1_status`, `child_node_2_status`)
+  crashed in `pyvelop` (`super(type, obj): obj (instance of NodeAdapterInfo) is not an instance ...`) under
+  2026.9.1 and starved the trackers, so they were **disabled** in the entity registry. Still disabled; not
+  re-tested on 2026.10.1.
+- **Phones appear under random names.** Android phones use a random Wi-Fi address per network and show up as
+  `Android_XXXXXXXX`. **Ellie's phone (Samsung Galaxy A56, SM-A566B) is `Android_17YGONY5`**, found by its IP
+  (192.168.1.253 on 2026-10-19), router id `0461c717-bf51-4b13-b17a-f58c2e0cada0`, tracked as
+  `device_tracker.android_17ygony5` (read `home` 2026-10-20). The
+  entries named `Ste-s-A54` and `Ruth-s-A55` (also tracked) were not online while both phones were at home, so
+  they are probably stale entries from before the random addresses, and the phones' current entries are
+  unknown. Find each by the IP the phone shows in its Wi-Fi settings, as for Ellie's.
+- Everything the router sees online is in `sensor.mesh_online_devices` → `devices` (name, router id, IP, which
+  Velop unit). **Use this, not the trackers, for presence:** on 2026-10-20 Ste's phone (router name "unknown",
+  MAC `A2:10:03:4A:15:87`, id `ce8b9c19-dd29-4250-8b90-6fccf8cef4b9`, IP 192.168.1.129 per the phone) was in
+  this list on Child node 1 with no IP, while its tracker stayed `unknown` for good: the trackers' per-device
+  query returns no connection data for phones on a secondary unit. Ellie's tracker works only while she is on the
+  main router. The NetDaemon app's phone detectors read this list. Trackers kept, renamed
+  `device_tracker.ste_phone_wifi` and `device_tracker.ellie_phone_wifi`. **Ruth's phone (Samsung Galaxy A55,
+  SM-A556E) is `Android_SBFUAFP4`**, router id `ec6744ee-6707-4f8d-8fa4-6de13650bdb7`, MAC `8E:60:52:EE:88:75`,
+  192.168.1.22, tracked as `device_tracker.ruth_phone_wifi` since 2026-10-20 (read `home`). Found without
+  touching her phone: it was the only device to come online after she woke, minutes after her HA app reported in
+  for the first time since the night; not confirmed from the phone itself. The stale `Ruth-s-A55` entry (on the
+  router's offline list) is no longer tracked. **Ruth's phone goes into flight mode overnight** (owner,
+  2026-10-20), so it is off the Wi-Fi while she sleeps and her phone detector reads "away" at night.
+  "Android_304051d4d2134f188932394429bf9c2e" (192.168.1.26) was online while her phone was in flight mode, so it
+  is not hers; not identified.
+
+**HA Core upgrade, 2026-10-20: 2026.2.2 → 2026.10.2.** A full backup was taken first (slug `9066c98e`, 281 MB,
+on the host and copied to `C:\Users\stero\HomeAssistantBackups\9066c98e.tar`, hash-checked); restoring it puts
+back 2026.2.2 with every add-on. Only Core and Linksys Velop were updated; the OS (17.1), the add-ons (NetDaemon
+26.3.0 must match what the app is built against) and the other HACS integrations (SolaX, Hypervolt, MG) were
+left on their old versions, which all loaded. Compared with a snapshot taken before: no entity disappeared, none
+that worked became unavailable, no errors in the system log; ZHA gained ~50 entities (TRV boost/timer controls,
+plug LED switches) that nothing uses. The NetDaemon app reconnected by itself within about a minute and resumed
+from its saved boiler belief.
 
 **Boiler fingerbot** — `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
 Tuya TS0001 (`_TZ3210_j4pdtz9v`) on ZHA. Takes a **CR2 battery**, and replacing it is

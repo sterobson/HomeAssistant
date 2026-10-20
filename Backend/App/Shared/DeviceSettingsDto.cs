@@ -67,6 +67,15 @@ public class HeatingSettingsDto
     /// Keep in step with the copy in the Functions project.
     /// </summary>
     public Dictionary<string, List<string>>? ZoneOccupancy { get; set; }
+
+    /// <summary>
+    /// Where the web UI shows battery devices that are not part of any zone's heating (buttons, motion and flood
+    /// sensors), by their Home Assistant area name: <c>"room:{id}"</c> for a zone or <c>"group:{id}"</c> for a
+    /// layout group (owner, 2026-10-20). Presentation only; the NetDaemon app never reads it. An area with no
+    /// entry, or a device with no area, shows at the top of the heating page. Keep in step with the copy in the
+    /// Functions project.
+    /// </summary>
+    public Dictionary<string, string>? AreaPlacement { get; set; }
 }
 
 /// <summary>

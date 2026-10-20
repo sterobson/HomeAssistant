@@ -61,6 +61,13 @@ public class HeatingSettingsDto
     /// NetDaemon app evaluates them. Mirrors Backend/App/Shared/DeviceSettingsDto.cs — keep the two in step.
     /// </summary>
     public Dictionary<string, List<string>>? ZoneOccupancy { get; set; }
+
+    /// <summary>
+    /// Where the web UI shows battery devices outside any zone's heating, by Home Assistant area name:
+    /// <c>"room:{id}"</c> or <c>"group:{id}"</c>. Presentation only. Mirrors Backend/App/Shared/DeviceSettingsDto.cs
+    /// — keep the two in step.
+    /// </summary>
+    public Dictionary<string, string>? AreaPlacement { get; set; }
 }
 
 /// <summary>

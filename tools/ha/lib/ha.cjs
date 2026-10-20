@@ -34,6 +34,12 @@ const token = loadToken();
 // GET/POST against the REST API. Returns parsed JSON; throws on a non-2xx status.
 // Remember gotcha 5: a 200 from a service call does not mean the device did anything.
 async function rest(method, apiPath, body) {
+  const text = await restText(method, apiPath, body);
+  return text ? JSON.parse(text) : null;
+}
+
+// The same, returning the body as text, for the endpoints that answer in plain text (add-on logs).
+async function restText(method, apiPath, body) {
   const res = await fetch(`http://${HOST}/api${apiPath}`, {
     method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -41,7 +47,7 @@ async function rest(method, apiPath, body) {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`${method} ${apiPath} -> ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
+  return text;
 }
 
 // WebSocket API, needed for the device/entity/area registries, which REST does not expose.
@@ -119,4 +125,4 @@ function run(main) {
   main().catch((e) => { console.error(e.message || e); process.exit(1); });
 }
 
-module.exports = { HOST, rest, connect, snapshot, parseArgs, run };
+module.exports = { HOST, rest, restText, connect, snapshot, parseArgs, run };

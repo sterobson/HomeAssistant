@@ -59,6 +59,7 @@ describe('describeState', () => {
   it('adds the unit for other sensors', () => {
     expect(describeState({ role: 'deskPower', state: '45.2', unit: 'W' }, celsius)).toBe('45.2 W')
     expect(describeState({ role: 'tvPower', state: '4.0', unit: 'W' }, celsius)).toBe('4.0 W')
+    expect(describeState({ role: 'routerDevices', state: '21', unit: 'devices' }, celsius)).toBe('21 devices')
   })
 
   it('never shows an unreachable device as a reading', () => {
@@ -83,6 +84,7 @@ describe('labels', () => {
     expect(roleLabel('tvPower')).toBe('TV power')
     expect(roleLabel('lightsPlug')).toBe('Lights plug')
     expect(roleLabel('deskPlug')).toBe('Desk plug')
+    expect(roleLabel('routerDevices')).toBe('Router')
     expect(roleLabel('somethingNew')).toBe('Device')
   })
 

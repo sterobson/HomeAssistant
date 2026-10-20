@@ -123,7 +123,7 @@ mains versus battery, and which devices are deliberately offline.
 
 **Use the scripts in [tools/ha/](tools/ha/README.md) before writing your own queries.** They cover
 state history (`entity-history.cjs`), what caused each change (`who-changed.cjs`: a user, the
-NetDaemon app as "Supervisor", or the device itself), add-on state and restarts (`addon.cjs`), running the
+NetDaemon app as "Supervisor", or the device itself), add-on state, logs and restarts (`addon.cjs`), running the
 monthly valve exercise now (`valve-exercise.cjs`),
 finding entities by friendly name (`find-entities.cjs`),
 the device/area registry (`list-devices.cjs`), pairing a Zigbee device with house-style names
@@ -197,7 +197,14 @@ Four consequences worth knowing before changing any of this:
   shows someone is there (`MeansSomeoneHome`), whichever zone it belongs to. Each room state carries its
   `occupancy` (its detector ids, whether default, and every detector with whether it is active now). Every
   detector is checked once per pass (`GetSnapshotAsync`), and both schedule conditions and device rules read
-  that snapshot. Adding a *new kind* of detector is still a code change. The built-in defaults:
+  that snapshot. Adding a *new kind* of detector is still a code change. **Phones** (owner, 2026-10-20): "Ste's
+  phone on the home Wi-Fi", "Ruth's" and "Ellie's" are active while the router's online list
+  (`sensor.mesh_online_devices` → `devices`, from the Linksys Velop integration) holds that phone's router id.
+  They do not count towards "house" and no zone uses them by default. They read the list, not the integration's
+  device trackers, which are blind to a phone on a secondary Velop unit. Ruth's phone is in flight mode
+  overnight, so hers reads "away" while she sleeps. A phone that gets a new random Wi-Fi address shows up as a
+  new router device, and its detector silently reads "away" until the id in `PresenceService` is updated (see
+  HOME-ASSISTANT.md → router note for finding it). The built-in defaults:
   Ste's desk (`games desk`) uses its desk
   plug (on, and ≥ 40 W within the last 5 minutes). **Ruth's desk plug gives two detectors** (owner,
   2026-10-19): `dining desk` is in use while the plug is on **and** has drawn ≥ 30 W for the whole of the last

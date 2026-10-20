@@ -27,6 +27,45 @@ public sealed class HeatingBoilerControlTests
     private const string EnabledLogFragment = "Boiler control is ENABLED";
 
     [TestMethod]
+    public async Task Batteries_GoUpWithTheRoomStates_AndAChangedLevelIsReasonEnoughToUpload()
+    {
+        // The UI's low-battery icons come from the room-state upload (owner, 2026-10-20). Levels move slowly and
+        // without touching the heating, so a changed battery has to trigger an upload by itself.
+        FakeBatteryOverview batteries = new();
+        batteries.Batteries.Add(new BatteryDeviceDto
+        {
+            EntityId = "sensor.desk_button_battery", Name = "Dining Room - Desk - Button", Percent = 22, Area = "Dining Room",
+            DeviceEntityIds = ["sensor.desk_button_battery"]
+        });
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, 10, 10, batteries: batteries);
+
+        await context.Service.EvaluateAllSchedules("first pass");
+        await context.Service.EvaluateAllSchedules("settled");
+        context.LastUploadedBatteries()!.Single().Percent.ShouldBe(22);
+        int uploads = context.UploadCount();
+
+        await context.Service.EvaluateAllSchedules("nothing changed");
+        context.UploadCount().ShouldBe(uploads, "nothing changed, so nothing to send");
+
+        batteries.Batteries[0].Percent = 19;
+        await context.Service.EvaluateAllSchedules("the button's battery dropped");
+        context.UploadCount().ShouldBe(uploads + 1);
+        context.LastUploadedBatteries()!.Single().Percent.ShouldBe(19);
+    }
+
+    /// <summary>Batteries as the test sets them; each read returns copies, as the real overview builds new ones.</summary>
+    private sealed class FakeBatteryOverview : IBatteryOverview
+    {
+        public List<BatteryDeviceDto> Batteries { get; } = [];
+
+        public List<BatteryDeviceDto> Read() => [.. Batteries.Select(battery => new BatteryDeviceDto
+        {
+            EntityId = battery.EntityId, Name = battery.Name, Percent = battery.Percent, Area = battery.Area,
+            DeviceEntityIds = [.. battery.DeviceEntityIds]
+        })];
+    }
+
+    [TestMethod]
     public async Task BoilerThermostatMode_DoesNotPressTheFingerbot()
     {
         BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.BoilerThermostat);
@@ -904,6 +943,15 @@ public sealed class HeatingBoilerControlTests
             .Select(call => (BoilerStateDto?)call.GetArguments()[1])
             .LastOrDefault();
 
+        /// <summary>The batteries sent with the most recent room-state upload.</summary>
+        public List<BatteryDeviceDto>? LastUploadedBatteries() => StatePersistence.ReceivedCalls()
+            .Where(call => call.GetMethodInfo().Name == nameof(IRoomStatePersistenceService.SetStatesAsync))
+            .Select(call => (List<BatteryDeviceDto>?)call.GetArguments()[2])
+            .LastOrDefault();
+
+        public int UploadCount() => StatePersistence.ReceivedCalls()
+            .Count(call => call.GetMethodInfo().Name == nameof(IRoomStatePersistenceService.SetStatesAsync));
+
         /// <summary>
         /// Gives the living room the den's real pattern: 15 °C while nobody is in it, and an "in use" track at
         /// <paramref name="inUseTemperature"/> that is only selected while presence says someone is there.
@@ -938,9 +986,14 @@ public sealed class HeatingBoilerControlTests
             double livingRoomTarget,
             double bedroom2Target,
             bool realVerification = false,
-            InMemoryBoilerStatePersistence? boilerState = null)
+            InMemoryBoilerStatePersistence? boilerState = null,
+            IBatteryOverview? batteries = null)
         {
             ServiceCollection services = new();
+            if (batteries != null)
+            {
+                services.AddSingleton(batteries);
+            }
 
             RecordingLogger<HeatingControlService> logger = new();
             IBoilerVerificationService substituteVerification = Substitute.For<IBoilerVerificationService>();

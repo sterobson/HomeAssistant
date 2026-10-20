@@ -14,14 +14,16 @@ const ROLE_LABELS = {
   deskPlug: 'Desk plug',
   deskPower: 'Desk power',
   tvPower: 'TV power',
-  lightsPlug: 'Lights plug'
+  lightsPlug: 'Lights plug',
+  // The router's list of devices online, which phone presence is read from.
+  routerDevices: 'Router'
 }
 
 // How a zone's devices are grouped in the UI: what it reads, what heats, and how it detects presence.
 export const DEVICE_GROUPS = [
   { key: 'readers', title: 'Readers', roles: ['thermometer'] },
   { key: 'heaters', title: 'Heaters', roles: ['radiatorValve', 'heaterPlug'] },
-  { key: 'presence', title: 'Presence', roles: ['deskPlug', 'deskPower', 'tvPower', 'lightsPlug'] }
+  { key: 'presence', title: 'Presence', roles: ['deskPlug', 'deskPower', 'tvPower', 'lightsPlug', 'routerDevices'] }
 ]
 
 // Display order within a zone, which is also the order within each group.

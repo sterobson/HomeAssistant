@@ -16,6 +16,8 @@
               <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
             </svg>
           </div>
+          <!-- Before the temperature, so temperatures stay in one column down the page. -->
+          <BatteryBadge v-if="lowestBattery" :battery="lowestBattery" :others-low="lowBatteries.length - 1" />
           <span v-if="temperatureText" class="current-temp">{{ temperatureText }}</span>
         </div>
       </div>
@@ -119,7 +121,9 @@ import { computed, inject, ref } from 'vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
 import BoostModal from './BoostModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
+import BatteryBadge from './BatteryBadge.vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
 import { groupBoostActive } from '../utils/boosts.js'
 import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
@@ -168,6 +172,12 @@ const props = defineProps({
   lockedBy: {
     type: String,
     default: null
+  },
+  // Batteries at or below the warning level to show here: the group's own, plus everything inside while it is
+  // collapsed (utils/batteries.js). The lowest shows in the header.
+  lowBatteries: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -193,8 +203,42 @@ const empty = computed(() => props.node.children.length === 0)
 // Every zone at any depth below this group, in layout order, each listed separately.
 const showDevices = ref(false)
 const roomsInGroup = computed(() => roomIdsIn(props.node).map(id => props.roomsById.get(id)).filter(Boolean))
-const groupDeviceSections = computed(() => deviceSections(roomsInGroup.value))
-const deviceCount = computed(() => distinctDeviceCount(roomsInGroup.value))
+const lowestBattery = computed(() => lowestLow(props.lowBatteries))
+
+// Batteries placed by HA area on this group or on groups inside it, each group in layout order, as sections of
+// their own ahead of the zones; and each zone's own batteries in its section.
+const placement = computed(() => layoutContext?.batteryPlacement.value ?? null)
+const groupBatterySections = computed(() => {
+  if (!placement.value) return []
+  const sections = []
+  const walk = (group) => {
+    const own = placement.value.byGroup.get(String(group.id)) ?? []
+    if (own.length > 0) {
+      sections.push({ roomId: `group:${group.id}`, title: group.name, icon: group.icon, devices: [], occupancy: null, batteries: own })
+    }
+    group.children.filter(child => child.type === 'group').forEach(walk)
+  }
+  walk(props.node)
+  return sections
+})
+const groupDeviceSections = computed(() => [
+  ...groupBatterySections.value,
+  ...deviceSections(roomsInGroup.value).map(section => ({
+    ...section,
+    batteries: placement.value ? batteriesForRoom(placement.value, section.roomId) : []
+  }))
+])
+// Every distinct heating device and battery device inside, a shared one counted once.
+const deviceCount = computed(() => {
+  const ids = new Set()
+  for (const section of groupDeviceSections.value) {
+    section.devices.forEach(device => ids.add(device.entityId))
+    section.batteries.forEach(battery => {
+      if (!battery.deviceEntityIds.some(id => ids.has(id))) ids.add(battery.entityId)
+    })
+  }
+  return ids.size || distinctDeviceCount(roomsInGroup.value)
+})
 
 // Boosting and sharing need at least one zone inside that can set a temperature (capability flag 1).
 const showBoost = ref(false)

@@ -7,6 +7,7 @@ using NetDaemon.HassModel.Entities;
 using NSubstitute;
 using Shouldly;
 using System.Reactive.Linq;
+using System.Text.Json;
 
 namespace HomeAssistant.Tests;
 
@@ -275,9 +276,13 @@ public sealed class PresenceServiceTests
 
         context.Service.Detectors.Select(d => d.Id).ShouldBe([
             PresenceService.GamesDeskInUse, PresenceService.DiningDeskInUse, PresenceService.DiningDeskSwitchedOn,
-            PresenceService.DenTvOn, PresenceService.DenTvOnNow, PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn
+            PresenceService.DenTvOn, PresenceService.DenTvOnNow, PresenceService.LivingRoomTvOn, PresenceService.LivingRoomLightsOn,
+            PresenceService.StePhoneHome, PresenceService.RuthPhoneHome, PresenceService.EllePhoneHome
         ]);
         context.Service.Detectors.Single(d => d.Id == PresenceService.DiningDeskSwitchedOn).MeansSomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.Single(d => d.Id == PresenceService.StePhoneHome).MeansSomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.Single(d => d.Id == PresenceService.RuthPhoneHome).MeansSomeoneHome.ShouldBeFalse();
+        context.Service.Detectors.Single(d => d.Id == PresenceService.EllePhoneHome).MeansSomeoneHome.ShouldBeFalse();
         context.Service.Detectors.ShouldAllBe(d => d.Label.Length > 0);
     }
 
@@ -357,6 +362,57 @@ public sealed class PresenceServiceTests
         ]);
     }
 
+    [TestMethod]
+    public async Task APhone_IsHomeWhileTheRouterListsItOnline_WhicheverUnitItIsOn()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetOnlineDevices(
+            """{ "name": "unknown", "id": "CE8B9C19-DD29-4250-8B90-6FCCF8CEF4B9", "ip": null, "parent_name": "Child node 1" }""");
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Detectors[PresenceService.StePhoneHome].ShouldBeTrue("listed, even with no IP, on a secondary unit, and in another case");
+        snapshot.Detectors[PresenceService.EllePhoneHome].ShouldBeFalse("not listed");
+    }
+
+    [TestMethod]
+    public async Task APhone_IsAway_WhenTheRouterListIsMissingOrUnreadable()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        (await context.Service.GetSnapshotAsync()).Detectors[PresenceService.StePhoneHome].ShouldBeFalse("no list at all");
+
+        context.Ha.GetState(PresenceService.RouterOnlineDevices).Returns(new EntityState
+        {
+            EntityId = PresenceService.RouterOnlineDevices,
+            State = "unavailable",
+            AttributesJson = JsonDocument.Parse("""{ "friendly_name": "Mesh Online Devices" }""").RootElement
+        });
+        (await context.Service.GetSnapshotAsync()).Detectors[PresenceService.StePhoneHome].ShouldBeFalse("a list with no devices");
+    }
+
+    [TestMethod]
+    public async Task Phones_DoNotCountTowardsHouse_AndNoZoneUsesThemUntilChosen()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetOnlineDevices(
+            $$"""{ "name": "unknown", "id": "{{PresenceService.StePhoneRouterId}}" }""",
+            $$"""{ "name": "Android_SBFUAFP4", "id": "{{PresenceService.RuthPhoneRouterId}}" }""",
+            $$"""{ "name": "Android_17YGONY5", "id": "{{PresenceService.EllePhoneRouterId}}" }""");
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Detectors[PresenceService.StePhoneHome].ShouldBeTrue();
+        snapshot.Detectors[PresenceService.RuthPhoneHome].ShouldBeTrue();
+        snapshot.Detectors[PresenceService.EllePhoneHome].ShouldBeTrue();
+        snapshot.SomeoneHome.ShouldBeFalse("owner: phones are for individual zones, not the house rule");
+        string[] phones = [PresenceService.StePhoneHome, PresenceService.RuthPhoneHome, PresenceService.EllePhoneHome];
+        PresenceService.DefaultZoneDetectors.Values.SelectMany(ids => ids).ShouldNotContain(id => phones.Contains(id));
+
+        context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = [PresenceService.StePhoneHome] });
+        (await context.Service.IsRoomInUse("den")).ShouldBeTrue("chosen for the den");
+        context.Service.GetPresenceDevices("den").ShouldBe([(PresenceService.RouterOnlineDevices, RoomDeviceRoles.RouterDevices)]);
+    }
+
     private sealed class PresenceTestContext
     {
         public required PresenceService Service { get; init; }
@@ -367,6 +423,17 @@ public sealed class PresenceServiceTests
         public void SetSwitch(string entityId, string state)
         {
             Ha.GetState(entityId).Returns(new EntityState { EntityId = entityId, State = state });
+        }
+
+        /// <summary>The router's online list, as the Linksys Velop integration publishes it, holding these devices.</summary>
+        public void SetOnlineDevices(params string[] devicesJson)
+        {
+            Ha.GetState(PresenceService.RouterOnlineDevices).Returns(new EntityState
+            {
+                EntityId = PresenceService.RouterOnlineDevices,
+                State = devicesJson.Length.ToString(),
+                AttributesJson = JsonDocument.Parse($$"""{ "devices": [{{string.Join(",", devicesJson)}}] }""").RootElement
+            });
         }
 
         public static PresenceTestContext Create()

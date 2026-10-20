@@ -89,6 +89,11 @@ internal partial class HeatingControlService
     private Dictionary<string, bool> _presenceInUse = new(StringComparer.OrdinalIgnoreCase);
     private PresenceSnapshot? _presence;
 
+    // The house's replaceable batteries, sent with every room-state upload for the UI's low-battery icons (owner,
+    // 2026-10-20). Optional so tests need not supply it. A battery changing is a reason to upload on its own.
+    private readonly IBatteryOverview? _batteryOverview;
+    private string? _uploadedBatteries;
+
     public HeatingControlService(
         IHaContext ha,
         INamedEntities namedEntities,
@@ -102,8 +107,10 @@ internal partial class HeatingControlService
         IRoomStatePersistenceService statePersistence,
         IBoilerVerificationService boilerVerification,
         IDeviceSettingsPersistenceService deviceSettings,
-        IBoilerStatePersistence boilerStatePersistence)
+        IBoilerStatePersistence boilerStatePersistence,
+        IBatteryOverview? batteryOverview = null)
     {
+        _batteryOverview = batteryOverview;
         _ha = ha;
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -344,7 +351,9 @@ internal partial class HeatingControlService
             }
 
             // Upload to API (SignalR notification will be broadcast automatically)
-            await _statePersistence.SetStatesAsync(_roomStates, DescribeBoiler());
+            List<BatteryDeviceDto>? batteries = ReadBatteries();
+            await _statePersistence.SetStatesAsync(_roomStates, DescribeBoiler(), batteries);
+            _uploadedBatteries = DescribeBatteries(batteries);
             _logger.LogDebug("Updated room states");
         }
         catch (Exception ex)
@@ -413,6 +422,9 @@ internal partial class HeatingControlService
             hasStateChanged |= boilerAfter.AppControlsBoiler != boilerBefore.AppControlsBoiler
                 || boilerAfter.BelievedOn != boilerBefore.BelievedOn
                 || boilerAfter.Since != boilerBefore.Since;
+
+            // So does a battery level, area or name changing (checked every pass; levels move slowly).
+            hasStateChanged |= _batteryOverview != null && DescribeBatteries(ReadBatteries()) != _uploadedBatteries;
 
             if (hasStateChanged)
             {
@@ -1435,6 +1447,32 @@ internal partial class HeatingControlService
 
         return inUse;
     }
+
+    /// <summary>The house's replaceable batteries, or null when there is no overview or it cannot be read.</summary>
+    private List<BatteryDeviceDto>? ReadBatteries()
+    {
+        if (_batteryOverview == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _batteryOverview.Read();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not read the house's batteries; room states go up without them");
+            return null;
+        }
+    }
+
+    /// <summary>A comparable summary of the batteries: what the UI shows of each, nothing else.</summary>
+    private static string DescribeBatteries(List<BatteryDeviceDto>? batteries) =>
+        batteries == null
+            ? string.Empty
+            : string.Join("\n", batteries.Select(battery =>
+                $"{battery.EntityId}|{battery.Percent}|{battery.Area}|{battery.Name}|{string.Join(",", battery.DeviceEntityIds)}"));
 
     /// <summary>What the app believes the boiler is doing, for the UI. Only meaningful in fingerbot mode.</summary>
     private BoilerStateDto DescribeBoiler()

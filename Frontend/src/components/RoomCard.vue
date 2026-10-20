@@ -23,6 +23,8 @@
               <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
             </svg>
           </div>
+          <!-- Before the temperature, so temperatures stay in one column down the page. -->
+          <BatteryBadge v-if="lowestBattery" :battery="lowestBattery" :others-low="lowBatteries.length - 1" />
           <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
@@ -174,7 +176,9 @@ import ConfirmModal from './ConfirmModal.vue'
 import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
+import BatteryBadge from './BatteryBadge.vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
 import { deviceSections } from '../utils/roomDevices.js'
@@ -216,6 +220,11 @@ const props = defineProps({
   lockedBy: {
     type: String,
     default: null
+  },
+  // This zone's batteries at or below the warning level (utils/batteries.js); the lowest shows in the header.
+  lowBatteries: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -234,8 +243,18 @@ const scheduleToDelete = ref(null)
 const showHistory = ref(false)
 const showDevices = ref(false)
 const showShare = ref(false)
-const deviceCount = computed(() => props.room.devices?.length ?? 0)
-const deviceSectionsForRoom = computed(() => deviceSections([props.room]))
+const lowestBattery = computed(() => lowestLow(props.lowBatteries))
+// Every battery shown on this zone: its heating devices' and those its HA area is mapped to.
+const roomBatteries = computed(() =>
+  layoutContext ? batteriesForRoom(layoutContext.batteryPlacement.value, props.room.id) : [])
+// The heating devices, plus the battery devices that are not among them (buttons, sensors placed by area).
+const deviceCount = computed(() => {
+  const heatingIds = new Set((props.room.devices ?? []).map(device => device.entityId))
+  const others = roomBatteries.value.filter(battery => !battery.deviceEntityIds.some(id => heatingIds.has(id)))
+  return heatingIds.size + others.length
+})
+const deviceSectionsForRoom = computed(() =>
+  deviceSections([props.room]).map(section => ({ ...section, batteries: roomBatteries.value })))
 const historyData = ref([])
 const historyLoading = ref(false)
 const historyError = ref(null)

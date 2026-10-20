@@ -149,8 +149,8 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   Layout state reaches `LayoutNode` through provide/inject (`utils/layoutContext.js`) rather than props,
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
 - **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs and
-  presence devices — desk plugs and their power, TV power, the living room's lights plug — each with its live
-  HA state), built by the NetDaemon app from the same switches that
+  presence devices — desk plugs and their power, TV power, the living room's lights plug, the router's online
+  list for phones — each with its live HA state), built by the NetDaemon app from the same switches that
   bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
   group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`, which
   shows each zone's devices under **Readers**, **Heaters** and **Presence** (`groupDevices` /
@@ -164,6 +164,15 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
 - **Boiler indicator.** In fingerbot mode the heating page's toolbar shows "Boiler on/off since …" from the
   `boiler` that comes with room states (`boilerState` in `HeatingView.vue`). It is the app's belief from its
   own presses, not a reading; nothing is shown while the boiler thermostat drives the boiler.
+- **Low batteries** (owner, 2026-10-20). Room states carry `batteries`, every replaceable battery with its HA
+  area and its device's entities. `utils/batteries.js` (with tests) places each: on every zone whose heating
+  uses the device; else on the zone or group its HA area is mapped to (`heating.areaPlacement`, edited in the
+  `BatteriesModal`, opened from **Edit layout → Batteries** or by tapping the toolbar's battery); else at the
+  top of the page. `BatteryBadge` shows the lowest battery at 20% or below (`LOW_BATTERY_PERCENT`; red at 10%)
+  before the temperature on its zone or group card, and in the toolbar for unplaced devices. A collapsed group
+  also shows the lowest of everything inside it (`LayoutNode` works this out), so folding cannot hide one.
+  Devices lists show a **Batteries** block per zone, and sections for batteries placed on a group. Batteries
+  only change on the app's next room-state upload, which a changed battery now triggers by itself.
 - **Zone occupancy.** Each zone in a devices list shows which presence detectors make it count as in use
   ("In use when: …") and an **Occupancy** button opening `ZoneOccupancyModal`. It ticks from every detector the
   app offers, with whether each is on now and whether it counts towards House. The detectors arrive on room
