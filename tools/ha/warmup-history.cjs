@@ -2,7 +2,10 @@
 // NetDaemon app now measures it live (Backend/App/Services/Climate/WarmUpRates.cs): the valve open with the boiler on,
 // 30+ minutes, taking the room from where it started to where it got to.
 //
-//   node tools/ha/warmup-history.cjs [--hours 240] [--min 30] [--runs]
+//   node tools/ha/warmup-history.cjs [--hours 240] [--min 30] [--runs] [--seed Backend/App/warm-up-seed.json]
+//
+// --seed writes each valve's last 5 usable episodes in the app's own sample format. The app ships that file and merges it
+// with what it has measured itself (WarmUpRates), so a valve starts with a rate instead of the 30-minute fallback.
 //
 // This is an ESTIMATE, rougher than the live measurement. The history never recorded when the boiler was on (the app
 // believes it only from 2026-10-19, and that belief is not in HA), and "valve open" alone is useless: a valve sits open
@@ -95,6 +98,7 @@ run(async () => {
   const history = (ids, extra = '') =>
     rest('GET', `/history/period/${encodeURIComponent(start.toISOString())}?filter_entity_id=${ids}&end_time=${encodeURIComponent(end.toISOString())}${extra}`);
 
+  const seeds = {};
   console.log(`Estimated from the last ${hours} h of recorder history (UTC window ends ${end.toISOString().slice(0, 16)}).`);
   console.log(`An episode: the valve opens and its own sensor rises ${hot}°C+ (hot water arrived); it ends when the sensor peaks and falls (boiler off) or the valve shuts.\n`);
 
@@ -117,6 +121,16 @@ run(async () => {
 
     const counted = runs.filter((r) => r.minutes >= minMinutes && r.rate != null);
     const lastFive = counted.slice(-SAMPLES_KEPT);
+    // The shape the app's WarmUpSample record serialises to (PascalCase), so it can be read straight back as seed data.
+    if (lastFive.length) {
+      seeds[valveId] = lastFive.map((r) => ({
+        DegreesPerHour: Math.round(r.rate * 1000) / 1000,
+        StartedAt: new Date(r.begin).toISOString(),
+        Minutes: Math.round(r.minutes),
+        StartTemperature: r.roomStart,
+        ReachedTemperature: r.roomEnd,
+      }));
+    }
     const long = runs.filter((r) => r.minutes >= minMinutes);
     console.log(`${label} (${valveId})`);
     console.log(`  ${all.length} valve openings: ${all.length - runs.length} with no hot water, ${runs.length} warm-ups, ${long.length} of ${minMinutes}+ min, ${counted.length} usable`);
@@ -133,5 +147,10 @@ run(async () => {
       }
     }
     console.log('');
+  }
+
+  if (args.seed && args.seed !== true) {
+    require('fs').writeFileSync(args.seed, JSON.stringify(seeds, null, 2) + '\n');
+    console.log(`Wrote ${Object.values(seeds).reduce((n, s) => n + s.length, 0)} samples for ${Object.keys(seeds).length} valves to ${args.seed}`);
   }
 });

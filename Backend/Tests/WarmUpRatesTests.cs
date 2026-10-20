@@ -170,6 +170,58 @@ public class WarmUpRatesTests
         rates.MinutesToRise("climate.unmeasured", 3).ShouldBeNull();
     }
 
+    private static WarmUpSample Sample(double rate, int daysAgo) =>
+        new(rate, Start.AddDays(-daysAgo), 60, 15, 15 + rate);
+
+    [TestMethod]
+    public void ShippedEstimates_GiveAValveARateBeforeItHasMeasuredOne()
+    {
+        InMemoryWarmUpRateStore store = new() { Seed = { [Valve] = [Sample(1, 5), Sample(2, 4), Sample(3, 3)] } };
+
+        WarmUpRates rates = Create(store);
+
+        rates.SampleCount(Valve).ShouldBe(3);
+        rates.RateFor(Valve).ShouldNotBeNull().ShouldBe(2, 0.001);
+    }
+
+    [TestMethod]
+    public void AValvesOwnWarmUps_PushTheEstimatesOut()
+    {
+        // Five estimates, then two measured warm-ups at 6 °C an hour: the two oldest estimates drop out.
+        InMemoryWarmUpRateStore store = new() { Seed = { [Valve] = [Sample(1, 9), Sample(1, 8), Sample(1, 7), Sample(1, 6), Sample(1, 5)] } };
+        WarmUpRates rates = Create(store);
+
+        HeatToTarget(rates, At(0), from: 14, target: 17, degreesPerHour: 6);
+        HeatToTarget(rates, At(600), from: 14, target: 17, degreesPerHour: 6);
+
+        rates.SampleCount(Valve).ShouldBe(5);
+        rates.RateFor(Valve).ShouldNotBeNull().ShouldBe((3 * 1 + 2 * 6) / 5.0, 0.001);
+    }
+
+    [TestMethod]
+    public void AnEstimateSavedWithTheMeasuredOnes_CountsOnce()
+    {
+        // The store keeps the estimates along with the measured warm-ups, so on the next start they are in both.
+        List<WarmUpSample> shipped = [Sample(1, 5), Sample(2, 4)];
+        InMemoryWarmUpRateStore store = new() { Seed = { [Valve] = shipped } };
+        store.Saved = new() { [Valve] = [.. shipped, Sample(4, 0)] };
+
+        WarmUpRates rates = Create(store);
+
+        rates.SampleCount(Valve).ShouldBe(3);
+    }
+
+    [TestMethod]
+    public void MoreThanFiveShippedEstimates_KeepTheNewest()
+    {
+        InMemoryWarmUpRateStore store = new() { Seed = { [Valve] = [.. Enumerable.Range(1, 8).Select(i => Sample(i, 10 - i))] } };
+
+        WarmUpRates rates = Create(store);
+
+        rates.SampleCount(Valve).ShouldBe(5);
+        rates.RateFor(Valve).ShouldNotBeNull().ShouldBe((4 + 5 + 6 + 7 + 8) / 5.0, 0.001);
+    }
+
     [TestMethod]
     public void TheSamplesSurviveARestart()
     {
@@ -185,9 +237,14 @@ public class WarmUpRatesTests
 
 internal sealed class InMemoryWarmUpRateStore : IWarmUpRateStore
 {
-    public Dictionary<string, List<WarmUpSample>> Saved { get; private set; } = [];
+    public Dictionary<string, List<WarmUpSample>> Saved { get; set; } = [];
 
     public Dictionary<string, List<WarmUpSample>> Load() => Saved.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
+
+    /// <summary>The estimates shipped with the app, empty unless a test gives some.</summary>
+    public Dictionary<string, List<WarmUpSample>> Seed { get; set; } = [];
+
+    public Dictionary<string, List<WarmUpSample>> LoadSeed() => Seed.ToDictionary(pair => pair.Key, pair => pair.Value.ToList());
 
     public void Save(Dictionary<string, List<WarmUpSample>> samples) => Saved = samples;
 

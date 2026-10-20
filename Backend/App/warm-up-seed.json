@@ -1,0 +1,96 @@
+{
+  "climate.bedroom_1_radiator_thermostat": [
+    {
+      "DegreesPerHour": 1.199,
+      "StartedAt": "2026-10-18T05:13:52.657Z",
+      "Minutes": 30,
+      "StartTemperature": 17.2,
+      "ReachedTemperature": 17.8
+    }
+  ],
+  "climate.bedroom_3_radiator_thermostat": [
+    {
+      "DegreesPerHour": 0.138,
+      "StartedAt": "2026-10-15T05:07:06.428Z",
+      "Minutes": 174,
+      "StartTemperature": 18.3,
+      "ReachedTemperature": 18.7
+    },
+    {
+      "DegreesPerHour": 1.505,
+      "StartedAt": "2026-10-18T05:54:47.766Z",
+      "Minutes": 32,
+      "StartTemperature": 17.3,
+      "ReachedTemperature": 18.1
+    },
+    {
+      "DegreesPerHour": 1.281,
+      "StartedAt": "2026-10-19T05:32:54.097Z",
+      "Minutes": 122,
+      "StartTemperature": 17.1,
+      "ReachedTemperature": 19.7
+    },
+    {
+      "DegreesPerHour": 1.855,
+      "StartedAt": "2026-10-19T17:39:32.134Z",
+      "Minutes": 65,
+      "StartTemperature": 18.1,
+      "ReachedTemperature": 20.1
+    },
+    {
+      "DegreesPerHour": 2.258,
+      "StartedAt": "2026-10-20T06:34:46.026Z",
+      "Minutes": 32,
+      "StartTemperature": 18.3,
+      "ReachedTemperature": 19.5
+    }
+  ],
+  "climate.dining_room_radiator_thermostat": [
+    {
+      "DegreesPerHour": 0.35,
+      "StartedAt": "2026-10-20T08:48:00.413Z",
+      "Minutes": 69,
+      "StartTemperature": 19.7,
+      "ReachedTemperature": 20.1
+    },
+    {
+      "DegreesPerHour": 1.157,
+      "StartedAt": "2026-10-20T13:34:43.027Z",
+      "Minutes": 52,
+      "StartTemperature": 19.7,
+      "ReachedTemperature": 20.7
+    }
+  ],
+  "climate.living_room_radiator_thermostat": [
+    {
+      "DegreesPerHour": 0.238,
+      "StartedAt": "2026-10-12T05:37:43.784Z",
+      "Minutes": 151,
+      "StartTemperature": 17.7,
+      "ReachedTemperature": 18.3
+    },
+    {
+      "DegreesPerHour": 1.094,
+      "StartedAt": "2026-10-18T05:13:58.174Z",
+      "Minutes": 44,
+      "StartTemperature": 17.5,
+      "ReachedTemperature": 18.3
+    },
+    {
+      "DegreesPerHour": 1.066,
+      "StartedAt": "2026-10-19T05:18:01.020Z",
+      "Minutes": 45,
+      "StartTemperature": 17.5,
+      "ReachedTemperature": 18.3
+    }
+  ],
+  "climate.den_radiator_1_thermostat": [
+    {
+      "DegreesPerHour": 0.746,
+      "StartedAt": "2026-10-20T11:31:42.318Z",
+      "Minutes": 32,
+      "StartTemperature": 20.8,
+      "ReachedTemperature": 21.2
+    }
+  ]
+}

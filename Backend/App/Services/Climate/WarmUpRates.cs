@@ -41,6 +41,12 @@ internal interface IWarmUpRateStore
 {
     Dictionary<string, List<WarmUpSample>> Load();
 
+    /// <summary>
+    /// Warm-ups estimated from Home Assistant's history and shipped with the app (<c>warm-up-seed.json</c>), so a valve
+    /// has a rate before it has measured one. Empty when there is no such file.
+    /// </summary>
+    Dictionary<string, List<WarmUpSample>> LoadSeed();
+
     void Save(Dictionary<string, List<WarmUpSample>> samples);
 }
 
@@ -82,7 +88,31 @@ internal sealed class WarmUpRates : IWarmUpRates
     {
         _store = store;
         _logger = logger;
-        _samples = new Dictionary<string, List<WarmUpSample>>(store.Load(), StringComparer.OrdinalIgnoreCase);
+        _samples = Merge(store.Load(), store.LoadSeed());
+    }
+
+    /// <summary>
+    /// What the valves have measured themselves, topped up with the shipped estimates: the last <see cref="SamplesKept"/>
+    /// by start time, so a valve's own warm-ups, being newer, push the estimates out as they come in. A sample already
+    /// in both (the estimates are saved along with the measured ones) counts once.
+    /// </summary>
+    internal static Dictionary<string, List<WarmUpSample>> Merge(
+        Dictionary<string, List<WarmUpSample>> measured, Dictionary<string, List<WarmUpSample>> seed)
+    {
+        Dictionary<string, List<WarmUpSample>> merged = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string entityId in measured.Keys.Concat(seed.Keys).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            List<WarmUpSample> own = measured.FirstOrDefault(pair => string.Equals(pair.Key, entityId, StringComparison.OrdinalIgnoreCase)).Value ?? [];
+            List<WarmUpSample> estimated = seed.FirstOrDefault(pair => string.Equals(pair.Key, entityId, StringComparison.OrdinalIgnoreCase)).Value ?? [];
+            merged[entityId] =
+            [
+                .. own.Concat(estimated.Where(e => !own.Any(o => o.StartedAt == e.StartedAt && o.DegreesPerHour == e.DegreesPerHour)))
+                    .OrderBy(sample => sample.StartedAt)
+                    .TakeLast(SamplesKept)
+            ];
+        }
+
+        return merged;
     }
 
     public void Observe(string entityId, bool heating, double roomTemperature, double targetTemperature, DateTimeOffset now)
@@ -213,6 +243,25 @@ internal sealed class WarmUpRateStore : IWarmUpRateStore
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading the radiator warm-up rates from {Path}", _path);
+            return [];
+        }
+    }
+
+    public Dictionary<string, List<WarmUpSample>> LoadSeed()
+    {
+        string seedPath = Path.Combine(AppContext.BaseDirectory, "warm-up-seed.json");
+        try
+        {
+            if (!File.Exists(seedPath))
+            {
+                return [];
+            }
+
+            return JsonSerializer.Deserialize<Dictionary<string, List<WarmUpSample>>>(File.ReadAllText(seedPath)) ?? [];
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading the shipped warm-up estimates from {Path}", seedPath);
             return [];
         }
     }

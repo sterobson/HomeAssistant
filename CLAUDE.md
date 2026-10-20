@@ -376,7 +376,7 @@ Four more heating notes:
   mode only, since in boiler-thermostat mode nothing says when the boiler runs. Auto then starts the valve when
   (target − room now) ÷ rate, rounded up and at most 120 minutes, reaches back to the track; once started it carries
   on until the track begins (`_autoPreHeatTrackIds`), or a rate a little pessimistic would shut it again part-way as
-  the room warmed. With no samples it uses 30 minutes. The rate is the room thermometer's, so it includes the radiator
+  the room warmed. With no samples it uses 30 minutes. Since 2026-10-20 each valve starts with estimates from the recorder's history, shipped in the app as `Backend/App/warm-up-seed.json` (made by `tools/ha/warmup-history.cjs --seed`, rough: see that script's header) and merged with its own measurements by start time, so the valve's own warm-ups push them out as they come in. Regenerating the file and redeploying the app is how to refresh them. The rate is the room thermometer's, so it includes the radiator
   warming up, which is why a small deficit comes out a little under. Passes have to see the reading that reached the
   target: when that room was the last calling, the boiler is turned off in the same pass, so the observation counts the
   boiler as on if it was at the start of the pass (`_boilerWasOnAtStartOfPass`). Each valve publishes `preHeatAuto`,

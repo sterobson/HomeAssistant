@@ -28,6 +28,11 @@
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
           <CopyToPublishDirectory>Never</CopyToPublishDirectory>
         </None>
+        <!-- Radiator warm-up rates estimated from HA's history (tools/ha/warmup-history.cjs with its seed option), merged with what the app measures. -->
+        <None Include="warm-up-seed.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+        </None>
         <None Update="$(MSBuildProjectDir)**\*.yaml">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
