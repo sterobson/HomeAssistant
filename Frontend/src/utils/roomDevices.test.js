@@ -4,7 +4,9 @@ import {
   deviceName,
   deviceSections,
   distinctDeviceCount,
+  filterSection,
   groupDevices,
+  houseDeviceSections,
   isUnavailable,
   roleLabel,
   sortDevices
@@ -101,6 +103,9 @@ describe('labels', () => {
     expect(roleLabel('lightsPlug')).toBe('Lights plug')
     expect(roleLabel('deskPlug')).toBe('Desk plug')
     expect(roleLabel('routerDevices')).toBe('Router')
+    expect(roleLabel('phone')).toBe('Phone')
+    expect(describeState({ role: 'phone', state: 'home' }, celsius)).toBe('On the home Wi-Fi')
+    expect(describeState({ role: 'phone', state: 'away' }, celsius)).toBe('Not on the home Wi-Fi')
     expect(roleLabel('somethingNew')).toBe('Device')
   })
 
@@ -138,5 +143,76 @@ describe('groups', () => {
   it('copes with rooms that have not reported yet', () => {
     expect(distinctDeviceCount([{ id: 3 }, undefined])).toBe(0)
     expect(deviceSections([{ id: 3, name: 'kitchen' }])[0].devices).toEqual([])
+  })
+})
+
+describe('filterSection', () => {
+  const section = {
+    roomId: 1,
+    devices: [
+      { entityId: 'sensor.t', role: 'thermometer' },
+      { entityId: 'climate.v', role: 'radiatorValve' },
+      { entityId: 'switch.h', role: 'heaterPlug' },
+      { entityId: 'switch.d', role: 'deskPlug' },
+      { entityId: 'sensor.p', role: 'tvPower' },
+      { entityId: 'phone.ellie', role: 'phone' }
+    ],
+    batteries: [{ entityId: 'sensor.v_battery', deviceEntityIds: ['climate.v'] }],
+    occupancy: { detectorIds: [] }
+  }
+  const ids = (key) => filterSection(section, key)?.devices.map(d => d.entityId)
+
+  it('keeps everything, with the zone-wide lines, for All', () => {
+    const all = filterSection(section, 'all')
+    expect(all.devices).toHaveLength(6)
+    expect(all.batteries).toHaveLength(1)
+    expect(all.showOccupancy).toBe(true)
+  })
+
+  it('keeps only what each filter names', () => {
+    expect(ids('trv')).toEqual(['climate.v'])
+    expect(ids('plug')).toEqual(['switch.h', 'switch.d', 'sensor.p'])
+    expect(ids('heating')).toEqual(['climate.v', 'switch.h'])
+    expect(ids('thermometer')).toEqual(['sensor.t'])
+  })
+
+  it('shows only the batteries for Battery, and no batteries otherwise', () => {
+    const battery = filterSection(section, 'battery')
+    expect(battery.devices).toEqual([])
+    expect(battery.batteries).toHaveLength(1)
+    expect(filterSection(section, 'trv').batteries).toEqual([])
+    expect(filterSection(section, 'trv').showOccupancy).toBe(false)
+  })
+
+  it('hides a section the filter leaves empty, except under All', () => {
+    expect(filterSection({ roomId: 2, devices: [{ entityId: 'sensor.t', role: 'thermometer' }] }, 'trv')).toBeNull()
+    expect(filterSection({ roomId: 2, devices: [] }, 'all')).not.toBeNull()
+  })
+})
+
+describe('houseDeviceSections', () => {
+  const rooms = new Map([
+    [1, { id: 1, name: 'kitchen', devices: [{ entityId: 'sensor.k', role: 'thermometer' }] }],
+    [2, { id: 2, name: 'den', displayName: 'Den', devices: [] }]
+  ])
+  const tree = [
+    { type: 'group', id: 'g1', name: 'Downstairs', icon: null, children: [{ type: 'room', roomId: 2 }] },
+    { type: 'room', roomId: 1 }
+  ]
+  const placement = {
+    byRoom: new Map([['2', [{ entityId: 'sensor.den_battery' }]]]),
+    byGroup: new Map([['g1', [{ entityId: 'sensor.button_battery' }]]]),
+    unplaced: [{ entityId: 'sensor.loft_battery' }]
+  }
+
+  it('lists every zone in layout order, with group and unplaced batteries in their own sections', () => {
+    const sections = houseDeviceSections(tree, rooms, placement)
+    expect(sections.map(s => s.title)).toEqual(['Downstairs', 'Den', 'kitchen', 'Not in any room or group'])
+    expect(sections[1].batteries).toEqual([{ entityId: 'sensor.den_battery' }])
+    expect(sections[2].devices.map(d => d.entityId)).toEqual(['sensor.k'])
+  })
+
+  it('copes with no battery placement yet', () => {
+    expect(houseDeviceSections(tree, rooms, null).map(s => s.title)).toEqual(['Den', 'kitchen'])
   })
 })

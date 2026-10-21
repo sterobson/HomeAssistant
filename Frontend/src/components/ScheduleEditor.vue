@@ -86,7 +86,19 @@
               Any
             </button>
           </div>
+          <div v-if="roomOccupancyDetectors.length" class="occupancy-explainer">
+            <p>Counts as occupied while any of these is on:</p>
+            <ul class="detector-list">
+              <li v-for="detector in roomOccupancyDetectors" :key="detector.id">
+                <span class="detector-dot" :class="{ on: detector.active }" aria-hidden="true"></span>
+                <span class="detector-label">{{ detector.label }}</span>
+                <span class="detector-now" :class="{ on: detector.active }">{{ detector.active ? 'On now' : 'Off now' }}</span>
+              </li>
+            </ul>
+            <span class="form-hint">Change these from this room's Devices list, under Occupancy.</span>
+          </div>
         </div>
+
 
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" @click="handleCancel">
@@ -104,8 +116,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { useDeviceSettings } from '../composables/useDeviceSettings.js'
+import { zoneDetectors } from '../utils/zoneOccupancy.js'
 
 const { convertToDisplay, convertToInternal, currentTempUnit, getTempStep, roundTemp, getDisplayLimits } = useFormatting()
+const { reloadSettings, zoneOccupancy } = useDeviceSettings()
 
 const props = defineProps({
   schedule: {
@@ -119,6 +134,11 @@ const props = defineProps({
   roomCapabilities: {
     type: Number,
     default: 3 // Default to both capabilities (CanSetTemperature | CanDetectRoomOccupancy)
+  },
+  // The zone's room state, whose `occupancy` says which detectors make it count as occupied.
+  room: {
+    type: Object,
+    default: null
   }
 })
 
@@ -128,6 +148,11 @@ const emit = defineEmits(['save', 'cancel'])
 const canDetectRoomOccupancy = computed(() => {
   return (props.roomCapabilities & 2) !== 0
 })
+
+// What "occupied" means for this room, with each detector's state now (utils/zoneOccupancy.js). The saved choice in
+// device settings wins over what the app last reported, as in the Devices list. (The house flags 1 and 2 are the
+// Home/Away mode in the header, not presence, so there is nothing to list for them.)
+const roomOccupancyDetectors = computed(() => props.room ? zoneDetectors(props.room, zoneOccupancy.value) : [])
 
 // Day bit flag values matching backend enum
 const daysOfWeek = [
@@ -150,6 +175,8 @@ const formData = ref({
 const isEditing = computed(() => props.schedule !== null)
 
 onMounted(() => {
+  reloadSettings() // fresh, for the same reason as the Devices list (RoomDevicesModal)
+
   if (props.schedule) {
     // Editing existing schedule - load all values
     formData.value.time = props.schedule.time
@@ -484,6 +511,67 @@ const handleCancel = () => {
 
 .occupancy-btn:active {
   transform: scale(0.95);
+}
+
+.occupancy-explainer {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.occupancy-explainer p {
+  margin: 0 0 0.5rem;
+}
+
+.detector-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.detector-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+
+.detector-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-color);
+}
+
+.detector-dot.on {
+  background: var(--color-success, #27ae60);
+}
+
+.detector-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.detector-now {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.detector-now.on {
+  color: var(--color-success, #27ae60);
+}
+
+.occupancy-explainer .form-hint {
+  margin-top: 0.5rem;
 }
 
 .form-actions {

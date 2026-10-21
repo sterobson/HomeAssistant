@@ -637,7 +637,7 @@ public sealed class DeviceRulesHeatingTests
     }
 
     [TestMethod]
-    public async Task AHeaterPlug_IsNeverAuto()
+    public async Task AHeaterPlug_IsNotAutoByDefault()
     {
         RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
         context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
@@ -645,6 +645,154 @@ public sealed class DeviceRulesHeatingTests
         await context.Service.EvaluateAllSchedules("unit test");
 
         context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).PreHeatAuto.ShouldBeFalse();
+    }
+
+    // Heater plugs (owner, 2026-10-21): a pre-heat of none by default, but they can be given a fixed one or Auto, and
+    // whatever the pre-heat they still only run while their rules pass.
+
+    [TestMethod]
+    [DataRow(16, 25, false, DisplayName = "4 °C an hour needs 90 minutes: not yet at 16:25")]
+    [DataRow(16, 35, true, DisplayName = "16:35: it has started")]
+    public async Task AnAutoHeaterPlug_StartsWhenItsMeasuredWarmUpReachesBackFromTheTrack(int hour, int minute, bool heaterOn)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatAuto = true } });
+        context.GiveRadiatorARate(context.Bedroom1Heater.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.Bedroom1Heater.IsOn().ShouldBe(heaterOn);
+        RoomDeviceDto heater = context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug);
+        heater.PreHeatAuto.ShouldBeTrue();
+        heater.HeatingRateCelsiusPerHour.ShouldNotBeNull().ShouldBe(4, 0.01);
+    }
+
+    [TestMethod]
+    public async Task AnAutoHeaterPlug_StillWaitsForItsRules()
+    {
+        // The same measured warm-up as above, but the heater needs someone home, and nobody is.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 35, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.Presence.SetRoomValue("games desk", false);
+        context.SaveRules(new()
+        {
+            [context.Bedroom1Heater.EntityId] = new DeviceRulesDto
+            {
+                PreHeatAuto = true,
+                Presence = new PresenceRuleDto { Sources = [PresenceSources.House] }
+            }
+        });
+        context.GiveRadiatorARate(context.Bedroom1Heater.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+        context.Bedroom1Heater.TurnOnCount.ShouldBe(0, "Auto pre-heat does not get round the heater's presence rule");
+
+        context.Presence.SetRoomValue("games desk", true);
+        await context.Service.EvaluateAllSchedules("someone came home");
+        context.Bedroom1Heater.IsOn().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task AnAutoHeaterPlug_WithNoDataYet_HasNoPreHeat()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 50, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatAuto = true } });
+
+        await context.Service.EvaluateAllSchedules("17:50");
+
+        context.Bedroom1Heater.TurnOnCount.ShouldBe(0, "a heater's default pre-heat is none until it has been measured");
+    }
+
+    [TestMethod]
+    public async Task AHeaterPlugWarmingItsRoom_IsMeasured()
+    {
+        // 15 °C at 12:00 against 21 °C, reached at 12:20: a 20-minute warm-up, long enough for a heater (not a radiator).
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = [new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 21 }];
+        context.SaveRules(new() { [context.Bedroom1Heater.EntityId] = new DeviceRulesDto() });
+
+        await context.Service.EvaluateAllSchedules("12:00");
+        context.Bedroom1Heater.IsOn().ShouldBeTrue();
+
+        ((FakeCustomNumericSensorEntity)context.Entities.Bedroom1Temperature).State = 18;
+        context.SetLocalTime(new TimeSpan(12, 10, 0));
+        await context.Service.EvaluateAllSchedules("12:10");
+
+        ((FakeCustomNumericSensorEntity)context.Entities.Bedroom1Temperature).State = 21;
+        context.SetLocalTime(new TimeSpan(12, 20, 0));
+        await context.Service.EvaluateAllSchedules("12:20");
+
+        context.WarmUp.SampleCount(context.Bedroom1Heater.EntityId).ShouldBe(1);
+        context.WarmUp.RateFor(context.Bedroom1Heater.EntityId).ShouldNotBeNull().ShouldBe(18, 0.01, "6 degrees in 20 minutes");
+        context.WarmUp.SampleCount(context.Bedroom1Radiator.EntityId).ShouldBe(0, "a valve only counts with the boiler on");
+    }
+
+    [TestMethod]
+    [DataRow(null, null, true, true)]
+    [DataRow(null, null, false, false)]
+    [DataRow(null, 20, true, false)]
+    [DataRow(true, null, false, true)]
+    [DataRow(true, 20, false, true)]
+    [DataRow(false, null, true, false)]
+    public void AutoPreHeat_IsWhatPreHeatAutoSays_ElseAValveWithNoMinutes(bool? preHeatAuto, int? minutes, bool isRadiatorValve, bool expected)
+    {
+        DeviceRulesDto.IsAutoPreHeat(new DeviceRulesDto { PreHeatAuto = preHeatAuto, PreHeatMinutes = minutes }, isRadiatorValve).ShouldBe(expected);
+    }
+
+    // A track held back only by its "room in use" / "room not in use" condition is published, so the UI can say why
+    // on the track (owner, 2026-10-21).
+
+    private static List<HeatingScheduleTrack> Bedroom1InUseAt7() =>
+    [
+        new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(6, 0), Temperature = 15 },
+        new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(7, 0), Temperature = 21, Conditions = ConditionType.RoomInUse },
+        new HeatingScheduleTrack { Id = 3, TargetTime = new TimeOnly(7, 0), Temperature = 16, Conditions = ConditionType.RoomNotInUse }
+    ];
+
+    [TestMethod]
+    [DataRow(false, 2, DisplayName = "Not in use: the in-use track waits")]
+    [DataRow(true, 3, DisplayName = "In use: the not-in-use track waits")]
+    public async Task ATrackDueButForItsOccupancyCondition_IsPublishedAsWaiting(bool inUse, int expected)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1InUseAt7();
+        context.Presence.SetRoomValue("bedroom 1", inUse);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].WaitingForOccupancyTrackIds.ShouldBe([expected]);
+    }
+
+    [TestMethod]
+    public async Task ATrackALaterOneHasSuperseded_IsNotWaiting()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = [.. Bedroom1InUseAt7(), new HeatingScheduleTrack { Id = 4, TargetTime = new TimeOnly(9, 0), Temperature = 18 }];
+        context.Presence.SetRoomValue("bedroom 1", false);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].WaitingForOccupancyTrackIds.ShouldBeEmpty("09:00 took over from both 07:00 tracks");
+    }
+
+    [TestMethod]
+    public async Task NoTrackWaits_WhileABoostRuns()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1InUseAt7();
+        context.Presence.SetRoomValue("bedroom 1", false);
+        context.Rooms[0].Boost = new Boost
+        {
+            StartTime = new DateTimeOffset(2026, 10, 19, 11, 0, 0, TimeSpan.Zero),
+            EndTime = new DateTimeOffset(2026, 10, 19, 14, 0, 0, TimeSpan.Zero),
+            Temperature = 20
+        };
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.CapturedStates()[1].WaitingForOccupancyTrackIds.ShouldBeEmpty();
     }
 
     [TestMethod]

@@ -43,6 +43,22 @@
           <span class="conditions-value">{{ conditionsText }}</span>
         </div>
       </div>
+
+      <!-- What "occupied" means for this room, for a track that depends on it (owner, 2026-10-21). -->
+      <div v-if="hasRoomCondition" class="occupancy-detail">
+        <template v-if="occupancyDetectors.length">
+          <span class="occupancy-lead">Occupied while any is on:</span>
+          <span v-for="detector in occupancyDetectors" :key="detector.id" class="detector" :class="{ on: detector.active }"
+                :title="detector.active ? 'On now' : 'Off now'">
+            <span class="detector-dot" aria-hidden="true"></span>{{ detector.label }}<span class="visually-hidden">{{ detector.active ? ' (on now)' : ' (off now)' }}</span>
+          </span>
+        </template>
+        <span v-else class="occupancy-lead">Nothing can tell whether this room is occupied, so it never counts as occupied.</span>
+      </div>
+
+      <p v-if="waitingForOccupancy" class="waiting-note">
+        Due now, but not running: {{ waitingReason }}
+      </p>
     </div>
 
     <div class="schedule-actions">
@@ -79,7 +95,31 @@ const props = defineProps({
   heatingActive: {
     type: Boolean,
     default: false
+  },
+  // The zone's presence detectors with whether each is on now ({ id, label, active }, utils/zoneOccupancy.js).
+  occupancyDetectors: {
+    type: Array,
+    default: () => []
+  },
+  // True when the app says this track would be running now but for its room-occupancy condition.
+  waitingForOccupancy: {
+    type: Boolean,
+    default: false
   }
+})
+
+// Flags 4 (room in use) and 8 (room not in use); 1 and 2 are the house's Home/Away mode, shown by the header.
+const hasRoomCondition = computed(() => ((props.schedule.conditions ?? 0) & 12) !== 0)
+
+const waitingReason = computed(() => {
+  const conditions = props.schedule.conditions ?? 0
+  if (conditions & 4) {
+    return props.occupancyDetectors.length
+      ? 'the room is not occupied (none of the above is on).'
+      : 'nothing can tell whether the room is occupied.'
+  }
+  if (conditions & 8) return 'the room is occupied.'
+  return 'its occupancy condition is not met.'
 })
 
 const conditionsText = computed(() => {
@@ -231,6 +271,61 @@ const handleDelete = () => {
 
 .conditions-value {
   color: var(--text-secondary);
+}
+
+.occupancy-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.occupancy-lead {
+  margin-right: 0.1rem;
+}
+
+.detector {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-primary);
+}
+
+.detector-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border-color);
+  flex-shrink: 0;
+}
+
+.detector.on .detector-dot {
+  background: var(--color-success, #27ae60);
+}
+
+.waiting-note {
+  margin: 0.5rem 0 0;
+  padding: 0.35rem 0.6rem;
+  border-left: 3px solid var(--color-warning, #f39c12);
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .schedule-actions {

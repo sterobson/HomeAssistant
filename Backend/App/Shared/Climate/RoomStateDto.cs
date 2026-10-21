@@ -75,6 +75,13 @@ public class RoomStateDto
     /// <c>heating.zoneOccupancy</c>.
     /// </summary>
     public RoomOccupancyDto? Occupancy { get; set; }
+
+    /// <summary>
+    /// The tracks that are due now (started today, no earlier than the active one) and would run but for their
+    /// "room in use" or "room not in use" condition, so the UI can say why on the track (owner, 2026-10-21). Empty
+    /// during a boost, and from an app too old to send it.
+    /// </summary>
+    public List<int> WaitingForOccupancyTrackIds { get; set; } = [];
 }
 
 public class RoomOccupancyDto
@@ -137,20 +144,21 @@ public class RoomDeviceDto
     /// <summary>True when <see cref="Rules"/> are the app's built-in defaults rather than saved ones.</summary>
     public bool RulesAreDefault { get; set; }
 
-    /// <summary>Radiator valves only: whether the pre-heat is Auto, worked out from the warm-up rate below.</summary>
+    /// <summary>Radiator valves and heater plugs: whether the pre-heat is Auto, worked out from the warm-up rate below.</summary>
     public bool PreHeatAuto { get; set; }
 
     /// <summary>
-    /// Radiator valves only: how fast this valve has warmed its room, in degrees Celsius an hour, averaged over its
-    /// last <see cref="HeatingRateSamples"/> warm-ups with the boiler on; null until there is one.
+    /// Radiator valves and heater plugs (since 2026-10-21): how fast this device has warmed its room, in degrees
+    /// Celsius an hour, averaged over its
+    /// last <see cref="HeatingRateSamples"/> warm-ups (a valve's only with the boiler on); null until there is one.
     /// </summary>
     public double? HeatingRateCelsiusPerHour { get; set; }
 
-    /// <summary>Radiator valves only: how many warm-ups <see cref="HeatingRateCelsiusPerHour"/> averages (up to 5).</summary>
+    /// <summary>Radiator valves and heater plugs: how many warm-ups <see cref="HeatingRateCelsiusPerHour"/> averages (up to 5).</summary>
     public int HeatingRateSamples { get; set; }
 
     /// <summary>
-    /// Radiator valves only: how long this valve would likely take to bring its room up to the next warmer schedule
+    /// Radiator valves and heater plugs: how long this device would likely take to bring its room up to the next warmer schedule
     /// track, from the room's temperature now; null without a rate, or with no warmer track to warm up for.
     /// </summary>
     public int? WarmUpMinutes { get; set; }
@@ -170,6 +178,15 @@ public static class RoomDeviceRoles
     public const string DeskPower = "deskPower";
     public const string TvPower = "tvPower";
     public const string LightsPlug = "lightsPlug";
-    /// <summary>The router's list of devices online, which phone presence is read from.</summary>
+    /// <summary>
+    /// The router's list of devices online, which phone presence is read from. Listed by apps before 2026-10-21; since
+    /// then each phone is listed as itself (<see cref="Phone"/>).
+    /// </summary>
     public const string RouterDevices = "routerDevices";
+
+    /// <summary>
+    /// A phone whose presence on the home Wi-Fi a zone uses: not a Home Assistant entity, so its entity ID is the app's
+    /// own ("phone.ellie"), and its state is "home", "away" or "unavailable".
+    /// </summary>
+    public const string Phone = "phone";
 }

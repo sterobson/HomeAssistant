@@ -92,5 +92,79 @@
       "StartTemperature": 20.8,
       "ReachedTemperature": 21.2
     }
+  ],
+  "switch.games_room_plug_heater_switch": [
+    {
+      "DegreesPerHour": 6.179,
+      "StartedAt": "2026-10-19T05:34:26.234Z",
+      "Minutes": 6,
+      "StartTemperature": 21.2,
+      "ReachedTemperature": 21.8
+    },
+    {
+      "DegreesPerHour": 2.785,
+      "StartedAt": "2026-10-19T06:09:48.233Z",
+      "Minutes": 9,
+      "StartTemperature": 21.2,
+      "ReachedTemperature": 21.6
+    },
+    {
+      "DegreesPerHour": 8.884,
+      "StartedAt": "2026-10-19T06:50:40.524Z",
+      "Minutes": 8,
+      "StartTemperature": 20.6,
+      "ReachedTemperature": 21.8
+    },
+    {
+      "DegreesPerHour": 8.163,
+      "StartedAt": "2026-10-19T08:19:30.491Z",
+      "Minutes": 6,
+      "StartTemperature": 21.2,
+      "ReachedTemperature": 22
+    },
+    {
+      "DegreesPerHour": 8.935,
+      "StartedAt": "2026-10-20T04:47:29.473Z",
+      "Minutes": 15,
+      "StartTemperature": 19.6,
+      "ReachedTemperature": 21.8
+    }
+  ],
+  "switch.dining_room_plug_heater_switch": [
+    {
+      "DegreesPerHour": 7.849,
+      "StartedAt": "2026-10-19T13:08:39.266Z",
+      "Minutes": 10,
+      "StartTemperature": 20.2,
+      "ReachedTemperature": 21.5
+    },
+    {
+      "DegreesPerHour": 3.97,
+      "StartedAt": "2026-10-19T13:41:33.649Z",
+      "Minutes": 6,
+      "StartTemperature": 20.3,
+      "ReachedTemperature": 20.7
+    },
+    {
+      "DegreesPerHour": 2.058,
+      "StartedAt": "2026-10-19T13:59:01.357Z",
+      "Minutes": 6,
+      "StartTemperature": 20.3,
+      "ReachedTemperature": 20.5
+    },
+    {
+      "DegreesPerHour": 4.383,
+      "StartedAt": "2026-10-19T14:45:04.493Z",
+      "Minutes": 11,
+      "StartTemperature": 19.9,
+      "ReachedTemperature": 20.7
+    },
+    {
+      "DegreesPerHour": 4.33,
+      "StartedAt": "2026-10-19T15:09:07.267Z",
+      "Minutes": 6,
+      "StartTemperature": 20.3,
+      "ReachedTemperature": 20.7
+    }
   ]
 }

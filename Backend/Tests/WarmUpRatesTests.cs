@@ -70,6 +70,21 @@ public class WarmUpRatesTests
     }
 
     [TestMethod]
+    public void AHeaterRunOfFiveMinutes_Counts_ButNotFour()
+    {
+        // Fan heaters are measured from 5 minutes (owner, 2026-10-21), a radiator only from 30.
+        WarmUpRates rates = Create();
+        rates.Observe("switch.heater", true, 19, 20, At(0), WarmUpRates.HeaterMinimumMinutes);
+        rates.Observe("switch.heater", true, 20, 20, At(4), WarmUpRates.HeaterMinimumMinutes);
+        rates.SampleCount("switch.heater").ShouldBe(0, "4 minutes is under the heater minimum");
+
+        rates.Observe("switch.heater", false, 20, 20, At(10), WarmUpRates.HeaterMinimumMinutes);
+        rates.Observe("switch.heater", true, 19, 20, At(20), WarmUpRates.HeaterMinimumMinutes);
+        rates.Observe("switch.heater", true, 20, 20, At(25), WarmUpRates.HeaterMinimumMinutes);
+        rates.RateFor("switch.heater").ShouldNotBeNull().ShouldBe(12, 0.001, "1 degree in 5 minutes");
+    }
+
+    [TestMethod]
     public void ARunThatEndsBeforeItsTarget_IsIgnored()
     {
         // The boiler went off (or the valve shut) with the room still short.

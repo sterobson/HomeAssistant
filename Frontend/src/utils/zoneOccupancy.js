@@ -50,3 +50,18 @@ export const summariseOccupancy = (detectorIds, available) => {
   if (labels.length === 0) return 'No presence: never counts as in use'
   return `In use when: ${labels.join(' or ')}`
 }
+
+/**
+ * What makes a zone count as occupied, for the schedule editor: each of its detectors with whether it is on now.
+ * A detector the app no longer offers keeps its id as its label and reads as off.
+ * @param {{ name: string, occupancy?: object|null }} zone
+ * @param {Record<string, string[]>|null|undefined} savedMap `heating.zoneOccupancy`
+ * @returns {{ id: string, label: string, active: boolean }[]}
+ */
+export const zoneDetectors = (zone, savedMap) => {
+  const available = zone?.occupancy?.available ?? []
+  return effectiveDetectorIds(zone, savedMap).map(id => {
+    const detector = available.find(d => d.id === id)
+    return { id, label: detector?.label ?? id, active: detector?.active === true }
+  })
+}

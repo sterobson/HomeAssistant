@@ -84,6 +84,11 @@ structured JSON such as battery zone rules.
 control paths the house is wired to; nothing can read the physical switch at the boiler, so
 the setting has to be kept in step with it by hand.
 
+`loadSettings()` fetches the device settings once per page load, and nothing pushes later changes to the page.
+Every save writes the whole blob back, so a dialog that shows or saves part of it calls `reloadSettings()` when it
+opens (`RoomDevicesModal`, `ScheduleEditor`, since 2026-10-21). Before that, a page left open kept showing
+occupancy ticks from when it loaded, while its device lists, which are polled, were current.
+
 **Services** wrap `fetch` and attach auth headers: `x-functions-key` for deployed
 environments, `X-Localhost-Key` when the URL is localhost. Every call is scoped by a
 `houseId` read from a cookie — if it is unset the service throws, and `HouseIdModal.vue`
@@ -115,6 +120,11 @@ commented-out code in `services/heatingApi.js`. The live names are the kebab-cas
 `vue-chartjs` over Chart.js 4, with `chartjs-adapter-date-fns` for time axes. Chart.js
 components must be registered explicitly. Theme colours are CSS custom properties, so
 charts read them via `getComputedStyle` in `onMounted` rather than hard-coding hex values.
+
+`BoilerHistoryModal.vue` (since 2026-10-21, opened from the boiler status on the heating page) is not a Chart.js
+chart: the boiler is one on/off state over time, so it is a timeline strip of stretches positioned by time, with a
+headline total, a hover readout, a legend of the states shown and a table of the changes. The cutting into stretches
+is `utils/boilerHistory.js` (tested); inferred (backfilled) stretches are drawn hatched.
 
 `BatteryChart.vue` carries two custom plugins: `zoneRenderingPlugin` (`afterDatasetsDraw`,
 paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
@@ -150,10 +160,14 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   since it recurses. `cleanRoomsForApi` must keep sending `layout`, or the next save resets everyone's arrangement.
 - **Devices per room.** Each room state carries `devices` (thermometer, radiator valves, heater plugs, the
   upstairs bathroom's towel rail (role `towelRail`: not in HA, never shown as unavailable, its state the boiler's) and
-  presence devices — desk plugs and their power, TV power, the living room's lights plug, the router's online
-  list for phones — each with its live HA state), built by the NetDaemon app from the same switches that
-  bind the zone. An expanded room card has a quiet "Devices (n)" link under its schedules, and an expanded
-  group a "Devices in …" link at the top listing every zone inside it; both open `RoomDevicesModal`, which
+  presence devices — desk plugs and their power, TV power, the living room's lights plug, phones (since
+  2026-10-21 listed as the phone, "On the home Wi-Fi", not the router's online list) — each with its live HA
+  state), built by the NetDaemon app from the same switches that bind the zone. An expanded room card has a quiet
+  "Devices (n)" link under its schedules, an expanded group a "Devices in …" link at the top listing every zone
+  inside it, and the page toolbar a **Devices** button for the whole house (`houseDeviceSections`, layout order,
+  then batteries placed nowhere; since 2026-10-21); all open `RoomDevicesModal`, which has filter toggles (All,
+  TRVs, Plugs, Heating = TRVs and heater plugs, Thermometers, Battery = the battery list; `DEVICE_FILTERS` /
+  `filterSection` in `utils/roomDevices.js`) and
   shows each zone's devices under **Readers**, **Heaters** and **Presence** (`groupDevices` /
   `DEVICE_GROUPS` in `utils/roomDevices.js`) by friendly name. Entity IDs are deliberately not shown (owner,
   2026-10-19); they are only keys.

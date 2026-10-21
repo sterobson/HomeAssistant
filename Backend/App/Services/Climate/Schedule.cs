@@ -70,6 +70,9 @@ public class RoomState
 
     /// <summary>Which presence detectors count for this zone, and all there are to choose from. Display only.</summary>
     public RoomOccupancyDto? Occupancy { get; set; }
+
+    /// <summary>Tracks due now that only their room-occupancy condition holds back. Display only.</summary>
+    public List<int> WaitingForOccupancyTrackIds { get; set; } = [];
 }
 
 public class HeatingScheduleTrack

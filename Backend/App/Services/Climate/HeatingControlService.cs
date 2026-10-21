@@ -77,6 +77,16 @@ internal partial class HeatingControlService
     // boiler believed off.
     private bool _boilerMayBeRunning = false;
 
+    // A press made this pass, whose verification is armed only after the rooms have moved their valves, with the
+    // valves open after the pass (RecordValvesAndVerifyAsync). Until 2026-10-21 it was armed in DecideBoiler with the
+    // valves open before the pass, so on 2026-10-20 it watched the dining valve that same pass shut, which could never
+    // warm. Null when nothing was pressed.
+    private (bool BoilerNowOn, DateTimeOffset? BoilerOffSince)? _pressToVerify;
+
+    // The valves commanded this pass and whether each was sent open. HA reports a command only a moment after it is
+    // sent, so reading a valve back in the same pass still shows where it was (see IsValveOpenAfterPass).
+    private readonly Dictionary<string, bool> _valvesCommandedThisPass = new(StringComparer.OrdinalIgnoreCase);
+
     // Valve rooms calling for heat from the boiler. A room starts calling once it is HysteresisOffset below its
     // target (where its valve would open) and stops at its target; the boiler goes off when none is calling.
     // So a room a fraction short that never started calling cannot hold the boiler on with every valve shut.
@@ -418,6 +428,8 @@ internal partial class HeatingControlService
             // 3. The boiler, decided and pressed before any valve moves, so that valves are only moved when
             //    there may be hot water behind them.
             _boilerWasOnAtStartOfPass = _boilerOn;
+            _pressToVerify = null;
+            _valvesCommandedThisPass.Clear();
             if (fingerbotMode)
             {
                 DecideBoiler(schedules, targets, trigger);
@@ -431,6 +443,20 @@ internal partial class HeatingControlService
                 if (targets.TryGetValue(schedule.Id, out RoomTarget? target))
                 {
                     hasStateChanged |= await EvaluateSchedule(schedule, target, trigger);
+                }
+            }
+
+            // Which tracks are due but held back by their room-occupancy condition, for the UI to explain on the track.
+            foreach (RoomSchedule schedule in schedules.Rooms)
+            {
+                if (_roomStates.TryGetValue(schedule.Id, out RoomState? waitingState))
+                {
+                    List<int> waiting = await FindTracksWaitingForOccupancyAsync(schedules.HouseOccupancyState, schedule);
+                    if (!waiting.SequenceEqual(waitingState.WaitingForOccupancyTrackIds))
+                    {
+                        waitingState.WaitingForOccupancyTrackIds = waiting;
+                        hasStateChanged = true;
+                    }
                 }
             }
 
@@ -711,13 +737,23 @@ internal partial class HeatingControlService
 
             // A valve counts as warming its room while it is meant to be open and the boiler is believed on. The
             // intended state rather than the one read back: HA reports a command a moment after it is sent.
+            // A heater plug needs no boiler: it is warming its room whenever it is meant to be on (owner, 2026-10-21).
             if (device is ICustomClimateControlEntity)
             {
                 _warmUpRates?.Observe(entityId, (_boilerOn || _boilerWasOnAtStartOfPass) && desiredOn, currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow());
             }
+            else if (device is ICustomSwitchEntity)
+            {
+                _warmUpRates?.Observe(entityId, desiredOn, currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow(), WarmUpRates.HeaterMinimumMinutes);
+            }
 
             if (desiredOn != isOn && await toggle(desiredOn))
             {
+                if (device is ICustomClimateControlEntity)
+                {
+                    _valvesCommandedThisPass[entityId] = desiredOn;
+                }
+
                 _logger.LogInformation(
                     "Room {Room}: {Device} turned {State} (current {Current}°C, target {Target}°C, {Reason}{Rules}). Triggered by {Trigger}",
                     roomHeatingSchedule.Name, entityId, desiredOn ? "on" : "off", currentTemperature, deviceTarget.Temperature, deviceTarget.Reason,
@@ -856,6 +892,63 @@ internal partial class HeatingControlService
 
         return bestTrack;
     }
+
+    /// <summary>
+    /// The tracks that would be running now but for their room-occupancy condition (owner, 2026-10-21): due today
+    /// (started, on a day it runs, for the house's Home/Away mode) and no earlier than the track that is actually
+    /// active, so a track that a later one has superseded is not "waiting". With nothing due today, yesterday's tracks
+    /// that would have carried over, as <see cref="FindCurrentActiveSchedule"/> does. Empty while a boost runs, since
+    /// no track applies then, and for a room with nothing to switch.
+    /// </summary>
+    private async Task<List<int>> FindTracksWaitingForOccupancyAsync(HouseOccupancyState houseOccupancyState, RoomSchedule schedule)
+    {
+        if (IsBoostRunning(schedule) || GetSwitchesForRoom(schedule).Length == 0)
+        {
+            return [];
+        }
+
+        DateTime now = _timeProvider.GetLocalNow().DateTime;
+        Days today = ToDays(now.DayOfWeek);
+        TimeSpan currentTime = now.TimeOfDay;
+        HeatingScheduleTrack? active = await FindCurrentActiveSchedule(houseOccupancyState, schedule, now, today);
+        bool activeIsToday = active != null && RunsOn(active, today) && active.TargetTime.ToTimeSpan() <= currentTime;
+
+        List<int> waiting = [];
+        bool anyDueToday = false;
+        foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
+        {
+            if (!RunsOn(track, today) || track.TargetTime.ToTimeSpan() > currentTime
+                || !await MeetsSpecialConditions(houseOccupancyState, schedule, track, ignoreRoomPresence: true))
+            {
+                continue;
+            }
+
+            anyDueToday = true;
+            if ((!activeIsToday || track.TargetTime >= active!.TargetTime) && !await MeetsSpecialConditions(houseOccupancyState, schedule, track))
+            {
+                waiting.Add(track.Id);
+            }
+        }
+
+        if (!anyDueToday)
+        {
+            Days yesterday = GetPreviousDay(today);
+            foreach (HeatingScheduleTrack track in schedule.ScheduleTracks)
+            {
+                if (RunsOn(track, yesterday)
+                    && (active == null || track.TargetTime >= active.TargetTime)
+                    && await MeetsSpecialConditions(houseOccupancyState, schedule, track, ignoreRoomPresence: true)
+                    && !await MeetsSpecialConditions(houseOccupancyState, schedule, track))
+                {
+                    waiting.Add(track.Id);
+                }
+            }
+        }
+
+        return [.. waiting.Order()];
+    }
+
+    private static bool RunsOn(HeatingScheduleTrack track, Days day) => track.Days == Days.Unspecified || (track.Days & day) != 0;
 
     /// <summary>
     /// Today's tracks still to come that are warmer than now and whose conditions hold, earliest first: what a
@@ -1015,7 +1108,7 @@ internal partial class HeatingControlService
         };
     }
 
-    private async Task<bool> MeetsSpecialConditions(HouseOccupancyState houseOccupancyState, RoomSchedule roomSchedule, HeatingScheduleTrack heatingScheduleTrack)
+    private async Task<bool> MeetsSpecialConditions(HouseOccupancyState houseOccupancyState, RoomSchedule roomSchedule, HeatingScheduleTrack heatingScheduleTrack, bool ignoreRoomPresence = false)
     {
         bool meetsAllConditions = true;
 
@@ -1039,6 +1132,12 @@ internal partial class HeatingControlService
         // From this pass's presence snapshot (PrepareDeviceRulesAsync), so every track and device sees the same answer
         // and each detector is checked only once.
         bool roomInUse = _presenceInUse.TryGetValue(roomSchedule.Name.Trim(), out bool inUse) && inUse;
+
+        // Whether the track would run if its room-occupancy condition were not there (FindTracksWaitingForOccupancyAsync).
+        if (ignoreRoomPresence)
+        {
+            return true;
+        }
 
         if (heatingScheduleTrack.Conditions.HasFlag(ConditionType.RoomInUse))
         {
@@ -1088,12 +1187,13 @@ internal partial class HeatingControlService
                     valveDevice.CurrentTemperature = valve.CurrentTemperature;
                     valveDevice.TargetTemperature = valve.TargetTemperature;
                     AttachRules(valveDevice);
-                    AttachWarmUp(valveDevice, room);
+                    AttachWarmUp(valveDevice, room, isRadiatorValve: true);
                     devices.Add(valveDevice);
                     break;
                 case ICustomSwitchEntity plug:
                     RoomDeviceDto plugDevice = DescribeDevice(plug.EntityId, RoomDeviceRoles.HeaterPlug);
                     AttachRules(plugDevice);
+                    AttachWarmUp(plugDevice, room, isRadiatorValve: false);
                     devices.Add(plugDevice);
                     break;
                 case TowelRail rail:
@@ -1111,7 +1211,7 @@ internal partial class HeatingControlService
 
         foreach ((string entityId, string role) in _presenceService.GetPresenceDevices(room.Name))
         {
-            devices.Add(DescribeDevice(entityId, role));
+            devices.Add(_presenceService.DescribeOwnDevice(entityId) ?? DescribeDevice(entityId, role));
         }
 
         return devices;
@@ -1125,12 +1225,13 @@ internal partial class HeatingControlService
     }
 
     /// <summary>
-    /// Publishes how fast a radiator valve has warmed its room and how long it would likely take to reach the next
-    /// warmer schedule track, so the UI can say what an Auto pre-heat amounts to (owner, 2026-10-20).
+    /// Publishes how fast a radiator valve or heater plug has warmed its room and how long it would likely take to
+    /// reach the next warmer schedule track, so the UI can say what an Auto pre-heat amounts to (owner, 2026-10-20;
+    /// heater plugs since 2026-10-21).
     /// </summary>
-    private void AttachWarmUp(RoomDeviceDto valveDevice, RoomSchedule room)
+    private void AttachWarmUp(RoomDeviceDto valveDevice, RoomSchedule room, bool isRadiatorValve)
     {
-        valveDevice.PreHeatAuto = DeviceRulesDto.IsAutoPreHeat(GetRulesFor(valveDevice.EntityId), true);
+        valveDevice.PreHeatAuto = DeviceRulesDto.IsAutoPreHeat(GetRulesFor(valveDevice.EntityId), isRadiatorValve);
 
         double? rate = _warmUpRates?.RateFor(valveDevice.EntityId);
         valveDevice.HeatingRateSamples = _warmUpRates?.SampleCount(valveDevice.EntityId) ?? 0;
@@ -1324,10 +1425,6 @@ internal partial class HeatingControlService
         // Sum how far each room with a radiator valve is below its target. A room at or above its
         // target contributes nothing: it is disregarded, not a credit against the cold rooms.
         List<(string RoomName, double Deficit)> roomsBelowTarget = [];
-        // Open valves that can take heat: the radiators a turn-off verification watches cool.
-        List<(string RoomName, ICustomClimateControlEntity Valve)> openValves = [];
-        // Valves of the rooms calling for heat: the radiators a turn-on verification watches warm.
-        List<(string RoomName, ICustomClimateControlEntity Valve)> callingValves = [];
         // A running boost starts the boiler on its own, whatever the total (owner, 2026-10-19).
         List<string> boostedRoomsCalling = [];
         // So does a room someone is in: its active track needs "room in use", which is only selected while the
@@ -1353,8 +1450,6 @@ internal partial class HeatingControlService
                 continue;
             }
 
-            openValves.AddRange(radiatorValves.Where(IsValveOpen).Select(valve => (roomSchedule.Name, valve)));
-
             // The room's demand on the boiler is its radiators' target, brought forward by their own pre-heat:
             // a radiator pre-heating for a warmer track calls for the boiler from the start of its pre-heat.
             DeviceTarget valveTarget = boilerRadiators.Select(radiator => TargetFor(target, radiator)).MaxBy(t => t.Temperature)!;
@@ -1377,8 +1472,6 @@ internal partial class HeatingControlService
 
             if (_roomsCallingForHeat.Contains(roomSchedule.Id))
             {
-                callingValves.AddRange(radiatorValves.Select(valve => (roomSchedule.Name, valve)));
-
                 if (IsBoostRunning(roomSchedule))
                 {
                     boostedRoomsCalling.Add(roomSchedule.Name);
@@ -1421,7 +1514,7 @@ internal partial class HeatingControlService
                     // The press puts the boiler where we believed it was.
                     SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
                     _lastBoilerPressWasCorrection = true;
-                    _boilerVerification.NotifyBoilerToggled(_boilerOn, _boilerOn ? [.. openValves.Concat(callingValves).DistinctBy(v => v.Valve.EntityId)] : openValves, actuallySince);
+                    _pressToVerify = (_boilerOn, actuallySince);
                 }
                 else
                 {
@@ -1471,18 +1564,17 @@ internal partial class HeatingControlService
                         totalDeficit, BoilerDeficitThresholdCelsius, trigger,
                         string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
 
-                    // Watch the valves that open with this press as well as any already open: with the boiler
-                    // off they had no hot water behind them, so they are the radiators that should now warm.
-                    List<(string RoomName, ICustomClimateControlEntity Valve)> valvesToWatch =
-                        [.. openValves.Concat(callingValves).DistinctBy(v => v.Valve.EntityId)];
-                    _boilerVerification.NotifyBoilerToggled(true, valvesToWatch, offSince);
+                    // Verified against the valves open once the rooms have moved them: those that open with this press
+                    // and those left open, which with the boiler off had no hot water behind them.
+                    _pressToVerify = (true, offSince);
                 }
             }
         }
         else if (_roomsCallingForHeat.Count == 0)
         {
             // Boiler is ON and no room is calling for heat: turn it OFF. The valves are left where they are
-            // (see _valvesWaitForBoiler), and the open ones are the radiators the verification watches cool.
+            // (see _valvesWaitForBoiler), and the open ones are the radiators the verification watches for heating
+            // up again, which they would if the boiler were still running.
             if (PressBoilerFingerbot())
             {
                 SetBoilerBelief(false, _timeProvider.GetUtcNow());
@@ -1490,18 +1582,29 @@ internal partial class HeatingControlService
                 _boilerMayBeRunning = false;
                 _logger.LogInformation("Boiler turned OFF (no room with a radiator valve or towel rail is calling for heat). Triggered by {Trigger}", trigger);
 
-                _boilerVerification.NotifyBoilerToggled(false, openValves, null);
+                _pressToVerify = (false, null);
             }
         }
     }
 
     /// <summary>
-    /// Tells the verification which radiators have hot water behind them this pass (an open valve while the
-    /// boiler is believed on) and which do not, then runs it. Called after any press and after the rooms have
-    /// moved their valves, so a valve that has just opened still shows how long its radiator was cold.
+    /// Arms the verification of this pass's press, if any, with the valves open after the pass; then tells it which
+    /// radiators have hot water behind them (an open valve while the boiler is believed on) and which do not, and
+    /// runs it. Called after the rooms have moved their valves. The press is armed first, so a valve that has just
+    /// opened still shows how long its radiator was cold.
     /// </summary>
     private async Task RecordValvesAndVerifyAsync(RoomSchedules schedules)
     {
+        if (_pressToVerify is { } press)
+        {
+            List<(string RoomName, ICustomClimateControlEntity Valve)> openAfterPass = [.. schedules.Rooms
+                .SelectMany(room => GetSwitchesForRoom(room).OfType<ICustomClimateControlEntity>().Select(valve => (room.Name, Valve: valve)))
+                .Where(v => IsValveOpenAfterPass(v.Valve))
+                .DistinctBy(v => v.Valve.EntityId)];
+            _boilerVerification.NotifyBoilerToggled(press.BoilerNowOn, openAfterPass, press.BoilerOffSince);
+            _pressToVerify = null;
+        }
+
         foreach (RoomSchedule roomSchedule in schedules.Rooms)
         {
             List<ICustomClimateControlEntity> radiatorValves = [.. GetSwitchesForRoom(roomSchedule).OfType<ICustomClimateControlEntity>()];
@@ -1510,7 +1613,7 @@ internal partial class HeatingControlService
                 continue;
             }
 
-            List<ICustomClimateControlEntity> heating = _boilerOn ? [.. radiatorValves.Where(IsValveOpen)] : [];
+            List<ICustomClimateControlEntity> heating = _boilerOn ? [.. radiatorValves.Where(IsValveOpenAfterPass)] : [];
             if (heating.Count == 0)
             {
                 _boilerVerification.NotifyValveStopped(roomSchedule.Name);
@@ -1528,6 +1631,10 @@ internal partial class HeatingControlService
 
     /// <summary>A valve is open when its setpoint is at or above its own reading, which is how the app sets it.</summary>
     private static bool IsValveOpen(ICustomClimateControlEntity valve) => valve.TargetTemperature >= valve.CurrentTemperature;
+
+    /// <summary>Whether a valve is open once this pass's commands have landed: what it was sent, else what it reads.</summary>
+    private bool IsValveOpenAfterPass(ICustomClimateControlEntity valve) =>
+        _valvesCommandedThisPass.TryGetValue(valve.EntityId, out bool sentOpen) ? sentOpen : IsValveOpen(valve);
 
     /// <summary>
     /// Whether a towel rail is known to be hot: the app runs the boiler and believes it on. On the boiler thermostat

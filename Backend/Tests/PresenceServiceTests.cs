@@ -537,7 +537,15 @@ public sealed class PresenceServiceTests
 
         context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = [PresenceService.StePhoneHome] });
         (await context.Service.IsRoomInUse("den")).ShouldBeTrue("chosen for the den");
-        context.Service.GetPresenceDevices("den").ShouldBe([(PresenceService.RouterOnlineDevices, RoomDeviceRoles.RouterDevices)]);
+        context.Service.GetPresenceDevices("den").ShouldBe([("phone.ste", RoomDeviceRoles.Phone)], "listed as the phone, not the router (owner, 2026-10-21)");
+
+        RoomDeviceDto ste = context.Service.DescribeOwnDevice("phone.ste").ShouldNotBeNull();
+        ste.Name.ShouldBe("Ste's phone");
+        ste.State.ShouldBe("home");
+        context.Service.DescribeOwnDevice("switch.dining_room_desk_plug").ShouldBeNull("a Home Assistant entity is looked up as usual");
+
+        context.SetOnlineDevices($$"""{ "name": "unknown", "id": "{{PresenceService.StePhoneRouterId}}" }""");
+        context.Service.DescribeOwnDevice("phone.ellie").ShouldNotBeNull().State.ShouldBe("away");
     }
 
     private sealed class PresenceTestContext

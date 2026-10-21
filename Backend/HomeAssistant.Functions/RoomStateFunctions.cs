@@ -16,6 +16,7 @@ public class RoomStateFunctions
     private readonly ILogger<RoomStateFunctions> _logger;
     private readonly RoomStateStorageService _storageService;
     private readonly RoomHistoryStorageService _historyService;
+    private readonly BoilerHistoryStorageService _boilerHistoryService;
     private readonly SignalRService _signalRService;
 
     // Track last recorded history state per room to enable deduplication
@@ -39,6 +40,7 @@ public class RoomStateFunctions
 
         _storageService = new RoomStateStorageService(connectionString);
         _historyService = new RoomHistoryStorageService(connectionString, logger);
+        _boilerHistoryService = new BoilerHistoryStorageService(connectionString, logger);
     }
 
     [Function("GetRoomStates")]
@@ -109,6 +111,20 @@ public class RoomStateFunctions
             foreach (RoomStateDto state in dto.RoomStates)
             {
                 await RecordHistoryIfChanged(houseId, state);
+            }
+
+            // The boiler's on/off history (owner, 2026-10-21), from the belief every upload carries.
+            if (dto.Boiler != null)
+            {
+                try
+                {
+                    await _boilerHistoryService.RecordIfChangedAsync(houseId, dto.Boiler, DateTimeOffset.UtcNow);
+                }
+                catch (Exception ex)
+                {
+                    // Don't fail the main request if history recording fails
+                    _logger.LogError(ex, "Error recording boiler history for house {HouseId}", houseId);
+                }
             }
 
             // Send SignalR message to all clients for this house

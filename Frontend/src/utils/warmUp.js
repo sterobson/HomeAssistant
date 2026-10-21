@@ -1,10 +1,10 @@
-// How long a radiator takes to warm its room (owner, 2026-10-20), as measured by the NetDaemon app and published on
-// each radiator valve in a room state's `devices`:
+// How long a radiator or electric heater takes to warm its room (owner, 2026-10-20; heater plugs since 2026-10-21),
+// as measured by the NetDaemon app and published on each radiator valve and heater plug in a room state's `devices`:
 //
 //   { preHeatAuto, heatingRateCelsiusPerHour, heatingRateSamples, warmUpMinutes }
 //
-// The rate is the average of the valve's last few warm-ups with the boiler on (up to 5, each of at least half an
-// hour and ending when the room reached its target). `warmUpMinutes` is how long that rate says it would take to
+// The rate is the average of the device's last few warm-ups (up to 5, each ending when the room reached its target):
+// a valve's with the boiler on and of at least half an hour, a heater's of at least 5 minutes (owner, 2026-10-21). `warmUpMinutes` is how long that rate says it would take to
 // bring the room up to the next warmer schedule track from the temperature it is now; null with no rate, or with no
 // warmer track to warm up for. An Auto valve with no rate yet pre-heats for 30 minutes.
 
@@ -32,17 +32,21 @@ export const formatRate = (celsiusPerHour, unit = 'C') => {
 }
 
 const isRadiatorValve = (device) => device?.role === 'radiatorValve'
+const isHeaterPlug = (device) => device?.role === 'heaterPlug'
+
+/** The shortest warm-up the app counts, in minutes: WarmUpRates.MinimumMinutes / HeaterMinimumMinutes. */
+const minimumWarmUpMinutes = (device) => (isHeaterPlug(device) ? 5 : 30)
 
 /**
- * How long a radiator valve is expected to need: its measured warm-up, or for an Auto valve with no data the 30
- * minutes it uses meanwhile (flagged as assumed). Null for a valve that has a rate but no warmer track coming, and
- * for a fixed pre-heat with no rate.
+ * How long a radiator valve or heater plug is expected to need: its measured warm-up, or for an Auto valve with no
+ * data the 30 minutes it uses meanwhile (flagged as assumed; an Auto heater with no data has none). Null for a device
+ * that has a rate but no warmer track coming, and for a fixed pre-heat with no rate.
  * @returns {{ minutes: number, assumed: boolean }|null}
  */
 export const expectedWarmUp = (device) => {
-  if (!isRadiatorValve(device)) return null
+  if (!isRadiatorValve(device) && !isHeaterPlug(device)) return null
   if (device.warmUpMinutes != null) return { minutes: device.warmUpMinutes, assumed: false }
-  if (device.preHeatAuto && device.heatingRateCelsiusPerHour == null) {
+  if (isRadiatorValve(device) && device.preHeatAuto && device.heatingRateCelsiusPerHour == null) {
     return { minutes: FALLBACK_WARM_UP_MINUTES, assumed: true }
   }
   return null
@@ -56,7 +60,7 @@ export const expectedWarmUp = (device) => {
  */
 export const zoneWarmUp = (devices) => {
   let longest = null
-  for (const device of devices ?? []) {
+  for (const device of (devices ?? []).filter(isRadiatorValve)) {
     const warmUp = expectedWarmUp(device)
     if (warmUp && (longest === null || warmUp.minutes > longest.minutes)) longest = warmUp
   }
@@ -64,15 +68,16 @@ export const zoneWarmUp = (devices) => {
 }
 
 /**
- * What a radiator valve's warm-up rests on, for the line under its name: "Warms its room about 1.6°C an hour
- * (average of its last 3 heatings)", or that there is nothing measured yet. Null for anything that is not a valve.
+ * What a radiator valve's or heater plug's warm-up rests on, for the line under its name: "Warms its room about
+ * 1.6°C an hour (average of its last 3 heatings)", or that there is nothing measured yet. Null for anything else.
  * @param {object} device
  * @param {string} [unit]
  */
 export const describeWarmUpRate = (device, unit = 'C') => {
-  if (!isRadiatorValve(device)) return null
+  if (!isRadiatorValve(device) && !isHeaterPlug(device)) return null
   if (device.heatingRateCelsiusPerHour == null) {
-    return 'Warm-up not measured yet: it takes a heating of at least half an hour that reaches the target'
+    const minimum = minimumWarmUpMinutes(device)
+    return `Warm-up not measured yet: it takes a heating of at least ${minimum === 30 ? 'half an hour' : `${minimum} minutes`} that reaches the target`
   }
   const count = device.heatingRateSamples ?? 0
   const basis = count === 1 ? 'its last heating' : `the average of its last ${count} heatings`

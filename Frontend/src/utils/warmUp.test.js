@@ -76,8 +76,20 @@ describe('describeWarmUpRate', () => {
       'Warms its room about 1.6°C an hour (its last heating)')
   })
 
-  it('says when nothing is measured yet, and says nothing for other devices', () => {
-    expect(describeWarmUpRate(valve())).toMatch(/not measured yet/)
-    expect(describeWarmUpRate({ role: 'heaterPlug' })).toBeNull()
+  it('says when nothing is measured yet, and says nothing for devices that do not heat', () => {
+    expect(describeWarmUpRate(valve())).toMatch(/not measured yet.*half an hour/)
+    expect(describeWarmUpRate({ role: 'thermometer' })).toBeNull()
+  })
+
+  it('describes a heater plug too, whose shortest warm-up is 5 minutes (since 2026-10-21)', () => {
+    expect(describeWarmUpRate({ role: 'heaterPlug' })).toMatch(/not measured yet.*5 minutes/)
+    expect(describeWarmUpRate({ role: 'heaterPlug', heatingRateCelsiusPerHour: 6, heatingRateSamples: 2 }))
+      .toBe('Warms its room about 6.0°C an hour (the average of its last 2 heatings)')
+  })
+
+  it('gives a heater plug no assumed warm-up while unmeasured, and keeps heaters out of the radiators\' zone figure', () => {
+    expect(expectedWarmUp({ role: 'heaterPlug', preHeatAuto: true })).toBeNull()
+    expect(expectedWarmUp({ role: 'heaterPlug', warmUpMinutes: 12 })).toEqual({ minutes: 12, assumed: false })
+    expect(zoneWarmUp([{ role: 'heaterPlug', warmUpMinutes: 90 }])).toBeNull()
   })
 })

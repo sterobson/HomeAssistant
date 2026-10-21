@@ -97,6 +97,8 @@
             :schedule="schedule"
             :is-active="schedule.id === room.activeScheduleId"
             :heating-active="room.heatingActive"
+            :occupancy-detectors="trackOccupancyDetectors"
+            :waiting-for-occupancy="(room.waitingForOccupancyTrackIds ?? []).includes(schedule.id)"
             @edit="handleEdit"
             @delete="handleDelete"
           />
@@ -115,6 +117,7 @@
         :schedule="editingSchedule"
         :occupancy-filter="occupancyFilter"
         :room-capabilities="room.capabilities"
+        :room="room"
         @save="handleSave"
         @cancel="handleCancel"
       />
@@ -182,6 +185,7 @@ import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
 import { deviceSections } from '../utils/roomDevices.js'
+import { zoneDetectors } from '../utils/zoneOccupancy.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
 const { formatTempWithUnit } = useFormatting()
@@ -255,6 +259,9 @@ const deviceCount = computed(() => {
 })
 const deviceSectionsForRoom = computed(() =>
   deviceSections([props.room]).map(section => ({ ...section, batteries: roomBatteries.value })))
+// What the app is using for this zone's occupancy right now, with each detector's state, for its tracks. The app's
+// report rather than the saved setting: it is what the schedule is actually being judged by.
+const trackOccupancyDetectors = computed(() => zoneDetectors(props.room, null))
 const historyData = ref([])
 const historyLoading = ref(false)
 const historyError = ref(null)

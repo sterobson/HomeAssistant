@@ -469,6 +469,8 @@ internal class MockPresenceService : IPresenceService
         return CanDetectIfRoomInUse(roomName) ? [($"{roomName} desk plug", RoomDeviceRoles.DeskPlug)] : [];
     }
 
+    public RoomDeviceDto? DescribeOwnDevice(string deviceId) => null;
+
     /// <summary>Every zone given a value with <see cref="SetRoomValue"/>.</summary>
     public IReadOnlyList<string> PresenceZones => [.. _presenceValue.Keys];
 

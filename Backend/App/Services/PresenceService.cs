@@ -15,6 +15,9 @@ internal sealed record PresenceDetector(
     IReadOnlyList<(string EntityId, string Role)> Devices,
     Func<Task<bool>> IsActiveAsync);
 
+/// <summary>A phone whose presence on the home Wi-Fi is a detector. <see cref="DeviceId"/> is the app's own, not Home Assistant's.</summary>
+internal sealed record PresencePhone(string DetectorId, string DeviceId, string Name, string RouterId);
+
 /// <summary>Presence worked out once for an evaluation pass: each zone, "house", and each detector.</summary>
 internal sealed record PresenceSnapshot(IReadOnlyDictionary<string, bool> Zones, bool SomeoneHome, IReadOnlyDictionary<string, bool> Detectors);
 
@@ -98,6 +101,14 @@ internal class PresenceService : IPresenceService
     /// <summary>The router's id for Ellie's phone, listed as "Android_17YGONY5".</summary>
     internal const string EllePhoneRouterId = "0461c717-bf51-4b13-b17a-f58c2e0cada0";
 
+    /// <summary>The phones the router can see, each with the id it has as a device in a zone's Devices list.</summary>
+    internal static readonly IReadOnlyList<PresencePhone> Phones =
+    [
+        new(StePhoneHome, "phone.ste", "Ste's phone", StePhoneRouterId),
+        new(RuthPhoneHome, "phone.ruth", "Ruth's phone", RuthPhoneRouterId),
+        new(EllePhoneHome, "phone.ellie", "Ellie's phone", EllePhoneRouterId)
+    ];
+
     /// <summary>
     /// Which detectors count for each zone until the owner saves their own: exactly what each zone had when this
     /// became configurable. Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone needs it in
@@ -114,6 +125,7 @@ internal class PresenceService : IPresenceService
             ["living room"] = [LivingRoomTvOn, LivingRoomLightsOn]
         };
 
+    private readonly IHaContext _ha;
     private readonly HistoryService _historyService;
     private readonly IReadOnlyList<PresenceDetector> _detectors;
     private readonly Dictionary<string, PresenceDetector> _detectorsById;
@@ -164,20 +176,43 @@ internal class PresenceService : IPresenceService
                 () => Task.FromResult(namedEntities.LivingRoomStickLightsPlugOnOff.IsOn())),
             // Phones on the home Wi-Fi (owner, 2026-10-20): for individual zones only, not "house". No zone uses
             // them until the owner chooses them. The router refreshes its list about once a minute.
-            new(StePhoneHome, "Ste's phone on the home Wi-Fi", false,
-                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
-                () => Task.FromResult(IsOnRouter(ha, StePhoneRouterId))),
-            new(RuthPhoneHome, "Ruth's phone on the home Wi-Fi", false,
-                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
-                () => Task.FromResult(IsOnRouter(ha, RuthPhoneRouterId))),
-            new(EllePhoneHome, "Ellie's phone on the home Wi-Fi", false,
-                [(RouterOnlineDevices, RoomDeviceRoles.RouterDevices)],
-                () => Task.FromResult(IsOnRouter(ha, EllePhoneRouterId)))
+            // Each listed as the phone itself, not the router's list it is read from (owner, 2026-10-21).
+            .. Phones.Select(phone => new PresenceDetector(phone.DetectorId, $"{phone.Name} on the home Wi-Fi", false,
+                [(phone.DeviceId, RoomDeviceRoles.Phone)],
+                () => Task.FromResult(IsOnRouter(ha, phone.RouterId))))
         ];
         _detectorsById = _detectors.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
 
+        _ha = ha;
+
+        // A phone is not a Home Assistant entity; the router's list it is read from is.
         EntityExistenceValidator.ValidateEntities(ha, logger,
-            [.. _detectors.SelectMany(d => d.Devices.Select(device => device.EntityId)).Distinct()]);
+            [.. _detectors.SelectMany(d => d.Devices.Where(device => device.Role != RoomDeviceRoles.Phone).Select(device => device.EntityId))
+                .Append(RouterOnlineDevices).Distinct()]);
+    }
+
+    /// <summary>
+    /// A phone as a device of the zones that use it: its name, and "home" while the router lists it, "away" while it
+    /// does not, "unavailable" while the router's list cannot be read. Null for anything that is not a phone, which
+    /// is a Home Assistant entity to be looked up as usual.
+    /// </summary>
+    public RoomDeviceDto? DescribeOwnDevice(string deviceId)
+    {
+        PresencePhone? phone = Phones.FirstOrDefault(p => string.Equals(p.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+        if (phone == null)
+        {
+            return null;
+        }
+
+        string? routerState = _ha.GetState(RouterOnlineDevices)?.State;
+        bool readable = routerState != null && routerState != "unavailable" && routerState != "unknown";
+        return new RoomDeviceDto
+        {
+            EntityId = phone.DeviceId,
+            Role = RoomDeviceRoles.Phone,
+            Name = phone.Name,
+            State = !readable ? "unavailable" : IsOnRouter(_ha, phone.RouterId) ? "home" : "away"
+        };
     }
 
     public IReadOnlyList<PresenceDetectorDto> Detectors =>

@@ -95,18 +95,18 @@
           <h4 class="section-title">Pre-heat</h4>
           <p class="section-help">
             How long before a warmer schedule starts this device begins heating for it. Radiators warm a room
-            slowly, so usually need longer than a heater.
+            slowly, so usually need longer than a heater. It still only runs while the rules above allow it.
           </p>
           <label class="pre-heat-field">
             <span class="visually-hidden">Pre-heat</span>
             <select v-model.number="draft.preHeatMinutes">
-              <option v-if="isRadiator" :value="PRE_HEAT_AUTO">Auto (default)</option>
+              <option :value="PRE_HEAT_AUTO">Auto{{ isRadiator ? ' (default)' : '' }}</option>
               <option v-for="minutes in PRE_HEAT_OPTIONS" :key="minutes" :value="minutes">
                 {{ minutes === 0 ? 'None' : `${minutes} minutes` }}{{ !isRadiator && minutes === defaultPreHeat ? ' (default)' : '' }}
               </option>
             </select>
           </label>
-          <p v-if="isRadiator && draft.preHeatMinutes === PRE_HEAT_AUTO" class="auto-help">
+          <p v-if="draft.preHeatMinutes === PRE_HEAT_AUTO" class="auto-help">
             {{ autoExplanation }}
           </p>
         </section>
@@ -201,8 +201,8 @@ const draft = reactive({
     match: props.rules?.presence?.match === PRESENCE_MATCH.ALL ? PRESENCE_MATCH.ALL : PRESENCE_MATCH.ANY,
     sources: [...(props.rules?.presence?.sources ?? [])]
   },
-  // Auto for a radiator with none set; otherwise rounded to the 5-minute steps on offer, so a saved value always
-  // appears selected.
+  // Auto (a radiator with none set, or Auto chosen); otherwise rounded to the 5-minute steps on offer, so a saved
+  // value always appears selected.
   preHeatMinutes: isAutoPreHeat(props.rules, props.deviceRole)
     ? PRE_HEAT_AUTO
     : Math.round(preHeatFor(props.rules, props.deviceRole) / 5) * 5
@@ -210,13 +210,15 @@ const draft = reactive({
 const defaultPreHeat = computed(() => defaultPreHeatFor(props.deviceRole))
 const isRadiator = computed(() => props.deviceRole === 'radiatorValve')
 
-// What Auto means for this radiator right now: how it is worked out, what it has measured and the time that implies.
+// What Auto means for this device right now: how it is worked out, what it has measured and the time that implies.
 const autoExplanation = computed(() => {
   const rate = describeWarmUpRate(props.device, currentTempUnit.value)
   const warmUp = expectedWarmUp(props.device)
   const how = 'It starts early enough for the room to reach the new temperature as the schedule begins.'
   if (props.device?.heatingRateCelsiusPerHour == null) {
-    return `${how} Nothing has been measured for this radiator yet, so it starts ${FALLBACK_WARM_UP_MINUTES} minutes ahead until it has.`
+    return isRadiator.value
+      ? `${how} Nothing has been measured for this radiator yet, so it starts ${FALLBACK_WARM_UP_MINUTES} minutes ahead until it has.`
+      : `${how} Nothing has been measured for this heater yet, so it has no pre-heat until it has.`
   }
   const expected = warmUp
     ? `That would take about ${formatMinutes(warmUp.minutes)} to reach the next warmer schedule from the room's temperature now.`

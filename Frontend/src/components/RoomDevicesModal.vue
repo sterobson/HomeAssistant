@@ -16,13 +16,30 @@
           last reported.
         </p>
 
-        <section v-for="section in sections" :key="section.roomId" class="devices-section">
+        <!-- Narrow the list to one kind of device (owner, 2026-10-21). -->
+        <div class="filter-bar" role="group" aria-label="Show">
+          <button
+            v-for="filter in DEVICE_FILTERS"
+            :key="filter.key"
+            type="button"
+            class="filter-btn"
+            :class="{ active: activeFilter === filter.key }"
+            :aria-pressed="activeFilter === filter.key"
+            @click="activeFilter = filter.key"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+
+        <p v-if="visibleSections.length === 0" class="no-devices">Nothing here matches this filter.</p>
+
+        <section v-for="section in visibleSections" :key="section.roomId" class="devices-section">
           <h4 v-if="showSectionTitles" class="section-title">
             <span v-if="section.icon" class="section-icon" aria-hidden="true">{{ section.icon }}</span>{{ section.title }}
           </h4>
 
           <!-- Which presence detectors make this zone count as in use; only once the app reports them. -->
-          <div v-if="section.occupancy" class="occupancy-row">
+          <div v-if="section.occupancy && section.showOccupancy" class="occupancy-row">
             <span class="occupancy-summary">
               {{ occupancySummary(section) }}<span v-if="zoneOccupancy === null" class="rules-default"> (built-in)</span>
             </span>
@@ -30,11 +47,11 @@
           </div>
 
           <!-- How long this zone's radiators are expected to take to warm it: the longest of them. -->
-          <p v-if="warmUpFor(section)" class="warm-up-row">
+          <p v-if="section.showWarmUp && warmUpFor(section)" class="warm-up-row">
             {{ warmUpFor(section) }}
           </p>
 
-          <p v-if="section.devices.length === 0 && !section.batteries?.length" class="no-devices">
+          <p v-if="activeFilter === 'all' && section.devices.length === 0 && !section.batteries?.length" class="no-devices">
             No devices. Nothing is bound to this name, or the house has not reported yet.
           </p>
 
@@ -130,7 +147,7 @@ import DeviceRulesModal from './DeviceRulesModal.vue'
 import ZoneOccupancyModal from './ZoneOccupancyModal.vue'
 import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import { useFormatting } from '../composables/useFormatting.js'
-import { describeState, deviceName, groupDevices, isUnavailable, roleLabel } from '../utils/roomDevices.js'
+import { DEVICE_FILTERS, describeState, deviceName, filterSection, groupDevices, isUnavailable, roleLabel } from '../utils/roomDevices.js'
 import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules.js'
 import { effectiveDetectorIds, summariseOccupancy } from '../utils/zoneOccupancy.js'
 import { isLow } from '../utils/batteries.js'
@@ -141,7 +158,7 @@ const sortedBatteries = (batteries) => [...batteries].sort((a, b) =>
   (a.percent ?? 101) - (b.percent ?? 101) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
 
 const { formatTempWithUnit, currentTempUnit } = useFormatting()
-const { deviceRules, loadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
+const { deviceRules, reloadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
 
 const props = defineProps({
   title: {
@@ -179,8 +196,15 @@ const emit = defineEmits(['close'])
 // A single zone needs no heading of its own; the modal title already names it.
 const showSectionTitles = computed(() => props.sections.length > 1)
 
+// Which kind of device to show; sections the filter leaves empty are hidden (utils/roomDevices.js).
+const activeFilter = ref('all')
+const visibleSections = computed(() =>
+  props.sections.map(section => filterSection(section, activeFilter.value)).filter(Boolean))
+
 // The rules blob decides what a device's rules are once it exists, so it has to be loaded to show them.
-onMounted(() => loadSettings())
+// Fetched afresh on every opening: the page loads device settings once and nothing pushes changes to it, so a
+// choice saved elsewhere (another tab or device) would otherwise show stale ticks, and a save would write them back.
+onMounted(() => reloadSettings())
 
 // "Radiators take about 45 min to warm this room": the longest of the zone's radiators, or the 30 minutes an Auto
 // radiator assumes until it has been measured.
@@ -459,6 +483,35 @@ const saveRules = async (rules) => {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.filter-btn {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+}
+
+.filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
 }
 
 .occupancy-row {

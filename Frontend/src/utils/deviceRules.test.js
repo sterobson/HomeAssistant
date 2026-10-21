@@ -158,7 +158,7 @@ describe('pre-heat', () => {
     expect(PRE_HEAT_OPTIONS).toHaveLength(13)
   })
 
-  it('is Auto for a radiator valve with none set, and never for a heater plug', () => {
+  it('is Auto for a radiator valve with none set, and for a heater plug only when chosen', () => {
     expect(isAutoPreHeat(null, 'radiatorValve')).toBe(true)
     expect(isAutoPreHeat({}, 'radiatorValve')).toBe(true)
     expect(isAutoPreHeat({ preHeatMinutes: null }, 'radiatorValve')).toBe(true)
@@ -166,6 +166,9 @@ describe('pre-heat', () => {
     expect(isAutoPreHeat({ preHeatMinutes: 30 }, 'radiatorValve')).toBe(false)
     expect(isAutoPreHeat({ preHeatMinutes: 0 }, 'radiatorValve')).toBe(false)
     expect(isAutoPreHeat(null, 'heaterPlug')).toBe(false)
+    expect(isAutoPreHeat({ preHeatAuto: true }, 'heaterPlug')).toBe(true)
+    expect(isAutoPreHeat({ preHeatMinutes: PRE_HEAT_AUTO }, 'heaterPlug')).toBe(true)
+    expect(isAutoPreHeat({ preHeatAuto: false }, 'radiatorValve')).toBe(false)
   })
 
   it('is mentioned in the summary only when it is not the default for that kind of device', () => {
@@ -183,9 +186,16 @@ describe('pre-heat', () => {
     expect(normaliseRules(rules([]), 'heaterPlug').preHeatMinutes).toBe(0)
   })
 
-  it('is saved as no value when it is Auto', () => {
+  it('is saved as no minutes and preHeatAuto when it is Auto', () => {
     expect(normaliseRules(rules([]), 'radiatorValve').preHeatMinutes).toBeNull()
     expect(normaliseRules({ ...rules([]), preHeatMinutes: PRE_HEAT_AUTO }, 'radiatorValve').preHeatMinutes).toBeNull()
+    expect(normaliseRules({ ...rules([]), preHeatMinutes: PRE_HEAT_AUTO }, 'heaterPlug'))
+      .toMatchObject({ preHeatMinutes: null, preHeatAuto: true })
+    expect(normaliseRules({ ...rules([]), preHeatMinutes: 15 }, 'heaterPlug')).toMatchObject({ preHeatMinutes: 15, preHeatAuto: false })
+  })
+
+  it('says Auto in the summary for a heater set to it', () => {
+    expect(summariseRules({ ...rules([]), preHeatAuto: true }, label, 'heaterPlug')).toBe('Any time · no presence needed · pre-heat Auto')
   })
 })
 

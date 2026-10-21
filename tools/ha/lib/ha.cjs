@@ -39,10 +39,10 @@ async function rest(method, apiPath, body) {
 }
 
 // The same, returning the body as text, for the endpoints that answer in plain text (add-on logs).
-async function restText(method, apiPath, body) {
+async function restText(method, apiPath, body, extraHeaders = {}) {
   const res = await fetch(`http://${HOST}/api${apiPath}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...extraHeaders },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await res.text();

@@ -20,11 +20,13 @@ internal sealed record WarmUpSample(
 internal interface IWarmUpRates
 {
     /// <summary>
-    /// Records what a valve is doing this pass: <paramref name="heating"/> is whether it is open with the boiler on,
-    /// <paramref name="roomTemperature"/> is the room thermometer's reading, <paramref name="targetTemperature"/> the
-    /// target this valve is aiming at.
+    /// Records what a heating device is doing this pass: <paramref name="heating"/> is whether it is warming the room
+    /// (a valve open with the boiler on, a heater plug switched on), <paramref name="roomTemperature"/> is the room
+    /// thermometer's reading, <paramref name="targetTemperature"/> the target this device is aiming at.
+    /// <paramref name="minimumMinutes"/> is the shortest warm-up worth a sample: <see cref="WarmUpRates.MinimumMinutes"/>
+    /// for a radiator, <see cref="WarmUpRates.HeaterMinimumMinutes"/> for an electric heater, which is much quicker.
     /// </summary>
-    void Observe(string entityId, bool heating, double roomTemperature, double targetTemperature, DateTimeOffset now);
+    void Observe(string entityId, bool heating, double roomTemperature, double targetTemperature, DateTimeOffset now, double minimumMinutes = WarmUpRates.MinimumMinutes);
 
     /// <summary>The average of the last few warm-ups in degrees Celsius an hour, or null while there are none.</summary>
     double? RateFor(string entityId);
@@ -60,6 +62,12 @@ internal interface IWarmUpRateStore
 internal sealed class WarmUpRates : IWarmUpRates
 {
     internal const double MinimumMinutes = 30;
+
+    /// <summary>
+    /// The shortest heater-plug warm-up that counts (owner, 2026-10-21): a fan heater can lift a room in well under
+    /// <see cref="MinimumMinutes"/>, so holding it to a radiator's minimum would leave it with no samples at all.
+    /// </summary>
+    internal const double HeaterMinimumMinutes = 5;
     internal const int SamplesKept = 5;
 
     // A gap this long between two observations means the app was not watching (it passes at least every 5 minutes),
@@ -115,7 +123,7 @@ internal sealed class WarmUpRates : IWarmUpRates
         return merged;
     }
 
-    public void Observe(string entityId, bool heating, double roomTemperature, double targetTemperature, DateTimeOffset now)
+    public void Observe(string entityId, bool heating, double roomTemperature, double targetTemperature, DateTimeOffset now, double minimumMinutes = MinimumMinutes)
     {
         lock (_lock)
         {
@@ -161,7 +169,7 @@ internal sealed class WarmUpRates : IWarmUpRates
 
             double minutes = (now - run.StartedAt).TotalMinutes;
             double rise = roomTemperature - run.StartTemperature;
-            if (minutes < MinimumMinutes || rise <= 0)
+            if (minutes < minimumMinutes || rise <= 0)
             {
                 return;
             }

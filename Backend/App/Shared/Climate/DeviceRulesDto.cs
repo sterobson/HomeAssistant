@@ -26,6 +26,14 @@ public class DeviceRulesDto
     /// </summary>
     public int? PreHeatMinutes { get; set; }
 
+    /// <summary>
+    /// True for an Auto pre-heat, worked out from the device's measured warm-up rate; false for a fixed one
+    /// (<see cref="PreHeatMinutes"/>). Null means the default for its kind: Auto for a radiator valve with no
+    /// <see cref="PreHeatMinutes"/>, fixed for a heater plug. Added 2026-10-21 so a heater plug can be set to Auto
+    /// (owner), which "no minutes" could not say, since for a heater that means its default of none.
+    /// </summary>
+    public bool? PreHeatAuto { get; set; }
+
     public const int DefaultValvePreHeatMinutes = 30;
     public const int DefaultHeaterPreHeatMinutes = 0;
     public const int MaxPreHeatMinutes = 60;
@@ -37,14 +45,17 @@ public class DeviceRulesDto
     public const int LongestPreHeatMinutes = MaxAutoPreHeatMinutes;
 
     /// <summary>
-    /// Whether the pre-heat is worked out from the valve's measured warm-up rate rather than fixed: a radiator valve
-    /// with no pre-heat set. A heater plug is never automatic (it warms a room quickly and is not measured).
+    /// Whether the pre-heat is worked out from the device's measured warm-up rate rather than fixed: whatever
+    /// <see cref="PreHeatAuto"/> says, else a radiator valve with no pre-heat set. A heater plug is Auto only when set
+    /// to be (owner, 2026-10-21); its default is a fixed pre-heat of none.
     /// </summary>
-    public static bool IsAutoPreHeat(DeviceRulesDto? rules, bool isRadiatorValve) => isRadiatorValve && rules?.PreHeatMinutes == null;
+    public static bool IsAutoPreHeat(DeviceRulesDto? rules, bool isRadiatorValve) =>
+        rules?.PreHeatAuto ?? (isRadiatorValve && rules?.PreHeatMinutes == null);
 
     /// <summary>
     /// The fixed pre-heat a device with these rules (or none) uses, clamped to 0 to <see cref="MaxPreHeatMinutes"/>.
-    /// For an Auto valve this is the figure used until its warm-up has been measured.
+    /// For an Auto device this is the figure used until its warm-up has been measured: 30 minutes for a valve, none
+    /// for a heater plug (unless minutes are also set).
     /// </summary>
     public static int PreHeatFor(DeviceRulesDto? rules, bool isRadiatorValve) =>
         Math.Clamp(rules?.PreHeatMinutes ?? (isRadiatorValve ? DefaultValvePreHeatMinutes : DefaultHeaterPreHeatMinutes), 0, MaxPreHeatMinutes);

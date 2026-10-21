@@ -72,7 +72,8 @@ achieves nothing until they require one. See
 | Method | Route | Function |
 |---|---|---|
 | GET/POST | `schedules` | Room schedules — the legacy model that actually runs the house |
-| GET/POST | `room-states` | Live room temperature, heating state, active track, `devices` (the HA entities each zone is bound to, with their state) and `occupancy` (the zone's presence detectors), plus a house-wide `boiler`: `{ appControlsBoiler, believedOn, since }`, what the app believes the boiler is doing (since 2026-10-19), and `batteries`: every replaceable battery `{ entityId, name, percent, area, deviceEntityIds }` for the UI's low-battery icons (since 2026-10-20). The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app |
+| GET/POST | `room-states` | Live room temperature, heating state, active track, `devices` (the HA entities each zone is bound to, with their state) and `occupancy` (the zone's presence detectors), plus a house-wide `boiler`: `{ appControlsBoiler, believedOn, since }`, what the app believes the boiler is doing (since 2026-10-19), and `batteries`: every replaceable battery `{ entityId, name, percent, area, deviceEntityIds }` for the UI's low-battery icons (since 2026-10-20). Since 2026-10-21 also each room's `waitingForOccupancyTrackIds`, and heater plugs carry the warm-up fields valves do. The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app. Each upload's `boiler` is also recorded in `boilerhistory` when it differs from the newest row there |
+| GET | `boiler-history` | The boiler's on/off history (since 2026-10-21): `hours` (1–744, default 48) → `{ from, to, before, events: [{ at, on, appControlsBoiler, inferred }] }`, oldest first, with `before` the newest change before the window. Written by `SetRoomStates`, not by any endpoint; `inferred` rows were backfilled from the radiator valves by `tools/ha/boiler-history-backfill.cjs` |
 | GET | `room-history` | Temperature history for one room over a date range |
 | GET/POST | `heating-config` | Newer device/rule config model — **stored but not yet consumed** by the NetDaemon app |
 | GET/POST | `house-details` | House name and occupancy |
@@ -171,6 +172,12 @@ for guests).
 
 `devicebatteryhistory` is partitioned by `{houseId}_{entityId}` with an inverted-date row
 key, so one device's history is a single partition scan and the newest day sorts first.
+
+`boilerhistory` (since 2026-10-21) is partitioned by house ID with inverted ticks of the change's time as row key:
+`At`, `On`, `AppControlsBoiler`, `Inferred`. One row per change of the app's belief or control path (a corrective
+press, which keeps the belief, is not a change). Inferred rows are a backfill worked out from the radiator valves
+(`tools/ha/boiler-history-backfill.cjs`, which never writes at or after the app's first own row and replaces its own
+earlier rows on each `--apply`).
 
 ## SignalR
 

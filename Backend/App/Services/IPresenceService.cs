@@ -15,6 +15,12 @@ internal interface IPresenceService
     /// </summary>
     IReadOnlyList<(string EntityId, string Role)> GetPresenceDevices(string roomName);
 
+    /// <summary>
+    /// A presence device that is not a Home Assistant entity (a phone), described for a zone's Devices list; null for
+    /// anything else, which is looked up in Home Assistant as usual.
+    /// </summary>
+    RoomDeviceDto? DescribeOwnDevice(string deviceId);
+
     /// <summary>The canonical names of every zone that can detect presence.</summary>
     IReadOnlyList<string> PresenceZones { get; }
 

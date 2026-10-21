@@ -27,17 +27,19 @@
         <div class="toolbar-status">
           <!-- Only in fingerbot mode, when the app drives the boiler. A belief, not a reading: nothing sees the
                boiler itself (CLAUDE.md, "The boiler has no feedback"). -->
-          <span
+          <button
             v-if="boilerState?.appControlsBoiler"
+            type="button"
             class="boiler-status"
             :class="{ on: boilerState.believedOn }"
-            :title="'What the app believes, from its own presses: nothing can read the boiler itself.'"
+            title="What the app believes, from its own presses: nothing can read the boiler itself. Select for its history."
+            @click="showBoilerHistory = true"
           >
             <svg v-if="boilerState.believedOn" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <path d="M8 16c3.314 0 6-2 6-5.5 0-1.5-.5-4-2.5-6 .25 1.5-1.25 2-1.25 2C11 4 9 .5 6 0c.357 2 .5 4-2 6-1.25 1-2 2.729-2 4.5C2 14 4.686 16 8 16m0-1c-1.657 0-3-1-3-2.75 0-.75.25-2 1.25-3C6.125 10 7 10.5 7 10.5c-.375-1.25.5-3.25 2-3.5-.179 1-.25 2 1 3 .625.5 1 1.364 1 2.25C11 14 9.657 15 8 15"/>
             </svg>
             {{ boilerStatusText }}
-          </span>
+          </button>
           <!-- A low battery that belongs to no zone or group (no HA area, or an area not placed anywhere). -->
           <button
             v-if="unplacedLowest"
@@ -49,6 +51,9 @@
             <BatteryBadge :battery="unplacedLowest" :others-low="unplacedLow.length - 1" />
           </button>
         </div>
+        <button v-if="!editLayout" class="btn-layout" title="Every device in the house, filtered by kind" @click="showHouseDevices = true">
+          Devices
+        </button>
         <button v-if="editLayout" class="btn-layout" title="Every battery, and where each area's devices show" @click="showBatteries = true">
           Batteries
         </button>
@@ -83,6 +88,18 @@
       @save="handleIconSave"
       @delete="handleDeleteGroup"
       @cancel="iconTarget = null"
+    />
+
+    <BoilerHistoryModal v-if="showBoilerHistory" @close="showBoilerHistory = false" />
+
+    <RoomDevicesModal
+      v-if="showHouseDevices"
+      title="Devices in the house"
+      :sections="houseSections"
+      :presence-zones="presenceZoneList"
+      :all-devices="drivableDeviceList"
+      :all-zones="rooms"
+      @close="showHouseDevices = false"
     />
 
     <BatteriesModal
@@ -124,6 +141,9 @@ import IconPickerModal from '../components/IconPickerModal.vue'
 import Toast from '../components/Toast.vue'
 import BatteryBadge from '../components/BatteryBadge.vue'
 import BatteriesModal from '../components/BatteriesModal.vue'
+import RoomDevicesModal from '../components/RoomDevicesModal.vue'
+import BoilerHistoryModal from '../components/BoilerHistoryModal.vue'
+import { houseDeviceSections } from '../utils/roomDevices.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { useDeviceSettings } from '../composables/useDeviceSettings.js'
 import { isLow, lowestLow, placeBatteries, placeTargets } from '../utils/batteries.js'
@@ -181,6 +201,11 @@ const batteries = ref([])
 const { loadSettings, areaPlacement, saveAreaPlacement } = useDeviceSettings()
 const batteryPlacement = computed(() => placeBatteries(batteries.value, rooms.value, layoutTree.value, areaPlacement.value))
 const unplacedLow = computed(() => batteryPlacement.value.unplaced.filter(isLow))
+// Every zone's devices and every battery, in layout order, for the house-wide Devices list (owner, 2026-10-21).
+const showHouseDevices = ref(false)
+// The boiler's on/off history, opened from the boiler status (owner, 2026-10-21).
+const showBoilerHistory = ref(false)
+const houseSections = computed(() => houseDeviceSections(layoutTree.value, roomsById.value, batteryPlacement.value))
 const unplacedLowest = computed(() => lowestLow(unplacedLow.value))
 const batteryTargets = computed(() => placeTargets(layoutTree.value, roomsById.value))
 const showBatteries = ref(false)
@@ -462,7 +487,9 @@ const mergeSchedulesWithStates = (schedules, states) => {
       // What the zone is bound to, from the NetDaemon app. Display only; never sent back.
       devices: state?.devices ?? [],
       // Which presence detectors count for the zone, and all there are (utils/zoneOccupancy.js). Display only.
-      occupancy: state?.occupancy ?? null
+      occupancy: state?.occupancy ?? null,
+      // Tracks due now but held back by their room-occupancy condition (since 2026-10-21). Display only.
+      waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? []
     }
   })
 }
@@ -560,7 +587,8 @@ const loadRoomStates = async () => {
         // A zone's occupancy can change its capabilities (gaining or losing presence), so refresh both.
         capabilities: state?.capabilities ?? room.capabilities,
         devices: state?.devices ?? room.devices,
-        occupancy: state?.occupancy ?? room.occupancy ?? null
+        occupancy: state?.occupancy ?? room.occupancy ?? null,
+        waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? room.waitingForOccupancyTrackIds ?? []
       }
     })
   } catch (err) {
@@ -1009,6 +1037,8 @@ provide(HEATING_LAYOUT, {
 }
 
 .boiler-status {
+  background: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1018,6 +1048,10 @@ provide(HEATING_LAYOUT, {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.boiler-status:hover {
+  background-color: var(--hover-bg);
 }
 
 .boiler-status.on {

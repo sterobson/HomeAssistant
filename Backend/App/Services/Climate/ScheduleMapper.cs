@@ -163,7 +163,8 @@ public static class ScheduleMapper
             LastUpdated = DateTimeOffset.Parse(dto.LastUpdated),
             Capabilities = dto.Capabilities,
             Devices = [.. dto.Devices ?? []],
-            Occupancy = dto.Occupancy
+            Occupancy = dto.Occupancy,
+            WaitingForOccupancyTrackIds = [.. dto.WaitingForOccupancyTrackIds ?? []]
         };
     }
 
@@ -185,7 +186,8 @@ public static class ScheduleMapper
             LastUpdated = state.LastUpdated.ToString("O"),
             Capabilities = state.Capabilities,
             Devices = [.. state.Devices],
-            Occupancy = state.Occupancy
+            Occupancy = state.Occupancy,
+            WaitingForOccupancyTrackIds = [.. state.WaitingForOccupancyTrackIds]
         };
     }
 }

@@ -1,11 +1,20 @@
-// Read-only. Estimates how fast each radiator valve has warmed its room, from the recorder's history, the way the
-// NetDaemon app now measures it live (Backend/App/Services/Climate/WarmUpRates.cs): the valve open with the boiler on,
-// 30+ minutes, taking the room from where it started to where it got to.
+// Read-only. Estimates how fast each radiator valve and electric heater has warmed its room, from the recorder's
+// history, the way the NetDaemon app now measures it live (Backend/App/Services/Climate/WarmUpRates.cs): the valve open
+// with the boiler on, 30+ minutes, or the heater plug on, 5+ minutes, taking the room from where it started to where it
+// got to.
 //
-//   node tools/ha/warmup-history.cjs [--hours 240] [--min 30] [--runs] [--seed Backend/App/warm-up-seed.json]
+//   node tools/ha/warmup-history.cjs [--hours 240] [--min 30] [--heater-min 5] [--only valves|heaters] [--runs]
+//                                    [--seed Backend/App/warm-up-seed.json]
 //
-// --seed writes each valve's last 5 usable episodes in the app's own sample format. The app ships that file and merges it
-// with what it has measured itself (WarmUpRates), so a valve starts with a rate instead of the 30-minute fallback.
+// --seed writes each device's last 5 usable episodes in the app's own sample format, merged into the file: devices this
+// run measured are replaced, every other entry is kept (so --only heaters leaves the radiators' estimates alone). The app
+// ships that file and merges it with what it has measured itself (WarmUpRates), so a device starts with a rate instead
+// of its fallback.
+//
+// Heater plugs (since 2026-10-21) are simpler: a plug heats the moment it is on, with no boiler to wait for, so an
+// episode is the plug switching on until it switches off, and the rate is the room thermometer's rise over it. A plug
+// the app switched off because its rules stopped passing (nobody at the desk, say) ends an episode before the room
+// reached its target; that still measures how fast it was warming, so it is kept, unlike in the live measurement.
 //
 // This is an ESTIMATE, rougher than the live measurement. The history never recorded when the boiler was on (the app
 // believes it only from 2026-10-19, and that belief is not in HA), and "valve open" alone is useless: a valve sits open
@@ -36,6 +45,13 @@ const VALVES = [
   ['climate.living_room_radiator_thermostat', 'sensor.livingroom_climate_temperature', 'Living room'],
   ['climate.den_radiator_1_thermostat', 'sensor.den_climate_temperature', 'Den radiator 1'],
   ['climate.den_radiator_2_thermostat', 'sensor.den_climate_temperature', 'Den radiator 2'],
+];
+// Heater plug -> the room thermometer its zone reads, and a label. Fan heaters (NamedEntities.cs, room states' devices).
+const HEATERS = [
+  ['switch.kitchen_plug_heater_switch', 'sensor.kitchen_temperature_and_humidity_temperature', 'Kitchen heater'],
+  ['switch.bedroom_1_plug_heater_switch', 'sensor.bedroom_1_climate_temperature', 'Bedroom 1 heater'],
+  ['switch.games_room_plug_heater_switch', 'sensor.sonoff_snzb_02d_temperature', "Ste's desk heater"],
+  ['switch.dining_room_plug_heater_switch', 'sensor.diningroom_temperature', "Ruth's desk heater"],
 ];
 const SAMPLES_KEPT = 5; // the app averages the last five
 
@@ -87,6 +103,29 @@ function episodes(rows, { hot, late }) {
   return found;
 }
 
+// Each time the heater plug switched on, until it switched off. A run still on at the end of the window is left out.
+function heaterEpisodes(rows) {
+  const points = rows
+    .filter((r) => r.state === 'on' || r.state === 'off')
+    .map((r) => ({ t: ms(r.last_changed ?? r.last_updated), on: r.state === 'on' }));
+  const found = [];
+  for (let i = 0; i < points.length; i++) {
+    if (!points[i].on || (i > 0 && points[i - 1].on)) continue;
+    const off = points.slice(i + 1).find((p) => !p.on);
+    if (off) found.push({ opened: points[i].t, begin: points[i].t, end: off.t, closed: off.t });
+  }
+  return found;
+}
+
+// The usable episodes as the app's WarmUpSample records (PascalCase), so the file can be read straight back as seed data.
+const toSamples = (runs) => runs.map((r) => ({
+  DegreesPerHour: Math.round(r.rate * 1000) / 1000,
+  StartedAt: new Date(r.begin).toISOString(),
+  Minutes: Math.round(r.minutes),
+  StartTemperature: r.roomStart,
+  ReachedTemperature: r.roomEnd,
+}));
+
 run(async () => {
   const args = parseArgs(['runs']);
   const hours = Number(args.hours || 240);
@@ -99,10 +138,12 @@ run(async () => {
     rest('GET', `/history/period/${encodeURIComponent(start.toISOString())}?filter_entity_id=${ids}&end_time=${encodeURIComponent(end.toISOString())}${extra}`);
 
   const seeds = {};
+  const only = args.only && args.only !== true ? String(args.only) : null;
+  const heaterMinutes = Number(args['heater-min'] || 5);
   console.log(`Estimated from the last ${hours} h of recorder history (UTC window ends ${end.toISOString().slice(0, 16)}).`);
-  console.log(`An episode: the valve opens and its own sensor rises ${hot}°C+ (hot water arrived); it ends when the sensor peaks and falls (boiler off) or the valve shuts.\n`);
+  if (only !== 'heaters') console.log(`A valve episode: the valve opens and its own sensor rises ${hot}°C+ (hot water arrived); it ends when the sensor peaks and falls (boiler off) or the valve shuts.\n`);
 
-  for (const [valveId, thermometerId, label] of VALVES) {
+  for (const [valveId, thermometerId, label] of only === 'heaters' ? [] : VALVES) {
     const [valveRows = []] = await history(valveId);
     const [thermRows = []] = await history(thermometerId, '&minimal_response&no_attributes');
     const room = thermRows.filter((r) => r.state !== 'unavailable' && r.state !== 'unknown' && !Number.isNaN(Number(r.state)))
@@ -123,13 +164,7 @@ run(async () => {
     const lastFive = counted.slice(-SAMPLES_KEPT);
     // The shape the app's WarmUpSample record serialises to (PascalCase), so it can be read straight back as seed data.
     if (lastFive.length) {
-      seeds[valveId] = lastFive.map((r) => ({
-        DegreesPerHour: Math.round(r.rate * 1000) / 1000,
-        StartedAt: new Date(r.begin).toISOString(),
-        Minutes: Math.round(r.minutes),
-        StartTemperature: r.roomStart,
-        ReachedTemperature: r.roomEnd,
-      }));
+      seeds[valveId] = toSamples(lastFive);
     }
     const long = runs.filter((r) => r.minutes >= minMinutes);
     console.log(`${label} (${valveId})`);
@@ -149,8 +184,42 @@ run(async () => {
     console.log('');
   }
 
+  if (only !== 'valves') console.log(`A heater episode: the plug on until it switches off, ${heaterMinutes}+ minutes, with the room warmer at the end.\n`);
+  for (const [plugId, thermometerId, label] of only === 'valves' ? [] : HEATERS) {
+    const [plugRows = []] = await history(plugId, '&minimal_response&no_attributes');
+    const [thermRows = []] = await history(thermometerId, '&minimal_response&no_attributes');
+    const room = thermRows.filter((r) => r.state !== 'unavailable' && r.state !== 'unknown' && !Number.isNaN(Number(r.state)))
+      .map((r) => [ms(r.last_changed ?? r.last_updated), Number(r.state)]);
+
+    const runs = heaterEpisodes(plugRows).map((e) => {
+      const minutes = (e.end - e.begin) / 60000;
+      const roomStart = valueAt(room, e.begin);
+      const roomEnd = valueAt(room, e.end);
+      const rise = roomStart != null && roomEnd != null ? roomEnd - roomStart : null;
+      return { ...e, minutes, roomStart, roomEnd, rise, rate: rise != null && rise > 0 ? rise / (minutes / 60) : null };
+    });
+    const counted = runs.filter((r) => r.minutes >= heaterMinutes && r.rate != null);
+    const lastFive = counted.slice(-SAMPLES_KEPT);
+    if (lastFive.length) seeds[plugId] = toSamples(lastFive);
+
+    console.log(`${label} (${plugId})`);
+    console.log(`  ${runs.length} times on, ${runs.filter((r) => r.minutes >= heaterMinutes).length} of ${heaterMinutes}+ min, ${counted.length} usable (room warmer at the end)`);
+    console.log(lastFive.length
+      ? `  estimate: ${avg(lastFive.map((r) => r.rate)).toFixed(2)} °C an hour (average of the last ${lastFive.length}; range ${Math.min(...lastFive.map((r) => r.rate)).toFixed(2)}–${Math.max(...lastFive.map((r) => r.rate)).toFixed(2)})`
+      : '  estimate: none (no episode qualifies)');
+    if (args.runs) {
+      for (const r of runs) {
+        console.log(`    ${local(r.begin)}  ${r.minutes.toFixed(0).padStart(4)} min  ${r.roomStart ?? '?'}→${r.roomEnd ?? '?'}°C  ${r.rate == null ? '   —   ' : (r.rate.toFixed(2) + ' °C/h')}${r.minutes < heaterMinutes ? '  [under ' + heaterMinutes + ' min: not counted]' : ''}`);
+      }
+    }
+    console.log('');
+  }
+
   if (args.seed && args.seed !== true) {
-    require('fs').writeFileSync(args.seed, JSON.stringify(seeds, null, 2) + '\n');
-    console.log(`Wrote ${Object.values(seeds).reduce((n, s) => n + s.length, 0)} samples for ${Object.keys(seeds).length} valves to ${args.seed}`);
+    const fs = require('fs');
+    const existing = fs.existsSync(args.seed) ? JSON.parse(fs.readFileSync(args.seed, 'utf8')) : {};
+    const merged = { ...existing, ...seeds };
+    fs.writeFileSync(args.seed, JSON.stringify(merged, null, 2) + '\n');
+    console.log(`Wrote ${Object.values(seeds).reduce((n, s) => n + s.length, 0)} samples for ${Object.keys(seeds).length} devices to ${args.seed}, keeping ${Object.keys(existing).filter((k) => !(k in seeds)).length} other entries`);
   }
 });

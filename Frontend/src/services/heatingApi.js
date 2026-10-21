@@ -176,6 +176,30 @@ export const heatingApi = {
   },
 
   /**
+   * The boiler's on/off history as the app believed it, over the last `hours` (1 to 744). See utils/boilerHistory.js.
+   * @param {number} hours
+   * @returns {Promise<{ from: string, to: string, before: object|null, events: object[] }>}
+   */
+  async getBoilerHistory(hours) {
+    try {
+      const houseId = getCurrentHouseId()
+      const response = await fetch(`${API_BASE_URL}/boiler-history?houseId=${houseId}&hours=${hours}`, {
+        headers: getApiHeaders()
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch boiler history: ${response.statusText}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching boiler history:', error)
+      reportApiError('Failed to load boiler history')
+      throw error
+    }
+  },
+
+  /**
    * Get temperature history for a specific room
    * @param {number} roomId - Room ID to get history for
    * @param {Date} startDate - Start date for history range

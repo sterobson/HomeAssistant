@@ -198,10 +198,34 @@ public class FakeCustomClimateControlEntity : ICustomClimateControlEntity
     /// <summary>How many setpoint commands were sent: each one is a Zigbee message the TRV wakes for.</summary>
     public int SetCount { get; set; }
 
+    /// <summary>
+    /// Like Home Assistant, which reports a command a moment after it is sent: a new setpoint shows only once
+    /// <see cref="Land"/> is called, so anything reading the valve in the same pass sees the old one.
+    /// </summary>
+    public bool ReportsLate { get; set; }
+
+    private double? _setpointInFlight;
+
     public void SetTargetTemperature(double temperature)
     {
-        TargetTemperature = temperature;
         SetCount++;
+        if (ReportsLate)
+        {
+            _setpointInFlight = temperature;
+            return;
+        }
+
+        TargetTemperature = temperature;
+    }
+
+    /// <summary>Shows the setpoint last sent while <see cref="ReportsLate"/>.</summary>
+    public void Land()
+    {
+        if (_setpointInFlight.HasValue)
+        {
+            TargetTemperature = _setpointInFlight;
+            _setpointInFlight = null;
+        }
     }
 
     public void SubscribeToStateChangesAsync(Func<ICustomClimateControlEntity, Task> observer)

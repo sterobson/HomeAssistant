@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveDetectorIds, occupancyFirstSaveMap, summariseOccupancy } from './zoneOccupancy.js'
+import { effectiveDetectorIds, occupancyFirstSaveMap, summariseOccupancy, zoneDetectors } from './zoneOccupancy.js'
 
 const available = [
   { id: 'den-tv-on', label: 'Den TV on' },
@@ -52,5 +52,29 @@ describe('summariseOccupancy', () => {
 
   it('says when a zone has none', () => {
     expect(summariseOccupancy([], available)).toBe('No presence: never counts as in use')
+  })
+})
+
+describe('zoneDetectors', () => {
+  const live = [
+    { id: 'den-tv-on', label: 'Den TV on', meansSomeoneHome: false, active: true },
+    { id: 'ellie-phone-home', label: "Ellie's phone on the home Wi-Fi", meansSomeoneHome: false, active: false }
+  ]
+  const liveZone = (name, detectorIds) => ({ name, occupancy: { detectorIds, isDefault: true, available: live } })
+
+  it("lists the zone's detectors with whether each is on now", () => {
+    expect(zoneDetectors(liveZone('den', ['den-tv-on', 'ellie-phone-home']), null)).toEqual([
+      { id: 'den-tv-on', label: 'Den TV on', active: true },
+      { id: 'ellie-phone-home', label: "Ellie's phone on the home Wi-Fi", active: false }
+    ])
+  })
+
+  it('follows the saved choice over what the app last reported', () => {
+    expect(zoneDetectors(liveZone('den', ['den-tv-on']), { den: ['ellie-phone-home'] }))
+      .toEqual([{ id: 'ellie-phone-home', label: "Ellie's phone on the home Wi-Fi", active: false }])
+  })
+
+  it('keeps a detector the app no longer offers, as off', () => {
+    expect(zoneDetectors(liveZone('den', ['gone']), null)).toEqual([{ id: 'gone', label: 'gone', active: false }])
   })
 })

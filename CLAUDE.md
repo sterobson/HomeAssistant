@@ -190,7 +190,18 @@ Four consequences worth knowing before changing any of this:
   2026-10-19). The detectors, each a way of telling from plugs that something is in use with its own wattage
   and hold, are defined in code in `PresenceService`. Each zone's choice of them is saved in device settings
   as `heating.zoneOccupancy` (zone canonical name → detector ids), edited from the zone's **Devices** list →
-  **Occupancy** ([ZoneOccupancyModal](Frontend/src/components/ZoneOccupancyModal.vue)). A zone is in use while
+  **Occupancy** ([ZoneOccupancyModal](Frontend/src/components/ZoneOccupancyModal.vue)). Since 2026-10-21 they are
+  also shown where they matter (owner): the schedule editor lists them, each with whether it is on now, under its
+  room-occupancy buttons, and every track with a "room in use" or "not in use" condition lists them too
+  (`zoneDetectors` in `utils/zoneOccupancy.js`; the track uses the app's reported choice, the editor the saved one).
+  Each room state carries `waitingForOccupancyTrackIds`: tracks due now (started today, for the house's Home/Away
+  mode, no earlier than the active track) that only their room condition holds back
+  (`FindTracksWaitingForOccupancyAsync`), and the track says "Due now, but not running" with why. A track's
+  "house occupied/unoccupied" flags (1 and 2) are **not** presence: they are the Home/Away (plane) switch in the
+  page header (`HouseOccupancyState` in the schedules blob). Each phone detector is listed in a zone's Devices list as
+  the phone itself (role `phone`, entity ID `phone.ste` / `phone.ruth` / `phone.ellie`, the app's own, state
+  "home"/"away"; `PresenceService.DescribeOwnDevice`), not as the router's whole-house online list it is read from,
+  which apps before 2026-10-21 showed as "Router". A zone is in use while
   any of its detectors is. `null` means the built-in defaults (`DefaultZoneDetectors`), which reproduce
   exactly what follows. Once saved the map is authoritative, so the UI's first save writes every zone's
   current detectors plus the edit, and a zone it leaves out has no presence. "House" is any detector that
@@ -283,12 +294,34 @@ Four more heating notes:
   pressed. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
   A press by hand on the boiler itself is still invisible. The UI shows the belief in fingerbot mode ("Boiler
-  on since …" at the top of the heating page; owner, 2026-10-19): the app sends it as `boiler` on every
+  on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
+  app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
+  was backfilled, marked inferred, by `tools/ha/boiler-history-backfill.cjs` from the valves warming and cooling; owner, 2026-10-19): the app sends it as `boiler` on every
   room-state upload (`RoomStatesResponse.Boiler`, uploaded whenever the belief or mode changes, and when a
   valve exercise starts). Until 2026-10-19 `NotifyValveStopped` also
   overwrote a shut valve's "shut since" time on every 5-minute cycle, so a valve could never count as shut for
   the 30 minutes the turn-on verification wants. It now keeps the first time. [HeatingBoilerControlTests](Backend/Tests/HeatingBoilerControlTests.cs)
   drives all of this through `HeatingControlService` with the real verification service.
+- **A failed verification presses the boiler, so a wrong one inverts the belief** (HOME-ASSISTANT.md gotcha 23:
+  on 2026-10-20 two false turn-on failures each pressed a boiler that was already right, and a false turn-off pass
+  let it run all night while the UI said off). Since 2026-10-21 a failure needs strong evidence, and anything
+  weaker clears the verification without a press. All of it reads the TRVs' own sensors, which lag:
+  - **Only valves open after the pass are watched.** The verification is armed in `RecordValvesAndVerifyAsync`,
+    after the rooms have moved their valves (`_pressToVerify`), with each valve's state taken from the command
+    sent this pass where there was one (`IsValveOpenAfterPass`), since HA reports a new setpoint late. Until then it
+    was armed in `DecideBoiler` with the valves open *before* the pass, and watched a dining valve that pass shut.
+  - **Turn-on** passes as soon as any watched TRV has risen 1 °C at any check, and fails only if none has within
+    60 minutes (`TurnOnDeadlineMinutes`; it was one check at 15, and real TRVs showed +0.5 at 16 minutes and a
+    first rise at 28). A watched valve the app shuts stops counting; with none left nothing is concluded.
+  - **Turn-off** fails only when a watched open valve's TRV **heats up again** after the 30-minute settling: 1 °C
+    above its lowest reading and back to at least its reading at the turn-off. That is a TRV regulating on hot
+    water, so the boiler is still running. A radiator merely falling is not taken as proof of anything, because an
+    open TRV on a running boiler falls between cycles (Bedroom 3, 21.5–23 °C all night), and one that stays warm is
+    not a failure any more either. Open valves are the only useful ones to watch: a shut valve's radiator cools
+    whether the boiler runs or not, so ignoring or shutting the open ones would leave nothing that could ever
+    show the boiler running. Not covered: a TRV that holds its setpoint within 1 °C on a running boiler is
+    not caught at the turn-off; the next turn-on's check then fails and corrects it.
+  Pinned by the 2026-10-20 cases in `BoilerVerificationServiceTests` and `HeatingBoilerControlTests`.
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
   physical switch at the boiler chooses between the fingerbot and the **boiler thermostat**
   (the boiler's own thermostat: portable, normally in the kitchen; called "external scheduler" or
@@ -333,15 +366,16 @@ Four more heating notes:
   - **Valves move only when there may be hot water behind them.** While the boiler is believed off, valves
     are neither opened nor shut (`_valvesWaitForBoiler`): their position makes no difference, and each move
     costs TRV battery. They are brought into line in the pass that turns the boiler on. The one exception is
-    evidence: a turn-off verification that finds radiators still hot sets `_boilerMayBeRunning`, and valves
+    evidence: a turn-off verification that sees an open radiator heat up again sets `_boilerMayBeRunning`, and valves
     then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself.
     While waiting, a valve room reports `heatingActive: false` even if its valve was left open.
   - **Order inside `EvaluateAllSchedules`:**
     1. `UpdateBoilerControlPathAsync`: the mode, the saved belief, and presses made outside the app.
     2. `ResolveTargetAsync` for every room: what each room wants, before anything moves.
-    3. `DecideBoiler`: verification corrections, then on/off presses.
+    3. `DecideBoiler`: verification corrections, then on/off presses (each press only noted in `_pressToVerify`).
     4. The rooms' devices, each decided on its own in `EvaluateSchedule` (see "Each device decides for itself" below).
-    5. `RecordValvesAndVerifyAsync`: a valve only counts as heating while open *and* the boiler is believed on.
+    5. `RecordValvesAndVerifyAsync`: arms the verification of this pass's press with the valves open after the
+       pass, then records valves (one only counts as heating while open *and* the boiler is believed on) and checks.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
   - **Monthly valve exercise** (owner, 2026-10-19, after finding a TRV seized from months without moving):
@@ -357,6 +391,8 @@ Four more heating notes:
     2026-10-19 on the kitchen plug, when a separate rules pass followed the room's switch). Each device is now
     decided once per pass; `SwitchingAZoneOn_SendsEachDeviceOneCommand` pins it with a switch that reports late.
   - Deployed 2026-10-19, in stages; everything above is live except per-device pre-heat (below) until it ships.
+    The stricter boiler verification (2026-10-21, above) was not deployed when written; check the NetDaemon
+    app's version before assuming it is live.
 - **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
   rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤
@@ -366,20 +402,27 @@ Four more heating notes:
   dining room's "desk switched on"; never motion sensors, the cat sets them off). Each device also has a
   **pre-heat** (`PreHeatMinutes`, 0–60; owner, 2026-10-19): how long before a warmer track starts it begins
   heating for it. Unset means **Auto** for a radiator valve (owner, 2026-10-20) and none for a heater plug; a valve can
-  still be given a fixed value. It replaced the per-track `RampUpMinutes`, which is still stored but no longer read,
+  still be given a fixed value. Since 2026-10-21 `PreHeatAuto` (bool?) says Auto or fixed outright, so a **heater plug
+  can be Auto** too (owner); null keeps the default for the kind. An Auto heater with nothing measured has no pre-heat.
+  Whatever the pre-heat, a device still only runs while its rules pass (`DeviceTarget` brings the target forward,
+  `IsDeviceAllowed` still gates it; `AnAutoHeaterPlug_StillWaitsForItsRules`). It replaced the per-track `RampUpMinutes`, which is still stored but no longer read,
   because a radiator warms a room far more slowly than a fan heater.
   **Auto works the time out from how fast that valve has actually warmed its room.** [WarmUpRates](Backend/App/Services/Climate/WarmUpRates.cs)
   times each run of a valve being open with the boiler believed on, from the moment it began until the room's
   thermometer first reached the valve's target. A run counts only if that took 30 minutes or more and did reach the
   target (a run cut short by the boiler going off, or by the target moving, is dropped), and gives one sample; the
   rate is the mean °C/h of the last 5 per valve, kept in `warm-up-rates.json` in the local cache folder. Fingerbot
-  mode only, since in boiler-thermostat mode nothing says when the boiler runs. Auto then starts the valve when
+  mode only, since in boiler-thermostat mode nothing says when the boiler runs. **Heater plugs are measured too**
+  (since 2026-10-21): a run is the plug meant to be on, no boiler needed, and counts from **5 minutes**
+  (`HeaterMinimumMinutes`, owner) rather than a radiator's 30. They publish the same fields, and their seed estimates
+  (Ste's and Ruth's desk heaters; the kitchen and Bedroom 1 heaters had no usable runs) come from
+  `warmup-history.cjs --only heaters --seed`, which merges into the file. Auto then starts the valve when
   (target − room now) ÷ rate, rounded up and at most 120 minutes, reaches back to the track; once started it carries
   on until the track begins (`_autoPreHeatTrackIds`), or a rate a little pessimistic would shut it again part-way as
   the room warmed. With no samples it uses 30 minutes. Since 2026-10-20 each valve starts with estimates from the recorder's history, shipped in the app as `Backend/App/warm-up-seed.json` (made by `tools/ha/warmup-history.cjs --seed`, rough: see that script's header) and merged with its own measurements by start time, so the valve's own warm-ups push them out as they come in. Regenerating the file and redeploying the app is how to refresh them. The rate is the room thermometer's, so it includes the radiator
   warming up, which is why a small deficit comes out a little under. Passes have to see the reading that reached the
   target: when that room was the last calling, the boiler is turned off in the same pass, so the observation counts the
-  boiler as on if it was at the start of the pass (`_boilerWasOnAtStartOfPass`). Each valve publishes `preHeatAuto`,
+  boiler as on if it was at the start of the pass (`_boilerWasOnAtStartOfPass`). Each valve and heater plug publishes `preHeatAuto`,
   `heatingRateCelsiusPerHour`, `heatingRateSamples` and `warmUpMinutes` (time to the next warmer track, from the
   room's temperature now) on its room-state device, and the UI shows the longest per zone. Evaluated by [DeviceRulesEvaluator](Backend/App/Services/Climate/DeviceRulesEvaluator.cs),
   once-per-pass presence snapshot in `HeatingControlService.PrepareDeviceRulesAsync`.
