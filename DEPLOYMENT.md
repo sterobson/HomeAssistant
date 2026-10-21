@@ -168,6 +168,20 @@ The 2026-10-20 deploys (`659216c`-era fix, then `d60474c`) added these:
   The publish folder can be anywhere (a scratch folder worked); only `version.txt` and the zip contents matter.
 - **Adding one room needs `LocalEnv/add-room.mjs`** after the app that knows its name is live (see CLAUDE.md → hallway).
 
+The 2026-10-21 deploy (`b3143ba`: heater warm-up, boiler history, occupancy on tracks) followed the same steps,
+each as an explicit command, and added these:
+
+- **`local.settings.json` is not production's storage.** Its `ScheduleStorageConnectionString` names
+  `personalprojectsa4ee`; the production Functions app's own setting names `homeassistantprodstorage`. A data fix
+  written with the local string lands where production never looks (the first boiler-history backfill did, and 38
+  stray rows were left in `personalprojectsa4ee/boilerhistory`). Read the connection string from the app instead:
+  `az functionapp config appsettings list --name homeassistant-prod-functions --resource-group HomeAssistant-Production-RG`.
+- **The publish output now includes `appsettings.json`** (the base config, identical to the copy already on the share
+  by hash). It is not one of the host's own `appsettings.*.json` files, so the usual exclusion leaves it in.
+- The OTA upload and the frontend build were run as scripts that dot-source the three modules, resolve
+  `${secret:function-key}` and `${backend.url}` in-process, and never print the key; the frontend script refuses to
+  deploy a bundle without the production API URL or with a localhost one.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this

@@ -22,13 +22,14 @@
 // The times are rough: a valve's sensor lags the boiler by a few minutes at each end, and a stretch with every valve
 // shut shows nothing. It says what the boiler did, whoever ran it (the boiler thermostat or the app), never why.
 //
-// Writes go to the production storage account (ScheduleStorageConnectionString in the git-ignored
-// Backend/HomeAssistant.Functions/local.settings.json; the key is never printed), table `boilerhistory`, partition = house
-// ID. It never writes at or after the oldest row the app recorded itself, and --apply first deletes every inferred row,
+// Writes go to the storage account the production Functions app itself uses: its ScheduleStorageConnectionString app
+// setting, read with `az functionapp config appsettings list` (needs `az login`; the key is never printed), table
+// `boilerhistory`, partition = house ID. NOT the one in Backend/HomeAssistant.Functions/local.settings.json, which is
+// a different account (personalprojectsa4ee, not production's homeassistantprodstorage; found 2026-10-21, when the first
+// backfill went there and the live endpoint could not see it). It never writes at or after the oldest row the app recorded itself, and --apply first deletes every inferred row,
 // so re-running replaces a backfill rather than adding to it.
 const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+const { execFileSync } = require('child_process');
 const { rest, parseArgs, run } = require('./lib/ha.cjs');
 
 const TRVS = [
@@ -131,12 +132,16 @@ function boilerRuns(allPoints, { rise, fall, bridgeMs, now }) {
 
 // ---- Azure Table storage (REST, SharedKeyLite) ----------------------------------------------------------------------
 
+const FUNCTION_APP = 'homeassistant-prod-functions';
+const RESOURCE_GROUP = 'HomeAssistant-Production-RG';
+
 function storage() {
-  const settingsPath = path.resolve(__dirname, '..', '..', 'Backend', 'HomeAssistant.Functions', 'local.settings.json');
-  // JSONC (comments, trailing commas), so the value is matched rather than parsed.
-  const match = fs.readFileSync(settingsPath, 'utf8').match(/"ScheduleStorageConnectionString"\s*:\s*"([^"]+)"/);
-  if (!match) throw new Error(`No ScheduleStorageConnectionString in ${settingsPath}`);
-  const parts = Object.fromEntries(match[1].split(';').filter(Boolean)
+  const connection = execFileSync('az', [
+    'functionapp', 'config', 'appsettings', 'list', '--name', FUNCTION_APP, '--resource-group', RESOURCE_GROUP,
+    '--query', "[?name=='ScheduleStorageConnectionString'].value", '-o', 'tsv',
+  ], { encoding: 'utf8', shell: process.platform === 'win32' }).trim();
+  if (!connection.includes('AccountKey=')) throw new Error(`No ScheduleStorageConnectionString on ${FUNCTION_APP}`);
+  const parts = Object.fromEntries(connection.split(';').filter(Boolean)
     .map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]));
   const account = parts.AccountName;
   const key = Buffer.from(parts.AccountKey, 'base64');
@@ -216,6 +221,7 @@ run(async () => {
   });
   const recorded = existing.filter((r) => !r.Inferred).map((r) => ms(r.At)).sort((a, b) => a - b);
   const storedInferred = existing.filter((r) => r.Inferred).map((r) => ms(r.At)).sort((a, b) => a - b);
+  console.log(`Storage account ${table.account} (the production Functions app's own).`);
   console.log(`Stored now: ${recorded.length} rows recorded by the app, ${storedInferred.length} inferred`
     + (storedInferred.length ? ` (${local(storedInferred[0])} to ${local(storedInferred.at(-1))})` : '') + '.');
   const cutoff = recorded.length ? recorded[0] : now;

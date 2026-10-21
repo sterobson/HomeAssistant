@@ -86,10 +86,13 @@ The NetDaemon app reports its own version separately via `version.txt`
 
 ## Running it locally — do NOT `func start` in the Functions folder
 
-`Backend/HomeAssistant.Functions/local.settings.json` points `ScheduleStorageConnectionString` at the **real
+`Backend/HomeAssistant.Functions/local.settings.json` points `ScheduleStorageConnectionString` at a **real
 Azure storage account** and `AzureSignalRConnectionString` at the **live SignalR service**. Running the
-Functions project from its own folder reads and writes production, separated from the real house only by the
-house ID. The NetDaemon app has two matching traps: it loads its `appsettings.*development*.json` files *after*
+Functions project from its own folder reads and writes real Azure data, separated only by the house ID. That
+account is **not** the one production uses, though: it is `personalprojectsa4ee`, while the production Functions app's
+own setting names `homeassistantprodstorage` (read from the app's settings with `az`, 2026-10-21, after a backfill
+written with the local connection string never appeared in production). For anything that must reach production's
+data, take the connection string from the Function app's settings, as `tools/ha/boiler-history-backfill.cjs` does. The NetDaemon app has two matching traps: it loads its `appsettings.*development*.json` files *after*
 environment variables (so env vars cannot redirect it), and it caches schedules, device settings, battery
 rules and its boiler belief in `%LOCALAPPDATA%\HomeAssistant`, shared by every copy and not keyed by house.
 (On the host, as an add-on, the same caches live in `/data/HomeAssistant`, the only folder that survives an
