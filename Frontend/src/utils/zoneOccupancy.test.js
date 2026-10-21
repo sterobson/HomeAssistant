@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveDetectorIds, occupancyFirstSaveMap, summariseOccupancy, zoneDetectors } from './zoneOccupancy.js'
+import { effectiveDetectorIds, occupancyFirstSaveMap, roomConditionMet, summariseOccupancy, zoneDetectors } from './zoneOccupancy.js'
 
 const available = [
   { id: 'den-tv-on', label: 'Den TV on' },
@@ -76,5 +76,31 @@ describe('zoneDetectors', () => {
 
   it('keeps a detector the app no longer offers, as off', () => {
     expect(zoneDetectors(liveZone('den', ['gone']), null)).toEqual([{ id: 'gone', label: 'gone', active: false }])
+  })
+})
+
+describe('roomConditionMet', () => {
+  const on = [{ active: true }, { active: false }]
+  const off = [{ active: false }]
+
+  it('holds an "in use" track to any detector being on', () => {
+    expect(roomConditionMet(4, on)).toBe(true)
+    expect(roomConditionMet(4, off)).toBe(false)
+  })
+
+  it('holds a "not in use" track to none being on', () => {
+    expect(roomConditionMet(8, off)).toBe(true)
+    expect(roomConditionMet(8, on)).toBe(false)
+  })
+
+  it('never counts a zone with no detectors as in use', () => {
+    expect(roomConditionMet(4, [])).toBe(false)
+    expect(roomConditionMet(8, [])).toBe(true)
+  })
+
+  it('has nothing to say about a track with no room condition, whatever its Home/Away flags', () => {
+    expect(roomConditionMet(0, on)).toBeNull()
+    expect(roomConditionMet(1, off)).toBeNull()
+    expect(roomConditionMet(5, off)).toBe(false)
   })
 })

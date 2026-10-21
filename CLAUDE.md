@@ -199,7 +199,9 @@ Four consequences worth knowing before changing any of this:
   (`zoneDetectors` in `utils/zoneOccupancy.js`; the track uses the app's reported choice, the editor the saved one).
   Each room state carries `waitingForOccupancyTrackIds`: tracks due now (started today, for the house's Home/Away
   mode, no earlier than the active track) that only their room condition holds back
-  (`FindTracksWaitingForOccupancyAsync`), and the track says "Due now, but not running" with why. A track's
+  (`FindTracksWaitingForOccupancyAsync`), and the track says "Due now, but not running" with why. A track whose room
+  condition is not met right now is greyed out but still opens the editor (`roomConditionMet`; never the active
+  track; owner, 2026-10-21). A track's
   "house occupied/unoccupied" flags (1 and 2) are **not** presence: they are the Home/Away (plane) switch in the
   page header (`HouseOccupancyState` in the schedules blob). Each phone detector is listed in a zone's Devices list as
   the phone itself (role `phone`, entity ID `phone.ste` / `phone.ruth` / `phone.ellie`, the app's own, state

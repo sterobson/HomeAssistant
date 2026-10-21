@@ -437,6 +437,14 @@ room thermometer — bedroom 1 read 17.8 °C at the room sensor and 16.4 °C at 
 simultaneously on 2026-10-17. Schedules and the UI use the room sensor; boiler verification
 uses the TRV.
 
+**Den radiator 2's own sensor tracks the boiler even with its valve shut** (read from the recorder, 2026-10-20/21).
+With `hvac_action` idle and its setpoint at 17 °C it climbed from about 22 to 27 °C over two hours after the boiler came
+on at 14:41 BST on the 20th, held at 27.2–27.7 °C all night while the boiler ran, and began falling (about 0.5 °C every
+7–10 minutes) at 05:29 on the 21st, minutes after the owner switched the boiler off by hand. Either the valve passes
+water when shut or the sensor sits by the flow pipe. That makes it the clearest single sign of whether the boiler is
+running: a plateau in the high 20s means on, a steady fall means off. The other TRVs only show the boiler while their
+valve is open.
+
 **Pairing a new TRVZB** (procedure confirmed by hand on 2026-10-18, two units): the display shows "F5" (it can
 look like "FS") until the TRV is on a radiator valve — that only means it is not installed on a valve yet, it
 is not a fault. Then: (1) install it on the valve; (2) press the button 3 times to activate it; (3) turn the

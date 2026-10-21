@@ -65,3 +65,21 @@ export const zoneDetectors = (zone, savedMap) => {
     return { id, label: detector?.label ?? id, active: detector?.active === true }
   })
 }
+
+/**
+ * Whether a track's room-occupancy condition holds right now: "room in use" (flag 4) while any of the zone's detectors
+ * is on, "room not in use" (flag 8) while none is. A zone with no detectors is never in use, as in the app
+ * (PresenceService.IsRoomInUse). Null for a track with no room condition. The house flags (1 and 2) are the Home/Away
+ * mode, not presence, and are ignored.
+ * @param {number} conditions the track's condition flags
+ * @param {{ active: boolean }[]} detectors from zoneDetectors
+ * @returns {boolean|null}
+ */
+export const roomConditionMet = (conditions, detectors) => {
+  const flags = conditions ?? 0
+  if ((flags & 12) === 0) return null
+  const inUse = (detectors ?? []).some(d => d.active)
+  if ((flags & 4) !== 0 && !inUse) return false
+  if ((flags & 8) !== 0 && inUse) return false
+  return true
+}

@@ -4,8 +4,10 @@
     :class="{
       'is-active': isActive,
       'is-active-heating': isActive && heatingActive,
-      'is-active-off': isActive && !heatingActive
+      'is-active-off': isActive && !heatingActive,
+      'condition-unmet': conditionUnmet
     }"
+    :title="conditionUnmet ? unmetTitle : undefined"
     @click="handleEdit"
   >
     <div class="active-indicator" v-if="isActive" title="Currently active schedule">
@@ -80,6 +82,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { roomConditionMet } from '../utils/zoneOccupancy.js'
 
 const { formatTempWithUnit, formatTimeDisplay, formatConditions, formatDays } = useFormatting()
 
@@ -110,6 +113,15 @@ const props = defineProps({
 
 // Flags 4 (room in use) and 8 (room not in use); 1 and 2 are the house's Home/Away mode, shown by the header.
 const hasRoomCondition = computed(() => ((props.schedule.conditions ?? 0) & 12) !== 0)
+
+// Greyed out while its room-occupancy condition is not met right now (owner, 2026-10-21); still opens the editor. Never
+// the active track: the app judged it met, and its snapshot is what is actually running.
+const conditionUnmet = computed(() =>
+  !props.isActive && roomConditionMet(props.schedule.conditions, props.occupancyDetectors) === false)
+const unmetTitle = computed(() =>
+  ((props.schedule.conditions ?? 0) & 4) !== 0
+    ? 'Not running: the room is not occupied right now'
+    : 'Not running: the room is occupied right now')
 
 const waitingReason = computed(() => {
   const conditions = props.schedule.conditions ?? 0
@@ -157,6 +169,23 @@ const handleDelete = () => {
 
 .schedule-item:hover {
   border-color: var(--color-primary);
+}
+
+/* Its room-occupancy condition is not met right now: faded, but still clickable and editable. The note saying why a
+   due track is not running stays at full strength. */
+.schedule-item.condition-unmet .schedule-primary,
+.schedule-item.condition-unmet .schedule-meta,
+.schedule-item.condition-unmet .occupancy-detail,
+.schedule-item.condition-unmet .schedule-actions {
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.schedule-item.condition-unmet:hover .schedule-primary,
+.schedule-item.condition-unmet:hover .schedule-meta,
+.schedule-item.condition-unmet:hover .occupancy-detail,
+.schedule-item.condition-unmet:hover .schedule-actions {
+  opacity: 0.8;
 }
 
 .schedule-item.is-active {
