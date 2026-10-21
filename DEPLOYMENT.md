@@ -182,6 +182,16 @@ each as an explicit command, and added these:
   `${secret:function-key}` and `${backend.url}` in-process, and never print the key; the frontend script refuses to
   deploy a bundle without the production API URL or with a localhost one.
 
+The late 2026-10-21 NetDaemon-only deploy (`a109baa`, version `20261021213714`: every HA command retried on error, fingerbot
+presses confirmed, the turn-off check catching a radiator that never stops climbing) added these:
+
+- **A restart drops the boiler verification in progress.** It lives only in the running app's memory. Before restarting
+  with the boiler and the app's belief out of step, either let the check correct it first or realign them while the
+  add-on is down (`tools/ha/realign-boiler.cjs --apply`, which also did this restart).
+- Only the NetDaemon app changed, so the Functions app and the frontend were not redeployed. The copy and OTA upload
+  were one script (the steps above, as before); the auto mode permission classifier refused it twice as a production
+  deploy, and it ran once auto mode was switched off.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
