@@ -299,7 +299,11 @@ Four more heating notes:
   fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
   pressed. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
-  A press by hand on the boiler itself is still invisible. The UI shows the belief in fingerbot mode ("Boiler
+  A press by hand on the boiler itself is still invisible. **A press counts only once HA has confirmed it** (since
+  2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not
+  respond", HOME-ASSISTANT.md gotcha 24) it leaves the belief alone and decides the boiler again 1 then 2 minutes
+  later. Until then a press was fire-and-forget, so the belief went to ON with the fingerbot unmoved and the next
+  "off" pressed it on. The UI shows the belief in fingerbot mode ("Boiler
   on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
   app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
   was backfilled, marked inferred, by `tools/ha/boiler-history-backfill.cjs` from the valves warming and cooling; owner, 2026-10-19): the app sends it as `boiler` on every
@@ -498,6 +502,14 @@ cookie. Two consequences:
 
 ## Conventions
 
+- **Every command the NetDaemon app sends is retried if HA answers with an error** (owner, 2026-10-21).
+  `AddServiceCallRetries` in `program.cs` wraps NetDaemon's `IHaContext` in `RetryingHaContext`, so `TurnOn()`,
+  `CallService` and generated entities all go through `ServiceCallRetrier`
+  ([ServiceCallRetries.cs](Backend/App/Services/ServiceCallRetries.cs)): 30 s, 1, 2, 5, 10, 15 min, then it gives
+  up with an error log. A newer command to the same entity cancels a pending retry. Anything where a repeat is
+  not harmless (a toggle, like the boiler fingerbot) must use `IConfirmedServiceCaller` / `TurnOnConfirmedAsync`
+  instead and handle the failure itself. It must be registered after `UseNetDaemonRuntime`, and throws at startup
+  if it finds no `IHaContext` to wrap (`ServiceCallRetrierTests` builds the real host to check).
 - **No `var` in C#** — explicit types everywhere.
 - **Sentence case** for all UI text: labels, buttons, modal titles, accordions.
   "Add new room", not "Add New Room".

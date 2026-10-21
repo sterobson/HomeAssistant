@@ -169,6 +169,48 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
         Set(true);
     }
 
+    /// <summary>
+    /// How many of the next confirmed commands Home Assistant answers with an error, as it did on 2026-10-21 with
+    /// "Failed to send request: device did not respond". A failed command does not count as one of the app's
+    /// commands, and the switch does not move unless <see cref="MovesDespiteFailure"/>.
+    /// </summary>
+    public int FailNextCommands { get; set; }
+
+    /// <summary>A failed command still moves the switch: the device got it, but its answer was lost.</summary>
+    public bool MovesDespiteFailure { get; set; }
+
+    public int FailedCommandCount { get; private set; }
+
+    public Task<bool> TurnOnConfirmedAsync() => ConfirmedAsync(true);
+
+    public Task<bool> TurnOffConfirmedAsync() => ConfirmedAsync(false);
+
+    private Task<bool> ConfirmedAsync(bool state)
+    {
+        if (FailNextCommands > 0)
+        {
+            FailNextCommands--;
+            FailedCommandCount++;
+            if (MovesDespiteFailure)
+            {
+                Set(state);
+            }
+
+            return Task.FromResult(false);
+        }
+
+        if (state)
+        {
+            TurnOn();
+        }
+        else
+        {
+            TurnOff();
+        }
+
+        return Task.FromResult(true);
+    }
+
     private void Set(bool state)
     {
         if (ReportsLate)

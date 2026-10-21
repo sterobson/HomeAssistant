@@ -35,7 +35,7 @@ internal partial class HeatingControlService
     private Dictionary<string, (ICustomClimateControlEntity Valve, double Setpoint)>? _valveExerciseSetpoints;
 
     // The exercise turned the boiler on, so the first evaluation afterwards turns it off again unless the
-    // rooms would have turned it on themselves (see DecideBoiler).
+    // rooms would have turned it on themselves (see DecideBoilerAsync).
     private bool _boilerOnForExercise;
 
     private void ScheduleValveExercise()
@@ -77,7 +77,7 @@ internal partial class HeatingControlService
             {
                 // A 5-minute burn would fail the turn-on verification, which would then "correct" it with a press.
                 _boilerVerification.Reset();
-                if (PressBoilerFingerbot())
+                if (await PressBoilerFingerbotAsync())
                 {
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _boilerOnForExercise = true;

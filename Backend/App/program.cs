@@ -46,6 +46,8 @@ try
                 .AddNetDaemonStateManager()
                 .AddNetDaemonScheduler()
                 .AddHomeAssistantGenerated()
+                // Every command the app sends is retried later if Home Assistant answers with an error (HOME-ASSISTANT.md gotcha 24).
+                .AddServiceCallRetries()
                 .AddSingleton<IGracefulShutdownService, GracefulShutdownService>()
                 .AddConfiguration<OctopusConfiguration>(context, "Octopus")
                 .AddScoped<OctopusReader>()

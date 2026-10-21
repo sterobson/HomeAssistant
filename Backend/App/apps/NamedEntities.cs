@@ -1,4 +1,5 @@
-﻿using HomeAssistantGenerated;
+﻿using HomeAssistant.Services;
+using HomeAssistantGenerated;
 using NetDaemon.HassModel.Entities;
 using System.Collections.Generic;
 using System.Linq;
@@ -590,6 +591,16 @@ public interface ICustomSwitchEntity : ICustomEntity<ICustomSwitchEntity>
     bool IsOff();
     void TurnOn();
     void TurnOff();
+
+    /// <summary>
+    /// Sends turn_on whatever the state, waits for Home Assistant's answer and says whether it worked. Never
+    /// retried: for a switch where every change is a press (the boiler fingerbot), the caller decides what a failure
+    /// means. <see cref="TurnOn"/> is retried for it.
+    /// </summary>
+    Task<bool> TurnOnConfirmedAsync();
+
+    /// <inheritdoc cref="TurnOnConfirmedAsync"/>
+    Task<bool> TurnOffConfirmedAsync();
 }
 
 public class CustomSwitchEntity : ICustomSwitchEntity
@@ -619,6 +630,22 @@ public class CustomSwitchEntity : ICustomSwitchEntity
         {
             _switchEntity.TurnOff();
         }
+    }
+
+    public Task<bool> TurnOnConfirmedAsync() => CallConfirmedAsync("turn_on");
+
+    public Task<bool> TurnOffConfirmedAsync() => CallConfirmedAsync("turn_off");
+
+    private async Task<bool> CallConfirmedAsync(string service)
+    {
+        if (_switchEntity.HaContext is IConfirmedServiceCaller caller)
+        {
+            return await caller.CallServiceConfirmedAsync("switch", service, ServiceTarget.FromEntity(EntityId));
+        }
+
+        // Only without the retrying context (AddServiceCallRetries), where nothing can say whether it worked.
+        _switchEntity.CallService(service);
+        return true;
     }
 
     public void SubscribeToStateChangesAsync(Func<ICustomSwitchEntity, Task> observer)
