@@ -325,7 +325,10 @@ Four more heating notes:
     first rise at 28). A watched valve the app shuts stops counting; with none left nothing is concluded.
   - **Turn-off** fails only when a watched open valve's TRV **heats up again** after the 30-minute settling: 1 °C
     above its lowest reading and back to at least its reading at the turn-off. That is a TRV regulating on hot
-    water, so the boiler is still running. A radiator merely falling is not taken as proof of anything, because an
+    water, so the boiler is still running. Since late 2026-10-21 it also fails when a watched TRV **never stopped
+    climbing**: once settling is over it is still at its highest since the turn-off and 1 °C or more above it (den
+    radiator 2 went 20.0 → 23.5 °C through settling that night and had no low to come back up from). Water left in a
+    radiator peaks and falls within the settling, so it does not count. A radiator merely falling is not taken as proof of anything, because an
     open TRV on a running boiler falls between cycles (Bedroom 3, 21.5–23 °C all night), and one that stays warm is
     not a failure any more either. Open valves are the only useful ones to watch: a shut valve's radiator cools
     whether the boiler runs or not, so ignoring or shutting the open ones would leave nothing that could ever

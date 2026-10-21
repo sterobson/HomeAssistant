@@ -400,6 +400,14 @@ internal class BoilerVerificationService : IBoilerVerificationService
             {
                 reheated.Add($"{mv.RoomName} (down to {mv.LowestSinceSettled.Value:F1}°C, back up to {currentTemp.Value:F1}°C, was {mv.BaselineTemp:F1}°C at the turn-off)");
             }
+            // One that never cooled at all: still at its highest since the turn-off once settling is over, and well above
+            // where it was. Water left in a radiator would have peaked and started falling by now. On 2026-10-21 den
+            // radiator 2 climbed 20.0 -> 23.5 °C through the whole settling period, so it had no low to come back up from
+            // and the rule above would have waited for yet another 1 °C.
+            else if (currentTemp.Value >= mv.PeakTemp && currentTemp.Value - mv.BaselineTemp >= TurnOffReheatThreshold)
+            {
+                reheated.Add($"{mv.RoomName} (still climbing: {mv.BaselineTemp:F1}°C at the turn-off, {currentTemp.Value:F1}°C now)");
+            }
         }
 
         if (reheated.Count > 0)

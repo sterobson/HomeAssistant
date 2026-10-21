@@ -173,6 +173,52 @@ public sealed class BoilerVerificationServiceTests
     }
 
     [TestMethod]
+    public async Task TurnOff_AnOpenValveThatNeverStopsClimbing_ShowsTheBoilerStillRunning_AsSoonAsSettlingEnds()
+    {
+        // 2026-10-21 21:58 BST: the app's "off" press had in fact turned the boiler on (HOME-ASSISTANT.md gotcha 24).
+        // Den radiator 2, open, read 20.0 °C at the turn-off and climbed straight through the 30-minute settling to
+        // 23.5 °C. Measured from its low after settling, it needed yet another 1 °C before anything was concluded.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(20.0);
+        service.NotifyValveStartedHeating("den", valve);
+        Advance(timeProvider, minutes: 57);
+        service.NotifyBoilerToggled(false, [("den", valve)], boilerOffSince: null);
+
+        Advance(timeProvider, minutes: 21);
+        valve.CurrentTemperature = 22.0;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 23.5;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(true, "a radiator still climbing after half an hour has hot water behind it");
+    }
+
+    [TestMethod]
+    public async Task TurnOff_WaterLeftInARadiator_PeaksAndFalls_AndIsNoReasonToPress()
+    {
+        // A radiator still warming when the boiler goes off: the hot water already in it lifts its TRV for a while,
+        // then it cools. Over 1 °C above the turn-off reading, but past its peak once settling ends.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(20.0);
+        service.NotifyValveStartedHeating(Room, valve);
+        Advance(timeProvider, minutes: 31);
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
+
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 22.0;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: BoilerVerificationService.TurnOffSettlingMinutes - 10 + 1);
+        valve.CurrentTemperature = 21.5;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: BoilerVerificationService.TurnOffVerificationMinutes + 1);
+        valve.CurrentTemperature = 20.5;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBeNull();
+    }
+
+    [TestMethod]
     public async Task TurnOff_ARoomWarmedBySomethingElse_DoesNotCountAsTheBoiler()
     {
         // The radiator cooled from 25 to 19 °C; then the sun (or a heater plug) lifts the TRV 1.5 °C. Still far below
