@@ -5,9 +5,9 @@
       'is-active': isActive,
       'is-active-heating': isActive && heatingActive,
       'is-active-off': isActive && !heatingActive,
-      'condition-unmet': conditionUnmet
+      'condition-unmet': greyedReason !== null
     }"
-    :title="conditionUnmet ? unmetTitle : undefined"
+    :title="greyedReason ?? undefined"
     @click="handleEdit"
   >
     <div class="active-indicator" v-if="isActive" title="Currently active schedule">
@@ -83,6 +83,8 @@
 import { computed } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
 import { roomConditionMet } from '../utils/zoneOccupancy.js'
+import { runsOn } from '../utils/trackDays.js'
+import { useToday } from '../composables/useToday.js'
 
 const { formatTempWithUnit, formatTimeDisplay, formatConditions, formatDays } = useFormatting()
 
@@ -114,14 +116,20 @@ const props = defineProps({
 // Flags 4 (room in use) and 8 (room not in use); 1 and 2 are the house's Home/Away mode, shown by the header.
 const hasRoomCondition = computed(() => ((props.schedule.conditions ?? 0) & 12) !== 0)
 
-// Greyed out while its room-occupancy condition is not met right now (owner, 2026-10-21); still opens the editor. Never
-// the active track: the app judged it met, and its snapshot is what is actually running.
-const conditionUnmet = computed(() =>
-  !props.isActive && roomConditionMet(props.schedule.conditions, props.occupancyDetectors) === false)
-const unmetTitle = computed(() =>
-  ((props.schedule.conditions ?? 0) & 4) !== 0
-    ? 'Not running: the room is not occupied right now'
-    : 'Not running: the room is occupied right now')
+// Greyed out, but still opening the editor, while the track cannot run now (owner, 2026-10-21): it is not set for
+// today, or its room-occupancy condition is not met. Never the active track: the app is running it (just after
+// midnight that can be yesterday's last track, carried over). The reason is the tooltip; "not today" comes first.
+const { today } = useToday()
+const greyedReason = computed(() => {
+  if (props.isActive) return null
+  if (!runsOn(props.schedule.days, today.value)) return `Not today (${daysText.value})`
+  if (roomConditionMet(props.schedule.conditions, props.occupancyDetectors) === false) {
+    return ((props.schedule.conditions ?? 0) & 4) !== 0
+      ? 'Not running: the room is not occupied right now'
+      : 'Not running: the room is occupied right now'
+  }
+  return null
+})
 
 const waitingReason = computed(() => {
   const conditions = props.schedule.conditions ?? 0
@@ -171,8 +179,8 @@ const handleDelete = () => {
   border-color: var(--color-primary);
 }
 
-/* Its room-occupancy condition is not met right now: faded, but still clickable and editable. The note saying why a
-   due track is not running stays at full strength. */
+/* Not set for today, or its room-occupancy condition is not met right now: faded, but still clickable and editable.
+   The note saying why a due track is not running stays at full strength. */
 .schedule-item.condition-unmet .schedule-primary,
 .schedule-item.condition-unmet .schedule-meta,
 .schedule-item.condition-unmet .occupancy-detail,
