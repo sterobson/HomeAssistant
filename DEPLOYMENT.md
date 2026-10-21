@@ -173,8 +173,8 @@ each as an explicit command, and added these:
 
 - **`local.settings.json` is not production's storage.** Its `ScheduleStorageConnectionString` names
   `personalprojectsa4ee`; the production Functions app's own setting names `homeassistantprodstorage`. A data fix
-  written with the local string lands where production never looks (the first boiler-history backfill did, and 38
-  stray rows were left in `personalprojectsa4ee/boilerhistory`). Read the connection string from the app instead:
+  written with the local string lands where production never looks (the first boiler-history backfill did; its 38
+  stray rows, and the `boilerhistory` table they were in, were deleted from `personalprojectsa4ee` the same day). Read the connection string from the app instead:
   `az functionapp config appsettings list --name homeassistant-prod-functions --resource-group HomeAssistant-Production-RG`.
 - **The publish output now includes `appsettings.json`** (the base config, identical to the copy already on the share
   by hash). It is not one of the host's own `appsettings.*.json` files, so the usual exclusion leaves it in.
