@@ -149,6 +149,7 @@ internal class PresenceService : IPresenceService
         // Both den TV detectors read the one latch, so they agree on when the TV is on.
         PowerLatch denTv = new(() => namedEntities.DenTvPlugPower.State, DenTvInUseWatts, DenTvOffWatts, timeProvider);
         namedEntities.DenTvPlugPower.SubscribeToStateChangesAsync(_ => { denTv.Observe(); return Task.CompletedTask; });
+        _ = ReplayRecentReadingsAsync(denTv, namedEntities.DenTvPlugPower.EntityId, logger);
         SustainedCondition denTvDrawing = WatchSustained(timeProvider, () => denTv.IsOn, namedEntities.DenTvPlugPower);
         SustainedCondition livingRoomTvDrawing = WatchSustained(timeProvider,
             () => DrawsAtLeast(namedEntities.LivingRoomTvPlugPower, LivingRoomTvInUseWatts), namedEntities.LivingRoomTvPlugPower);
@@ -332,6 +333,30 @@ internal class PresenceService : IPresenceService
     }
 
     private static bool DrawsAtLeast(ICustomNumericSensorEntity power, double thresholdWatts) => power.State >= thresholdWatts;
+
+    /// <summary>How far back a latch's readings are replayed at startup: longer than any dark scene is likely to last.</summary>
+    internal static readonly TimeSpan LatchReplayWindow = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Starts a latch as it really was before the app started, from the recorder. History lags live state by a few
+    /// seconds (gotcha 21), which does not matter for a starting point; the live reading is applied last. If the
+    /// history cannot be read the latch starts off, as it did before.
+    /// </summary>
+    private async Task ReplayRecentReadingsAsync(PowerLatch latch, string entityId, ILogger logger)
+    {
+        try
+        {
+            DateTime now = DateTime.Now;
+            IReadOnlyList<NumericHistoryEntry> history = await _historyService.GetEntityNumericHistory(entityId, now.Subtract(LatchReplayWindow), now);
+            latch.Replay(history.Select(entry => ((DateTimeOffset)entry.LastChanged, entry.State)));
+            logger.LogInformation("{Entity} replayed {Count} reading(s) from the last {Minutes} minutes at startup: {State}",
+                entityId, history.Count, LatchReplayWindow.TotalMinutes, latch.IsOn ? "on" : "off");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not replay {Entity}'s recent readings at startup, so it starts as off", entityId);
+        }
+    }
 
     /// <summary>
     /// A <see cref="SustainedCondition"/> that is told about every change to the given sensors and switches, so a

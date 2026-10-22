@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 
 namespace HomeAssistant.Services;
@@ -12,8 +14,8 @@ namespace HomeAssistant.Services;
 /// threshold made the den look occupied. A TV switched off drops to about 4 W.
 /// </para>
 /// <para>
-/// It starts off. After an app restart with the TV between the thresholds, it counts as off until a reading reaches
-/// <c>onAtWatts</c>, which while watching is a matter of seconds.
+/// It starts off; <see cref="Replay"/> then runs the recent readings through it, so that after an app restart it starts as
+/// it really was. Without that, a TV between the thresholds at a restart counted as off until it next reached <c>onAtWatts</c>.
 /// </para>
 /// </summary>
 internal sealed class PowerLatch
@@ -48,9 +50,29 @@ internal sealed class PowerLatch
             watts = null;
         }
 
-        if (watts is not double reading)
-            return;
+        if (watts is double reading)
+        {
+            Apply(reading, _clock.GetUtcNow());
+        }
+    }
 
+    /// <summary>
+    /// Runs earlier readings through the latch, oldest first, then the live one, so that after an app restart it
+    /// starts as it really was. Without it, a TV showing a dark scene (62–77 W) at the restart at 06:48 on 2026-10-22
+    /// read as off, the den as empty, and the app turned the boiler off with someone watching.
+    /// </summary>
+    public void Replay(IEnumerable<(DateTimeOffset At, double Watts)> readings)
+    {
+        foreach ((DateTimeOffset at, double watts) in readings.OrderBy(r => r.At))
+        {
+            Apply(watts, at);
+        }
+
+        Observe();
+    }
+
+    private void Apply(double reading, DateTimeOffset at)
+    {
         lock (_lock)
         {
             if (!_on && reading >= _onAtWatts)
@@ -60,7 +82,7 @@ internal sealed class PowerLatch
             else if (_on && reading <= _offAtWatts)
             {
                 _on = false;
-                _wentOffAt = _clock.GetUtcNow();
+                _wentOffAt = at;
             }
         }
     }

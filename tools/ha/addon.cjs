@@ -3,6 +3,8 @@
 //   node tools/ha/addon.cjs <slug>                       state and version
 //   node tools/ha/addon.cjs <slug> log [regex] [--lines 80] [--from 100]   the log, optionally only matching lines
 //   node tools/ha/addon.cjs <slug> restart               restart it, then wait until it reports started again
+//   node tools/ha/addon.cjs <slug> stop | start          stop or start it, and wait for that (stop the NetDaemon app before
+//                                                        copying a new build over it: DEPLOYMENT.md)
 //
 // Slugs: c6a2317c_netdaemon6 (the NetDaemon app), core_samba (the config share).
 // State and restart go through the websocket's `supervisor/api` command, because the REST /api/hassio proxy
@@ -16,7 +18,7 @@ const { connect, restText, parseArgs, run } = require('./lib/ha.cjs');
 run(async () => {
   const args = parseArgs();
   const [slug, action, pattern] = args._;
-  if (!slug) throw new Error('usage: node tools/ha/addon.cjs <slug> [log [regex] [--lines 80] [--from 40000] | restart]');
+  if (!slug) throw new Error('usage: node tools/ha/addon.cjs <slug> [log [regex] [--lines 80] [--from 40000] | restart | stop | start]');
 
   if (action === 'log') {
     const from = Number(args.from ?? 100);
@@ -32,12 +34,14 @@ run(async () => {
   const show = (i) => console.log(`${slug}: ${i.state}, version ${i.version}`);
 
   show(await info());
-  if (action === 'restart') {
-    console.log('restarting...');
-    await ha.call({ type: 'supervisor/api', endpoint: `/addons/${slug}/restart`, method: 'post', timeout: null });
+  // Each waits until the Supervisor reports the state it leads to.
+  const actions = { restart: 'started', start: 'started', stop: 'stopped' };
+  if (actions[action]) {
+    console.log(`${action}...`);
+    await ha.call({ type: 'supervisor/api', endpoint: `/addons/${slug}/${action}`, method: 'post', timeout: null });
     for (let i = 0; i < 30; i++) {
       const now = await info();
-      if (now.state === 'started') { show(now); break; }
+      if (now.state === actions[action]) { show(now); break; }
       await new Promise((r) => setTimeout(r, 2000));
     }
   } else if (action) {

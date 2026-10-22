@@ -78,6 +78,43 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
+    public async Task DenTv_AfterARestartDuringADarkScene_StartsOn()
+    {
+        // 06:48 on 2026-10-22: the app restarted while the TV showed a dark scene at 62–77 W. Starting off, it read the
+        // den as empty and turned the boiler off with someone watching. The last minutes' readings say it was on.
+        PresenceTestContext context = PresenceTestContext.Create(new Dictionary<string, double[]> { [DenTvPower] = [206, 150, 120, 71, 65] });
+        context.SetPower(DenTvPower, 68);
+        context.Advance(TimeSpan.FromSeconds(6));
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Zones["den"].ShouldBeTrue();
+        snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task DenTv_AfterARestart_ATvThatWentOffBeforeIt_StaysOff()
+    {
+        // Switched off before the restart, then the plug's own night-time draw: still off.
+        PresenceTestContext context = PresenceTestContext.Create(new Dictionary<string, double[]> { [DenTvPower] = [185, 4, 70] });
+        context.SetPower(DenTvPower, 70);
+        context.Advance(TimeSpan.FromSeconds(6));
+
+        PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+
+        snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task DenTv_AfterARestart_ItsNightTimeDrawAlone_StaysOff()
+    {
+        PresenceTestContext context = PresenceTestContext.Create(new Dictionary<string, double[]> { [DenTvPower] = [4, 72, 80, 55] });
+        context.SetPower(DenTvPower, 66);
+
+        (await context.Service.IsRoomInUse("den")).ShouldBeFalse();
+    }
+
+    [TestMethod]
     public async Task Den_StaysInUseForFiveMinutesAfterTheTvIsDownTo30Watts()
     {
         PresenceTestContext context = PresenceTestContext.Create();
@@ -633,7 +670,7 @@ public sealed class PresenceServiceTests
             });
         }
 
-        public static PresenceTestContext Create()
+        public static PresenceTestContext Create(Dictionary<string, double[]>? history = null)
         {
             IHaContext ha = Substitute.For<IHaContext>();
             ha.GetState(Arg.Any<string>()).Returns((EntityState?)null);
@@ -646,7 +683,7 @@ public sealed class PresenceServiceTests
             FakeTimeProvider clock = new();
             clock.SetSpecificDateTime(new DateTimeOffset(2026, 10, 20, 11, 0, 0, TimeSpan.Zero));
 
-            Dictionary<string, double[]> history = [];
+            history ??= [];
             ScriptedHistoryService historyService = new(history);
             PresenceService service = new(ha, new NamedEntities(ha), historyService, clock, Substitute.For<ILogger<PresenceService>>());
 

@@ -235,8 +235,9 @@ Four consequences worth knowing before changing any of this:
   its own (about 40 W for a minute or two most hours, 55–80 W for 35 minutes around 3 am), which with the old
   single 30 W made the den "in use" and started the boiler; and watching YouTube draws anywhere from 73 to 160 W
   as the picture changes, which with a single 100 W flipped the motion lights every few seconds (both seen on
-  2026-10-22). After an app restart with the TV between the two it counts as off until the next reading of
-  100 W or more. "Den TV on recently" is the latch on, or off for less than 5 minutes: the hold, for the heating,
+  2026-10-22). At startup the latch replays the plug's last 10 minutes from the recorder, so it starts as it really
+  was: without that, the 06:48 restart on 2026-10-22 came up during a dark scene (62–77 W), read the den as empty,
+  and turned the boiler off with someone watching. "Den TV on recently" is the latch on, or off for less than 5 minutes: the hold, for the heating,
   and it does **not** count towards "house" (owner: a TV that was on a
   few minutes ago does not mean anyone is home). "Den TV on now" (the latch on for 5 s, no
   hold) does count towards "house", and matches the motion lights' rule; they follow it through their own HA
