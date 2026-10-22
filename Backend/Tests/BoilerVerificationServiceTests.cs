@@ -373,12 +373,14 @@ public sealed class BoilerVerificationServiceTests
     }
 
     [TestMethod]
-    public async Task TurnOn_AValveThatWasOpenOnTheRunningBoiler_IsNotWatchedWhenItReopens()
+    public async Task TurnOn_AWarmRadiatorThatOnlyStaysWarm_IsNoReasonToPress()
     {
-        // A radiator that has just had hot water behind it could not rise another degree, so it proves nothing.
+        // A radiator that has just had hot water behind it may not rise another degree, and holding its temperature
+        // is what it does on a running boiler: only cooling counts against the press.
         (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
         FakeCustomClimateControlEntity valve = CreateValve(ColdValveTemperature);
         FakeCustomClimateControlEntity warm = new() { EntityId = "climate.bedroom_3_radiator_thermostat", CurrentTemperature = 24 };
+        warm.SetTargetTemperature(29);
         service.NotifyValveStopped(Room);
         Advance(timeProvider, minutes: 31);
 
@@ -391,11 +393,84 @@ public sealed class BoilerVerificationServiceTests
         Advance(timeProvider, minutes: 5);
         service.NotifyValveStartedHeating("Bedroom 3", warm);
 
-        // Bedroom 3 stays at 24 °C for well over an hour: had it been watched, that would fail the turn-on.
+        // Bedroom 3 stays at 24 °C for well over an hour: judged by the cold radiators' deadline, that would fail.
         Advance(timeProvider, minutes: BoilerVerificationService.TurnOnDeadlineMinutes + 15);
         await service.CheckAsync();
 
-        service.GetVerifiedBoilerState().ShouldBeNull("nothing cold is open, so nothing is concluded");
+        service.GetVerifiedBoilerState().ShouldBeNull("a warm radiator holding its temperature is no evidence against the press");
+    }
+
+    // 2026-10-22 06:23: the boiler had been off 14 minutes and the den valves shut 27, so both den radiators were warm.
+
+    [TestMethod]
+    public async Task TurnOn_AWarmRadiatorRisingADegree_ConfirmsTheBoiler()
+    {
+        // Den radiator 2 read 23.2 °C at the press and 24.4 twelve minutes later.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        DateTimeOffset boilerOffSince = timeProvider.GetUtcNow();
+        FakeCustomClimateControlEntity den2 = new() { EntityId = "climate.den_radiator_2_thermostat", CurrentTemperature = 23.2 };
+        den2.SetTargetTemperature(28.2);
+        Advance(timeProvider, minutes: 14);
+
+        service.NotifyBoilerToggled(true, [("den", den2)], boilerOffSince);
+        Advance(timeProvider, minutes: 7);
+        den2.CurrentTemperature = 23.9;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 5);
+        den2.CurrentTemperature = 24.4;
+        await service.CheckAsync();
+
+        // Passed, so nothing is left to fail even if it cools much later.
+        Advance(timeProvider, minutes: 60);
+        den2.CurrentTemperature = 21;
+        await service.CheckAsync();
+        service.GetVerifiedBoilerState().ShouldBeNull();
+    }
+
+    [TestMethod]
+    public async Task TurnOn_AWarmRadiatorCoolingWithItsValveOpen_FailsThePress()
+    {
+        // The press did not reach the boiler: the radiator coasts up half a degree on the water left in it, then cools.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        DateTimeOffset boilerOffSince = timeProvider.GetUtcNow();
+        FakeCustomClimateControlEntity den2 = new() { EntityId = "climate.den_radiator_2_thermostat", CurrentTemperature = 23.2 };
+        den2.SetTargetTemperature(28.2);
+        Advance(timeProvider, minutes: 14);
+
+        service.NotifyBoilerToggled(true, [("den", den2)], boilerOffSince);
+        Advance(timeProvider, minutes: 8);
+        den2.CurrentTemperature = 23.7;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 12);
+        den2.CurrentTemperature = 22.7;
+        await service.CheckAsync();
+        service.GetVerifiedBoilerState().ShouldBeNull("a degree down, but within the first half hour");
+
+        Advance(timeProvider, minutes: 11);
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(false, "an open radiator a degree below its high, well under its setpoint, has no hot water");
+    }
+
+    [TestMethod]
+    public async Task TurnOn_AWarmRadiatorThrottlingAtItsSetpoint_IsNoReasonToPress()
+    {
+        // Its TRV has reached its own setpoint, so it shuts and cools between cycles even on a running boiler.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        DateTimeOffset boilerOffSince = timeProvider.GetUtcNow();
+        FakeCustomClimateControlEntity bedroom3 = new() { EntityId = "climate.bedroom_3_radiator_thermostat", CurrentTemperature = 21.8 };
+        bedroom3.SetTargetTemperature(22.5);
+        Advance(timeProvider, minutes: 14);
+
+        service.NotifyBoilerToggled(true, [("Bedroom 3", bedroom3)], boilerOffSince);
+        Advance(timeProvider, minutes: 10);
+        bedroom3.CurrentTemperature = 22.0;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 35);
+        bedroom3.CurrentTemperature = 20.9;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBeNull();
     }
 
     [TestMethod]

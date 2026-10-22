@@ -335,6 +335,13 @@ Four more heating notes:
     then it gave up when its valves were shut, and the 02:42 press that never reached the boiler went unnoticed
     for three hours while Bedroom 3's open valve cooled. A fingerbot movement the app did not make is checked the
     same way: it still flips the belief, but no longer cancels the check, since the switch's word is not proof.
+    **Warm radiators are watched too** (owner, 2026-10-22, after a 06:23 press with only warm den radiators open
+    could not be judged at all): every open valve counts, and one whose radiator had hot water in the last half
+    hour is "warm". Any watched radiator rising 1 °C passes the press (den radiator 2, warm at 23.2 °C, read 24.4
+    twelve minutes after a real turn-on; a radiator whose hot water has stopped only coasts up about 0.5 °C). A warm
+    one is not held to the hour; it fails the press only by **cooling** 1 °C below its highest reading, after 30
+    minutes, while that highest reading stayed at least 1 °C under its own setpoint, since a TRV at its setpoint
+    throttles and cools between cycles even on a running boiler (`WarmRadiator*` in `BoilerVerificationService`).
   - **Turn-off** fails only when a watched open valve's TRV **heats up again** after the 30-minute settling: 1 °C
     above its lowest reading and back to at least its reading at the turn-off. That is a TRV regulating on hot
     water, so the boiler is still running. Since late 2026-10-21 it also fails when a watched TRV **never stopped

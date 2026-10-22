@@ -38,8 +38,12 @@ internal interface IBoilerVerificationService
 /// <list type="bullet">
 /// <item>Turn-on: passes as soon as any watched radiator has risen <see cref="TurnOnTemperatureRiseThreshold"/>,
 /// and fails only if none has after <see cref="TurnOnDeadlineMinutes"/>. TRV sensors are slow: on 2026-10-20 one
-/// read +0.5 °C after 16 minutes and went on to rise 4.8 °C, another first rose 28 minutes after the press. A
-/// watched valve the app shuts during the wait stops counting, and if none is left nothing is concluded.</item>
+/// read +0.5 °C after 16 minutes and went on to rise 4.8 °C, another first rose 28 minutes after the press. Every
+/// open valve is watched, including any that opens later; a watched valve the app shuts stops counting, but the
+/// check waits for others rather than giving up. A radiator already warm at the press (hot water within the last
+/// half hour) is not held to the deadline: it fails the press only by cooling <see cref="WarmRadiatorCoolingCelsius"/>
+/// below its highest reading, after <see cref="WarmRadiatorCoolingMinutes"/>, while that reading stayed well under
+/// its own setpoint (owner, 2026-10-22).</item>
 /// <item>Turn-off: fails only if a watched radiator, after settling, <b>heats up again</b>: rises
 /// <see cref="TurnOffReheatThreshold"/> above its lowest reading and gets back to at least its reading when the
 /// boiler was turned off. That is a TRV with hot water behind it regulating itself. Falling is not evidence of a
@@ -58,6 +62,11 @@ internal class BoilerVerificationService : IBoilerVerificationService
     // Until 2026-10-21 the turn-on was judged once, after 15 minutes, which failed twice on 2026-10-20 with the
     // boiler running.
     internal const int TurnOnDeadlineMinutes = 60;
+    // Turn-on, a radiator already warm at the press: it fails the press by cooling this much below its highest reading,
+    // once watched this long, while that highest reading was this far under its own setpoint (owner, 2026-10-22).
+    internal const double WarmRadiatorCoolingCelsius = 1.0;
+    internal const int WarmRadiatorCoolingMinutes = 30;
+    internal const double WarmRadiatorSetpointMarginCelsius = 1.0;
     internal const int TurnOffSettlingMinutes = 30;
     internal const int TurnOffVerificationMinutes = 60;
     internal const double TurnOffReheatThreshold = 1.0;
@@ -92,59 +101,61 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
     private void SetupTurnOnVerification(DateTimeOffset now, List<(string RoomName, ICustomClimateControlEntity Valve)> activeValves, DateTimeOffset? boilerOffSince)
     {
-        // Watch every open valve whose radiator has had no hot water for half an hour: either the
-        // boiler has been off that long, or the valve itself was shut that long.
+        // Watch every open valve. Cold ones (no hot water for half an hour: the boiler off that long, or the valve shut
+        // that long) must rise within the deadline. Warm ones may not rise much, so they fail the press only by cooling
+        // (owner, 2026-10-22, after a 06:23 press with only warm den radiators open could not be judged at all).
         bool boilerOffLongEnough = boilerOffSince.HasValue && (now - boilerOffSince.Value).TotalMinutes >= RadiatorSettledMinutes;
-        List<MonitoredValve> qualifyingValves = [];
+        List<MonitoredValve> watched = [];
 
         foreach ((string roomName, ICustomClimateControlEntity valve) in activeValves)
         {
-            double? currentTemp = valve.CurrentTemperature;
-            if (!currentTemp.HasValue)
+            if (valve.CurrentTemperature is not double currentTemp)
                 continue;
 
             bool valveShutLongEnough = _valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
                 && record.HeatingStoppedAt.HasValue
                 && (now - record.HeatingStoppedAt.Value).TotalMinutes >= RadiatorSettledMinutes;
 
-            if (boilerOffLongEnough || valveShutLongEnough)
-            {
-                qualifyingValves.Add(new MonitoredValve
-                {
-                    RoomName = roomName,
-                    Valve = valve,
-                    BaselineTemp = currentTemp.Value,
-                    PeakTemp = currentTemp.Value,
-                    WatchedSince = now
-                });
-            }
+            watched.Add(NewTurnOnWatch(roomName, valve, currentTemp, warm: !(boilerOffLongEnough || valveShutLongEnough), now));
         }
 
-        // Armed even with nothing to watch yet: a cold radiator whose valve opens later is watched from then
-        // (NotifyValveStartedHeating). Until 2026-10-22 it was not armed at all without one, and gave up once the
-        // valves it had were shut, so the 02:42 press that never reached the boiler went unnoticed for three hours
+        // Armed even with nothing to watch yet: a radiator whose valve opens later is watched from then
+        // (NotifyValveStartedHeating). Until 2026-10-22 it was not armed at all without a cold one, and gave up once
+        // the valves it had were shut, so the 02:42 press that never reached the boiler went unnoticed for three hours
         // while Bedroom 3's open valve cooled.
         _pendingVerification = new BoilerToggleEvent
         {
             BoilerTurnedOn = true,
             ToggleTime = now,
-            MonitoredValves = qualifyingValves,
+            MonitoredValves = watched,
             State = VerificationState.Waiting,
             RadiatorsWereColdAtToggle = boilerOffLongEnough,
             OpenSinceToggle = [.. activeValves.Select(v => v.Valve.EntityId)]
         };
 
         _logger.LogInformation(
-            "Boiler verification: monitoring {Count} valve(s) to verify boiler turned ON. Rooms: {Rooms}. Passes on a {Rise}°C rise; fails once one has been watched {Minutes} minutes and none has risen that much. A cold radiator whose valve opens later is watched too",
-            qualifyingValves.Count,
-            qualifyingValves.Count == 0 ? "none yet" : string.Join(", ", qualifyingValves.Select(v => $"{v.RoomName} ({v.BaselineTemp:F1}°C)")),
-            TurnOnTemperatureRiseThreshold, TurnOnDeadlineMinutes);
+            "Boiler verification: monitoring {Count} valve(s) to verify boiler turned ON. Rooms: {Rooms}. Passes on a {Rise}°C rise; fails once a cold one has been watched {Minutes} minutes without, or a warm one has cooled {Drop}°C. A valve opening later is watched too",
+            watched.Count,
+            watched.Count == 0 ? "none yet" : string.Join(", ", watched.Select(Describe)),
+            TurnOnTemperatureRiseThreshold, TurnOnDeadlineMinutes, WarmRadiatorCoolingCelsius);
     }
 
+    private static MonitoredValve NewTurnOnWatch(string roomName, ICustomClimateControlEntity valve, double currentTemp, bool warm, DateTimeOffset now) => new()
+    {
+        RoomName = roomName,
+        Valve = valve,
+        BaselineTemp = currentTemp,
+        PeakTemp = currentTemp,
+        WatchedSince = now,
+        Warm = warm
+    };
+
+    private static string Describe(MonitoredValve mv) => $"{mv.RoomName} ({mv.BaselineTemp:F1}°C, {(mv.Warm ? "warm" : "cold")})";
+
     /// <summary>
-    /// During a turn-on, starts watching a valve that has just opened, if its radiator is cold: the boiler had been
-    /// off half an hour at the press and this valve has not been open since, or the valve itself was shut half an
-    /// hour. A warm radiator could not rise the full degree, so it is not watched.
+    /// During a turn-on, starts watching a valve that has just opened. Its radiator is cold if the boiler had been
+    /// off half an hour at the press and this valve has not been open since, or if the valve itself was shut half an
+    /// hour; otherwise it is warm.
     /// </summary>
     private void WatchValveOpenedDuringTurnOn(string roomName, ICustomClimateControlEntity valve, ValveHeatingRecord? recordBeforeOpening, DateTimeOffset now)
     {
@@ -156,20 +167,14 @@ internal class BoilerVerificationService : IBoilerVerificationService
         bool firstOpeningSincePress = verification.OpenSinceToggle.Add(valve.EntityId);
         bool shutLongEnough = recordBeforeOpening?.HeatingStoppedAt is { } stoppedAt && (now - stoppedAt).TotalMinutes >= RadiatorSettledMinutes;
         bool cold = (firstOpeningSincePress && verification.RadiatorsWereColdAtToggle) || shutLongEnough;
-        if (!cold || valve.CurrentTemperature is not double currentTemp)
+        if (valve.CurrentTemperature is not double currentTemp)
             return;
 
-        verification.MonitoredValves.Add(new MonitoredValve
-        {
-            RoomName = roomName,
-            Valve = valve,
-            BaselineTemp = currentTemp,
-            PeakTemp = currentTemp,
-            WatchedSince = now
-        });
+        MonitoredValve watch = NewTurnOnWatch(roomName, valve, currentTemp, warm: !cold, now);
+        verification.MonitoredValves.Add(watch);
         _logger.LogInformation(
-            "Boiler verification: {Room} ({Entity}) opened {Minutes:F0} minutes after the boiler was turned ON with its radiator cold, so it is watched from {Temp:F1}°C",
-            roomName, valve.EntityId, (now - verification.ToggleTime).TotalMinutes, currentTemp);
+            "Boiler verification: {Room} ({Entity}) opened {Minutes:F0} minutes after the boiler was turned ON, so it is watched: {Watch}",
+            roomName, valve.EntityId, (now - verification.ToggleTime).TotalMinutes, Describe(watch));
     }
 
     private void SetupTurnOffVerification(DateTimeOffset now, List<(string RoomName, ICustomClimateControlEntity Valve)> openValves)
@@ -344,17 +349,32 @@ internal class BoilerVerificationService : IBoilerVerificationService
         if (PassTurnOnIfAnyRose(verification))
             return;
 
-        // The deadline runs from when each valve began to be watched, so one that opened later gets its full hour.
+        // A cold radiator has its deadline, from when it began to be watched, so one that opened later gets its full hour.
         DateTimeOffset now = _timeProvider.GetUtcNow();
-        List<MonitoredValve> watchedLongEnough = [.. verification.MonitoredValves
-            .Where(mv => mv.Valve.CurrentTemperature.HasValue && (now - mv.WatchedSince).TotalMinutes >= TurnOnDeadlineMinutes)];
-        if (watchedLongEnough.Count == 0)
+        List<string> evidence = [.. verification.MonitoredValves
+            .Where(mv => !mv.Warm && mv.Valve.CurrentTemperature.HasValue && (now - mv.WatchedSince).TotalMinutes >= TurnOnDeadlineMinutes)
+            .Select(mv => $"{mv.RoomName} cold, most +{mv.PeakTemp - mv.BaselineTemp:F1}°C over {(now - mv.WatchedSince).TotalMinutes:F0} min")];
+
+        // A warm one may already be near its hottest, so not rising proves nothing; cooling does. With its valve open
+        // and hot water behind it a radiator cannot cool, unless its own TRV has reached its setpoint and is throttling
+        // (Bedroom 3 swung 21.5-23 °C all night on 2026-10-20 that way), so it only counts while its highest reading
+        // stayed well under the setpoint. The first half hour is left alone: a radiator whose hot water has stopped
+        // still coasts up about 0.5 °C (seen 2026-10-21 22:40 and 2026-10-22 06:09) before it cools.
+        evidence.AddRange(verification.MonitoredValves
+            .Where(mv => mv.Warm
+                && (now - mv.WatchedSince).TotalMinutes >= WarmRadiatorCoolingMinutes
+                && mv.Valve.CurrentTemperature is double current
+                && current <= mv.PeakTemp - WarmRadiatorCoolingCelsius
+                && mv.Valve.TargetTemperature is double setpoint
+                && mv.PeakTemp <= setpoint - WarmRadiatorSetpointMarginCelsius)
+            .Select(mv => $"{mv.RoomName} warm, cooled from {mv.PeakTemp:F1}°C to {mv.Valve.CurrentTemperature:F1}°C with its valve open"));
+        if (evidence.Count == 0)
             return;
 
         _logger.LogWarning(
-            "Boiler verification FAILED: no watched valve rose {Rise}°C, and {Count} has been watched {Deadline} minutes or more ({Minutes:F0} minutes since the press) - boiler may not have turned ON. Valves: {Failed}",
-            TurnOnTemperatureRiseThreshold, watchedLongEnough.Count, TurnOnDeadlineMinutes, minutesSinceToggle,
-            string.Join(", ", verification.MonitoredValves.Select(mv => $"{mv.RoomName} (most +{mv.PeakTemp - mv.BaselineTemp:F1}°C over {(now - mv.WatchedSince).TotalMinutes:F0} min)")));
+            "Boiler verification FAILED: no watched valve rose {Rise}°C, {Minutes:F0} minutes since the press - boiler may not have turned ON. Evidence: {Evidence}. Watched: {Watched}",
+            TurnOnTemperatureRiseThreshold, minutesSinceToggle, string.Join("; ", evidence),
+            string.Join(", ", verification.MonitoredValves.Select(Describe)));
 
         verification.State = VerificationState.Failed;
     }
@@ -496,6 +516,9 @@ internal class MonitoredValve
     // When it began to be watched: the press, or for a turn-on a valve that opened later. A turn-on fails once one has
     // been watched TurnOnDeadlineMinutes with no rise.
     public required DateTimeOffset WatchedSince { get; init; }
+    // Turn-on only: its radiator had hot water within the last half hour when it began to be watched, so it is judged
+    // by cooling rather than by the deadline.
+    public bool Warm { get; init; }
     // Turn-off only: the lowest reading since settling ended, from which a radiator heating up again is measured.
     public double? LowestSinceSettled { get; set; }
 }
