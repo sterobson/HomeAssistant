@@ -197,6 +197,15 @@ the turn-on check that never gives up, den TV at 100 W) was the same script and 
 with the boiler confirmed off by the owner and the app believing off, so the turn-off check of the 06:09 press it
 dropped had nothing to catch.
 
+The 2026-10-22 06:38 BST deploy (`e4c3abd`, version `20261022053609`: the den TV latch) found this:
+
+- **Copying over a running app can crash it.** About 20 s after the copy finished, the still-running old app died
+  with `BadImageFormatException: Format of the executable (.exe) or library (.dll) is invalid` / `Index not found`:
+  the runtime reads method metadata from the DLL files lazily, and they had been replaced underneath it. The restart
+  that followed a few seconds later hid it; the 2026-10-21 copies sat 20+ minutes before their restart. **Stop the
+  add-on before copying and start it afterwards** (`supervisor/api` `/addons/c6a2317c_netdaemon6/stop` and `/start`,
+  as `tools/ha/realign-boiler.cjs` does), and check the boiler belief first: a stop drops any verification in progress.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
