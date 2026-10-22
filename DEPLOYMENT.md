@@ -206,6 +206,13 @@ The 2026-10-22 06:38 BST deploy (`e4c3abd`, version `20261022053609`: the den TV
   add-on before copying and start it afterwards** (`supervisor/api` `/addons/c6a2317c_netdaemon6/stop` and `/start`,
   as `tools/ha/realign-boiler.cjs` does), and check the boiler belief first: a stop drops any verification in progress.
 
+Two more NetDaemon deploys followed on 2026-10-22, both done the safe way (`addon.cjs c6a2317c_netdaemon6 stop`, copy
+and OTA upload, `addon.cjs ... start`), each with the owner confirming the boiler matched the app's belief first:
+06:48 (`b135f06`, warm radiators in the turn-on check) and 06:58 (`41db0dd`, version `20261022055140`, the den TV latch
+replaying its last 10 minutes at startup). The 06:48 one showed why the replay was needed: it came up during a dark
+scene, the latch started off, and the app turned the boiler off with someone watching the TV. At 06:58 the add-on
+log showed `sensor.den_plug_tv_power replayed 121 reading(s) from the last 10 minutes at startup: on` with the TV at 64 W.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
