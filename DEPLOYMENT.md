@@ -192,6 +192,11 @@ presses confirmed, the turn-off check catching a radiator that never stops climb
   were one script (the steps above, as before); the auto mode permission classifier refused it twice as a production
   deploy, and it ran once auto mode was switched off.
 
+The 2026-10-22 06:13 BST NetDaemon-only deploy (`ce3f906`, version `20261022051117`: retries that really wait for HA,
+the turn-on check that never gives up, den TV at 100 W) was the same script and an `addon.cjs ... restart`. Restarted
+with the boiler confirmed off by the owner and the app believing off, so the turn-off check of the 06:09 press it
+dropped had nothing to catch.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
