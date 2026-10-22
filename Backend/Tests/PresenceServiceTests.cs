@@ -26,31 +26,74 @@ public sealed class PresenceServiceTests
     private const string GamesDeskSwitch = "switch.games_room_desk_plug";
     private const string GamesDeskPower = "sensor.games_room_desk_plug_power";
 
+    // The den TV latches (owner, 2026-10-22): on once it draws 100 W, off once it is down to 30 W, unchanged between.
+
     [TestMethod]
-    [DataRow(185.0, true, DisplayName = "TV on (its draw while watched, 2026-10-21)")]
-    [DataRow(100.0, true, DisplayName = "exactly the threshold counts")]
+    [DataRow(185.0, true, DisplayName = "TV on")]
+    [DataRow(100.0, true, DisplayName = "exactly the on threshold counts")]
     [DataRow(99.0, false, DisplayName = "just under")]
     [DataRow(80.0, false, DisplayName = "the most it drew on its own at night, 2026-10-22")]
     [DataRow(40.0, false, DisplayName = "its hourly blips at night")]
     [DataRow(4.0, false, DisplayName = "standby")]
-    public async Task Den_IsInUseWhileTheTvDrawsAtLeast100Watts(double watts, bool expected)
+    public async Task Den_ComesIntoUseOnceTheTvDraws100Watts(double watts, bool expected)
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [watts];
+        context.SetPower(DenTvPower, watts);
 
-        bool inUse = await context.Service.IsRoomInUse("den");
-
-        inUse.ShouldBe(expected);
+        (await context.Service.IsRoomInUse("den")).ShouldBe(expected);
     }
 
     [TestMethod]
-    public async Task Den_StaysInUseForTheLookBackAfterTheTvGoesToStandby()
+    public async Task DenTv_WatchingYouTube_StaysOnThroughDarkScenes()
     {
-        // The history window still holds the earlier on-reading, which is the deliberate hold.
+        // 2026-10-22 06:24–06:26 BST, watching YouTube, one reading every 5 s. With a single 100 W threshold the
+        // motion lights flapped off and on six times in two minutes.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [185, 4];
+        context.SetPower(DenTvPower, 144);
+        context.Advance(TimeSpan.FromSeconds(5));
 
-        (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
+        foreach (double watts in new[] { 107.0, 117, 150, 82, 97, 139, 85, 89, 83, 160, 73, 74, 76, 78, 84, 73, 81, 89, 86, 104, 84, 122, 99, 79 })
+        {
+            context.SetPower(DenTvPower, watts);
+            PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+            snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBeTrue($"{watts} W is still watching");
+            snapshot.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
+            context.Advance(TimeSpan.FromSeconds(5));
+        }
+    }
+
+    [TestMethod]
+    public async Task DenTv_ItsOwnDrawAtNight_NeverTurnsItOn()
+    {
+        // 2026-10-22: the plug drew 35–80 W on its own between about 02:45 and 05:50 BST.
+        PresenceTestContext context = PresenceTestContext.Create();
+        foreach (double watts in new[] { 4.0, 72, 80, 55, 66, 79, 18, 35, 71, 44, 18, 4, 42, 39, 40, 4, 42, 36, 4 })
+        {
+            context.SetPower(DenTvPower, watts);
+            context.Advance(TimeSpan.FromSeconds(30));
+            PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
+            snapshot.Zones["den"].ShouldBeFalse($"{watts} W is not the TV on");
+            snapshot.Detectors[PresenceService.DenTvOnNow].ShouldBeFalse();
+        }
+    }
+
+    [TestMethod]
+    public async Task Den_StaysInUseForFiveMinutesAfterTheTvIsDownTo30Watts()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPower(DenTvPower, 185);
+        context.Advance(TimeSpan.FromMinutes(30));
+
+        context.SetPower(DenTvPower, 31);
+        context.Advance(TimeSpan.FromMinutes(10));
+        (await context.Service.IsRoomInUse("den")).ShouldBeTrue("31 W is not down to 30 W, so the TV is still on");
+
+        context.SetPower(DenTvPower, 4);
+        context.Advance(TimeSpan.FromMinutes(5));
+        (await context.Service.IsRoomInUse("den")).ShouldBeTrue("the 5-minute hold");
+
+        context.Advance(TimeSpan.FromSeconds(1));
+        (await context.Service.IsRoomInUse("den")).ShouldBeFalse();
     }
 
     [TestMethod]
@@ -60,7 +103,7 @@ public sealed class PresenceServiceTests
         // state is not read at all, and is not listed as a presence device.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(DenTvSwitch, "off");
-        context.History[DenTvPower] = [185];
+        context.SetPower(DenTvPower, 185);
 
         (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
     }
@@ -285,9 +328,8 @@ public sealed class PresenceServiceTests
     [TestMethod]
     public async Task DenTv_OnRecentlyAndOnNow()
     {
-        // "Recently" reads the 5-minute history, "now" the live readings.
+        // Both read the same latch from live readings: "recently" holds 5 minutes after it goes off, "now" needs 5 s on.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [185];
         context.SetPower(DenTvPower, 185);
 
         PresenceSnapshot justSwitchedOn = await context.Service.GetSnapshotAsync();
@@ -299,7 +341,6 @@ public sealed class PresenceServiceTests
         on.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
         on.Detectors[PresenceService.DenTvOnNow].ShouldBeTrue();
 
-        context.History[DenTvPower] = [185, 4];
         context.SetPower(DenTvPower, 4);
         PresenceSnapshot justOff = await context.Service.GetSnapshotAsync();
         justOff.Detectors[PresenceService.DenTvOn].ShouldBeTrue("the 5-minute hold");
@@ -310,7 +351,6 @@ public sealed class PresenceServiceTests
     public async Task DenTv_Standby_IsNeitherOnRecentlyNorOnNow()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [4];
         context.SetPower(DenTvPower, 4);
         context.Advance(TimeSpan.FromSeconds(10));
 
@@ -333,7 +373,8 @@ public sealed class PresenceServiceTests
     {
         // Turned off a moment ago: the den is still in use for its hold, but that is not someone being home.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [185, 4];
+        context.SetPower(DenTvPower, 185);
+        context.Advance(TimeSpan.FromMinutes(1));
         context.SetPower(DenTvPower, 4);
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
@@ -377,7 +418,7 @@ public sealed class PresenceServiceTests
     public async Task OnceSaved_AZoneLeftOutHasNoPresence()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [185];
+        context.SetPower(DenTvPower, 185);
         context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["kitchen"] = [PresenceService.DenTvOn] });
 
         context.Service.ZoneOccupancyIsDefault.ShouldBeFalse();
@@ -614,8 +655,8 @@ public sealed class PresenceServiceTests
     }
 
     /// <summary>
-    /// Returns the given power readings for an entity, whatever window is asked for. Only the detectors with a hold
-    /// (Ste's desk, the den TV "on recently") read history; the "for 5 seconds" ones read live readings.
+    /// Returns the given power readings for an entity, whatever window is asked for. Only the detector with a history hold
+    /// (Ste's desk) reads it; the "for 5 seconds" ones and the den TV's latch read live readings.
     /// </summary>
     private sealed class ScriptedHistoryService(Dictionary<string, double[]> readings)
         : HistoryService(new HomeAssistantConfiguration(), Substitute.For<ILogger<HistoryService>>())

@@ -1,12 +1,11 @@
 {
   "id": "den_motion_lights_on_when_tv_off",
   "alias": "Den motion lights on when TV is off",
-  "description": "Restores power to the den's motion-sensing lights once the TV draws under 100 W for more than 5 s. Also re-checks on HA start, on automation reload and when the lights plug comes back online, so the lights don't stay off just because no crossing happened. An unavailable power reading never counts as under 100 W. Pair: den_motion_lights_off_when_tv_on. Source: tools/ha/automations in the HomeAssistant repo.",
+  "description": "Restores power to the den's motion-sensing lights once the TV draws 30 W or less for more than 5 s. The pair has two thresholds (owner, 2026-10-22): the lights go off at 100 W and stay off until the TV is down to 30 W, because watching YouTube draws anywhere from 73 to 160 W and a single threshold of 100 W made the lights flap. Also re-checks on HA start, on automation reload and when the lights plug comes back online, so the lights don't stay off just because no crossing happened. An unavailable power reading never counts as 30 W or less. Pair: den_motion_lights_off_when_tv_on. Source: tools/ha/automations in the HomeAssistant repo.",
   "triggers": [
     {
-      "trigger": "numeric_state",
-      "entity_id": "sensor.den_plug_tv_power",
-      "below": 100,
+      "trigger": "template",
+      "value_template": "{{ 0 <= states('sensor.den_plug_tv_power') | float(-1) <= 30 }}",
       "for": { "seconds": 5 }
     },
     { "trigger": "homeassistant", "event": "start" },
@@ -15,9 +14,8 @@
   ],
   "conditions": [
     {
-      "condition": "numeric_state",
-      "entity_id": "sensor.den_plug_tv_power",
-      "below": 100
+      "condition": "template",
+      "value_template": "{{ 0 <= states('sensor.den_plug_tv_power') | float(-1) <= 30 }}"
     }
   ],
   "actions": [

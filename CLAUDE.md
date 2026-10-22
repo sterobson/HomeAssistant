@@ -229,13 +229,17 @@ Four consequences worth knowing before changing any of this:
   in use while the plug is merely **switched on**, so the radiator can have a track for "the desk is set up".
   The second is left out of `house` (`IPresenceService.HouseZones`), because a plug left on says nobody is
   home. The `den` uses its TV plug's **power
-  alone** (≥ 100 W within 5 minutes — the threshold the HA motion-lights automations use), since
-  2026-10-19. It was 30 W until 2026-10-22 (owner): at night the plug draws 35–80 W on its own (about 40 W for a
-  minute or two most hours, 55–80 W for 35 minutes around 3 am), against about 185 W while watched, and each
-  of those made the den "in use" and started the boiler. The 5-minute look-back doubles as a hold after the draw stops: that is the "Den TV on
-  recently" detector, for the heating, and it does **not** count towards "house" (owner: a TV that was on a
-  few minutes ago does not mean anyone is home). "Den TV on now" (≥ 100 W for the whole of the last 5 s, no
-  hold) does count towards "house", and is the motion lights' rule; they follow it through their own HA
+  alone**, since 2026-10-19, through a **latch with two thresholds** (`PowerLatch`; owner, 2026-10-22): the TV is
+  on once it draws ≥ 100 W and stays on until it is down to ≤ 30 W, whatever it does in between. The HA
+  motion-lights automations use the same pair. Neither threshold works alone: at night the plug draws 35–80 W on
+  its own (about 40 W for a minute or two most hours, 55–80 W for 35 minutes around 3 am), which with the old
+  single 30 W made the den "in use" and started the boiler; and watching YouTube draws anywhere from 73 to 160 W
+  as the picture changes, which with a single 100 W flipped the motion lights every few seconds (both seen on
+  2026-10-22). After an app restart with the TV between the two it counts as off until the next reading of
+  100 W or more. "Den TV on recently" is the latch on, or off for less than 5 minutes: the hold, for the heating,
+  and it does **not** count towards "house" (owner: a TV that was on a
+  few minutes ago does not mean anyone is home). "Den TV on now" (the latch on for 5 s, no
+  hold) does count towards "house", and matches the motion lights' rule; they follow it through their own HA
   automations, not the app. The
   `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
   **or** its TV has drawn ≥ 30 W for the whole of the last 5 seconds — no
@@ -243,7 +247,7 @@ Four consequences worth knowing before changing any of this:
   only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
   power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
-  gotcha 15). Heating re-evaluates 6 s after the den TV's power crosses 100 W, or the living room TV's or Ruth's desk's crosses 30 W. Every "for 5
+  gotcha 15). Heating re-evaluates 6 s after the den TV's power crosses 100 W or 30 W, or the living room TV's or Ruth's desk's crosses 30 W. Every "for 5
   seconds" detector (Ruth's desk, den TV on now, living room TV) is a `SustainedCondition` fed by live
   readings, not a history query: the history API lags a few seconds, which made Ruth's heater flap on a
   pulsing load on 2026-10-20 (HOME-ASSISTANT.md gotcha 21). Ruth's also requires the plug to be on in the

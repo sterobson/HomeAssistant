@@ -238,7 +238,9 @@ internal partial class HeatingControlService
 
         // Room presence from TVs and lights (PresenceService). A TV is normally switched with its
         // remote, not its plug, so its power draw is what changes.
+        // The den TV latches on at one threshold and off at another, so a re-evaluation follows either crossing.
         ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvInUseWatts, "den TV");
+        ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvOffWatts, "den TV (30 W)");
         ReevaluateWhenPowerCrosses(_namedEntities.LivingRoomTvPlugPower, PresenceService.LivingRoomTvInUseWatts, "living room TV");
         ReevaluateWhenPowerCrosses(_namedEntities.DiningRoomDeskPlugPower, PresenceService.DiningDeskInUseWatts, "Ruth's desk");
         _namedEntities.LivingRoomStickLightsPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room stick lights switched"));
