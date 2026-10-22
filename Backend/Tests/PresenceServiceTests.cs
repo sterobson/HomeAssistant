@@ -27,11 +27,13 @@ public sealed class PresenceServiceTests
     private const string GamesDeskPower = "sensor.games_room_desk_plug_power";
 
     [TestMethod]
-    [DataRow(45.0, true, DisplayName = "TV on")]
-    [DataRow(30.0, true, DisplayName = "exactly the threshold counts")]
-    [DataRow(29.0, false, DisplayName = "just under")]
+    [DataRow(185.0, true, DisplayName = "TV on (its draw while watched, 2026-10-21)")]
+    [DataRow(100.0, true, DisplayName = "exactly the threshold counts")]
+    [DataRow(99.0, false, DisplayName = "just under")]
+    [DataRow(80.0, false, DisplayName = "the most it drew on its own at night, 2026-10-22")]
+    [DataRow(40.0, false, DisplayName = "its hourly blips at night")]
     [DataRow(4.0, false, DisplayName = "standby")]
-    public async Task Den_IsInUseWhileTheTvDrawsAtLeast30Watts(double watts, bool expected)
+    public async Task Den_IsInUseWhileTheTvDrawsAtLeast100Watts(double watts, bool expected)
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.History[DenTvPower] = [watts];
@@ -46,7 +48,7 @@ public sealed class PresenceServiceTests
     {
         // The history window still holds the earlier on-reading, which is the deliberate hold.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [45, 4];
+        context.History[DenTvPower] = [185, 4];
 
         (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
     }
@@ -58,7 +60,7 @@ public sealed class PresenceServiceTests
         // state is not read at all, and is not listed as a presence device.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetSwitch(DenTvSwitch, "off");
-        context.History[DenTvPower] = [45];
+        context.History[DenTvPower] = [185];
 
         (await context.Service.IsRoomInUse("den")).ShouldBeTrue();
     }
@@ -269,7 +271,7 @@ public sealed class PresenceServiceTests
         // Even with no zone using the den TV's detector, the TV being on means someone is home.
         PresenceTestContext context = PresenceTestContext.Create();
         context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["den"] = [] });
-        context.SetPower(DenTvPower, 45);
+        context.SetPower(DenTvPower, 185);
         context.Advance(TimeSpan.FromSeconds(6));
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
@@ -285,8 +287,8 @@ public sealed class PresenceServiceTests
     {
         // "Recently" reads the 5-minute history, "now" the live readings.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [45];
-        context.SetPower(DenTvPower, 45);
+        context.History[DenTvPower] = [185];
+        context.SetPower(DenTvPower, 185);
 
         PresenceSnapshot justSwitchedOn = await context.Service.GetSnapshotAsync();
         justSwitchedOn.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
@@ -297,7 +299,7 @@ public sealed class PresenceServiceTests
         on.Detectors[PresenceService.DenTvOn].ShouldBeTrue();
         on.Detectors[PresenceService.DenTvOnNow].ShouldBeTrue();
 
-        context.History[DenTvPower] = [45, 4];
+        context.History[DenTvPower] = [185, 4];
         context.SetPower(DenTvPower, 4);
         PresenceSnapshot justOff = await context.Service.GetSnapshotAsync();
         justOff.Detectors[PresenceService.DenTvOn].ShouldBeTrue("the 5-minute hold");
@@ -331,7 +333,7 @@ public sealed class PresenceServiceTests
     {
         // Turned off a moment ago: the den is still in use for its hold, but that is not someone being home.
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [45, 4];
+        context.History[DenTvPower] = [185, 4];
         context.SetPower(DenTvPower, 4);
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
@@ -375,7 +377,7 @@ public sealed class PresenceServiceTests
     public async Task OnceSaved_AZoneLeftOutHasNoPresence()
     {
         PresenceTestContext context = PresenceTestContext.Create();
-        context.History[DenTvPower] = [45];
+        context.History[DenTvPower] = [185];
         context.Service.UseZoneOccupancy(new Dictionary<string, List<string>> { ["kitchen"] = [PresenceService.DenTvOn] });
 
         context.Service.ZoneOccupancyIsDefault.ShouldBeFalse();

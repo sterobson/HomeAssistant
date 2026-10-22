@@ -54,7 +54,7 @@ run(async () => {
       console.log(`Home Assistant answered with an error: ${e.message}`);
     }
     const after = await waitFor(fingerbot, wanted, 15);
-    console.log(after === wanted ? `fingerbot moved: ${before} -> ${after} (one press)` : `FINGERBOT DID NOT MOVE: still ${after}; the boiler was not pressed`);
+    console.log(after === wanted ? `fingerbot reports ${before} -> ${after}: the command reached it. That is not proof the boiler was pressed (HOME-ASSISTANT.md, boiler fingerbot): check that radiators behind open valves warm or cool` : `FINGERBOT DID NOT MOVE: still ${after}; the boiler was not pressed`);
   } finally {
     console.log('starting the add-on...');
     await ha.call({ type: 'supervisor/api', endpoint: `/addons/${SLUG}/start`, method: 'post', timeout: null });

@@ -89,6 +89,9 @@ internal partial class HeatingControlService
     // valves open before the pass, so on 2026-10-20 it watched the dining valve that same pass shut, which could never
     // warm. Null when nothing was pressed.
     private (bool BoilerNowOn, DateTimeOffset? BoilerOffSince)? _pressToVerify;
+    // A fingerbot movement the app did not make, which flipped the belief: checked against the radiators in the same
+    // pass as a press of the app's own (since 2026-10-22; until then it cancelled every check).
+    private (bool BoilerNowOn, DateTimeOffset? BoilerOffSince)? _outsidePressToVerify;
 
     // The valves commanded this pass and whether each was sent open. HA reports a command only a moment after it is
     // sent, so reading a valve back in the same pass still shows where it was (see IsValveOpenAfterPass).
@@ -435,7 +438,9 @@ internal partial class HeatingControlService
             // 3. The boiler, decided and pressed before any valve moves, so that valves are only moved when
             //    there may be hot water behind them.
             _boilerWasOnAtStartOfPass = _boilerOn;
-            _pressToVerify = null;
+            // A press seen outside the app is verified like the app's own; a press the app makes this pass replaces it.
+            _pressToVerify = fingerbotMode ? _outsidePressToVerify : null;
+            _outsidePressToVerify = null;
             _valvesCommandedThisPass.Clear();
             if (fingerbotMode)
             {
@@ -1404,18 +1409,23 @@ internal partial class HeatingControlService
 
         if (pressesSeenOutsideTheApp > 0)
         {
-            // Each fingerbot movement is one press of a toggle button.
-            if (pressesSeenOutsideTheApp % 2 == 1)
+            // Each fingerbot movement is taken as one press of a toggle button. It is only the switch's word for it:
+            // at 02:42 on 2026-10-22 it reported "on" by itself and the boiler never fired.
+            bool beliefChanged = pressesSeenOutsideTheApp % 2 == 1;
+            DateTimeOffset? offSince = _boilerOn ? null : _boilerBeliefSince;
+            if (beliefChanged)
             {
                 SetBoilerBelief(!_boilerOn, _timeProvider.GetUtcNow());
             }
 
             _logger.LogWarning(
-                "The boiler fingerbot was pressed {Count} time(s) outside the app. Now believing the boiler is {State}. Triggered by {Trigger}",
-                pressesSeenOutsideTheApp, _boilerOn ? "ON" : "OFF", trigger);
+                "The boiler fingerbot was pressed {Count} time(s) outside the app. Now believing the boiler is {State}{Check}. Triggered by {Trigger}",
+                pressesSeenOutsideTheApp, _boilerOn ? "ON" : "OFF", beliefChanged ? ", and checking that against the radiators" : "", trigger);
 
-            // Any pending verification was judging the old state and would "correct" the new one.
+            // Any pending verification was judging the old state and would "correct" the new one. A changed belief is
+            // checked against the radiators like the app's own presses, so a report that moved nothing is caught.
             _boilerVerification.Reset();
+            _outsidePressToVerify = beliefChanged ? (_boilerOn, offSince) : null;
             _lastBoilerPressWasCorrection = false;
         }
 

@@ -1,11 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using NetDaemon.Client;
-using NetDaemon.Client.HomeAssistant.Extensions;
 using NetDaemon.Client.HomeAssistant.Model;
 using NetDaemon.HassModel.Entities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -76,7 +76,7 @@ internal sealed class ServiceCallRetrier
     }
 
     public ServiceCallRetrier(IHomeAssistantRunner runner, TimeProvider timeProvider, ILogger<ServiceCallRetrier> logger)
-        : this(call => SendThrough(runner, call), delay => Task.Delay(delay, timeProvider), logger)
+        : this(call => SendThroughRunnerAsync(runner, call), delay => Task.Delay(delay, timeProvider), logger)
     {
     }
 
@@ -171,14 +171,24 @@ internal sealed class ServiceCallRetrier
     private static string Describe(TimeSpan delay) =>
         delay < TimeSpan.FromMinutes(1) ? $"{delay.TotalSeconds:0} s" : $"{delay.TotalMinutes:0} min";
 
-    private static async Task SendThrough(IHomeAssistantRunner runner, ServiceCall call)
+    internal static async Task SendThroughRunnerAsync(IHomeAssistantRunner runner, ServiceCall call)
     {
         IHomeAssistantConnection connection = runner.CurrentConnection
             ?? throw new InvalidOperationException("Not connected to Home Assistant");
 
-        // Unlike IHaContext.CallService, this waits for the result and throws if Home Assistant answered with an error.
-        await connection.CallServiceAsync(call.Domain, call.Service, call.Data, ToHassTarget(call.Target), CancellationToken.None);
+        // NetDaemon's CallServiceAsync extension does NOT wait for the answer: it only logs a failure (found 2026-10-22,
+        // when a failed and a timed-out command went unretried). SendCommandAndReturnResponseRawAsync waits up to 20 s
+        // and throws on an error answer or on no answer at all (read from NetDaemon 25.46.0's HomeAssistantConnection).
+        await connection.SendCommandAndReturnResponseRawAsync(ToCommand(call), CancellationToken.None);
     }
+
+    internal static CallServiceMessage ToCommand(ServiceCall call) => new()
+    {
+        Domain = call.Domain,
+        Service = call.Service,
+        ServiceData = call.Data,
+        Target = ToHassTarget(call.Target)
+    };
 
     private static HassTarget? ToHassTarget(ServiceTarget? target) => target == null
         ? null
@@ -268,4 +278,29 @@ internal static class ServiceCallRetryRegistration
             return (IHaContext)original.ImplementationFactory(provider);
         return (IHaContext)ActivatorUtilities.CreateInstance(provider, original.ImplementationType!);
     }
+}
+
+/// <summary>
+/// HA's websocket <c>call_service</c> command. NetDaemon has the same thing (<c>CallServiceCommand</c>) but keeps it
+/// internal, and its public way to send one does not wait for the answer; this is sent with
+/// <c>SendCommandAndReturnResponseRawAsync</c>, which does.
+/// </summary>
+internal sealed record CallServiceMessage : CommandMessage
+{
+    public CallServiceMessage()
+    {
+        Type = "call_service";
+    }
+
+    [JsonPropertyName("domain")]
+    public required string Domain { get; init; }
+
+    [JsonPropertyName("service")]
+    public required string Service { get; init; }
+
+    [JsonPropertyName("service_data")]
+    public object? ServiceData { get; init; }
+
+    [JsonPropertyName("target")]
+    public HassTarget? Target { get; init; }
 }

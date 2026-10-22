@@ -1,11 +1,11 @@
 {
   "id": "den_motion_lights_off_when_tv_on",
   "alias": "Den motion lights off when TV is on",
-  "description": "Cuts power to the den's motion-sensing lights while the TV draws 30 W or more for 5 s, so watching TV doesn't keep setting them off. Also re-checks on HA start, on automation reload and when the lights plug comes back online. Pair: den_motion_lights_on_when_tv_off. Source: tools/ha/automations in the HomeAssistant repo.",
+  "description": "Cuts power to the den's motion-sensing lights while the TV draws 100 W or more for 5 s (30 W until 2026-10-22, when the plug drew up to 80 W on its own at night), so watching TV doesn't keep setting them off. Also re-checks on HA start, on automation reload and when the lights plug comes back online. Pair: den_motion_lights_on_when_tv_off. Source: tools/ha/automations in the HomeAssistant repo.",
   "triggers": [
     {
       "trigger": "template",
-      "value_template": "{{ states('sensor.den_plug_tv_power') | float(-1) >= 30 }}",
+      "value_template": "{{ states('sensor.den_plug_tv_power') | float(-1) >= 100 }}",
       "for": { "seconds": 5 }
     },
     { "trigger": "homeassistant", "event": "start" },
@@ -15,7 +15,7 @@
   "conditions": [
     {
       "condition": "template",
-      "value_template": "{{ states('sensor.den_plug_tv_power') | float(-1) >= 30 }}"
+      "value_template": "{{ states('sensor.den_plug_tv_power') | float(-1) >= 100 }}"
     }
   ],
   "actions": [

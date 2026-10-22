@@ -260,6 +260,9 @@ public sealed class HeatingBoilerControlTests
         context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("the belief follows the fingerbot's late press");
         context.BoilerFingerbot.ToggleCount.ShouldBe(0, "the app does not press it again");
         context.Logger.CountMessagesContaining("pressed 1 time(s) outside the app").ShouldBe(1);
+        // The switch's word is not proof (02:42 on 2026-10-22 it reported "on" and the boiler never fired), so the new
+        // belief is checked against the radiators like any press.
+        context.Verification.Received(1).NotifyBoilerToggled(true, Arg.Any<List<(string RoomName, ICustomClimateControlEntity Valve)>>(), Arg.Any<DateTimeOffset?>());
     }
 
     [TestMethod]

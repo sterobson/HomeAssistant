@@ -229,10 +229,12 @@ Four consequences worth knowing before changing any of this:
   in use while the plug is merely **switched on**, so the radiator can have a track for "the desk is set up".
   The second is left out of `house` (`IPresenceService.HouseZones`), because a plug left on says nobody is
   home. The `den` uses its TV plug's **power
-  alone** (≥ 30 W within 5 minutes — the threshold the HA motion-lights automations use), since
-  2026-10-19. The 5-minute look-back doubles as a hold after the draw stops: that is the "Den TV on
+  alone** (≥ 100 W within 5 minutes — the threshold the HA motion-lights automations use), since
+  2026-10-19. It was 30 W until 2026-10-22 (owner): at night the plug draws 35–80 W on its own (about 40 W for a
+  minute or two most hours, 55–80 W for 35 minutes around 3 am), against about 185 W while watched, and each
+  of those made the den "in use" and started the boiler. The 5-minute look-back doubles as a hold after the draw stops: that is the "Den TV on
   recently" detector, for the heating, and it does **not** count towards "house" (owner: a TV that was on a
-  few minutes ago does not mean anyone is home). "Den TV on now" (≥ 30 W for the whole of the last 5 s, no
+  few minutes ago does not mean anyone is home). "Den TV on now" (≥ 100 W for the whole of the last 5 s, no
   hold) does count towards "house", and is the motion lights' rule; they follow it through their own HA
   automations, not the app. The
   `living room` (also since 2026-10-19) is in use when its stick lights plug is switched on,
@@ -241,7 +243,7 @@ Four consequences worth knowing before changing any of this:
   only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
   power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
-  gotcha 15). Heating re-evaluates 6 s after either TV's or Ruth's desk's power crosses 30 W. Every "for 5
+  gotcha 15). Heating re-evaluates 6 s after the den TV's power crosses 100 W, or the living room TV's or Ruth's desk's crosses 30 W. Every "for 5
   seconds" detector (Ruth's desk, den TV on now, living room TV) is a `SustainedCondition` fed by live
   readings, not a history query: the history API lags a few seconds, which made Ruth's heater flap on a
   pulsing load on 2026-10-20 (HOME-ASSISTANT.md gotcha 21). Ruth's also requires the plug to be on in the
@@ -303,7 +305,8 @@ Four more heating notes:
   2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not
   respond", HOME-ASSISTANT.md gotcha 24) it leaves the belief alone and decides the boiler again 1 then 2 minutes
   later. Until then a press was fire-and-forget, so the belief went to ON with the fingerbot unmoved and the next
-  "off" pressed it on. The UI shows the belief in fingerbot mode ("Boiler
+  "off" pressed it on. (The 2026-10-21 version of this did not actually wait, see Conventions; fixed 2026-10-22.)
+  Even a confirmed press is only the fingerbot's word: the radiator check below is what decides. The UI shows the belief in fingerbot mode ("Boiler
   on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
   app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
   was backfilled, marked inferred, by `tools/ha/boiler-history-backfill.cjs` from the valves warming and cooling; owner, 2026-10-19): the app sends it as `boiler` on every
@@ -322,7 +325,12 @@ Four more heating notes:
     was armed in `DecideBoiler` with the valves open *before* the pass, and watched a dining valve that pass shut.
   - **Turn-on** passes as soon as any watched TRV has risen 1 °C at any check, and fails only if none has within
     60 minutes (`TurnOnDeadlineMinutes`; it was one check at 15, and real TRVs showed +0.5 at 16 minutes and a
-    first rise at 28). A watched valve the app shuts stops counting; with none left nothing is concluded.
+    first rise at 28). A watched valve the app shuts stops counting. Since 2026-10-22 it never gives up: it is
+    armed even with no cold radiator open, a cold radiator whose valve opens later is watched from then (its hour
+    runs from when it opened), and it fails once any watched valve has gone its hour without any rising. Until
+    then it gave up when its valves were shut, and the 02:42 press that never reached the boiler went unnoticed
+    for three hours while Bedroom 3's open valve cooled. A fingerbot movement the app did not make is checked the
+    same way: it still flips the belief, but no longer cancels the check, since the switch's word is not proof.
   - **Turn-off** fails only when a watched open valve's TRV **heats up again** after the 30-minute settling: 1 °C
     above its lowest reading and back to at least its reading at the turn-off. That is a TRV regulating on hot
     water, so the boiler is still running. Since late 2026-10-21 it also fails when a watched TRV **never stopped
@@ -512,7 +520,12 @@ cookie. Two consequences:
   up with an error log. A newer command to the same entity cancels a pending retry. Anything where a repeat is
   not harmless (a toggle, like the boiler fingerbot) must use `IConfirmedServiceCaller` / `TurnOnConfirmedAsync`
   instead and handle the failure itself. It must be registered after `UseNetDaemonRuntime`, and throws at startup
-  if it finds no `IHaContext` to wrap (`ServiceCallRetrierTests` builds the real host to check).
+  if it finds no `IHaContext` to wrap (`ServiceCallRetrierTests` builds the real host to check). **NetDaemon's own
+  `CallServiceAsync` extension does not wait for HA's answer** (it only logs a failure), which made the first
+  version of this, deployed 2026-10-21, retry nothing: commands go as our own `CallServiceMessage` through
+  `SendCommandAndReturnResponseRawAsync`, which waits up to 20 s and throws on an error *or no answer*.
+  `ServiceCallAgainstRealClientTests` drives NetDaemon's real websocket client against a stand-in HA to pin that;
+  never test this layer only against a fake that throws.
 - **No `var` in C#** — explicit types everywhere.
 - **Sentence case** for all UI text: labels, buttons, modal titles, accordions.
   "Add new room", not "Add New Room".

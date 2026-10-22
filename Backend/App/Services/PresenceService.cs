@@ -44,10 +44,12 @@ internal class PresenceService : IPresenceService
     /// <summary>
     /// The den's TV is on while it draws this much. The same threshold as the Home Assistant
     /// automations that cut the den's motion lights while the TV is on (tools/ha/automations).
-    /// Its standby draw is about 4 W; just after its plug is switched on it draws ~40 W for a couple
-    /// of minutes, which counts as on.
+    /// Its standby draw is about 4 W, and about 185 W while watched (2026-10-21). It was 30 W until
+    /// 2026-10-22, when the plug drew 35–80 W on its own at night (about 40 W for a minute or two most
+    /// hours, and 55–80 W for 35 minutes around 3 am), so the den counted as in use and its 21 °C track
+    /// started the boiler at 02:42 (owner chose 100 W).
     /// </summary>
-    internal const double DenTvInUseWatts = 30;
+    internal const double DenTvInUseWatts = 100;
 
     /// <summary>The living room TV counts as on at this draw, held for <see cref="LivingRoomTvSteadyFor"/>.</summary>
     internal const double LivingRoomTvInUseWatts = 30;
@@ -161,10 +163,10 @@ internal class PresenceService : IPresenceService
             // Two from the den TV (owner, 2026-10-19): "recently" holds for 5 minutes after the TV goes off, so the
             // heating does not drop the moment it does; "now" has no hold, like the motion lights' automations.
             // Only "now" counts towards "house": a TV that was on a few minutes ago does not mean anyone is home.
-            new(DenTvOn, "Den TV on recently (30 W or more in the last 5 minutes)", false,
+            new(DenTvOn, "Den TV on recently (100 W or more in the last 5 minutes)", false,
                 [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
                 () => IsDrawing(namedEntities.DenTvPlugPower, DenTvInUseWatts)),
-            new(DenTvOnNow, "Den TV on now (30 W or more for 5 seconds)", true,
+            new(DenTvOnNow, "Den TV on now (100 W or more for 5 seconds)", true,
                 [(namedEntities.DenTvPlugPower.EntityId, RoomDeviceRoles.TvPower)],
                 () => Task.FromResult(denTvDrawing.HeldFor(DenTvSteadyFor))),
             new(LivingRoomTvOn, "Living room TV on (30 W or more for 5 seconds)", true,
