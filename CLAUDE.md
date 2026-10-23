@@ -305,10 +305,15 @@ Four more heating notes:
   movement the app did not command (HA UI, a script) flips it; a press is refused while the
   fingerbot is unavailable; and after one corrective press to turn the boiler **on**, a second disagreement is
   logged, not pressed. A corrective press to turn it **off** is checked and pressed again if it did not work, up to
-  3 in a row (`MaxTurnOffCorrectionsInARow`; owner, 2026-10-23: the app must be certain the boiler went off), after
-  which the app stops, logs an error and raises an HA persistent notification ("Boiler may still be running").
-  Presses that keep failing mean something the fingerbot cannot fix, such as the switch at the boiler being on the
-  boiler thermostat. Before that fix the turn-on verification could never arm in the running app, because
+  5 in a row, the later ones further apart in case the trouble is the network (owner, 2026-10-23: the app must be
+  certain the boiler went off). `TurnOffCorrectionDelays`: the first at once, then 5, 15, 30 and 60 minutes after
+  each failed check (each check itself takes 30–90 minutes). After the fifth the app stops, logs an error and raises an
+  HA persistent notification ("Boiler may still be running"): presses that keep failing mean something the fingerbot
+  cannot fix, such as the switch at the boiler being on the boiler thermostat. While a corrective press waits, or after
+  giving up, the boiler is evidently running though believed off (`TurnOffStillUncorrected`), so a room wanting heat
+  does not press "on" (which would turn it off): the boiler is taken as already on, checked like a press, and the
+  waiting press dropped; the valve exercise is skipped. A fingerbot movement or a change to the boiler thermostat drops
+  it too. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
   A press by hand on the boiler itself is still invisible. **A press counts only once HA has confirmed it** (since
   2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not

@@ -467,10 +467,38 @@ public sealed class HeatingBoilerControlTests
         }
 
         await context.Service.EvaluateAllSchedules("next cycle");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(3, "the second corrective press waits its turn");
+        context.ScheduledDelays().ShouldContain(HeatingControlService.TurnOffCorrectionDelays[1]);
+
+        context.AdvanceMinutes((int)HeatingControlService.TurnOffCorrectionDelays[1].TotalMinutes);
+        await context.Service.EvaluateAllSchedules("corrective boiler press due");
 
         context.BoilerFingerbot.ToggleCount.ShouldBe(4, "until 2026-10-23 a second disagreement was only logged");
-        context.Logger.CountMessagesContaining("state mismatch").ShouldBe(2);
+        context.Logger.CountMessagesContaining("Pressing the boiler off again (corrective press 2 of 5)").ShouldBe(1);
         context.Logger.CountMessagesContaining("disagreed again").ShouldBe(0);
+    }
+
+    [TestMethod]
+    public async Task ARoomWantingHeat_WhileACorrectivePressWaits_IsNotPressed_BecauseTheBoilerIsEvidentlyRunning()
+    {
+        // Pressing "on" a boiler the radiators say is running would turn it off.
+        BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot, roomsCallForHeat: false);
+        context.Verification.GetVerifiedBoilerState().Returns(true, true, null);
+        await context.Service.EvaluateAllSchedules("first mismatch");
+        await context.Service.EvaluateAllSchedules("second mismatch");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the second corrective press is waiting its turn");
+
+        context.Rooms[0].ScheduleTracks[0].Temperature = 20;
+        await context.Service.EvaluateAllSchedules("living room cold");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("taken as already on");
+        context.Logger.CountMessagesContaining("taking it as already on").ShouldBe(1);
+        context.Verification.Received(1).NotifyBoilerToggled(true, Arg.Any<List<(string RoomName, ICustomClimateControlEntity Valve)>>(), Arg.Any<DateTimeOffset?>());
+
+        context.AdvanceMinutes(60);
+        await context.Service.EvaluateAllSchedules("when the press would have been due");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the waiting corrective press was dropped");
     }
 
     [TestMethod]
@@ -1483,25 +1511,38 @@ public sealed class HeatingBoilerControlTests
     }
 
     [TestMethod]
-    public async Task ATurnOffThatStillHasNotWorked_IsPressedAgain_UpToTheLimit_ThenRaisesANotification()
+    public async Task ATurnOffThatStillHasNotWorked_IsPressedAgain_FurtherApartEachTime_UpToTheLimit_ThenRaisesANotification()
     {
-        // Owner, 2026-10-23: the app must be certain the boiler went off, even if a corrective press did not work. Every
-        // check here says it is still running.
+        // Owner, 2026-10-23: the app must be certain the boiler went off, even if a corrective press did not work; five
+        // tries, the later ones further apart in case the trouble is the network. Every check here says it is still running.
         BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot, roomsCallForHeat: false);
         context.Verification.GetVerifiedBoilerState().Returns(true);
 
-        for (int pass = 1; pass <= HeatingControlService.MaxTurnOffCorrectionsInARow; pass++)
+        HeatingControlService.MaxTurnOffCorrectionsInARow.ShouldBe(5);
+        for (int press = 1; press <= HeatingControlService.MaxTurnOffCorrectionsInARow; press++)
         {
-            await context.Service.EvaluateAllSchedules($"mismatch {pass}");
-            context.BoilerFingerbot.ToggleCount.ShouldBe(pass, "each corrective press is checked, and pressed again if it did not work");
+            TimeSpan wait = HeatingControlService.TurnOffCorrectionDelays[press - 1];
+            await context.Service.EvaluateAllSchedules($"check {press} failed");
+            if (wait > TimeSpan.Zero)
+            {
+                context.BoilerFingerbot.ToggleCount.ShouldBe(press - 1, $"press {press} waits {wait.TotalMinutes} min");
+                context.AdvanceMinutes((int)wait.TotalMinutes - 1);
+                await context.Service.EvaluateAllSchedules("not yet");
+                context.BoilerFingerbot.ToggleCount.ShouldBe(press - 1);
+                context.AdvanceMinutes(1);
+                await context.Service.EvaluateAllSchedules("corrective boiler press due");
+            }
+
+            context.BoilerFingerbot.ToggleCount.ShouldBe(press, "each corrective press is checked, and pressed again if it did not work");
         }
 
+        context.ScheduledDelays().ShouldBe(HeatingControlService.TurnOffCorrectionDelays.Skip(1), ignoreOrder: true);
         context.Ha.DidNotReceiveWithAnyArgs().CallService(default!, default!, default, default);
 
         await context.Service.EvaluateAllSchedules("still running");
 
         context.BoilerFingerbot.ToggleCount.ShouldBe(HeatingControlService.MaxTurnOffCorrectionsInARow, "past the limit it stops pressing");
-        context.Logger.CountMessagesContaining("still running after 3 corrective presses", LogLevel.Error).ShouldBe(1);
+        context.Logger.CountMessagesContaining("still running after 5 corrective presses", LogLevel.Error).ShouldBe(1);
         context.Ha.Received(1).CallService("notify", "persistent_notification", Arg.Any<ServiceTarget?>(), Arg.Any<object?>());
         context.Logger.CountMessagesContaining("disagreed again").ShouldBe(0);
     }

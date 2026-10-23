@@ -45,7 +45,16 @@ internal partial class HeatingControlService
     // raises a notification: presses that keep failing mean something it cannot fix, such as the switch at the boiler
     // being on the boiler thermostat, where every press is dead.
     private int _correctionsInARow = 0;
-    internal const int MaxTurnOffCorrectionsInARow = 3;
+    // How long after its check fails each corrective "off" press waits: the first at once, the later ones further apart,
+    // in case what stops them is a network problem that passes (owner, 2026-10-23). One entry per press allowed.
+    internal static readonly TimeSpan[] TurnOffCorrectionDelays =
+        [TimeSpan.Zero, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(60)];
+    internal static readonly int MaxTurnOffCorrectionsInARow = TurnOffCorrectionDelays.Length;
+    // A corrective "off" press waiting its turn (see TurnOffCorrectionDelays); null if none.
+    private DateTimeOffset? _turnOffCorrectionDueAt;
+    // Set once MaxTurnOffCorrectionsInARow presses have not turned the boiler off; cleared when the belief is settled
+    // some other way.
+    private bool _turnOffGivenUp = false;
     // The valve held open for a turn-off check, so it can show the boiler still running (owner, 2026-10-23). See
     // IsHeldForTurnOffCheck.
     private string? _valveHeldForTurnOffCheck;
@@ -1426,6 +1435,7 @@ internal partial class HeatingControlService
             _boilerOn = false;
             _boilerBeliefSince = null;
             _boilerMayBeRunning = false;
+            CancelTurnOffCorrection();
             return controlPath;
         }
 
@@ -1493,6 +1503,8 @@ internal partial class HeatingControlService
             // is kept: the new belief's check needs to know which radiators have had hot water (until 2026-10-23 it was
             // wiped too, so a movement to "off" could never arm a turn-off check).
             _boilerVerification.DiscardPendingVerification();
+            // The movement settles the belief afresh, so a corrective press waiting its turn would act on the old one.
+            CancelTurnOffCorrection();
             _fingerbotMovementToVerify = beliefChangedByMovement ? (_boilerOn, offSinceBeforeMovement) : null;
             // A corrective press that landed late is still a correction, and counts towards the limit.
             _correctionsInARow = pressesSeenOutsideTheApp == 0 && unconfirmedPressLanded!.Value.WasCorrection ? _correctionsInARow + 1 : 0;
@@ -1581,10 +1593,16 @@ internal partial class HeatingControlService
             }
 
             // A boiler left running is the costly mistake, so a turn-off that still has not worked is pressed again, each
-            // press checked like the first (owner, 2026-10-23). A turn-on gets one correction, as before.
+            // press checked like the first, and the later ones further apart, in case the trouble is the network and
+            // it passes (owner, 2026-10-23). A turn-on gets one correction, as before.
             bool runningWhenBelievedOff = verifiedState.Value;
-            if (runningWhenBelievedOff && _correctionsInARow >= MaxTurnOffCorrectionsInARow)
+            if (runningWhenBelievedOff && _turnOffCorrectionDueAt != null)
             {
+                // Already waiting to press again; the press due will be checked in its turn.
+            }
+            else if (runningWhenBelievedOff && _correctionsInARow >= MaxTurnOffCorrectionsInARow)
+            {
+                _turnOffGivenUp = true;
                 _logger.LogError(
                     "Boiler verification says the boiler is still running after {Count} corrective presses to turn it off. Not pressing again: something the fingerbot cannot fix is wrong (is the switch at the boiler on the boiler thermostat?). Open valves now follow their rooms. Check the boiler by hand",
                     _correctionsInARow);
@@ -1600,28 +1618,32 @@ internal partial class HeatingControlService
                     "Boiler verification disagreed again straight after a corrective press: it thinks the boiler is {Actual}, we think {Expected}. Not pressing again, because a radiator that is not responding for some other reason would otherwise have the boiler pressed every 90 minutes. Keeping the belief until the next normal press",
                     verifiedState.Value ? "ON" : "OFF", _boilerOn ? "ON" : "OFF");
             }
+            else if (runningWhenBelievedOff && TurnOffCorrectionDelays[_correctionsInARow] > TimeSpan.Zero)
+            {
+                TimeSpan wait = TurnOffCorrectionDelays[_correctionsInARow];
+                _turnOffCorrectionDueAt = _timeProvider.GetUtcNow() + wait;
+                _scheduler.Schedule(wait, async () => await EvaluateAllSchedules("corrective boiler press due"));
+                _logger.LogWarning(
+                    "Boiler verification says the boiler is still running after {Count} corrective press(es) to turn it off. Pressing again in {Minutes} min (corrective press {Next} of {Max})",
+                    _correctionsInARow, wait.TotalMinutes, _correctionsInARow + 1, MaxTurnOffCorrectionsInARow);
+            }
             else
             {
                 _logger.LogWarning(
                     "Boiler verification detected state mismatch: we thought boiler was {Expected}, but it appears to be {Actual}. Correcting by toggling fingerbot",
                     _boilerOn ? "ON" : "OFF", verifiedState.Value ? "ON" : "OFF");
-
-                // The boiler has really been in the verified state since the press we believed in.
-                DateTimeOffset? actuallySince = _boilerBeliefSince;
-
-                if (await PressBoilerFingerbotAsync(correction: true))
-                {
-                    // The press puts the boiler where we believed it was.
-                    SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
-                    _correctionsInARow++;
-                    _pressToVerify = (_boilerOn, actuallySince);
-                }
-                else
-                {
-                    // Nothing could be pressed, so the verification is the best evidence there is.
-                    SetBoilerBelief(verifiedState.Value, actuallySince ?? _timeProvider.GetUtcNow());
-                }
+                await PressToCorrectAsync(verifiedState.Value);
             }
+        }
+
+        // A corrective press that was waiting its turn.
+        if (_turnOffCorrectionDueAt is { } due && _timeProvider.GetUtcNow() >= due && !_boilerOn)
+        {
+            _turnOffCorrectionDueAt = null;
+            _logger.LogWarning(
+                "Pressing the boiler off again (corrective press {Number} of {Max}): the last check said it was still running",
+                _correctionsInARow + 1, MaxTurnOffCorrectionsInARow);
+            await PressToCorrectAsync(verifiedState: true);
         }
 
         bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
@@ -1653,7 +1675,20 @@ internal partial class HeatingControlService
 
                 DateTimeOffset? offSince = _boilerBeliefSince;
 
-                if (await PressBoilerFingerbotAsync())
+                if (TurnOffStillUncorrected)
+                {
+                    // The last check said the boiler is still running, and nothing has corrected it yet, so pressing "on"
+                    // would turn it off. It is taken as already on, and checked against the radiators like a press.
+                    CancelTurnOffCorrection();
+                    SetBoilerBelief(true, _timeProvider.GetUtcNow());
+                    _correctionsInARow = 0;
+                    _boilerMayBeRunning = false;
+                    _pressToVerify = (true, offSince);
+                    _logger.LogWarning(
+                        "Boiler wanted ON ({Why}), and the last check said it is still running after the app turned it off, so it is not pressed: taking it as already on, and checking that against the radiators. Triggered by {Trigger}",
+                        why, trigger);
+                }
+                else if (await PressBoilerFingerbotAsync())
                 {
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _correctionsInARow = 0;
@@ -1685,6 +1720,42 @@ internal partial class HeatingControlService
                 _pressToVerify = (false, null);
             }
         }
+    }
+
+    /// <summary>
+    /// A corrective press: puts the boiler back where the app believes it is, after a check found it the other way
+    /// (<paramref name="verifiedState"/>), and checks that press like any other.
+    /// </summary>
+    private async Task PressToCorrectAsync(bool verifiedState)
+    {
+        // The boiler has really been in the verified state since the press we believed in.
+        DateTimeOffset? actuallySince = _boilerBeliefSince;
+
+        if (await PressBoilerFingerbotAsync(correction: true))
+        {
+            // The press puts the boiler where we believed it was.
+            SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
+            _correctionsInARow++;
+            _pressToVerify = (_boilerOn, actuallySince);
+        }
+        else
+        {
+            // Nothing could be pressed, so the verification is the best evidence there is.
+            SetBoilerBelief(verifiedState, actuallySince ?? _timeProvider.GetUtcNow());
+        }
+    }
+
+    /// <summary>
+    /// Whether the last turn-off check said the boiler is still running and no corrective press has yet answered it:
+    /// one is waiting its turn, or the app has given up. The boiler is then believed off but evidently on.
+    /// </summary>
+    private bool TurnOffStillUncorrected => _turnOffCorrectionDueAt != null || _turnOffGivenUp;
+
+    /// <summary>Drops a corrective press waiting its turn, and a give-up, when the belief has been settled some other way.</summary>
+    private void CancelTurnOffCorrection()
+    {
+        _turnOffCorrectionDueAt = null;
+        _turnOffGivenUp = false;
     }
 
     /// <summary>
