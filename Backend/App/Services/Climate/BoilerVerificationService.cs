@@ -38,8 +38,8 @@ internal interface IBoilerVerificationService
     /// </summary>
     void DiscardPendingVerification();
 
-    /// <summary>Whether a turn-off verification is pending and watching this valve.</summary>
-    bool IsWatchingTurnOff(string valveEntityId);
+    /// <summary>Whether a verification of a turn-on (or turn-off) is pending and watching this valve.</summary>
+    bool IsWatching(string valveEntityId, bool boilerTurnedOn);
 }
 
 /// <summary>
@@ -340,8 +340,9 @@ internal class BoilerVerificationService : IBoilerVerificationService
         }
     }
 
-    public bool IsWatchingTurnOff(string valveEntityId) =>
-        _pendingVerification is { BoilerTurnedOn: false } verification
+    public bool IsWatching(string valveEntityId, bool boilerTurnedOn) =>
+        _pendingVerification is { } verification
+        && verification.BoilerTurnedOn == boilerTurnedOn
         && verification.MonitoredValves.Exists(mv => string.Equals(mv.Valve.EntityId, valveEntityId, StringComparison.OrdinalIgnoreCase));
 
     public void DiscardPendingVerification()

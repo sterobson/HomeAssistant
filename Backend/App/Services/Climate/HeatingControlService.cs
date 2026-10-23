@@ -39,27 +39,27 @@ internal partial class HeatingControlService
     // The boiler has no feedback; see BoilerBelief.
     private bool _boilerOn = false;
     private DateTimeOffset? _boilerBeliefSince = null;
-    // Corrective presses since the last ordinary one. A turn-on check that disagrees again straight after a correction
-    // is not trusted with another press. A turn-off check is (owner, 2026-10-23: the app must be certain the boiler went
-    // off, even if a corrective press did not work), up to MaxTurnOffCorrectionsInARow, after which the app stops and
-    // raises a notification: presses that keep failing mean something it cannot fix, such as the switch at the boiler
-    // being on the boiler thermostat, where every press is dead.
+    // Corrective presses since the last ordinary one. A check that disagrees again after a correction is pressed again,
+    // either way (owner, 2026-10-23: the app must be certain the boiler did what it was told, even if a corrective press
+    // did not work), up to MaxCorrectionsInARow, after which the app stops and raises a notification: presses that keep
+    // failing mean something it cannot fix, such as the switch at the boiler being on the boiler thermostat, where every
+    // press is dead. Until 2026-10-23 a second disagreement was only logged.
     private int _correctionsInARow = 0;
-    // How long after its check fails each corrective "off" press waits: the first at once, the later ones further apart,
-    // in case what stops them is a network problem that passes (owner, 2026-10-23). One entry per press allowed.
-    internal static readonly TimeSpan[] TurnOffCorrectionDelays =
+    // How long after its check fails each corrective press waits: the first at once, the later ones further apart, in
+    // case what stops them is a network problem that passes (owner, 2026-10-23). One entry per press allowed.
+    internal static readonly TimeSpan[] CorrectionDelays =
         [TimeSpan.Zero, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(60)];
-    internal static readonly int MaxTurnOffCorrectionsInARow = TurnOffCorrectionDelays.Length;
-    // A corrective "off" press waiting its turn (see TurnOffCorrectionDelays); null if none.
-    private DateTimeOffset? _turnOffCorrectionDueAt;
-    // Set once MaxTurnOffCorrectionsInARow presses have not turned the boiler off; cleared when the belief is settled
-    // some other way.
-    private bool _turnOffGivenUp = false;
-    // The valve held open for a turn-off check, so it can show the boiler still running (owner, 2026-10-23). See
-    // IsHeldForTurnOffCheck.
-    private string? _valveHeldForTurnOffCheck;
+    internal static readonly int MaxCorrectionsInARow = CorrectionDelays.Length;
+    // A corrective press waiting its turn (see CorrectionDelays); null if none.
+    private DateTimeOffset? _correctionDueAt;
+    // Set once MaxCorrectionsInARow presses have not put the boiler where the app believes it is; cleared when the belief
+    // is settled some other way.
+    private bool _correctionGivenUp = false;
+    // The valve held open for the check of a press, so it can show what the boiler is doing (owner, 2026-10-23). See
+    // IsHeldForBoilerCheck.
+    private string? _valveHeldForBoilerCheck;
     // A held valve's setpoint is kept at least this far above its reading, so its TRV never throttles at its setpoint,
-    // which would stop it climbing on a running boiler and so hide it from the check.
+    // which would stop it climbing on a running boiler and so hide that from the check.
     internal const double HeldValveHeadroomCelsius = 2.0;
     private bool _hasLoggedFingerbotUnavailable = false;
 
@@ -490,9 +490,12 @@ internal partial class HeatingControlService
 
             // A turn-off to check: keep the warmest open valve open through this pass, so the rooms cannot shut every
             // valve (they would, after a failed check, with the boiler possibly running) and leave nothing to watch.
-            if (_pressToVerify is { BoilerNowOn: false })
+            // A turn-on: the rooms bring their valves into line first, and the valve to hold is chosen after them.
+            if (_pressToVerify is { } pressThisPass)
             {
-                _valveHeldForTurnOffCheck = WarmestValve(ValvesOf(schedules).Where(v => IsValveOpen(v.Valve)))?.EntityId;
+                _valveHeldForBoilerCheck = pressThisPass.BoilerNowOn
+                    ? null
+                    : WarmestValve(ValvesOf(schedules).Where(v => IsValveOpen(v.Valve)))?.EntityId;
             }
 
             // 4. The rooms' devices.
@@ -779,13 +782,15 @@ internal partial class HeatingControlService
 
             _devicesWantingHeat[entityId] = wanting;
 
-            bool heldForCheck = IsHeldForTurnOffCheck(device);
+            bool heldForCheck = IsHeldForBoilerCheck(device);
             if (heldForCheck || IsWaitingForBoiler(device))
             {
-                // A valve held open for a turn-off check is not the room's to move until the check is over.
+                // A valve held open for the check of a press is not the room's to move until the check is over. With
+                // the boiler believed on it is open with hot water behind it, so it is heating the room.
                 if (heldForCheck)
                 {
-                    KeepOpenForTurnOffCheck(roomHeatingSchedule.Name, (ICustomClimateControlEntity)device, trigger);
+                    KeepOpenForBoilerCheck(roomHeatingSchedule.Name, (ICustomClimateControlEntity)device, trigger);
+                    anyHeating |= _boilerOn;
                 }
 
                 // With the boiler off a valve's position makes no difference, so it is neither opened nor shut,
@@ -794,7 +799,7 @@ internal partial class HeatingControlService
                 // warm-up arrived in this pass.
                 _warmUpRates?.Observe(
                     entityId,
-                    _boilerWasOnAtStartOfPass && wanting && IsDeviceAllowed(device),
+                    (_boilerOn || _boilerWasOnAtStartOfPass) && wanting && IsDeviceAllowed(device),
                     currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow());
                 continue;
             }
@@ -1435,7 +1440,7 @@ internal partial class HeatingControlService
             _boilerOn = false;
             _boilerBeliefSince = null;
             _boilerMayBeRunning = false;
-            CancelTurnOffCorrection();
+            CancelCorrection();
             return controlPath;
         }
 
@@ -1504,7 +1509,7 @@ internal partial class HeatingControlService
             // wiped too, so a movement to "off" could never arm a turn-off check).
             _boilerVerification.DiscardPendingVerification();
             // The movement settles the belief afresh, so a corrective press waiting its turn would act on the old one.
-            CancelTurnOffCorrection();
+            CancelCorrection();
             _fingerbotMovementToVerify = beliefChangedByMovement ? (_boilerOn, offSinceBeforeMovement) : null;
             // A corrective press that landed late is still a correction, and counts towards the limit.
             _correctionsInARow = pressesSeenOutsideTheApp == 0 && unconfirmedPressLanded!.Value.WasCorrection ? _correctionsInARow + 1 : 0;
@@ -1592,40 +1597,36 @@ internal partial class HeatingControlService
                 _boilerMayBeRunning = true;
             }
 
-            // A boiler left running is the costly mistake, so a turn-off that still has not worked is pressed again, each
-            // press checked like the first, and the later ones further apart, in case the trouble is the network and
-            // it passes (owner, 2026-10-23). A turn-on gets one correction, as before.
-            bool runningWhenBelievedOff = verifiedState.Value;
-            if (runningWhenBelievedOff && _turnOffCorrectionDueAt != null)
+            // A corrective press that has not worked is pressed again, each press checked like the first, and the later
+            // ones further apart in case the trouble is the network and it passes; after the last, the app stops and
+            // raises a notification (owner, 2026-10-23). The same both ways: a boiler left running wastes gas unseen,
+            // and one that never fired leaves the house cold.
+            if (_correctionDueAt != null)
             {
                 // Already waiting to press again; the press due will be checked in its turn.
             }
-            else if (runningWhenBelievedOff && _correctionsInARow >= MaxTurnOffCorrectionsInARow)
+            else if (_correctionsInARow >= MaxCorrectionsInARow)
             {
-                _turnOffGivenUp = true;
+                _correctionGivenUp = true;
+                string actually = verifiedState.Value ? "still running" : "not running";
                 _logger.LogError(
-                    "Boiler verification says the boiler is still running after {Count} corrective presses to turn it off. Not pressing again: something the fingerbot cannot fix is wrong (is the switch at the boiler on the boiler thermostat?). Open valves now follow their rooms. Check the boiler by hand",
-                    _correctionsInARow);
+                    "Boiler verification says the boiler is {Actually} after {Count} corrective presses to turn it {Direction}. Not pressing again: something the fingerbot cannot fix is wrong (is the switch at the boiler on the boiler thermostat?). Check the boiler by hand",
+                    actually, _correctionsInARow, _boilerOn ? "on" : "off");
                 _ha.CallService("notify", "persistent_notification", data: new
                 {
-                    title = "Boiler may still be running",
-                    message = $"The boiler should have gone off, and the heating app has pressed it {_correctionsInARow} more times to correct it, but the radiators still say it is running. It has stopped pressing. Check the boiler, and the switch that chooses between the fingerbot and the boiler thermostat."
+                    title = verifiedState.Value ? "Boiler may still be running" : "Boiler may not be running",
+                    message = $"The boiler should be {(_boilerOn ? "on" : "off")}, and the heating app has pressed it {_correctionsInARow} more times to correct it, but the radiators still say it is {actually}. It has stopped pressing. Check the boiler, and the switch that chooses between the fingerbot and the boiler thermostat."
                 });
             }
-            else if (_correctionsInARow > 0 && !runningWhenBelievedOff)
+            else if (CorrectionDelays[_correctionsInARow] > TimeSpan.Zero)
             {
-                _logger.LogWarning(
-                    "Boiler verification disagreed again straight after a corrective press: it thinks the boiler is {Actual}, we think {Expected}. Not pressing again, because a radiator that is not responding for some other reason would otherwise have the boiler pressed every 90 minutes. Keeping the belief until the next normal press",
-                    verifiedState.Value ? "ON" : "OFF", _boilerOn ? "ON" : "OFF");
-            }
-            else if (runningWhenBelievedOff && TurnOffCorrectionDelays[_correctionsInARow] > TimeSpan.Zero)
-            {
-                TimeSpan wait = TurnOffCorrectionDelays[_correctionsInARow];
-                _turnOffCorrectionDueAt = _timeProvider.GetUtcNow() + wait;
+                TimeSpan wait = CorrectionDelays[_correctionsInARow];
+                _correctionDueAt = _timeProvider.GetUtcNow() + wait;
                 _scheduler.Schedule(wait, async () => await EvaluateAllSchedules("corrective boiler press due"));
                 _logger.LogWarning(
-                    "Boiler verification says the boiler is still running after {Count} corrective press(es) to turn it off. Pressing again in {Minutes} min (corrective press {Next} of {Max})",
-                    _correctionsInARow, wait.TotalMinutes, _correctionsInARow + 1, MaxTurnOffCorrectionsInARow);
+                    "Boiler verification says the boiler is {Actually} after {Count} corrective press(es) to turn it {Direction}. Pressing again in {Minutes} min (corrective press {Next} of {Max})",
+                    verifiedState.Value ? "still running" : "not running", _correctionsInARow, _boilerOn ? "on" : "off",
+                    wait.TotalMinutes, _correctionsInARow + 1, MaxCorrectionsInARow);
             }
             else
             {
@@ -1636,14 +1637,14 @@ internal partial class HeatingControlService
             }
         }
 
-        // A corrective press that was waiting its turn.
-        if (_turnOffCorrectionDueAt is { } due && _timeProvider.GetUtcNow() >= due && !_boilerOn)
+        // A corrective press that was waiting its turn: it puts the boiler where the app believes it is.
+        if (_correctionDueAt is { } due && _timeProvider.GetUtcNow() >= due)
         {
-            _turnOffCorrectionDueAt = null;
+            _correctionDueAt = null;
             _logger.LogWarning(
-                "Pressing the boiler off again (corrective press {Number} of {Max}): the last check said it was still running",
-                _correctionsInARow + 1, MaxTurnOffCorrectionsInARow);
-            await PressToCorrectAsync(verifiedState: true);
+                "Pressing the boiler {Direction} again (corrective press {Number} of {Max}): the last check said it was {Actually}",
+                _boilerOn ? "on" : "off", _correctionsInARow + 1, MaxCorrectionsInARow, _boilerOn ? "not running" : "still running");
+            await PressToCorrectAsync(verifiedState: !_boilerOn);
         }
 
         bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
@@ -1675,11 +1676,11 @@ internal partial class HeatingControlService
 
                 DateTimeOffset? offSince = _boilerBeliefSince;
 
-                if (TurnOffStillUncorrected)
+                if (BeliefStillContradicted)
                 {
                     // The last check said the boiler is still running, and nothing has corrected it yet, so pressing "on"
                     // would turn it off. It is taken as already on, and checked against the radiators like a press.
-                    CancelTurnOffCorrection();
+                    CancelCorrection();
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _correctionsInARow = 0;
                     _boilerMayBeRunning = false;
@@ -1710,7 +1711,20 @@ internal partial class HeatingControlService
             // Boiler is ON and no room is calling for heat: turn it OFF. The valves are left where they are
             // (see _valvesWaitForBoiler), and the open ones are the radiators the verification watches for heating
             // up again, which they would if the boiler were still running.
-            if (await PressBoilerFingerbotAsync())
+            if (BeliefStillContradicted)
+            {
+                // The last check said the boiler never fired, and nothing has corrected it yet, so pressing "off" would
+                // turn it on. It is taken as already off, and checked against the radiators like a press.
+                CancelCorrection();
+                SetBoilerBelief(false, _timeProvider.GetUtcNow());
+                _correctionsInARow = 0;
+                _boilerMayBeRunning = false;
+                _pressToVerify = (false, null);
+                _logger.LogWarning(
+                    "Boiler wanted OFF (no room calling), and the last check said it is not running after the app turned it on, so it is not pressed: taking it as already off, and checking that against the radiators. Triggered by {Trigger}",
+                    trigger);
+            }
+            else if (await PressBoilerFingerbotAsync())
             {
                 SetBoilerBelief(false, _timeProvider.GetUtcNow());
                 _correctionsInARow = 0;
@@ -1746,16 +1760,16 @@ internal partial class HeatingControlService
     }
 
     /// <summary>
-    /// Whether the last turn-off check said the boiler is still running and no corrective press has yet answered it:
-    /// one is waiting its turn, or the app has given up. The boiler is then believed off but evidently on.
+    /// Whether the last check said the boiler is not where the app believes it, and no corrective press has yet answered
+    /// it: one is waiting its turn, or the app has given up. Pressing to change the belief would then do the opposite.
     /// </summary>
-    private bool TurnOffStillUncorrected => _turnOffCorrectionDueAt != null || _turnOffGivenUp;
+    private bool BeliefStillContradicted => _correctionDueAt != null || _correctionGivenUp;
 
     /// <summary>Drops a corrective press waiting its turn, and a give-up, when the belief has been settled some other way.</summary>
-    private void CancelTurnOffCorrection()
+    private void CancelCorrection()
     {
-        _turnOffCorrectionDueAt = null;
-        _turnOffGivenUp = false;
+        _correctionDueAt = null;
+        _correctionGivenUp = false;
     }
 
     /// <summary>
@@ -1770,31 +1784,31 @@ internal partial class HeatingControlService
         {
             List<(string RoomName, ICustomClimateControlEntity Valve)> openAfterPass = [.. ValvesOf(schedules).Where(v => IsValveOpenAfterPass(v.Valve))];
 
-            if (!press.BoilerNowOn)
+            // A press can only be checked against an open valve: a shut one's radiator stays cold whether the boiler runs
+            // or not. With none open, one is opened for the check (owner, 2026-10-23).
+            // For a turn-off, the warmest: it had hot water most recently, so if the boiler is off it can only cool, and
+            // nothing else warming the room can lift it to a new high, while if it is running it heats up again. For a
+            // turn-on, the coldest, which shows the clearest rise when hot water reaches it.
+            if (!openAfterPass.Exists(v => v.Valve.CurrentTemperature.HasValue))
             {
-                // A turn-off can only be checked against an open valve: a shut one's radiator cools whether the boiler
-                // runs or not. With none open, one is opened for the check (owner, 2026-10-23). The warmest, because it
-                // had hot water most recently: if the boiler is off it can only cool, so nothing else warming the room
-                // can lift it to a new high, and if the boiler is running it heats up again.
-                if (!openAfterPass.Exists(v => v.Valve.CurrentTemperature.HasValue))
+                List<(string RoomName, ICustomClimateControlEntity Valve)> candidates = [.. ValvesOf(schedules)
+                    .Where(v => v.Valve.CurrentTemperature.HasValue && !_valvesCommandedThisPass.ContainsKey(v.Valve.EntityId))];
+                // Preferably one its device rules allow, so a room held off is heated only as long as the check needs.
+                List<(string RoomName, ICustomClimateControlEntity Valve)> allowed = [.. candidates.Where(v => IsDeviceAllowed(v.Valve))];
+                ICustomClimateControlEntity? probe = ValveToWatch(allowed, press.BoilerNowOn) ?? ValveToWatch(candidates, press.BoilerNowOn);
+                if (probe != null)
                 {
-                    List<(string RoomName, ICustomClimateControlEntity Valve)> candidates = [.. ValvesOf(schedules)
-                        .Where(v => v.Valve.CurrentTemperature.HasValue && !_valvesCommandedThisPass.ContainsKey(v.Valve.EntityId))];
-                    // Preferably one its device rules allow, so a room held off is heated only if the boiler did not go off.
-                    ICustomClimateControlEntity? probe = WarmestValve(candidates.Where(v => IsDeviceAllowed(v.Valve))) ?? WarmestValve(candidates);
-                    if (probe != null)
-                    {
-                        (string RoomName, ICustomClimateControlEntity Valve) opened = candidates.First(v => v.Valve == probe);
-                        OpenValveForTurnOffCheck(opened.RoomName, probe, "no valve was open");
-                        openAfterPass.Add(opened);
-                    }
+                    (string RoomName, ICustomClimateControlEntity Valve) opened = candidates.First(v => v.Valve == probe);
+                    OpenValveForBoilerCheck(opened.RoomName, probe, press.BoilerNowOn, "no valve was open");
+                    openAfterPass.Add(opened);
                 }
+            }
 
-                // The one held open until the check is over: the one kept open this pass, else the warmest open now.
-                if (!openAfterPass.Exists(v => string.Equals(v.Valve.EntityId, _valveHeldForTurnOffCheck, StringComparison.OrdinalIgnoreCase)))
-                {
-                    _valveHeldForTurnOffCheck = WarmestValve(openAfterPass)?.EntityId;
-                }
+            // The one held open until the check is over: for a turn-off the one kept open through this pass, else the
+            // warmest or coldest open now.
+            if (press.BoilerNowOn || !openAfterPass.Exists(v => string.Equals(v.Valve.EntityId, _valveHeldForBoilerCheck, StringComparison.OrdinalIgnoreCase)))
+            {
+                _valveHeldForBoilerCheck = ValveToWatch(openAfterPass, press.BoilerNowOn)?.EntityId;
             }
 
             _boilerVerification.NotifyBoilerToggled(press.BoilerNowOn, openAfterPass, press.BoilerOffSince);
@@ -1838,22 +1852,32 @@ internal partial class HeatingControlService
         .Select(v => v.Valve)
         .FirstOrDefault();
 
+    /// <summary>The valve that best shows the check of a press: the warmest for a turn-off, the coldest for a turn-on.</summary>
+    private static ICustomClimateControlEntity? ValveToWatch(IEnumerable<(string RoomName, ICustomClimateControlEntity Valve)> valves, bool boilerNowOn) => boilerNowOn
+        ? valves
+            .Where(v => v.Valve.CurrentTemperature.HasValue)
+            .OrderBy(v => v.Valve.CurrentTemperature)
+            .ThenBy(v => v.Valve.EntityId, StringComparer.OrdinalIgnoreCase)
+            .Select(v => v.Valve)
+            .FirstOrDefault()
+        : WarmestValve(valves);
+
     /// <summary>
-    /// Whether this is the valve held open for a turn-off check (owner, 2026-10-23): while the boiler is believed off and
-    /// the check is being armed this pass or is still watching it. Its room does not move it, so it cannot be shut after
-    /// a failed check (when valves follow their rooms) and leave the next check nothing to watch.
+    /// Whether this is the valve held open for the check of a press (owner, 2026-10-23): while the check is being armed
+    /// this pass or is still watching it, and the boiler is still believed the way that press put it. Its room does not
+    /// move it, so it cannot be shut (after a failed turn-off check, when valves follow their rooms; or when its room
+    /// warms before a turn-on has shown) and leave nothing to watch.
     /// </summary>
-    private bool IsHeldForTurnOffCheck(object device) =>
+    private bool IsHeldForBoilerCheck(object device) =>
         device is ICustomClimateControlEntity valve
-        && !_boilerOn
-        && string.Equals(valve.EntityId, _valveHeldForTurnOffCheck, StringComparison.OrdinalIgnoreCase)
-        && (_pressToVerify is { BoilerNowOn: false } || _boilerVerification.IsWatchingTurnOff(valve.EntityId));
+        && string.Equals(valve.EntityId, _valveHeldForBoilerCheck, StringComparison.OrdinalIgnoreCase)
+        && (_pressToVerify is { } press ? press.BoilerNowOn == _boilerOn : _boilerVerification.IsWatching(valve.EntityId, _boilerOn));
 
     /// <summary>
     /// Keeps a held valve open with its setpoint at least <see cref="HeldValveHeadroomCelsius"/> above its reading. A TRV
     /// at its setpoint throttles and stops climbing, which on a running boiler is exactly what the check must not miss.
     /// </summary>
-    private void KeepOpenForTurnOffCheck(string roomName, ICustomClimateControlEntity valve, string trigger)
+    private void KeepOpenForBoilerCheck(string roomName, ICustomClimateControlEntity valve, string trigger)
     {
         if (valve.CurrentTemperature is not double reading || _valvesCommandedThisPass.ContainsKey(valve.EntityId))
         {
@@ -1865,17 +1889,17 @@ internal partial class HeatingControlService
             return;
         }
 
-        OpenValveForTurnOffCheck(roomName, valve, $"its setpoint was within {HeldValveHeadroomCelsius}°C of its reading. Triggered by {trigger}");
+        OpenValveForBoilerCheck(roomName, valve, _boilerOn, $"its setpoint was within {HeldValveHeadroomCelsius}°C of its reading. Triggered by {trigger}");
     }
 
-    private void OpenValveForTurnOffCheck(string roomName, ICustomClimateControlEntity valve, string why)
+    private void OpenValveForBoilerCheck(string roomName, ICustomClimateControlEntity valve, bool boilerNowOn, string why)
     {
         double reading = valve.CurrentTemperature.GetValueOrDefault();
         valve.SetTargetTemperature(reading + 5);
         _valvesCommandedThisPass[valve.EntityId] = true;
         _logger.LogInformation(
-            "Room {Room}: {Valve} opened (setpoint {Setpoint}°C, reading {Reading}°C) and held open so the boiler turn-off can be checked against it: {Why}",
-            roomName, valve.EntityId, reading + 5, reading, why);
+            "Room {Room}: {Valve} opened (setpoint {Setpoint}°C, reading {Reading}°C) and held open so the boiler turn-{Direction} can be checked against it: {Why}",
+            roomName, valve.EntityId, reading + 5, reading, boilerNowOn ? "on" : "off", why);
     }
 
     /// <summary>A valve is open when its setpoint is at or above its own reading, which is how the app sets it.</summary>
