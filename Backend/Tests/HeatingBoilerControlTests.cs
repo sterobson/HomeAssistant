@@ -246,23 +246,160 @@ public sealed class HeatingBoilerControlTests
     }
 
     [TestMethod]
-    public async Task AFailedPressThatLandsLater_IsTakenAsAPressFromOutsideTheApp()
+    public async Task AFailedPressThatLandsSecondsLater_IsTheAppsOwnPress()
     {
+        // 2026-10-23 14:36:58: HA answered the app's "off" press with "The operation has timed out", and the fingerbot
+        // reported the move 11 s later. That was the app's press arriving late, not someone else's.
         BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot);
         context.Service.WatchBoilerFingerbot();
         context.BoilerFingerbot.FailNextCommands = 1;
         await context.Service.EvaluateAllSchedules("unit test");
         context.BoilerState.Saved!.BoilerOn.ShouldBeFalse();
 
-        // The fingerbot reports on after all, after the app had given up on that press.
+        context.AdvanceSeconds(11);
         await context.BoilerFingerbot.SetStateFromOutsideTheApp(true);
 
-        context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("the belief follows the fingerbot's late press");
+        context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("the belief follows the press that landed");
         context.BoilerFingerbot.ToggleCount.ShouldBe(0, "the app does not press it again");
-        context.Logger.CountMessagesContaining("pressed 1 time(s) outside the app").ShouldBe(1);
-        // The switch's word is not proof (02:42 on 2026-10-22 it reported "on" and the boiler never fired), so the new
-        // belief is checked against the radiators like any press.
+        context.Logger.CountMessagesContaining("Taking it as the app's press").ShouldBe(1);
+        context.Logger.CountMessagesContaining("outside the app").ShouldBe(0);
+        // Still only the switch's word (02:42 on 2026-10-22 it reported "on" and the boiler never fired), so the new
+        // belief is checked against the radiators.
         context.Verification.Received(1).NotifyBoilerToggled(true, Arg.Any<List<(string RoomName, ICustomClimateControlEntity Valve)>>(), Arg.Any<DateTimeOffset?>());
+    }
+
+    [TestMethod]
+    public async Task AFailedPressThatLandsMuchLater_IsTakenAsAPressFromOutsideTheApp()
+    {
+        BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Fingerbot);
+        context.Service.WatchBoilerFingerbot();
+        context.BoilerFingerbot.FailNextCommands = 1;
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.AdvanceSeconds((int)HeatingControlService.LatePressWindow.TotalSeconds + 1);
+        await context.BoilerFingerbot.SetStateFromOutsideTheApp(true);
+
+        context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("the belief follows the fingerbot");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(0);
+        context.Logger.CountMessagesContaining("pressed 1 time(s) outside the app").ShouldBe(1);
+        context.Logger.CountMessagesContaining("Taking it as the app's press").ShouldBe(0);
+        context.Verification.Received(1).NotifyBoilerToggled(true, Arg.Any<List<(string RoomName, ICustomClimateControlEntity Valve)>>(), Arg.Any<DateTimeOffset?>());
+    }
+
+    // 2026-10-23 (HOME-ASSISTANT.md gotcha 27): the boiler went on at 14:23 BST. At 14:36:58 no room was calling and the
+    // app pressed it off; HA answered "The operation has timed out", so the belief stayed on, and 11 s later the fingerbot
+    // reported the move. The app took that as a press from outside the app, flipped its belief to off and armed no check:
+    // the turn-off only watched radiators that had had hot water half an hour, Bedroom 3's had had 14 minutes, and the
+    // outside press had wiped the valve history anyway. The boiler ran on for over an hour.
+
+    [TestMethod]
+    public async Task ATurnOffThatLandedLate_SoonAfterATurnOn_IsCheckedAndCorrected_WhenTheBoilerRunsOn()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, realVerification: true);
+        context.Service.WatchBoilerFingerbot();
+        context.SetRadiatorValveReadings(17.0);
+        await context.Service.EvaluateAllSchedules("cold, boiler on");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        // The rooms reach their targets, so none is calling, but not the 0.2 °C over at which their valves shut: so with the
+        // belief still on after the failed press, the valves stay open, as Bedroom 3's did.
+        context.AdvanceMinutes(14);
+        context.LivingRoomTemperature.State = 20.1;
+        context.Bedroom2Temperature.State = 20.1;
+        context.SetRadiatorValveReadings(17.3);
+        context.BoilerFingerbot.FailNextCommands = 1;
+        await context.Service.EvaluateAllSchedules("warm, boiler off");
+        context.BoilerFingerbot.FailedCommandCount.ShouldBe(1);
+        context.BoilerState.Saved!.BoilerOn.ShouldBeTrue("HA said the press failed");
+
+        context.AdvanceSeconds(11);
+        await context.BoilerFingerbot.SetStateFromOutsideTheApp(false);
+        context.BoilerState.Saved!.BoilerOn.ShouldBeFalse();
+        context.Logger.CountMessagesContaining("Taking it as the app's press").ShouldBe(1);
+        context.ValvesAreOpen().ShouldBeTrue("valves wait while the boiler is believed off, so these are what the check watches");
+
+        // The boiler ran on: the open valves climb through the settling and past it.
+        foreach ((int minutes, double reading) in new[] { (10, 18.0), (10, 19.0), (10, 19.5), (5, 20.0) })
+        {
+            context.AdvanceMinutes(minutes);
+            context.SetRadiatorValveReadings(reading);
+            await context.Service.EvaluateAllSchedules("boiler running on");
+        }
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1, "the check that saw it runs at the end of the pass");
+        await context.Service.EvaluateAllSchedules("next cycle");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "the boiler was running, so it is pressed off");
+        context.Logger.CountMessagesContaining("state mismatch").ShouldBe(1);
+        context.BoilerState.Saved!.BoilerOn.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task ATurnOffSoonAfterATurnOn_IsChecked_AndCorrected_WhenTheBoilerRunsOn()
+    {
+        // The same, with a press HA confirmed: the gap was the half hour of hot water, not only the late press.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, realVerification: true);
+        context.SetRadiatorValveReadings(17.0);
+        await context.Service.EvaluateAllSchedules("cold, boiler on");
+
+        context.AdvanceMinutes(14);
+        context.LivingRoomTemperature.State = 20.1;
+        context.Bedroom2Temperature.State = 20.1;
+        context.SetRadiatorValveReadings(17.3);
+        await context.Service.EvaluateAllSchedules("warm, boiler off");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2);
+        context.ValvesAreOpen().ShouldBeTrue();
+
+        foreach ((int minutes, double reading) in new[] { (10, 18.0), (10, 19.0), (10, 19.5), (5, 20.0) })
+        {
+            context.AdvanceMinutes(minutes);
+            context.SetRadiatorValveReadings(reading);
+            await context.Service.EvaluateAllSchedules("boiler running on");
+        }
+
+        await context.Service.EvaluateAllSchedules("next cycle");
+
+        context.BoilerFingerbot.ToggleCount.ShouldBe(3, "the boiler was running, so it is pressed off");
+        context.Logger.CountMessagesContaining("state mismatch").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task APressOutsideTheApp_ToOff_IsCheckedWithWhatTheRadiatorsHadBefore()
+    {
+        // Someone turns the boiler off from the HA UI after it has run an hour, and it runs on. The open TRVs regulate on
+        // the hot water: down from 22.5 to 21.0 and back. That counts only for a radiator known to have had hot water half
+        // an hour, which the app forgot on every outside press until 2026-10-23.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Fingerbot, livingRoomTarget: 20, bedroom2Target: 20, realVerification: true);
+        context.Service.WatchBoilerFingerbot();
+        context.SetRadiatorValveReadings(17.5);
+        await context.Service.EvaluateAllSchedules("cold, boiler on");
+        context.AdvanceMinutes(30);
+        context.SetRadiatorValveReadings(21.0);
+        await context.Service.EvaluateAllSchedules("warming");
+        // Nearly warm: still calling, so the app keeps the boiler on, but too little short to turn it back on.
+        context.AdvanceMinutes(30);
+        context.LivingRoomTemperature.State = 19.9;
+        context.Bedroom2Temperature.State = 19.9;
+        context.SetRadiatorValveReadings(22.5);
+        await context.Service.EvaluateAllSchedules("warming");
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+
+        await context.BoilerFingerbot.SetStateFromOutsideTheApp(false);
+        context.BoilerState.Saved!.BoilerOn.ShouldBeFalse();
+        context.BoilerFingerbot.ToggleCount.ShouldBe(1);
+        context.ValvesAreOpen().ShouldBeTrue();
+
+        foreach ((int minutes, double reading) in new[] { (15, 22.5), (16, 22.0), (10, 21.0), (10, 22.5) })
+        {
+            context.AdvanceMinutes(minutes);
+            context.SetRadiatorValveReadings(reading);
+            await context.Service.EvaluateAllSchedules("TRVs cycling");
+        }
+
+        await context.Service.EvaluateAllSchedules("next cycle");
+
+        context.Logger.CountMessagesContaining("state mismatch").ShouldBe(1);
+        context.BoilerFingerbot.ToggleCount.ShouldBe(2, "pressed off again");
     }
 
     [TestMethod]
@@ -1479,6 +1616,11 @@ public sealed class HeatingBoilerControlTests
             TimeProvider.SetSpecificDateTime(TimeProvider.GetUtcNow().AddMinutes(minutes));
         }
 
+        public void AdvanceSeconds(int seconds)
+        {
+            TimeProvider.SetSpecificDateTime(TimeProvider.GetUtcNow().AddSeconds(seconds));
+        }
+
         public void SetRadiatorValveReadings(double temperature)
         {
             LivingRoomThermostat.CurrentTemperature = temperature;
@@ -1518,13 +1660,19 @@ internal sealed class InMemoryBoilerStatePersistence : IBoilerStatePersistence
 /// </summary>
 internal class RecordingLogger<T> : ILogger<T>
 {
-    private readonly List<string> _messages = [];
+    private readonly List<(LogLevel Level, string Message)> _entries = [];
 
-    public IReadOnlyList<string> Messages => _messages;
+    public IReadOnlyList<string> Messages => [.. _entries.Select(entry => entry.Message)];
 
     public int CountMessagesContaining(string fragment)
     {
-        return _messages.Count(message => message.Contains(fragment, StringComparison.Ordinal));
+        return _entries.Count(entry => entry.Message.Contains(fragment, StringComparison.Ordinal));
+    }
+
+    /// <summary>Only messages logged at <paramref name="atLeast"/> or above: what the add-on log shows starts at Information.</summary>
+    public int CountMessagesContaining(string fragment, LogLevel atLeast)
+    {
+        return _entries.Count(entry => entry.Level >= atLeast && entry.Message.Contains(fragment, StringComparison.Ordinal));
     }
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -1533,6 +1681,6 @@ internal class RecordingLogger<T> : ILogger<T>
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
-        _messages.Add(formatter(state, exception));
+        _entries.Add((logLevel, formatter(state, exception)));
     }
 }

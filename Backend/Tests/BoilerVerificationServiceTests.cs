@@ -265,6 +265,135 @@ public sealed class BoilerVerificationServiceTests
         service.GetVerifiedBoilerState().ShouldBeNull();
     }
 
+    // 2026-10-23 (HOME-ASSISTANT.md gotcha 27): the boiler went on at 14:23 BST and was believed off from 14:37, but ran
+    // on. Bedroom 3's open valve, whose radiator had had hot water for only 14 minutes, climbed 17.3 -> 21 °C by 15:28.
+    // Only radiators with half an hour of hot water were watched, so nothing was.
+
+    [TestMethod]
+    public async Task TurnOff_SoonAfterATurnOn_ARadiatorStillClimbing_ShowsTheBoilerStillRunning()
+    {
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(17.0);
+        service.NotifyValveStartedHeating("bedroom 3", valve);
+        Advance(timeProvider, minutes: 14);
+        valve.CurrentTemperature = 17.3;
+        service.NotifyBoilerToggled(false, [("bedroom 3", valve)], boilerOffSince: null);
+        service.NotifyValveStopped("bedroom 3");
+
+        foreach ((int minutes, double reading) in new[] { (10, 18.0), (10, 19.0), (10, 19.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+        }
+
+        service.GetVerifiedBoilerState().ShouldBeNull("still settling: water left in it could do this much");
+
+        Advance(timeProvider, minutes: 5);
+        valve.CurrentTemperature = 20.0;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(true, "half an hour after the turn-off it is still climbing, so hot water is still reaching it");
+    }
+
+    [TestMethod]
+    public async Task TurnOff_SoonAfterATurnOn_WaterLeftInTheRadiator_PeaksAndFalls_AndIsNoReasonToPress()
+    {
+        // Had the boiler gone off: 14 minutes of hot water leave a part-warm radiator, whose TRV, lagging 10-17 minutes,
+        // goes on rising a while after the turn-off, then falls. The peak is within the settling, so nothing after it is new.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(17.0);
+        service.NotifyValveStartedHeating("bedroom 3", valve);
+        Advance(timeProvider, minutes: 14);
+        valve.CurrentTemperature = 17.3;
+        service.NotifyBoilerToggled(false, [("bedroom 3", valve)], boilerOffSince: null);
+
+        foreach ((int minutes, double reading) in new[] { (10, 18.5), (8, 19.0), (13, 19.0), (10, 18.5), (20, 18.0), (30, 17.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.GetVerifiedBoilerState().ShouldBeNull($"{reading} °C is not above its settling peak of 19.0 °C");
+        }
+    }
+
+    [TestMethod]
+    public async Task TurnOff_SoonAfterATurnOn_ARoomWarmedBySomethingElse_DoesNotCountAsTheBoiler()
+    {
+        // A radiator with little hot water read close to the room at the turn-off, so once it has cooled back to the room a
+        // heater plug or the sun can lift it a degree and past that reading. For a radiator that had been hot half an hour
+        // that is "heating up again"; for this one only a new high counts.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(17.0);
+        service.NotifyValveStartedHeating("den", valve);
+        Advance(timeProvider, minutes: 14);
+        valve.CurrentTemperature = 17.3;
+        service.NotifyBoilerToggled(false, [("den", valve)], boilerOffSince: null);
+
+        foreach ((int minutes, double reading) in new[] { (15, 19.0), (16, 18.0), (20, 17.5), (20, 18.5), (20, 19.0) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+        }
+
+        service.GetVerifiedBoilerState().ShouldBeNull("back up a degree from its low, but never above the 19.0 °C it coasted to");
+    }
+
+    [TestMethod]
+    public async Task TurnOff_ARadiatorWithNoHeatingHistory_IsStillWatched()
+    {
+        // After a restart the app has no valve history; an open valve may still show the boiler running.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(18.0);
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
+
+        Advance(timeProvider, minutes: 20);
+        valve.CurrentTemperature = 19.5;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 15);
+        valve.CurrentTemperature = 20.5;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(true);
+    }
+
+    [TestMethod]
+    public void TurnOff_WithNoOpenValve_SaysItCannotBeChecked_AtInformation()
+    {
+        // Until 2026-10-23 this was logged at Debug, which the add-on log does not show.
+        RecordingLogger<BoilerVerificationService> logger = new();
+        FakeTimeProvider timeProvider = new();
+        BoilerVerificationService service = new(logger, timeProvider);
+
+        service.NotifyBoilerToggled(false, [], boilerOffSince: null);
+
+        logger.CountMessagesContaining("turn-OFF cannot be checked", LogLevel.Information).ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task DiscardPendingVerification_KeepsTheValveHistory()
+    {
+        // A fingerbot movement changes the belief: the pending check goes, but the new one still knows this radiator
+        // has had hot water an hour, so it is judged by heating up again too.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(22.5);
+        service.NotifyValveStartedHeating(Room, valve);
+        Advance(timeProvider, minutes: 60);
+
+        service.DiscardPendingVerification();
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
+
+        foreach ((int minutes, double reading) in new[] { (31, 22.0), (10, 21.0), (10, 22.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+        }
+
+        service.GetVerifiedBoilerState().ShouldBe(true, "down to 21.0 and back to its turn-off reading: a TRV regulating on hot water");
+    }
+
     // 2026-10-20: two turn-on checks failed, 15 minutes after the press, with the boiler running.
 
     [TestMethod]
