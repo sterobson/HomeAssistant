@@ -388,7 +388,7 @@ Four more heating notes:
     overshoot its target a little while the check runs; a turn-on usually shows within half an hour. "The turn-OFF
     cannot be checked" (Warning) now means no valve has a reading at all.
   Pinned by the 2026-10-20 and 2026-10-23 cases in `BoilerVerificationServiceTests` and `HeatingBoilerControlTests`.
-  The 2026-10-23 changes were not deployed when written; check the NetDaemon app's version before assuming them live.
+  The 2026-10-23 changes are live since 17:30 BST that day (NetDaemon version `20261023162858`, commit `9c1f6b2`).
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
   physical switch at the boiler chooses between the fingerbot and the **boiler thermostat**
   (the boiler's own thermostat: portable, normally in the kitchen; called "external scheduler" or

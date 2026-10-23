@@ -213,6 +213,20 @@ replaying its last 10 minutes at startup). The 06:48 one showed why the replay w
 scene, the latch started off, and the app turned the boiler off with someone watching the TV. At 06:58 the add-on
 log showed `sensor.den_plug_tv_power replayed 121 reading(s) from the last 10 minutes at startup: on` with the TV at 64 W.
 
+The 2026-10-23 17:30 BST NetDaemon-only deploy (`9c1f6b2`, version `20261023162858`: every boiler press checked against an
+open valve, corrective presses repeated up to 5 times, a late-landing press taken as the app's own; HOME-ASSISTANT.md
+gotcha 27) was the same stop, copy, OTA upload and start, as one script. Before it, the boiler was confirmed off from the
+TRVs' own readings (den radiator 2 falling 27.0 → 22.3 °C over 75 minutes, Bedroom 3's open valve 21.0 → 18.5 °C),
+matching the app's belief. It was built and published from the session's worktree branch
+(`claude/competent-visvesvaraya-8b605f`, pushed, not yet merged to `main`), because the main checkout held other
+sessions' uncommitted work. Two things found:
+
+- **A git worktree has no HA token and no deploy config.** Both `Backend/App/appsettings.secrets.development.json` and
+  `.deployment/` are git-ignored, so they exist only in the main checkout: `tools/ha/*.cjs` fail in a worktree with "No
+  real HomeAssistant.Token found". Run those scripts with the main checkout as the working directory (they are the same
+  scripts), and read `deploy-config.json` from there.
+- The OTA upload takes the zip as the raw request body (`application/octet-stream`), as the Deployment tool sends it.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
