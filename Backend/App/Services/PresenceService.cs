@@ -34,12 +34,20 @@ internal class PresenceService : IPresenceService
     internal const double DeskInUseWatts = 40;
 
     /// <summary>
-    /// Ruth's desk is in use while its plug is on and has drawn this much for the whole of
-    /// <see cref="DiningDeskSteadyFor"/> (owner, 2026-10-19). No hold: it ends as soon as the draw drops.
+    /// Ruth's desk comes into use once its plug is on and has drawn this much for the whole of
+    /// <see cref="DiningDeskSteadyFor"/> (owner, 2026-10-19), and stays in use until the draw has been under it for
+    /// <see cref="DiningDeskHold"/>. Switching the plug off ends it at once.
     /// </summary>
     internal const double DiningDeskInUseWatts = 30;
 
     internal static readonly TimeSpan DiningDeskSteadyFor = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// How long Ruth's desk stays in use after its draw drops under <see cref="DiningDeskInUseWatts"/> (owner,
+    /// 2026-10-22). Until then there was no hold, and the dip under 30 W as her equipment starts up switched her heater
+    /// off for half a minute every time the desk was switched on (HOME-ASSISTANT.md, gotcha 21).
+    /// </summary>
+    internal static readonly TimeSpan DiningDeskHold = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// The den's TV comes on once it draws this much, and stays on until it is down to <see cref="DenTvOffWatts"/>
@@ -143,9 +151,10 @@ internal class PresenceService : IPresenceService
         // The "for 5 seconds" detectors work from live readings (SustainedCondition), never from the history API,
         // which lags live state by a few seconds (HOME-ASSISTANT.md, gotcha 21).
         // The desk's plug must be on as well, because a plug that is off keeps its last power reading.
-        SustainedCondition diningDeskDrawing = WatchSustained(timeProvider,
+        LatchedCondition diningDeskDrawing = new(
             () => namedEntities.DiningRoomDeskPlugOnOff.IsOn() && DrawsAtLeast(namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts),
-            namedEntities.DiningRoomDeskPlugOnOff, namedEntities.DiningRoomDeskPlugPower);
+            DiningDeskSteadyFor, DiningDeskHold, timeProvider);
+        WatchForChanges(diningDeskDrawing.Observe, namedEntities.DiningRoomDeskPlugOnOff, namedEntities.DiningRoomDeskPlugPower);
         // Both den TV detectors read the one latch, so they agree on when the TV is on.
         PowerLatch denTv = new(() => namedEntities.DenTvPlugPower.State, DenTvInUseWatts, DenTvOffWatts, timeProvider);
         namedEntities.DenTvPlugPower.SubscribeToStateChangesAsync(_ => { denTv.Observe(); return Task.CompletedTask; });
@@ -159,9 +168,10 @@ internal class PresenceService : IPresenceService
             new(GamesDeskInUse, "Ste's desk in use (plug on, 40 W or more in the last 5 minutes)", true,
                 [(namedEntities.GamesRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug), (namedEntities.GamesRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)],
                 async () => namedEntities.GamesRoomDeskPlugOnOff.IsOn() && await IsDrawing(namedEntities.GamesRoomDeskPlugPower, DeskInUseWatts)),
-            new(DiningDeskInUse, "Ruth's desk in use (plug on, 30 W or more for 5 seconds)", true,
+            // The hold bridges dips in the draw, not the plug being switched off, which is a clear sign she has finished.
+            new(DiningDeskInUse, "Ruth's desk in use (plug on, 30 W or more for 5 seconds, until under 30 W for 15 seconds)", true,
                 [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug), (namedEntities.DiningRoomDeskPlugPower.EntityId, RoomDeviceRoles.DeskPower)],
-                () => Task.FromResult(diningDeskDrawing.HeldFor(DiningDeskSteadyFor))),
+                () => Task.FromResult(namedEntities.DiningRoomDeskPlugOnOff.IsOn() && diningDeskDrawing.IsOn)),
             // Says the desk is set up, not that anyone is at it, so it does not count towards "house".
             new(DiningDeskSwitchedOn, "Ruth's desk switched on", false,
                 [(namedEntities.DiningRoomDeskPlugOnOff.EntityId, RoomDeviceRoles.DeskPlug)],
@@ -365,21 +375,26 @@ internal class PresenceService : IPresenceService
     private static SustainedCondition WatchSustained(TimeProvider timeProvider, Func<bool> condition, params object[] entities)
     {
         SustainedCondition sustained = new(condition, timeProvider);
+        WatchForChanges(sustained.Observe, entities);
+        return sustained;
+    }
+
+    /// <summary>Calls <paramref name="observe"/> on every change to the given sensors and switches.</summary>
+    private static void WatchForChanges(Action observe, params object[] entities)
+    {
         foreach (object entity in entities)
         {
             switch (entity)
             {
                 case ICustomNumericSensorEntity sensor:
-                    sensor.SubscribeToStateChangesAsync(_ => { sustained.Observe(); return Task.CompletedTask; });
+                    sensor.SubscribeToStateChangesAsync(_ => { observe(); return Task.CompletedTask; });
                     break;
                 case ICustomSwitchEntity plug:
-                    plug.SubscribeToStateChangesAsync(_ => { sustained.Observe(); return Task.CompletedTask; });
+                    plug.SubscribeToStateChangesAsync(_ => { observe(); return Task.CompletedTask; });
                     break;
                 default:
                     throw new ArgumentException($"Cannot watch {entity.GetType().Name} for changes.", nameof(entities));
             }
         }
-
-        return sustained;
     }
 }

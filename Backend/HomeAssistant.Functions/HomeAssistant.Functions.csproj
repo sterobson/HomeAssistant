@@ -28,6 +28,7 @@
     <Compile Include="..\App\Shared\Climate\RoomStateDto.cs" Link="Shared\Climate\RoomStateDto.cs" />
     <Compile Include="..\App\Shared\Climate\ScheduleDto.cs" Link="Shared\Climate\ScheduleDto.cs" />
     <Compile Include="..\App\Shared\DeviceBatteryDto.cs" Link="Shared\DeviceBatteryDto.cs" />
+    <Compile Include="..\App\Shared\HouseDevicesDto.cs" Link="Shared\HouseDevicesDto.cs" />
   </ItemGroup>
 
   <ItemGroup>

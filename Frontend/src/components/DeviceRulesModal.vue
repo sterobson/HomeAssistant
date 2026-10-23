@@ -165,6 +165,11 @@ const props = defineProps({
     type: Object,
     default: null
   },
+  // The name of the valve whose warm-up rate this one goes by while it has none of its own; empty when its own.
+  rateFromName: {
+    type: String,
+    default: ''
+  },
   // True when `rules` are the built-in defaults rather than saved by the user.
   isDefault: {
     type: Boolean,
@@ -212,12 +217,12 @@ const isRadiator = computed(() => props.deviceRole === 'radiatorValve')
 
 // What Auto means for this device right now: how it is worked out, what it has measured and the time that implies.
 const autoExplanation = computed(() => {
-  const rate = describeWarmUpRate(props.device, currentTempUnit.value)
+  const rate = describeWarmUpRate(props.device, currentTempUnit.value, (entityId) => props.rateFromName || entityId)
   const warmUp = expectedWarmUp(props.device)
   const how = 'It starts early enough for the room to reach the new temperature as the schedule begins.'
   if (props.device?.heatingRateCelsiusPerHour == null) {
     return isRadiator.value
-      ? `${how} Nothing has been measured for this radiator yet, so it starts ${FALLBACK_WARM_UP_MINUTES} minutes ahead until it has.`
+      ? `${how} Nothing has been measured for this radiator or any other in its room yet, so it starts ${FALLBACK_WARM_UP_MINUTES} minutes ahead until one has.`
       : `${how} Nothing has been measured for this heater yet, so it has no pre-heat until it has.`
   }
   const expected = warmUp

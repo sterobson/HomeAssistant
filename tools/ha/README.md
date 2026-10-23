@@ -14,11 +14,13 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `entity-history.cjs <entity_id> [...] [--hours 48]` | no | Current state plus real transitions from the recorder. Use it for "when did this really fail / come back", never `last_changed` |
 | `find-entities.cjs <regex>` | no | Entities whose ID **or friendly name** matches, with state and `last_updated` |
 | `trv-status.cjs` | no | Whether each radiator TRV is heating or idle, with its setpoint and its own onboard reading |
+| `trv-shut-leaks.cjs` | no | Each TRV's spells of its own sensor climbing 2 °C or more while its valve was shut (idle, not just after heating), from the recorder: hot water getting past a shut valve. Found den radiator 2, 2026-10-23 |
+| `trv-calibration.cjs` | no | Each TRVZB's valve opening/closing degree and calibration limit voltages over ZHA. Slow (battery TRVs answer when they wake; a few minutes for all seven). A TRV that shuts properly reads closing > opening voltage |
 | `list-devices.cjs [--model] [--name] [--area]` | no | Devices from the registry: manufacturer, model, area, and every entity with its live state, entity name and disabled flag |
 | `list-devices.cjs --areas` | no | Area IDs, for `pair-zigbee.cjs --area` |
 | `pair-zigbee.cjs --plan <device_id> --prefix ...` | no | Dry run: the renames a device would get under a naming scheme, and any clashes |
 | `pair-zigbee.cjs --model ... --name ... --prefix ...` | **yes** | Opens the ZHA join window, waits for a new device of that model, then names the device and all its entities |
-| `rename-device.cjs <device_id> --name ... --prefix ...` | no | Dry run: the renames an existing device would get, which entities of *other* integrations it leaves alone, and any clashes |
+| `rename-device.cjs <device_id> --name ... --prefix ... [--platform wiz]` | no | Dry run: the renames an existing device would get, which entities of *other* integrations it leaves alone, and any clashes. Renames ZHA entities unless `--platform` names the device's own integration (`wiz` for a WiZ bulb; how the den tall lamp was named, 2026-10-23) |
 | `rename-device.cjs <device_id> ... --apply` | **yes** | Renames an existing device and its own entities the house way (how the living room TV plug was renamed, 2026-10-19). Check what refers to the old IDs first — HOME-ASSISTANT.md gotcha 16 |
 | `put-automation.cjs --delete <id> --backup <file.json>` | **yes** | Saves an automation's config to a file, then deletes it from HA |
 | `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |

@@ -17,6 +17,7 @@
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^3.0.0",
     "qrcode": "^1.5.4",
+    "three": "^0.169.0",
     "vue": "^3.4.0",
     "vue-chartjs": "^5.3.0",
     "vue-router": "^4.6.4"

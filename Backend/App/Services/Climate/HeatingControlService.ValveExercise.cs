@@ -73,6 +73,9 @@ internal partial class HeatingControlService
 
             _valveExerciseRunning = true;
 
+            // Every valve is about to be flipped, so a shut radiator warming in the next half hour is the exercise's doing.
+            _valveHealth?.ResetSpells();
+
             if (controlPath == BoilerControlPath.Fingerbot)
             {
                 // A 5-minute burn would fail the turn-on verification, which would then "correct" it with a press.

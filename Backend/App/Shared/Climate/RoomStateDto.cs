@@ -158,10 +158,73 @@ public class RoomDeviceDto
     public int HeatingRateSamples { get; set; }
 
     /// <summary>
+    /// Radiator valves (since 2026-10-23): set when this valve has no warm-up of its own yet and Auto uses another
+    /// valve's in the same zone instead, to that valve's entity ID. <see cref="HeatingRateCelsiusPerHour"/> and
+    /// <see cref="HeatingRateSamples"/> are then that valve's. Null when the rate is the valve's own, or there is none.
+    /// </summary>
+    public string? HeatingRateFromEntityId { get; set; }
+
+    /// <summary>
     /// Radiator valves and heater plugs: how long this device would likely take to bring its room up to the next warmer schedule
     /// track, from the room's temperature now; null without a rate, or with no warmer track to warm up for.
     /// </summary>
     public int? WarmUpMinutes { get; set; }
+
+    /// <summary>
+    /// Radiator valves (since 2026-10-23): what the app has seen this valve do wrong, one entry per kind of problem
+    /// (<see cref="ValveHealthKinds"/>) that has ever been seen or checked. Empty when nothing is known, null from an
+    /// app too old to send it. Read-only observation: nothing is moved to test a valve.
+    /// </summary>
+    public List<ValveHealthIssueDto>? ValveHealth { get; set; }
+}
+
+/// <summary>One kind of radiator valve fault and what the app has seen of it.</summary>
+public class ValveHealthIssueDto
+{
+    /// <summary>One of <see cref="ValveHealthKinds"/>.</summary>
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>True when the fault was seen and no boiler run since has shown the valve behaving properly.</summary>
+    public bool Flagged { get; set; }
+
+    /// <summary>How many times it has been seen.</summary>
+    public int Count { get; set; }
+
+    /// <summary>When it was last seen, ISO 8601, or null if never.</summary>
+    public string? LastSeenAt { get; set; }
+
+    /// <summary>What was seen that time, in words (in °C, for logs and as a fallback).</summary>
+    public string? LastSeenDetail { get; set; }
+
+    /// <summary>
+    /// The valve's own readings that time, in °C: for <see cref="ValveHealthKinds.LeaksWhenShut"/> its lowest while shut
+    /// and how high it climbed; for <see cref="ValveHealthKinds.DoesNotWarm"/> its reading when the hour began and its
+    /// highest in it.
+    /// </summary>
+    public double? FromTemperature { get; set; }
+    public double? ToTemperature { get; set; }
+
+    /// <summary><see cref="ValveHealthKinds.DoesNotWarm"/> only: how long the valve had been open, in minutes.</summary>
+    public int? Minutes { get; set; }
+
+    /// <summary>When a boiler run last showed the valve behaving properly, ISO 8601, or null if never.</summary>
+    public string? LastOkAt { get; set; }
+}
+
+public static class ValveHealthKinds
+{
+    /// <summary>Its radiator warms while the valve is shut and hot water flows: the valve lets water through.</summary>
+    public const string LeaksWhenShut = "leaksWhenShut";
+
+    /// <summary>Its radiator stays cold while the valve is open and another radiator proves hot water is flowing.</summary>
+    public const string DoesNotWarm = "doesNotWarm";
+
+    public static string Describe(string kind) => kind switch
+    {
+        LeaksWhenShut => "lets hot water through while shut",
+        DoesNotWarm => "stays cold while open",
+        _ => kind
+    };
 }
 
 public static class RoomDeviceRoles

@@ -25,6 +25,7 @@
           </div>
           <!-- Before the temperature, so temperatures stay in one column down the page. -->
           <BatteryBadge v-if="lowestBattery" :battery="lowestBattery" :others-low="lowBatteries.length - 1" />
+          <ValveHealthBadge v-if="flaggedValves.length" :flagged="flaggedValves" @open="showDevices = true" />
           <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
@@ -180,6 +181,8 @@ import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
 import BatteryBadge from './BatteryBadge.vue'
+import ValveHealthBadge from './ValveHealthBadge.vue'
+import { flaggedValveIssues } from '../utils/valveHealth.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { heatingApi } from '../services/heatingApi.js'
@@ -248,6 +251,8 @@ const showHistory = ref(false)
 const showDevices = ref(false)
 const showShare = ref(false)
 const lowestBattery = computed(() => lowestLow(props.lowBatteries))
+// This zone's radiator valves the app has seen misbehaving and not cleared since (utils/valveHealth.js).
+const flaggedValves = computed(() => flaggedValveIssues(props.room.devices))
 // Every battery shown on this zone: its heating devices' and those its HA area is mapped to.
 const roomBatteries = computed(() =>
   layoutContext ? batteriesForRoom(layoutContext.batteryPlacement.value, props.room.id) : [])

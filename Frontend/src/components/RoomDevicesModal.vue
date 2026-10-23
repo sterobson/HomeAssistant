@@ -68,6 +68,21 @@
                     <span class="device-role">{{ roleLabel(device.role) }}</span>
                   </div>
                   <p v-if="warmUpRateFor(device)" class="device-warm-up">{{ warmUpRateFor(device) }}</p>
+                  <!-- What the app has seen this radiator valve do wrong (utils/valveHealth.js): flagged faults in
+                       full, with what to check; ones a later boiler run cleared, in a line. -->
+                  <div v-for="issue in flaggedIssues(device)" :key="issue.kind" class="valve-issue flagged" role="note">
+                    <p class="valve-issue-title">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                        <path d="M8.982 1.566a1.13 1.13 0 00-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 01-1.1 0L7.1 5.995A.905.905 0 018 5zm.002 6a1 1 0 110 2 1 1 0 010-2z"/>
+                      </svg>
+                      {{ valveIssueLabel(issue.kind) }}
+                    </p>
+                    <p>{{ describeWhatWasSeen(issue, formatTempWithUnit) }} {{ describeHistory(issue, when) }}</p>
+                    <p class="valve-issue-hint">{{ suggestion(issue.kind) }}</p>
+                  </div>
+                  <p v-for="issue in clearedIssues(device)" :key="issue.kind" class="valve-issue cleared">
+                    {{ valveIssueLabel(issue.kind) }}: {{ describeHistory(issue, when) }}
+                  </p>
                   <!-- Only the devices the heating code switches have rules. -->
                   <div v-if="isDrivable(device)" class="device-rules">
                     <span class="rules-summary">
@@ -115,6 +130,7 @@
       :device-title="deviceName(editingDevice)"
       :device-role="editingDevice.role"
       :device="editingDevice"
+      :rate-from-name="editingDevice.heatingRateFromEntityId ? nameOfDevice(editingDevice.heatingRateFromEntityId) : ''"
       :rules="effectiveRules(editingDevice, deviceRules)"
       :is-default="rulesAreBuiltIn(editingDevice)"
       :presence-zones="presenceZones"
@@ -152,12 +168,15 @@ import { effectiveRules, isDrivable, summariseRules } from '../utils/deviceRules
 import { effectiveDetectorIds, summariseOccupancy } from '../utils/zoneOccupancy.js'
 import { isLow } from '../utils/batteries.js'
 import { describeWarmUpRate, formatMinutes, zoneWarmUp } from '../utils/warmUp.js'
+import { clearedIssues, describeHistory, describeWhatWasSeen, flaggedIssues, formatWhen, suggestion, valveIssueLabel } from '../utils/valveHealth.js'
 
 // Lowest first, so a battery that needs changing is at the top; then by name.
 const sortedBatteries = (batteries) => [...batteries].sort((a, b) =>
   (a.percent ?? 101) - (b.percent ?? 101) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
 
-const { formatTempWithUnit, currentTempUnit } = useFormatting()
+const { formatTempWithUnit, currentTempUnit, formatTimeDisplay } = useFormatting()
+// "today at 15:05", in the user's time format, for valve findings.
+const when = (iso) => formatWhen(iso, new Date(), formatTimeDisplay)
 const { deviceRules, reloadSettings, saveDeviceRules, zoneOccupancy, saveZoneOccupancy } = useDeviceSettings()
 
 const props = defineProps({
@@ -215,7 +234,13 @@ const warmUpFor = (section) => {
     ? `Radiators are assumed to take about ${formatMinutes(warmUp.minutes)} to warm this room until they have been measured.`
     : `Radiators take about ${formatMinutes(warmUp.minutes)} to warm this room.`
 }
-const warmUpRateFor = (device) => describeWarmUpRate(device, currentTempUnit.value)
+// The name of the valve an unmeasured one borrows its warm-up rate from: in this list if it is here, else anywhere.
+const nameOfDevice = (entityId) => {
+  const found = props.sections.flatMap(section => section.devices).find(d => d.entityId === entityId)
+    ?? props.allDevices.find(d => d.entityId === entityId)
+  return found ? deviceName(found) : entityId
+}
+const warmUpRateFor = (device) => describeWarmUpRate(device, currentTempUnit.value, nameOfDevice)
 
 const zoneLabel = (name) => props.presenceZones.find(z => z.name === name)?.label ?? name
 const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel, device.role)
@@ -482,6 +507,39 @@ const saveRules = async (rules) => {
 .device-warm-up {
   margin: 0.25rem 0 0;
   font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.valve-issue {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+}
+
+.valve-issue.flagged {
+  padding: 0.5rem 0.6rem;
+  border-left: 3px solid var(--color-warning);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
+.valve-issue.flagged p {
+  margin: 0;
+}
+
+.valve-issue.flagged p + p {
+  margin-top: 0.3rem;
+}
+
+.valve-issue-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+.valve-issue-hint,
+.valve-issue.cleared {
   color: var(--text-secondary);
 }
 

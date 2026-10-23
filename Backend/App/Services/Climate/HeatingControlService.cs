@@ -123,6 +123,10 @@ internal partial class HeatingControlService
     // Optional so tests need not supply it; without it every Auto valve uses the 30-minute fallback.
     private readonly IWarmUpRates? _warmUpRates;
 
+    // Watches every radiator valve for letting water through while shut or staying cold while open (owner,
+    // 2026-10-23). Optional so tests need not supply it.
+    private readonly IValveHealthMonitor? _valveHealth;
+
     // The warmer track an Auto valve has begun pre-heating for, by entity ID, so that the pre-heat, once started, is
     // kept until the track begins. Without it the time needed would shrink as the room warmed, and a valve whose rate
     // was a little pessimistic would shut again part-way and start over.
@@ -143,10 +147,12 @@ internal partial class HeatingControlService
         IDeviceSettingsPersistenceService deviceSettings,
         IBoilerStatePersistence boilerStatePersistence,
         IBatteryOverview? batteryOverview = null,
-        IWarmUpRates? warmUpRates = null)
+        IWarmUpRates? warmUpRates = null,
+        IValveHealthMonitor? valveHealth = null)
     {
         _batteryOverview = batteryOverview;
         _warmUpRates = warmUpRates;
+        _valveHealth = valveHealth;
         _ha = ha;
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -242,7 +248,9 @@ internal partial class HeatingControlService
         ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvInUseWatts, "den TV");
         ReevaluateWhenPowerCrosses(_namedEntities.DenTvPlugPower, PresenceService.DenTvOffWatts, "den TV (30 W)");
         ReevaluateWhenPowerCrosses(_namedEntities.LivingRoomTvPlugPower, PresenceService.LivingRoomTvInUseWatts, "living room TV");
-        ReevaluateWhenPowerCrosses(_namedEntities.DiningRoomDeskPlugPower, PresenceService.DiningDeskInUseWatts, "Ruth's desk");
+        // Ruth's desk stays in use for a while after its draw drops, so a drop is re-checked once that hold is over.
+        ReevaluateWhenPowerCrosses(_namedEntities.DiningRoomDeskPlugPower, PresenceService.DiningDeskInUseWatts, "Ruth's desk",
+            PresenceService.DiningDeskHold + TimeSpan.FromSeconds(1));
         _namedEntities.LivingRoomStickLightsPlugOnOff.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("living room stick lights switched"));
 
         // Subscribe to power changes
@@ -309,9 +317,11 @@ internal partial class HeatingControlService
     /// Re-evaluates schedules shortly after a power reading crosses a presence threshold, in either
     /// direction, rather than on every reading: plugs report every few seconds. The delay lets a "must
     /// have drawn this for N seconds" rule (the living room TV) see the crossing as settled; for a
-    /// look-back rule (the den) it is merely harmless.
+    /// look-back rule (the den) it is merely harmless. A detector with a hold after the draw drops (Ruth's desk)
+    /// passes <paramref name="afterDrop"/>, so the drop is re-checked once the hold is over rather than at the next
+    /// periodic recheck.
     /// </summary>
-    private void ReevaluateWhenPowerCrosses(ICustomNumericSensorEntity power, double thresholdWatts, string what)
+    private void ReevaluateWhenPowerCrosses(ICustomNumericSensorEntity power, double thresholdWatts, string what, TimeSpan? afterDrop = null)
     {
         bool wasDrawing = false;
         power.SubscribeToStateChangesAsync(reading =>
@@ -321,7 +331,8 @@ internal partial class HeatingControlService
             {
                 wasDrawing = drawing;
                 string trigger = drawing ? $"{what} turned on" : $"{what} turned off";
-                _scheduler.Schedule(PresencePowerSettleDelay, async () => await EvaluateAllSchedules(trigger));
+                TimeSpan delay = drawing ? PresencePowerSettleDelay : afterDrop ?? PresencePowerSettleDelay;
+                _scheduler.Schedule(delay, async () => await EvaluateAllSchedules(trigger));
             }
 
             return Task.CompletedTask;
@@ -552,28 +563,66 @@ internal partial class HeatingControlService
     };
 
     /// <summary>This device's target: the room's, brought forward by the device's own pre-heat.</summary>
-    private DeviceTarget TargetFor(RoomTarget target, object device)
+    private DeviceTarget TargetFor(RoomSchedule room, RoomTarget target, object device)
     {
         string? entityId = EntityIdOf(device);
         DeviceRulesDto? rules = entityId == null ? null : GetRulesFor(entityId);
         // A towel rail is a radiator too, warming its room as slowly, so it takes a radiator's default pre-heat.
         bool isValve = device is ICustomClimateControlEntity or TowelRail;
 
-        if (entityId != null && DeviceRulesDto.IsAutoPreHeat(rules, isValve) && _warmUpRates?.RateFor(entityId) != null)
+        if (entityId != null && DeviceRulesDto.IsAutoPreHeat(rules, isValve)
+            && WarmUpRateSourceFor(room, entityId, device is ICustomClimateControlEntity) is string rateSource)
         {
-            return AutoPreHeatTarget(target, entityId);
+            return AutoPreHeatTarget(target, entityId, rateSource);
         }
 
-        // A fixed pre-heat, or an Auto valve not yet measured (which then uses the 30-minute fallback).
+        // A fixed pre-heat, or an Auto device with no measured rate in reach (which then uses the 30-minute fallback).
         return target.For(DeviceRulesDto.PreHeatFor(rules, isValve));
     }
 
     /// <summary>
-    /// An Auto valve's target: it starts for a warmer track once the time its measured warm-up rate says the room
-    /// needs, from the temperature it is at now, reaches back to now (never more than
-    /// <see cref="DeviceRulesDto.MaxAutoPreHeatMinutes"/>). Once started it carries on until the track begins.
+    /// Whose warm-up rate an Auto device goes by: its own once it has one. A radiator valve with none yet borrows the
+    /// slowest measured valve's in the same zone (owner, 2026-10-23), since the radiators in a zone warm one room
+    /// together. Without that a second valve could never be measured: on the 30-minute fallback it opened after the
+    /// measured one had nearly warmed the room, which then reached the target before a warm-up counts (den radiator 2,
+    /// 2026-10-23). Opening alongside the other, its runs are long enough to give it samples of its own. The slowest,
+    /// because starting a little early is the safer mistake. Heater plugs never borrow, nor lend: a fan heater warms a
+    /// room many times faster than a radiator. Null when there is no rate to go by.
     /// </summary>
-    private DeviceTarget AutoPreHeatTarget(RoomTarget target, string entityId)
+    private string? WarmUpRateSourceFor(RoomSchedule room, string entityId, bool isRadiatorValve)
+    {
+        if (_warmUpRates == null)
+        {
+            return null;
+        }
+
+        if (_warmUpRates.RateFor(entityId) != null)
+        {
+            return entityId;
+        }
+
+        if (!isRadiatorValve)
+        {
+            return null;
+        }
+
+        return GetSwitchesForRoom(room)
+            .OfType<ICustomClimateControlEntity>()
+            .Where(valve => !string.Equals(valve.EntityId, entityId, StringComparison.OrdinalIgnoreCase))
+            .Select(valve => (valve.EntityId, Rate: _warmUpRates.RateFor(valve.EntityId)))
+            .Where(candidate => candidate.Rate != null)
+            .OrderBy(candidate => candidate.Rate)
+            .Select(candidate => candidate.EntityId)
+            .FirstOrDefault();
+    }
+
+    /// <summary>
+    /// An Auto device's target: it starts for a warmer track once the time its warm-up rate (that of
+    /// <paramref name="rateSource"/>, see <see cref="WarmUpRateSourceFor"/>) says the room needs, from the temperature it
+    /// is at now, reaches back to now (never more than <see cref="DeviceRulesDto.MaxAutoPreHeatMinutes"/>). Once started it
+    /// carries on until the track begins.
+    /// </summary>
+    private DeviceTarget AutoPreHeatTarget(RoomTarget target, string entityId, string rateSource)
     {
         if (_autoPreHeatTrackIds.TryGetValue(entityId, out int startedTrackId))
         {
@@ -592,7 +641,7 @@ internal partial class HeatingControlService
         foreach ((TimeSpan startsAt, HeatingScheduleTrack track) in target.UpcomingWarmer)
         {
             int minutes = Math.Min(
-                _warmUpRates?.MinutesToRise(entityId, track.Temperature - target.CurrentTemperature) ?? DeviceRulesDto.DefaultValvePreHeatMinutes,
+                _warmUpRates?.MinutesToRise(rateSource, track.Temperature - target.CurrentTemperature) ?? DeviceRulesDto.DefaultValvePreHeatMinutes,
                 DeviceRulesDto.MaxAutoPreHeatMinutes);
 
             if (target.Now >= startsAt - TimeSpan.FromMinutes(minutes))
@@ -695,7 +744,7 @@ internal partial class HeatingControlService
             {
                 // Nothing to switch: the boiler was already decided for it (DecideBoilerAsync). It sets the room's target
                 // all the same, and is heating whenever the app has the boiler on.
-                DeviceTarget railTarget = TargetFor(target, device);
+                DeviceTarget railTarget = TargetFor(roomHeatingSchedule, target, device);
                 if (railTarget.Temperature > roomTarget.Temperature)
                 {
                     roomTarget = railTarget;
@@ -712,7 +761,7 @@ internal partial class HeatingControlService
                 continue;
             }
 
-            DeviceTarget deviceTarget = TargetFor(target, device);
+            DeviceTarget deviceTarget = TargetFor(roomHeatingSchedule, target, device);
             if (deviceTarget.Temperature > roomTarget.Temperature)
             {
                 roomTarget = deviceTarget;
@@ -840,7 +889,8 @@ internal partial class HeatingControlService
     private static string DescribeDeviceSetup(List<RoomDeviceDto> devices) =>
         string.Join('|', devices.Select(device =>
             $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"
-            + $"/{device.PreHeatAuto}/{device.HeatingRateCelsiusPerHour}/{device.HeatingRateSamples}"));
+            + $"/{device.PreHeatAuto}/{device.HeatingRateCelsiusPerHour}/{device.HeatingRateSamples}/{device.HeatingRateFromEntityId}"
+            + $"/{(device.ValveHealth == null ? "" : JsonSerializer.Serialize(device.ValveHealth))}"));
 
     /// <summary>The zone's chosen detectors and whether they are the defaults, for spotting a change. Null when none is described.</summary>
     private static string? DescribeDetectorChoice(RoomOccupancyDto? occupancy) =>
@@ -1202,6 +1252,7 @@ internal partial class HeatingControlService
                     valveDevice.TargetTemperature = valve.TargetTemperature;
                     AttachRules(valveDevice);
                     AttachWarmUp(valveDevice, room, isRadiatorValve: true);
+                    AttachValveHealth(valveDevice);
                     devices.Add(valveDevice);
                     break;
                 case ICustomSwitchEntity plug:
@@ -1247,8 +1298,12 @@ internal partial class HeatingControlService
     {
         valveDevice.PreHeatAuto = DeviceRulesDto.IsAutoPreHeat(GetRulesFor(valveDevice.EntityId), isRadiatorValve);
 
-        double? rate = _warmUpRates?.RateFor(valveDevice.EntityId);
-        valveDevice.HeatingRateSamples = _warmUpRates?.SampleCount(valveDevice.EntityId) ?? 0;
+        // The rate Auto goes by, which for an unmeasured valve may be another valve's in the zone.
+        string rateSource = WarmUpRateSourceFor(room, valveDevice.EntityId, isRadiatorValve) ?? valveDevice.EntityId;
+        valveDevice.HeatingRateFromEntityId = string.Equals(rateSource, valveDevice.EntityId, StringComparison.OrdinalIgnoreCase) ? null : rateSource;
+
+        double? rate = _warmUpRates?.RateFor(rateSource);
+        valveDevice.HeatingRateSamples = _warmUpRates?.SampleCount(rateSource) ?? 0;
         valveDevice.HeatingRateCelsiusPerHour = rate == null ? null : Math.Round(rate.Value, 2);
 
         double? roomTemperature = GetCurrentTemperatureForRoom(room);
@@ -1260,7 +1315,7 @@ internal partial class HeatingControlService
         double? nextTarget = NextWarmerTrackTemperature(room, _timeProvider.GetLocalNow().DateTime, roomTemperature.Value);
         if (nextTarget != null)
         {
-            valveDevice.WarmUpMinutes = _warmUpRates?.MinutesToRise(valveDevice.EntityId, nextTarget.Value - roomTemperature.Value);
+            valveDevice.WarmUpMinutes = _warmUpRates?.MinutesToRise(rateSource, nextTarget.Value - roomTemperature.Value);
         }
     }
 
@@ -1471,7 +1526,7 @@ internal partial class HeatingControlService
 
             // The room's demand on the boiler is its radiators' target, brought forward by their own pre-heat:
             // a radiator pre-heating for a warmer track calls for the boiler from the start of its pre-heat.
-            DeviceTarget valveTarget = boilerRadiators.Select(radiator => TargetFor(target, radiator)).MaxBy(t => t.Temperature)!;
+            DeviceTarget valveTarget = boilerRadiators.Select(radiator => TargetFor(roomSchedule, target, radiator)).MaxBy(t => t.Temperature)!;
             double current = target.CurrentTemperature;
             if (valveTarget.Temperature > current)
             {
@@ -1624,6 +1679,8 @@ internal partial class HeatingControlService
             _pressToVerify = null;
         }
 
+        ObserveValveHealth(schedules);
+
         foreach (RoomSchedule roomSchedule in schedules.Rooms)
         {
             List<ICustomClimateControlEntity> radiatorValves = [.. GetSwitchesForRoom(roomSchedule).OfType<ICustomClimateControlEntity>()];
@@ -1646,6 +1703,62 @@ internal partial class HeatingControlService
         }
 
         await _boilerVerification.CheckAsync();
+    }
+
+    /// <summary>
+    /// Feeds every radiator valve to the valve-health monitor once per pass, after the valves have moved: whether the
+    /// app has it open, its own reading, and the boiler belief (only in fingerbot mode; on the boiler thermostat the app
+    /// cannot know, and the monitor goes by other radiators warming instead).
+    /// </summary>
+    private void ObserveValveHealth(RoomSchedules schedules)
+    {
+        if (_valveHealth == null)
+        {
+            return;
+        }
+
+        bool? boilerBelievedOn = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot ? _boilerOn : null;
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        foreach (RoomSchedule room in schedules.Rooms)
+        {
+            double? roomTemperature = GetCurrentTemperatureForRoom(room);
+            foreach (ICustomClimateControlEntity valve in GetSwitchesForRoom(room).OfType<ICustomClimateControlEntity>())
+            {
+                if (seen.Add(valve.EntityId))
+                {
+                    _valveHealth.Observe(
+                        valve.EntityId,
+                        new ValveObservation(IsValveOpenAfterPass(valve), valve.CurrentTemperature, valve.TargetTemperature, roomTemperature),
+                        boilerBelievedOn,
+                        now);
+                }
+            }
+        }
+    }
+
+    /// <summary>Publishes what the valve-health monitor has seen of a radiator valve, for the Devices list.</summary>
+    private void AttachValveHealth(RoomDeviceDto valveDevice)
+    {
+        if (_valveHealth == null)
+        {
+            return;
+        }
+
+        valveDevice.ValveHealth = [.. _valveHealth.RecordsFor(valveDevice.EntityId)
+            .OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .Select(pair => new ValveHealthIssueDto
+            {
+                Kind = pair.Key,
+                Flagged = pair.Value.Flagged,
+                Count = pair.Value.Count,
+                LastSeenAt = pair.Value.LastSeenAt?.ToString("O"),
+                LastSeenDetail = pair.Value.LastSeenDetail,
+                FromTemperature = pair.Value.FromTemperature,
+                ToTemperature = pair.Value.ToTemperature,
+                Minutes = pair.Value.Minutes,
+                LastOkAt = pair.Value.LastOkAt?.ToString("O")
+            })];
     }
 
     /// <summary>A valve is open when its setpoint is at or above its own reading, which is how the app sets it.</summary>

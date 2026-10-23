@@ -26,17 +26,17 @@
       </FeatureCard>
 
       <FeatureCard
-        title="Heating 2"
-        description="Configure rooms, devices, rules, and schedules"
-        to="/heating2"
+        title="3D"
+        description="Walk round the house in 3D and check or switch its devices"
+        to="/3d"
       >
         <template #icon>
-          <svg width="28" height="28" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8.707 1.5a1 1 0 0 0-1.414 0L.646 8.146a.5.5 0 0 0 .708.708L2 8.207V13.5A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V8.207l.646.647a.5.5 0 0 0 .708-.708L13 5.793V2.5a.5.5 0 0 0-.5-.5h-1a.5.5 0 0 0-.5.5v1.293zM13 7.207V13.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5V7.207l5-5z"/>
+          <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M8 1.5 14 4.75v6.5L8 14.5 2 11.25v-6.5z"/>
+            <path d="M2 4.75 8 8l6-3.25M8 8v6.5"/>
           </svg>
         </template>
       </FeatureCard>
-
     </div>
   </div>
 </template>

@@ -59,6 +59,11 @@ builder.Services
         string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
         return new HeatingConfigStorageService(connectionString);
     })
+    .AddSingleton<HouseDevicesStorageService>(serviceProvider =>
+    {
+        string connectionString = Environment.GetEnvironmentVariable("ScheduleStorageConnectionString") ?? string.Empty;
+        return new HouseDevicesStorageService(connectionString);
+    })
     .AddSingleton<SignalRService>();
 
 builder.Build().Run();

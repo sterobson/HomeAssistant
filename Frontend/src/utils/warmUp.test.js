@@ -77,8 +77,22 @@ describe('describeWarmUpRate', () => {
   })
 
   it('says when nothing is measured yet, and says nothing for devices that do not heat', () => {
-    expect(describeWarmUpRate(valve())).toMatch(/not measured yet.*half an hour/)
+    expect(describeWarmUpRate(valve())).toMatch(/not measured yet, so Auto starts it 30 min ahead.*half an hour/)
+    expect(describeWarmUpRate(valve({ preHeatAuto: false }))).toMatch(/^Warm-up not measured yet: .*half an hour/)
     expect(describeWarmUpRate({ role: 'thermometer' })).toBeNull()
+  })
+
+  it('says whose rate an unmeasured valve goes by (since 2026-10-23)', () => {
+    const borrowing = valve({ heatingRateCelsiusPerHour: 0.8, heatingRateSamples: 2, heatingRateFromEntityId: 'climate.den_radiator_1_thermostat' })
+    const names = { 'climate.den_radiator_1_thermostat': 'Den - Radiator 1 Thermostat' }
+    expect(describeWarmUpRate(borrowing, 'C', (id) => names[id])).toBe(
+      'Warm-up not measured yet, so it goes by Den - Radiator 1 Thermostat: about 0.8°C an hour (the average of its last 2 heatings)')
+    expect(describeWarmUpRate(borrowing)).toMatch(/goes by climate\.den_radiator_1_thermostat/)
+  })
+
+  it('counts a borrowed rate as measured, not assumed', () => {
+    const borrowing = valve({ heatingRateCelsiusPerHour: 0.8, heatingRateSamples: 2, heatingRateFromEntityId: 'a', warmUpMinutes: 70 })
+    expect(expectedWarmUp(borrowing)).toEqual({ minutes: 70, assumed: false })
   })
 
   it('describes a heater plug too, whose shortest warm-up is 5 minutes (since 2026-10-21)', () => {

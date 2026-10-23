@@ -8,6 +8,7 @@ using HomeAssistant.Devices.Meters;
 using HomeAssistant.Services;
 using HomeAssistant.Services.Climate;
 using HomeAssistant.Services.Energy;
+using HomeAssistant.Services.HouseDevices;
 using HomeAssistant.Services.WasteManagement;
 using HomeAssistant.Weather;
 using HomeAssistant.Weather.WeatherApi;
@@ -115,6 +116,8 @@ try
                 .AddScoped<IBoilerStatePersistence, BoilerStatePersistence>()
                 .AddScoped<IWarmUpRateStore, WarmUpRateStore>()
                 .AddScoped<IWarmUpRates, WarmUpRates>()
+                .AddScoped<IValveHealthStore, ValveHealthStore>()
+                .AddScoped<IValveHealthMonitor, ValveHealthMonitor>()
                 .AddScoped<HeatingControlService>()
                 .AddScoped<BatteryControlService>()
                 .AddHttpClient<IBatteryRulesApiClient, BatteryRulesApiClient>((serviceProvider, client) =>
@@ -182,6 +185,15 @@ try
                     }
                 })
                 .Services
+                .AddHttpClient<IHouseDevicesApiClient, HouseDevicesApiClient>((serviceProvider, client) =>
+                {
+                    WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
+                    if (!string.IsNullOrEmpty(config.ScheduleApiUrl))
+                    {
+                        client.BaseAddress = new Uri(config.ScheduleApiUrl);
+                    }
+                })
+                .Services
                 .AddHttpClient<IEnergyHistoryApiClient, EnergyHistoryApiClient>((serviceProvider, client) =>
                 {
                     WebSynchronisationConfiguration config = serviceProvider.GetRequiredService<WebSynchronisationConfiguration>();
@@ -202,6 +214,8 @@ try
                 .Services
                 .AddScoped<AppUpdateService>()
                 .AddScoped<PowerMonitorService>()
+                .AddScoped<HouseDevicesService>()
+                .AddSingleton<IZigbeeMeshReader, ZigbeeMeshReader>()
                 .AddSingleton<EntityPushCoordinator>()
                 .AddScoped<EntityPushService>()
                 // Scoped, like EntityPushService: it takes IHaContext, which NetDaemon scopes per

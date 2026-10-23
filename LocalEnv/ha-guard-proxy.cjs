@@ -37,6 +37,8 @@ const READ_TYPES = new Set([
   'get_states', 'get_config', 'get_services', 'get_panels', 'get_notifications',
   'render_template', 'subscribe_bootstrap_integrations', 'supported_features',
   'manifest/list', 'manifest/get', 'integration/descriptions', 'search/related',
+  // ZHA's device list with neighbour tables, for the 3D view's signal lines (2026-10-22). Lists only.
+  'zha/devices',
 ]);
 const READ_PATTERNS = [
   /^config\/[a-z_]+\/(list|list_for_display|get)$/,

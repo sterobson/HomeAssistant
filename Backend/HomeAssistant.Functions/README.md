@@ -72,7 +72,7 @@ achieves nothing until they require one. See
 | Method | Route | Function |
 |---|---|---|
 | GET/POST | `schedules` | Room schedules — the legacy model that actually runs the house |
-| GET/POST | `room-states` | Live room temperature, heating state, active track, `devices` (the HA entities each zone is bound to, with their state) and `occupancy` (the zone's presence detectors), plus a house-wide `boiler`: `{ appControlsBoiler, believedOn, since }`, what the app believes the boiler is doing (since 2026-10-19), and `batteries`: every replaceable battery `{ entityId, name, percent, area, deviceEntityIds }` for the UI's low-battery icons (since 2026-10-20). Since 2026-10-21 also each room's `waitingForOccupancyTrackIds`, and heater plugs carry the warm-up fields valves do. The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app. Each upload's `boiler` is also recorded in `boilerhistory` when it differs from the newest row there |
+| GET/POST | `room-states` | Live room temperature, heating state, active track, `devices` (the HA entities each zone is bound to, with their state) and `occupancy` (the zone's presence detectors), plus a house-wide `boiler`: `{ appControlsBoiler, believedOn, since }`, what the app believes the boiler is doing (since 2026-10-19), and `batteries`: every replaceable battery `{ entityId, name, percent, area, deviceEntityIds }` for the UI's low-battery icons (since 2026-10-20). Since 2026-10-21 also each room's `waitingForOccupancyTrackIds`, and heater plugs carry the warm-up fields valves do; since 2026-10-23 a valve going by another valve's warm-up rate carries `heatingRateFromEntityId`, and every valve carries `valveHealth` (`[{ kind, flagged, count, lastSeenAt, lastSeenDetail, fromTemperature, toTemperature, minutes, lastOkAt }]`, what the app has seen it do wrong). The shape is the shared `RoomStateDto`, so a field the deployed Functions build doesn't know is dropped on save: deploy Functions before or with the NetDaemon app. Each upload's `boiler` is also recorded in `boilerhistory` when it differs from the newest row there |
 | GET | `boiler-history` | The boiler's on/off history (since 2026-10-21): `hours` (1–744, default 48) → `{ from, to, before, events: [{ at, on, appControlsBoiler, inferred }] }`, oldest first, with `before` the newest change before the window. Written by `SetRoomStates`, not by any endpoint; `inferred` rows were backfilled from the radiator valves by `tools/ha/boiler-history-backfill.cjs` |
 | GET | `room-history` | Temperature history for one room over a date range |
 | GET/POST | `heating-config` | Newer device/rule config model — **stored but not yet consumed** by the NetDaemon app |
@@ -116,6 +116,20 @@ in the schedules blob are synthesized into the response with the default name
 | GET/POST | `entities` | The Home Assistant entity list, pushed by the hardware app so the UI can offer pickers |
 | GET/POST | `device-settings` | Entity-ID mappings configured in the UI, plus `heating.boilerControlPath` — which of the boiler's two control paths the house is physically wired to (`0` boiler thermostat, the default; `1` fingerbot). Nothing can read the switch at the boiler, so it is set by hand and the app trusts it. Also `heating.deviceRules` (since 2026-10-19): per-device heating rules keyed by entity ID, including each device's `preHeatMinutes`, `null` until first saved; stored as-is, evaluated only by the NetDaemon app. And `heating.zoneOccupancy` (since 2026-10-19): presence detector ids per zone canonical name, `null` until first saved. And `heating.areaPlacement` (since 2026-10-20): Home Assistant area name → `"room:{id}"` or `"group:{id}"`, where the UI shows that area's battery devices; presentation only, the app never reads it. Room states carry each zone's `occupancy` (its detectors and every one available) through the linked `RoomStateDto`. The rule types are the linked `App/Shared/Climate/DeviceRulesDto.cs`, but `Models/DeviceSettingsDto.cs` is a separate copy of the app's — a field missing from it is dropped on save, so deploy this app first |
 | GET/POST | `device-batteries` | Daily battery level per **replaceable cell** — the coin cells and AAs in thermometers, TRVs, buttons and the boiler fingerbot. `GET` takes an optional `days` (default 30, max 365) and returns snapshots newest day first |
+
+### 3D house view (since 2026-10-22)
+
+This app only stores and relays; the NetDaemon app decides what may be controlled (`HouseDeviceRules`) and refuses
+anything else, so a command this app accepts is not necessarily run.
+
+| Method | Route | Function |
+|---|---|---|
+| GET | `house-devices` | The newest device snapshot (`HouseDevicesDto`, linked from `App/Shared`): every HA device with its entities' states, each entity's allowed `actions` and, when it may not be controlled, `controlledBy` (why). Since 2026-10-22 also `zigbee`: ZHA's neighbour tables as `{ nodes: [{ deviceId, role, available }], links: [{ from, to, lqi, relationship }] }` by device registry ID, read by the NetDaemon app (`ZigbeeMeshReader`, websocket `zha/devices`) with each snapshot, or null if ZHA couldn't be asked; the Zigbee hub is included as a device although it has no entities |
+| POST | `house-devices` | From the NetDaemon app: stores a snapshot in `house-devices`, then sends `house-devices-changed` |
+| POST | `house-devices/watch` | From the page, on opening and every 4 minutes: sends `house-devices-watch`, and the app streams states for the next 10 minutes |
+| POST | `house-devices/states` | From the NetDaemon app: a batch of `{ entityId, state }` (at most 500), relayed as `house-device-states`, not stored |
+| POST | `house-devices/command` | From the page: `{ entityId, action }`, action one of `turn_on`, `turn_off`, `toggle`, `press`. Relayed as `house-device-command` with a new `commandId`, which it returns |
+| POST | `house-devices/command-result` | From the NetDaemon app: `{ commandId, entityId, ok, message }`, relayed as `house-device-command-result` |
 
 `device-batteries` is not the SolaX home battery; that is `battery-history` above, pushed
 every ten minutes. This one is about which cells need replacing. Two things it guarantees:
@@ -161,7 +175,7 @@ every ten minutes. This one is about which cells need replacing. Two things it g
 One connection string, many containers and tables.
 
 **Blob containers** — `schedules`, `room-states`, `house-details`, `entities`,
-`device-settings`, `heating-config`, `battery-rules`, `app-releases`.
+`device-settings`, `heating-config`, `battery-rules`, `app-releases`, `house-devices`.
 
 Most are a single JSON blob per house, named `{houseId}.json`.
 
@@ -204,7 +218,12 @@ Events emitted by this project, in full:
 | `power-snapshot` | `PostPowerSnapshot` |
 | `update-available` | `SetDesiredAppVersion` |
 | `version-report` | `SetRunningAppVersion` |
+| `house-devices-changed` | `SetHouseDevices` |
+| `house-devices-watch` | `WatchHouseDevices` |
+| `house-device-states` | `PostHouseDeviceStates` |
+| `house-device-command` | `SendHouseDeviceCommand` |
+| `house-device-command-result` | `PostHouseDeviceCommandResult` |
 
-The `backfill-*` and `start-power-monitor` events are commands aimed at the **hardware
-app**, not the browser: the API has no Home Assistant access, so it asks the NetDaemon
+The `backfill-*`, `start-power-monitor`, `house-devices-watch` and `house-device-command` events are commands aimed
+at the **hardware app**, not the browser: the API has no Home Assistant access, so it asks the NetDaemon
 app to do the work and push results back.

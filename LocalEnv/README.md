@@ -51,9 +51,13 @@ dotnet publish Backend/App -c Release -o LocalEnv/.work/app
 # 2. Storage emulator
 mkdir -p LocalEnv/.work/azurite && azurite --silent --location LocalEnv/.work/azurite --skipApiVersionCheck &
 
-# 3. Functions host from the published copy, with ITS OWN settings (no SignalR, no production)
+# 2b. SignalR emulator (optional; without it nothing is pushed live, and the 3D view can neither stream states nor
+#     send commands). Microsoft's own: dotnet tool install -g Microsoft.Azure.SignalR.Emulator (added 2026-10-22)
+mkdir -p LocalEnv/.work/signalr && (cd LocalEnv/.work/signalr && asrs-emulator start -p 8888) &
+
+# 3. Functions host from the published copy, with ITS OWN settings (local SignalR emulator, no production)
 cat > LocalEnv/.work/functions/local.settings.json <<'EOF'
-{ "IsEncrypted": false, "Values": { "AzureWebJobsStorage": "UseDevelopmentStorage=true", "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated", "ScheduleStorageConnectionString": "UseDevelopmentStorage=true" }, "Host": { "CORS": "*", "LocalHttpPort": 7159 } }
+{ "IsEncrypted": false, "Values": { "AzureWebJobsStorage": "UseDevelopmentStorage=true", "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated", "ScheduleStorageConnectionString": "UseDevelopmentStorage=true", "AzureSignalRConnectionString": "Endpoint=http://localhost;Port=8888;AccessKey=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789ABCDEFGH;Version=1.0;" }, "Host": { "CORS": "*", "LocalHttpPort": 7159 } }
 EOF
 (cd LocalEnv/.work/functions && func start --port 7159) &
 
@@ -108,8 +112,15 @@ Never allow the SolaX inverter entities, the boiler fingerbot or anything the pr
 
 - The app evaluates schedules at startup from its **cache folder first**; it only re-fetches after 10 minutes.
   To pick up an API change straight away, delete `.work/storage/heating-schedules.json` and restart it.
-- Without SignalR (none is configured) `signalr/negotiate` returns 500 and the UI/app log a connection error.
-  That is expected; edits made in the UI reach the app on its next 10-minute refresh.
+- Without the SignalR emulator (step 2b) `signalr/negotiate` returns 500 and the UI/app log a connection error;
+  edits made in the UI then reach the app only on its next 10-minute refresh. With it (port 8888, its access key is
+  the emulator's fixed public one, not a secret) the local app connects as it does in production. Its connections
+  were checked on 2026-10-22: only 7159, 8124, 8888 and the Octopus one. The emulator is not stopped by `stop.ps1`.
+- The guard lets `zha/devices` through (read-only; added 2026-10-22 for the 3D view's Zigbee signal lines), so
+  the local app's snapshot carries the real mesh. Self-test re-run after the change: ALL PASS.
+- **3D view commands are blocked by the guard like everything else**: they are logged as `WOULD CALL`, the guard
+  answers with a fake success, so the page says "Done" but nothing moves and the state doesn't change. To try one
+  device for real, allow just it (`GUARD_ALLOW_ENTITIES=light.wiz_rgbw_tunable_22099a`, the games room desk lamp).
 - On a clean start the app immediately tries to set the SolaX charge current, charger mode and manual mode.
   With the guard in place those show up as `WOULD CALL` lines. Without it they would hit the real inverter.
 - Octopus and SolaX credentials in `appsettings.json` are placeholders, so the local REST reader cannot reach the

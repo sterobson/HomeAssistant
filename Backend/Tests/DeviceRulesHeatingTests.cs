@@ -622,6 +622,28 @@ public sealed class DeviceRulesHeatingTests
     }
 
     [TestMethod]
+    public async Task ARadiatorValve_PublishesWhatTheValveHealthMonitorHasSeen()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "den");
+        ValveHealthMonitorTests.SeeALeak(context.ValveHealth, context.Entities.DenRadiator2Thermostat.EntityId, new DateTimeOffset(2026, 10, 19, 6, 0, 0, TimeSpan.Zero));
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        List<RoomDeviceDto> valves = [.. context.CapturedStates()[1].Devices.Where(d => d.Role == RoomDeviceRoles.RadiatorValve)];
+        ValveHealthIssueDto leak = valves.Single(v => v.EntityId == context.Entities.DenRadiator2Thermostat.EntityId)
+            .ValveHealth.ShouldNotBeNull().ShouldHaveSingleItem();
+        leak.Kind.ShouldBe(ValveHealthKinds.LeaksWhenShut);
+        leak.Flagged.ShouldBeTrue();
+        leak.Count.ShouldBe(1);
+        leak.LastSeenAt.ShouldNotBeNull();
+        leak.LastSeenDetail.ShouldNotBeNull().ShouldStartWith("Rose from 19.0 °C to ");
+        leak.LastOkAt.ShouldBeNull();
+
+        valves.Single(v => v.EntityId == context.Entities.DenRadiator1Thermostat.EntityId)
+            .ValveHealth.ShouldNotBeNull().ShouldBeEmpty("nothing has been seen of it");
+    }
+
+    [TestMethod]
     public async Task AValveWithNoData_PublishesNoRate_ButIsStillAuto()
     {
         RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "bedroom 1");
@@ -634,6 +656,95 @@ public sealed class DeviceRulesHeatingTests
         valve.HeatingRateSamples.ShouldBe(0);
         valve.HeatingRateCelsiusPerHour.ShouldBeNull();
         valve.WarmUpMinutes.ShouldBeNull();
+    }
+
+    // A valve with no warm-up of its own goes by a measured valve's in the same zone (owner, 2026-10-23). On the
+    // 30-minute fallback den radiator 2 opened after radiator 1 had nearly warmed the room, which then reached the
+    // target too soon for the run to count, so it could never be measured.
+
+    [TestMethod]
+    [DataRow(16, 25, false, DisplayName = "4 °C an hour needs 90 minutes: not yet at 16:25")]
+    [DataRow(16, 35, true, DisplayName = "16:35: both valves have started")]
+    public async Task AnUnmeasuredValve_GoesByTheMeasuredValveInItsZone(int hour, int minute, bool radiatorsOn)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "den");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new()
+        {
+            [context.DenRadiator1.EntityId] = new DeviceRulesDto(),
+            [context.DenRadiator2.EntityId] = new DeviceRulesDto()
+        });
+        context.GiveRadiatorARate(context.DenRadiator1.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        (context.DenRadiator1.TargetTemperature == RulesTestContext.HeatingValveTarget).ShouldBe(radiatorsOn);
+        (context.DenRadiator2.TargetTemperature == RulesTestContext.HeatingValveTarget).ShouldBe(radiatorsOn, "it goes by radiator 1's rate, not 30 minutes");
+    }
+
+    [TestMethod]
+    public async Task AnUnmeasuredValve_PublishesWhoseRateItGoesBy()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "den");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.GiveRadiatorARate(context.DenRadiator1.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        List<RoomDeviceDto> valves = [.. context.CapturedStates()[1].Devices.Where(d => d.Role == RoomDeviceRoles.RadiatorValve)];
+        RoomDeviceDto measured = valves.Single(d => d.EntityId == context.DenRadiator1.EntityId);
+        RoomDeviceDto borrowing = valves.Single(d => d.EntityId == context.DenRadiator2.EntityId);
+
+        measured.HeatingRateFromEntityId.ShouldBeNull("its rate is its own");
+        borrowing.HeatingRateFromEntityId.ShouldBe(context.DenRadiator1.EntityId);
+        borrowing.HeatingRateCelsiusPerHour.ShouldNotBeNull().ShouldBe(4, 0.01);
+        borrowing.HeatingRateSamples.ShouldBe(1, "radiator 1's samples");
+        borrowing.WarmUpMinutes.ShouldBe(90);
+        context.WarmUp.SampleCount(context.DenRadiator2.EntityId).ShouldBe(0, "nothing is copied into its own warm-ups");
+    }
+
+    [TestMethod]
+    public async Task AZoneWithNoMeasuredValve_StillUsesThirtyMinutes()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(17, 29, 0), "den");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+
+        await context.Service.EvaluateAllSchedules("17:29");
+        context.DenRadiator2.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget);
+
+        context.SetLocalTime(new TimeSpan(17, 31, 0));
+        await context.Service.EvaluateAllSchedules("17:31");
+        context.DenRadiator2.TargetTemperature.ShouldBe(RulesTestContext.HeatingValveTarget);
+        context.CapturedStates()[1].Devices.Single(d => d.EntityId == context.DenRadiator2.EntityId).HeatingRateFromEntityId.ShouldBeNull();
+    }
+
+    [TestMethod]
+    public async Task AnAutoHeaterPlug_NeverGoesByAValvesRate()
+    {
+        // Bedroom 1's radiator is measured at 4 °C an hour, which would start at 16:30; its Auto heater has no rate of its own.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 35, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new() { [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatAuto = true } });
+        context.GiveRadiatorARate(context.Bedroom1Radiator.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("16:35");
+
+        context.Bedroom1Heater.TurnOnCount.ShouldBe(0, "a fan heater warms a room far faster than a radiator");
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).HeatingRateFromEntityId.ShouldBeNull();
+    }
+
+    [TestMethod]
+    public async Task AnUnmeasuredValve_NeverGoesByAHeaterPlugsRate()
+    {
+        // The heater's 4 °C an hour would start the radiator at 16:30; on its own fallback it waits until 17:30.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 35, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.GiveRadiatorARate(context.Bedroom1Heater.EntityId, 4);
+
+        await context.Service.EvaluateAllSchedules("16:35");
+
+        context.Bedroom1Radiator.TargetTemperature.ShouldBe(RulesTestContext.IdleValveTarget);
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.RadiatorValve).HeatingRateFromEntityId.ShouldBeNull();
     }
 
     [TestMethod]
@@ -867,6 +978,9 @@ public sealed class DeviceRulesHeatingTests
         public required WarmUpRates WarmUp { get; init; }
         public required FakeTimeProvider Clock { get; init; }
 
+        /// <summary>The valve-health monitor the service publishes from.</summary>
+        public required IValveHealthMonitor ValveHealth { get; init; }
+
         /// <summary>Makes the valve's measured rate this many degrees an hour, as if it had warmed its room at that pace.</summary>
         public void GiveRadiatorARate(string entityId, double degreesPerHour) =>
             WarmUpRatesTests.HeatToTarget(WarmUp, entityId, new DateTimeOffset(2026, 10, 1, 6, 0, 0, TimeSpan.Zero), 14, 17, degreesPerHour);
@@ -930,6 +1044,8 @@ public sealed class DeviceRulesHeatingTests
             services.AddSingleton<IWarmUpRateStore, InMemoryWarmUpRateStore>();
             services.AddSingleton<WarmUpRates>();
             services.AddSingleton<IWarmUpRates>(provider => provider.GetRequiredService<WarmUpRates>());
+            services.AddSingleton<IValveHealthStore, InMemoryValveHealthStore>();
+            services.AddSingleton<IValveHealthMonitor, ValveHealthMonitor>();
 
             ServiceProvider provider = services.BuildServiceProvider();
 
@@ -976,7 +1092,8 @@ public sealed class DeviceRulesHeatingTests
                 StatePersistence = statePersistence,
                 Rooms = rooms,
                 WarmUp = provider.GetRequiredService<WarmUpRates>(),
-                Clock = provider.GetRequiredService<FakeTimeProvider>()
+                Clock = provider.GetRequiredService<FakeTimeProvider>(),
+                ValveHealth = provider.GetRequiredService<IValveHealthMonitor>()
             };
         }
     }

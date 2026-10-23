@@ -6,7 +6,9 @@
 // The rate is the average of the device's last few warm-ups (up to 5, each ending when the room reached its target):
 // a valve's with the boiler on and of at least half an hour, a heater's of at least 5 minutes (owner, 2026-10-21). `warmUpMinutes` is how long that rate says it would take to
 // bring the room up to the next warmer schedule track from the temperature it is now; null with no rate, or with no
-// warmer track to warm up for. An Auto valve with no rate yet pre-heats for 30 minutes.
+// warmer track to warm up for. An Auto valve with no rate of its own goes by the slowest measured valve's in its zone
+// (since 2026-10-23): `heatingRateFromEntityId` then names that valve, and the rate, samples and minutes are its.
+// With no measured valve in the zone it pre-heats for 30 minutes.
 
 /** What an Auto valve uses until it has a measured rate. Matches DeviceRulesDto.DefaultValvePreHeatMinutes in the app. */
 export const FALLBACK_WARM_UP_MINUTES = 30
@@ -69,17 +71,26 @@ export const zoneWarmUp = (devices) => {
 
 /**
  * What a radiator valve's or heater plug's warm-up rests on, for the line under its name: "Warms its room about
- * 1.6°C an hour (average of its last 3 heatings)", or that there is nothing measured yet. Null for anything else.
+ * 1.6°C an hour (average of its last 3 heatings)", that it goes by another valve's, or that there is nothing measured
+ * yet. Null for anything else.
  * @param {object} device
  * @param {string} [unit]
+ * @param {(entityId: string) => string} [nameOf] the name to show for the valve a borrowed rate comes from
  */
-export const describeWarmUpRate = (device, unit = 'C') => {
+export const describeWarmUpRate = (device, unit = 'C', nameOf = (entityId) => entityId) => {
   if (!isRadiatorValve(device) && !isHeaterPlug(device)) return null
   if (device.heatingRateCelsiusPerHour == null) {
     const minimum = minimumWarmUpMinutes(device)
-    return `Warm-up not measured yet: it takes a heating of at least ${minimum === 30 ? 'half an hour' : `${minimum} minutes`} that reaches the target`
+    const needs = `it takes a heating of at least ${minimum === 30 ? 'half an hour' : `${minimum} minutes`} that reaches the target`
+    return isRadiatorValve(device) && device.preHeatAuto
+      ? `Warm-up not measured yet, so Auto starts it ${FALLBACK_WARM_UP_MINUTES} min ahead until it is: ${needs}`
+      : `Warm-up not measured yet: ${needs}`
   }
   const count = device.heatingRateSamples ?? 0
+  if (device.heatingRateFromEntityId) {
+    const theirs = count === 1 ? 'its last heating' : `the average of its last ${count} heatings`
+    return `Warm-up not measured yet, so it goes by ${nameOf(device.heatingRateFromEntityId)}: about ${formatRate(device.heatingRateCelsiusPerHour, unit)} (${theirs})`
+  }
   const basis = count === 1 ? 'its last heating' : `the average of its last ${count} heatings`
   return `Warms its room about ${formatRate(device.heatingRateCelsiusPerHour, unit)} (${basis})`
 }

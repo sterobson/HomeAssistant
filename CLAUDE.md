@@ -173,7 +173,7 @@ dining room and the den each hold two zones that are scheduled and controlled in
 
 | Group | Zone (`name`) | Drives | Reads | Presence |
 |---|---|---|---|---|
-| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug on and ≥ 30 W for 5 s (since 2026-10-19) |
+| Dining room | `dining desk` ("Ruth's desk") | dining heater plug | dining room thermometer | yes — desk plug on and ≥ 30 W for 5 s (since 2026-10-19), until under 30 W for 15 s (since 2026-10-22) |
 | Dining room | `dining room` ("Dining room") | dining TRV | dining room thermometer | yes — Ruth's desk plug switched on (since 2026-10-19; not part of "house") |
 | Den | `games desk` ("Ste's desk") | games heater plug | desk thermometer (`sensor.sonoff_snzb_02d_temperature`) | yes — desk plug power |
 | Den | `den` ("Den") | the two den radiator TRVs (`climate.den_radiator_1_thermostat`, `_2_`; paired 2026-10-18) | den thermometer (`sensor.den_climate_temperature`, since 2026-10-19) | yes — TV plug power (since 2026-10-19) |
@@ -224,8 +224,13 @@ Four consequences worth knowing before changing any of this:
   HOME-ASSISTANT.md → router note for finding it). The built-in defaults:
   Ste's desk (`games desk`) uses its desk
   plug (on, and ≥ 40 W within the last 5 minutes). **Ruth's desk plug gives two detectors** (owner,
-  2026-10-19): `dining desk` is in use while the plug is on **and** has drawn ≥ 30 W for the whole of the last
-  5 s, with no hold (the desk is really being used, which her heater's default rule needs); `dining room` is
+  2026-10-19): `dining desk` comes into use once the plug is on **and** has drawn ≥ 30 W for the whole of the last
+  5 s (the desk is really being used, which her heater's default rule needs), and, in code written 2026-10-22, stays
+  in use until the draw has been under 30 W for **15 s** (`DiningDeskHold`, a `LatchedCondition`; owner). **That hold
+  was not deployed as of 2026-10-23**: the running build (`20261022055140`) still flapped the heater at 14:23–14:24 BST,
+  each "off" 6 s after a single reading under 30 W, and `LatchedCondition.cs` was not yet committed. Switching the plug
+  off still ends it at once. Before the hold, her equipment's dip under 30 W as it starts up switched the heater on,
+  off and on again within half a minute every time the desk was switched on (HOME-ASSISTANT.md gotcha 21); `dining room` is
   in use while the plug is merely **switched on**, so the radiator can have a track for "the desk is set up".
   The second is left out of `house` (`IPresenceService.HouseZones`), because a plug left on says nobody is
   home. The `den` uses its TV plug's **power
@@ -248,8 +253,9 @@ Four consequences worth knowing before changing any of this:
   only the draw matters, and a switched-off plug reads 0 W), so each TV has one presence device, its
   power sensor; the desks still check their switch. The stick lights plug follows the WiZ lamp through two HA
   automations, so living room presence inherits that lamp's detection lag (HOME-ASSISTANT.md
-  gotcha 15). Heating re-evaluates 6 s after the den TV's power crosses 100 W or 30 W, or the living room TV's or Ruth's desk's crosses 30 W. Every "for 5
-  seconds" detector (Ruth's desk, den TV on now, living room TV) is a `SustainedCondition` fed by live
+  gotcha 15). Heating re-evaluates 6 s after the den TV's power crosses 100 W or 30 W, or the living room TV's or Ruth's desk's crosses 30 W
+  (16 s after Ruth's desk drops under it, once its hold is over). Every "for 5
+  seconds" detector (den TV on now, living room TV) is a `SustainedCondition`, and Ruth's desk a `LatchedCondition`, fed by live
   readings, not a history query: the history API lags a few seconds, which made Ruth's heater flap on a
   pulsing load on 2026-10-20 (HOME-ASSISTANT.md gotcha 21). Ruth's also requires the plug to be on in the
   same condition, since an off plug keeps its last power reading. After an app restart a steady draw counts
@@ -452,7 +458,13 @@ Four more heating notes:
   `warmup-history.cjs --only heaters --seed`, which merges into the file. Auto then starts the valve when
   (target − room now) ÷ rate, rounded up and at most 120 minutes, reaches back to the track; once started it carries
   on until the track begins (`_autoPreHeatTrackIds`), or a rate a little pessimistic would shut it again part-way as
-  the room warmed. With no samples it uses 30 minutes. Since 2026-10-20 each valve starts with estimates from the recorder's history, shipped in the app as `Backend/App/warm-up-seed.json` (made by `tools/ha/warmup-history.cjs --seed`, rough: see that script's header) and merged with its own measurements by start time, so the valve's own warm-ups push them out as they come in. Regenerating the file and redeploying the app is how to refresh them. The rate is the room thermometer's, so it includes the radiator
+  the room warmed. **A valve with no samples of its own goes by the slowest measured valve in its zone** (owner, 2026-10-23;
+`WarmUpRateSourceFor`), published as `heatingRateFromEntityId` with that valve's rate, samples and minutes, and the
+UI names it. Only with no measured valve in the zone does it use 30 minutes. Heater plugs never borrow or lend. Before
+this a second valve could stay unmeasured for ever: den radiator 2 had 0 samples on 2026-10-23 (read from room states)
+because on the 30-minute fallback it opened after radiator 1 had nearly warmed the room, which then reached the target
+before the 30-minute minimum, so the run was dropped every time (05:30 → 05:45 that morning). Opening alongside the
+other, its runs are long enough to give it samples of its own; nothing is copied into its own history. Since 2026-10-20 each valve starts with estimates from the recorder's history, shipped in the app as `Backend/App/warm-up-seed.json` (made by `tools/ha/warmup-history.cjs --seed`, rough: see that script's header) and merged with its own measurements by start time, so the valve's own warm-ups push them out as they come in. Regenerating the file and redeploying the app is how to refresh them. The rate is the room thermometer's, so it includes the radiator
   warming up, which is why a small deficit comes out a little under. Passes have to see the reading that reached the
   target: when that room was the last calling, the boiler is turned off in the same pass, so the observation counts the
   boiler as on if it was at the start of the pass (`_boilerWasOnAtStartOfPass`). Each valve and heater plug publishes `preHeatAuto`,
@@ -476,6 +488,21 @@ Four more heating notes:
   `HousePresenceSensor`. **Deploy the Functions app first**: its `DeviceSettingsDto` copy must know
   `deviceRules` or a save drops it. Tests: `DeviceRulesEvaluatorTests`, `DeviceRulesHeatingTests`; the
   schedule-selection tests in `HeatingControlServiceTests` run with empty saved rules on purpose.
+- **The app watches every radiator valve for two faults, and the UI flags them (owner, 2026-10-23).** After den
+  radiator 2 was found letting hot water through while shut (its head had learnt its travel wrongly; HOME-ASSISTANT.md
+  → Radiator TRVs), [ValveHealthMonitor](Backend/App/Services/Climate/ValveHealth.cs) is fed every valve once per pass
+  (`ObserveValveHealth`, after the valves move) and records **leaks when shut** (a valve shut 45 minutes or more whose
+  own reading climbs 2 °C while hot water is likely) and **stays cold while open** (a valve with its setpoint 1 °C or
+  more above its reading, cold at the start, open a whole hour while another radiator proves hot water in both halves
+  of it, rising under 1 °C). Proof of hot water is another open valve's radiator still climbing; the boiler belief only
+  counts towards a leak, never towards calling a valve stuck or clearing a fault, since it has been wrong both ways.
+  A later run that shows the valve behaving clears the flag. Findings are kept in `valve-health.json` in the local
+  cache folder and published as `valveHealth` on each valve's room-state device; the room card shows a "Valve" badge.
+  Owner's choice: automatic only, read-only (nothing is moved to test a valve). The thresholds were tuned by replaying
+  ten days of recorder history (2026-10-13 to 23) through the C# monitor: only den radiator 2 was flagged, for its
+  leaks on the 20th and 23rd and for staying cold on the 19th. Pinned by `ValveHealthMonitorTests` (including that
+  afternoon replayed) and `ARadiatorValve_PublishesWhatTheValveHealthMonitorHasSeen`. The valve exercise resets it.
+  Deploy the Functions app first: it rebuilds room states from `RoomStateDto` and would drop `valveHealth`.
 - **Boost expiry compares instants, never clock faces (fixed 2026-10-17).** A boost's end is a
   `DateTimeOffset` (the UI sends UTC) while the evaluation's `now` is the *local* wall clock, so comparing
   `EndTime.DateTime` to `now` was wrong by the UTC offset: in British Summer Time every boost ended an hour
@@ -486,12 +513,11 @@ Four more heating notes:
 
 ## In-flight work
 
-- `/heating2` and `Frontend/src/components/heating2/` are a **superseded UI**, slated for
-  removal. The final heating UI is the original room-card view (`HeatingView.vue` +
-  `RoomCard.vue`).
+- The **Heating 2** UI (`/heating2`, its components, `useHeatingConfig` and `heatingConfigApi`) was removed on
+  2026-10-22 (owner). The heating UI is the original room-card view (`HeatingView.vue` + `RoomCard.vue`).
 - The newer heating config engine (`HeatingConfigDto`, `heating-config` container,
   `HeatingConfigFunctions`) is **shipped dark**: the Functions app stores and serves it,
-  but nothing in `Backend/App` references it yet. The legacy schedule stack is still what
+  but nothing in `Backend/App` references it yet, and since Heating 2 went no page edits it either. The legacy schedule stack is still what
   actually runs the house.
 
 ## Access: the house ID is the only credential
@@ -519,6 +545,15 @@ cookie. Two consequences:
   locked guest change with 409. The owner endpoints still trust the house ID, so the owner's lock is UI-only.
   Before the tag existed a group boost was indistinguishable from identical zone boosts, and cancelling one zone
   inside a boosted group left the group and the zone disagreeing.
+- **The 3D house view can switch real devices** (since 2026-10-22, `/3d`; endpoints `house-devices/*`). The
+  NetDaemon app decides what it may touch, in [HouseDeviceRules](Backend/App/Services/HouseDevices/HouseDeviceRules.cs)
+  (pinned by `HouseDeviceRulesTests`): only switches, lights and buttons on the house's own Zigbee (`zha`), TP-Link
+  and WiZ devices, and never a device the app drives itself (the boiler fingerbot, the heater plugs, the dehumidifier
+  plug, any device with a radiator valve). The car, charger, inverter, router and speakers can only be viewed. It
+  re-reads the registry for every command rather than trusting the page, and waits for HA's answer. Anyone with the
+  house ID can use it, like everything else here. Adding a new integration's devices to it means adding its platform
+  to `ControllablePlatforms`; adding a device the app drives means adding it to `OwnedEntities` in
+  `HouseDevicesService`.
 - **The production house ID is short and guessable** (seven digits). That makes the owner endpoints
   effectively public to anyone who tries. Not fixed by the QR work; replacing it with a long random ID (or
   real auth) is an open follow-up.

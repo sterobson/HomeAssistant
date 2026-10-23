@@ -18,6 +18,8 @@
           </div>
           <!-- Before the temperature, so temperatures stay in one column down the page. -->
           <BatteryBadge v-if="lowestBattery" :battery="lowestBattery" :others-low="lowBatteries.length - 1" />
+          <!-- Only while collapsed: open, each zone inside shows its own. -->
+          <ValveHealthBadge v-if="!isExpanded && flaggedValves.length" :flagged="flaggedValves" @open="showDevices = true" />
           <span v-if="temperatureText" class="current-temp">{{ temperatureText }}</span>
         </div>
       </div>
@@ -122,6 +124,8 @@ import RoomDevicesModal from './RoomDevicesModal.vue'
 import BoostModal from './BoostModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
 import BatteryBadge from './BatteryBadge.vue'
+import ValveHealthBadge from './ValveHealthBadge.vue'
+import { flaggedValveIssues } from '../utils/valveHealth.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
@@ -206,6 +210,8 @@ const empty = computed(() => props.node.children.length === 0)
 const showDevices = ref(false)
 const roomsInGroup = computed(() => roomIdsIn(props.node).map(id => props.roomsById.get(id)).filter(Boolean))
 const lowestBattery = computed(() => lowestLow(props.lowBatteries))
+// Radiator valves anywhere inside that the app has seen misbehaving (utils/valveHealth.js).
+const flaggedValves = computed(() => flaggedValveIssues(roomsInGroup.value.flatMap(room => room.devices ?? [])))
 
 // Batteries placed by HA area on this group or on groups inside it, each group in layout order, as sections of
 // their own ahead of the zones; and each zone's own batteries in its section.

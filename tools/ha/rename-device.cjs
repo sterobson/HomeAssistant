@@ -2,8 +2,10 @@
 //
 //   node tools/ha/rename-device.cjs <device_id> --name "Living Room - Plug - TV" --prefix living_room_plug_tv --main-suffix switch
 //   node tools/ha/rename-device.cjs <device_id> --name ... --prefix ... --main-suffix switch --apply
+//   node tools/ha/rename-device.cjs <device_id> --name "Den tall lamp" --prefix den_tall_lamp --platform wiz --apply
 //
-// Same naming rules as pair-zigbee.cjs (see lib/naming.cjs and the README). Entities other integrations
+// Same naming rules as pair-zigbee.cjs (see lib/naming.cjs and the README). Only entities of the device's own
+// integration are renamed: ZHA unless --platform says otherwise (wiz for a WiZ bulb). Entities other integrations
 // attach to the device (e.g. the Octopus cost tracker) are listed but never renamed. Stops without
 // writing anything if a target entity ID is already taken.
 //
@@ -17,7 +19,7 @@ run(async () => {
   const args = parseArgs(['apply']);
   const deviceId = args._[0];
   if (!deviceId || !args.name || !args.prefix) {
-    throw new Error('usage: rename-device.cjs <device_id> --name "<Device name>" --prefix <prefix> [--main-suffix switch] [--label <Room>] [--area <area_id>] [--apply]');
+    throw new Error('usage: rename-device.cjs <device_id> --name "<Device name>" --prefix <prefix> [--main-suffix switch] [--label <Room>] [--area <area_id>] [--platform zha] [--apply]');
   }
   const ha = await connect();
   try {
@@ -26,9 +28,10 @@ run(async () => {
     console.log(`${device.name_by_user || device.name} (${device.manufacturer} ${device.model})  ->  "${args.name}"${args.area ? `, area ${args.area}` : ''}`);
 
     const entities = await entitiesOf(ha, deviceId);
-    const steps = plan(entities, { prefix: args.prefix, label: args.label, mainSuffix: args['main-suffix'] });
+    const platform = args.platform || 'zha';
+    const steps = plan(entities, { prefix: args.prefix, label: args.label, mainSuffix: args['main-suffix'], platform });
     steps.forEach((s) => console.log(show(s)));
-    skipped(entities).forEach((e) => console.log(`  (left alone, belongs to ${e.platform}: ${e.entity_id})`));
+    skipped(entities, platform).forEach((e) => console.log(`  (left alone, belongs to ${e.platform}: ${e.entity_id})`));
 
     const issues = await problems(ha, steps);
     if (issues.length) { console.log(`Stopping, nothing written:\n${issues.join('\n')}`); return; }

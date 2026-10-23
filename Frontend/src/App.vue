@@ -70,7 +70,7 @@
       </div>
     </div>
 
-    <main class="app-main" :class="{ 'app-main--full-width': route.name === 'battery' }">
+    <main class="app-main" :class="{ 'app-main--full-width': route.name === 'battery', 'app-main--scene': route.name === 'house3d' }">
       <router-view
         :occupancy-filter="occupancyFilter"
         :show-entity-settings="showEntitySettings"
@@ -125,6 +125,7 @@ const pageTitle = computed(() => {
     case 'heating': return 'Heating Control'
     case 'battery': return 'Battery Management'
     case 'manualImport': return 'Manual energy import'
+    case 'house3d': return '3D house'
     default: return 'Home Assistant'
   }
 })
@@ -455,6 +456,20 @@ function handleAddHouse() {
 .app-main--full-width {
   max-width: none;
   padding: 0.5rem;
+}
+
+/* The 3D house fills the screen under the header, so the page itself never scrolls while you drag the model. */
+.app:has(.app-main--scene) {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-main--scene {
+  max-width: none;
+  padding: 0;
+  min-height: 0;
+  display: flex;
 }
 
 .error-bar {

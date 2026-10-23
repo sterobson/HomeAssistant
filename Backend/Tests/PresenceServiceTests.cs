@@ -178,7 +178,8 @@ public sealed class PresenceServiceTests
 
     // Ruth's desk plug gives two detectors (owner, 2026-10-19): her desk zone is in use while the plug is on and
     // drawing 30 W for the whole of the last 5 s, and the dining room zone while the plug is merely switched on.
-    // The 5 s is measured from live readings (SustainedCondition), never from the history API, which lags (gotcha 21).
+    // Since 2026-10-22 the desk then stays in use until the draw has been under 30 W for 15 s (owner).
+    // Both are measured from live readings (LatchedCondition), never from the history API, which lags (gotcha 21).
 
     private const string DiningDeskSwitch = "switch.dining_room_desk_plug";
     private const string DiningDeskPower = "sensor.dining_room_desk_plug_power";
@@ -212,8 +213,9 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public async Task DiningDesk_EndsAsSoonAsTheDrawDrops_WithNoHold()
+    public async Task DiningDesk_StaysInUseUntilTheDrawHasBeenUnder30WattsFor15Seconds()
     {
+        // The hold (owner, 2026-10-22): until then it ended on the first reading under 30 W.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetPlug(DiningDeskSwitch, on: true);
         context.SetPower(DiningDeskPower, 45);
@@ -221,8 +223,81 @@ public sealed class PresenceServiceTests
         (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue();
 
         context.SetPower(DiningDeskPower, 4);
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue("only just dropped");
+        context.Advance(TimeSpan.FromSeconds(14.9));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue("still within the hold");
+
+        context.Advance(TimeSpan.FromSeconds(0.1));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_SwitchingThePlugOffEndsItAtOnce_WithNoHold()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
+
+        context.SetPlug(DiningDeskSwitch, on: false);
 
         (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_AfterTheHoldHasRunOut_NeedsAnother5Seconds()
+    {
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(10));
+        context.SetPower(DiningDeskPower, 4);
+        context.Advance(TimeSpan.FromSeconds(20));
+
+        context.SetPower(DiningDeskPower, 45);
+        context.Advance(TimeSpan.FromSeconds(4));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
+
+        context.Advance(TimeSpan.FromSeconds(1));
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_StartingUpAt14_44On2026_10_22_StaysInUseThroughTheDip()
+    {
+        // Readings from the recorder, 5 s apart: the switch-on surge, about 100 W, one reading of 26 W, then steady.
+        // With no hold the heater went on at 13:44:02, off at 13:44:17 and on again at 13:44:22 (UTC).
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        List<bool> inUse = [];
+
+        foreach (double watts in new[] { 957.0, 99, 105, 26, 73, 74, 73, 74, 75, 123, 122 })
+        {
+            context.SetPower(DiningDeskPower, watts);
+            context.Advance(TimeSpan.FromSeconds(5));
+            inUse.Add(await context.Service.IsRoomInUse("dining desk"));
+        }
+
+        inUse.ShouldBe([true, true, true, true, true, true, true, true, true, true, true],
+            "in use from 5 s into the draw, and never out of use again");
+    }
+
+    [TestMethod]
+    public async Task DiningDesk_StartingUpAt08_34On2026_10_22_StaysInUseThroughThePulsing()
+    {
+        // The messier start-up: after the surge and a dip to 28 W, it went 25 W <-> 400-570 W every 5 s for half a
+        // minute before settling at about 60 W. With no hold the heater was off from 07:35:03 to 07:35:39 (UTC).
+        PresenceTestContext context = PresenceTestContext.Create();
+        context.SetPlug(DiningDeskSwitch, on: true);
+        context.SetPower(DiningDeskPower, 928);
+        context.Advance(TimeSpan.FromSeconds(5));
+
+        foreach (double watts in new[] { 57.0, 64, 28, 406, 25, 414, 26, 440, 29, 570, 43, 87, 68, 72, 63 })
+        {
+            context.SetPower(DiningDeskPower, watts);
+            context.Advance(TimeSpan.FromSeconds(5));
+            (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue($"{watts} W");
+        }
     }
 
     [TestMethod]
@@ -297,7 +372,7 @@ public sealed class PresenceServiceTests
     }
 
     [TestMethod]
-    public async Task DiningDesk_AnUnavailableReadingBreaksTheRun()
+    public async Task DiningDesk_AnUnavailableReadingCountsAsADrop()
     {
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetPlug(DiningDeskSwitch, on: true);
@@ -305,6 +380,8 @@ public sealed class PresenceServiceTests
         context.Advance(TimeSpan.FromSeconds(10));
 
         context.SetPowerState(DiningDeskPower, "unavailable");
+        (await context.Service.IsRoomInUse("dining desk")).ShouldBeTrue("the hold covers it, as it would a low reading");
+        context.Advance(TimeSpan.FromSeconds(15));
 
         (await context.Service.IsRoomInUse("dining desk")).ShouldBeFalse();
     }
