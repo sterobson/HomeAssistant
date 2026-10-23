@@ -225,10 +225,10 @@ Four consequences worth knowing before changing any of this:
   Ste's desk (`games desk`) uses its desk
   plug (on, and ≥ 40 W within the last 5 minutes). **Ruth's desk plug gives two detectors** (owner,
   2026-10-19): `dining desk` comes into use once the plug is on **and** has drawn ≥ 30 W for the whole of the last
-  5 s (the desk is really being used, which her heater's default rule needs), and, in code written 2026-10-22, stays
-  in use until the draw has been under 30 W for **15 s** (`DiningDeskHold`, a `LatchedCondition`; owner). **That hold
-  was not deployed as of 2026-10-23**: the running build (`20261022055140`) still flapped the heater at 14:23–14:24 BST,
-  each "off" 6 s after a single reading under 30 W, and `LatchedCondition.cs` was not yet committed. Switching the plug
+  5 s (the desk is really being used, which her heater's default rule needs), and stays in use until the draw has
+  been under 30 W for **15 s** (`DiningDeskHold`, a `LatchedCondition`; owner). Written 2026-10-22 but only deployed
+  at 17:50 BST on 2026-10-23 (version `20261023165001`): until then the heater still flapped, as at 14:23–14:24 that
+  day, each "off" 6 s after a single reading under 30 W. Switching the plug
   off still ends it at once. Before the hold, her equipment's dip under 30 W as it starts up switched the heater on,
   off and on again within half a minute every time the desk was switched on (HOME-ASSISTANT.md gotcha 21); `dining room` is
   in use while the plug is merely **switched on**, so the radiator can have a track for "the desk is set up".
@@ -540,7 +540,9 @@ other, its runs are long enough to give it samples of its own; nothing is copied
   ten days of recorder history (2026-10-13 to 23) through the C# monitor: only den radiator 2 was flagged, for its
   leaks on the 20th and 23rd and for staying cold on the 19th. Pinned by `ValveHealthMonitorTests` (including that
   afternoon replayed) and `ARadiatorValve_PublishesWhatTheValveHealthMonitorHasSeen`. The valve exercise resets it.
-  Deploy the Functions app first: it rebuilds room states from `RoomStateDto` and would drop `valveHealth`.
+  Deploy the Functions app first: it rebuilds room states from `RoomStateDto` and would drop `valveHealth`. Live since
+  17:50 BST on 2026-10-23 (NetDaemon `20261023165001`, Functions `2026.10.23.16.45-6fd64c5`), starting with no
+  findings: every valve then published an empty `valveHealth`.
 - **Boost expiry compares instants, never clock faces (fixed 2026-10-17).** A boost's end is a
   `DateTimeOffset` (the UI sends UTC) while the evaluation's `now` is the *local* wall clock, so comparing
   `EndTime.DateTime` to `now` was wrong by the UTC offset: in British Summer Time every boost ended an hour

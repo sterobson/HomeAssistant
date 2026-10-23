@@ -227,6 +227,19 @@ sessions' uncommitted work. Two things found:
   scripts), and read `deploy-config.json` from there.
 - The OTA upload takes the zip as the raw request body (`application/octet-stream`), as the Deployment tool sends it.
 
+The 2026-10-23 17:45–17:55 BST full deploy (`6fd64c5`: everything committed from the main checkout that day, the 3D house
+view, Heating 2's removal, the valve-health monitor, Ruth's desk hold, and the boiler-check work merged from the branch
+above) did all three parts, each as an explicit command or script: Functions `2026.10.23.16.45-6fd64c5`, then NetDaemon
+`20261023165001` (`addon.cjs ... stop`, recursive copy without `appsettings.*.json`, `HomeAssistant.dll` hash checked,
+`addon.cjs ... start`, OTA upload; 11 apps loaded, belief carried over as off, which the TRVs agreed with), then the
+frontend. Production's five blobs were saved first. Found:
+
+- **The frontend build now has two `index-*.js` files** (the 3D view's libraries split into their own chunk). A check that
+  looks for the API URL in "the" `index-*.js` can pick the wrong one and refuse a good build. Take the entry script's name
+  from `dist/index.html`, and search every `assets/*.js` for the production URL and for `localhost:7159` / `localhost:7071`.
+- **Auto mode's permission classifier refused the deploy outright**, even `dotnet test` once it judged the session to be
+  deploying. It ran with auto mode switched off.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
