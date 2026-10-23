@@ -59,7 +59,8 @@ internal partial class HeatingControlService
             }
 
             BoilerControlPath controlPath = await UpdateBoilerControlPathAsync(trigger);
-            if (controlPath == BoilerControlPath.Fingerbot && _boilerOn)
+            // Also when the last turn-off check said the boiler is still running: pressing "on" would turn it off.
+            if (controlPath == BoilerControlPath.Fingerbot && (_boilerOn || BeliefStillContradicted))
             {
                 _logger.LogInformation("Valve exercise skipped: the boiler is already on, so the heating is evidently working. Triggered by {Trigger}", trigger);
                 return false;
@@ -84,7 +85,7 @@ internal partial class HeatingControlService
                 {
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _boilerOnForExercise = true;
-                    _lastBoilerPressWasCorrection = false;
+                    _correctionsInARow = 0;
                 }
             }
 

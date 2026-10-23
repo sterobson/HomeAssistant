@@ -28,6 +28,18 @@ internal interface IBoilerVerificationService
     /// cannot resurface later and provoke a corrective press.
     /// </summary>
     void Reset();
+
+    /// <summary>
+    /// Discards the pending verification only, keeping the valve history. Called when the belief changes from a
+    /// fingerbot movement rather than from a press the app has just confirmed: the pending check was judging the old
+    /// belief, but which radiators have had hot water, and for how long, is still true, and the new belief's own check
+    /// needs it. (Until 2026-10-23 that used <see cref="Reset"/>, which wiped the history, so a movement to "off" could
+    /// never arm a turn-off check.)
+    /// </summary>
+    void DiscardPendingVerification();
+
+    /// <summary>Whether a verification of a turn-on (or turn-off) is pending and watching this valve.</summary>
+    bool IsWatching(string valveEntityId, bool boilerTurnedOn);
 }
 
 /// <summary>
@@ -46,10 +58,13 @@ internal interface IBoilerVerificationService
 /// its own setpoint (owner, 2026-10-22).</item>
 /// <item>Turn-off: fails only if a watched radiator, after settling, <b>heats up again</b>: rises
 /// <see cref="TurnOffReheatThreshold"/> above its lowest reading and gets back to at least its reading when the
-/// boiler was turned off. That is a TRV with hot water behind it regulating itself. Falling is not evidence of a
+/// boiler was turned off. That is a TRV with hot water behind it regulating itself. Or if it <b>never stopped
+/// climbing</b>: a new high once settled, a degree above its turn-off reading. Falling is not evidence of a
 /// turn-off: valves are left open while the boiler is believed off, and an open TRV on a running boiler cycles
 /// (Bedroom 3, 21.5 to 23 °C all night), so it falls between cycles. A shut valve's radiator cools whether
-/// or not the boiler runs, so only open valves are watched at all.</item>
+/// or not the boiler runs, so only open valves are watched, but every open one is, however briefly it has had hot
+/// water (since 2026-10-23). One that had it for under <see cref="RadiatorSettledMinutes"/> was still near room
+/// temperature at the turn-off, so it fails the press only by climbing to a new high.</item>
 /// </list>
 /// </summary>
 internal class BoilerVerificationService : IBoilerVerificationService
@@ -70,8 +85,8 @@ internal class BoilerVerificationService : IBoilerVerificationService
     internal const int TurnOffSettlingMinutes = 30;
     internal const int TurnOffVerificationMinutes = 60;
     internal const double TurnOffReheatThreshold = 1.0;
-    // How long a radiator must have been cold (before a turn-on) or hot (before a turn-off) to be
-    // worth watching.
+    // How long a radiator must have been cold (before a turn-on) to count as cold, or hot (before a turn-off) to be
+    // judged by heating up again as well as by climbing.
     internal const int RadiatorSettledMinutes = 30;
 
     private BoilerToggleEvent? _pendingVerification;
@@ -179,8 +194,10 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
     private void SetupTurnOffVerification(DateTimeOffset now, List<(string RoomName, ICustomClimateControlEntity Valve)> openValves)
     {
-        // Watch the valves that were heating for at least 30 minutes (hot radiators) and are still open, so they
-        // would heat again if the boiler were still running.
+        // Watch every open valve: its radiator would heat again if the boiler were still running. Until 2026-10-23 only
+        // those that had had hot water for half an hour were, so a turn-off within half an hour of a turn-on went
+        // unchecked: at 14:37 that day Bedroom 3's had had 14 minutes, and the boiler ran on for over an hour with
+        // nothing to catch it (HOME-ASSISTANT.md gotcha 27).
         List<MonitoredValve> qualifyingValves = [];
 
         foreach ((string roomName, ICustomClimateControlEntity valve) in openValves)
@@ -189,25 +206,28 @@ internal class BoilerVerificationService : IBoilerVerificationService
             if (!currentTemp.HasValue)
                 continue;
 
-            if (_valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
+            bool settled = _valveHeatingRecords.TryGetValue(roomName, out ValveHeatingRecord? record)
                 && !record.HeatingStoppedAt.HasValue
-                && (now - record.HeatingStartedAt).TotalMinutes >= RadiatorSettledMinutes)
+                && (now - record.HeatingStartedAt).TotalMinutes >= RadiatorSettledMinutes;
+
+            qualifyingValves.Add(new MonitoredValve
             {
-                qualifyingValves.Add(new MonitoredValve
-                {
-                    RoomName = roomName,
-                    Valve = valve,
-                    BaselineTemp = currentTemp.Value,
-                    PeakTemp = currentTemp.Value,
-                    WatchedSince = now
-                });
-            }
+                RoomName = roomName,
+                Valve = valve,
+                BaselineTemp = currentTemp.Value,
+                PeakTemp = currentTemp.Value,
+                WatchedSince = now,
+                RadiatorSettled = settled
+            });
         }
 
         if (qualifyingValves.Count == 0)
         {
             _pendingVerification = null;
-            _logger.LogDebug("Boiler verification: skipping turn-off verification (no valves hot long enough or no temp readings)");
+            // The app opens a valve for the check when none is open, so this means no valve has a reading at all.
+            _logger.LogWarning(
+                "Boiler verification: the turn-OFF cannot be checked, because no radiator valve is open with a reading ({Open} open), so nothing would show the boiler still running",
+                openValves.Count);
             return;
         }
 
@@ -222,7 +242,7 @@ internal class BoilerVerificationService : IBoilerVerificationService
         _logger.LogInformation(
             "Boiler verification: monitoring {Count} valve(s) to verify boiler turned OFF. Rooms: {Rooms}. Settling for {SettlingMinutes} min, then watching {VerificationMinutes} min for a radiator heating up again",
             qualifyingValves.Count,
-            string.Join(", ", qualifyingValves.Select(v => $"{v.RoomName} ({v.BaselineTemp:F1}°C)")),
+            string.Join(", ", qualifyingValves.Select(v => $"{v.RoomName} ({v.BaselineTemp:F1}°C{(v.RadiatorSettled ? "" : $", hot water under {RadiatorSettledMinutes} min, judged only by climbing")})")),
             TurnOffSettlingMinutes, TurnOffVerificationMinutes);
     }
 
@@ -318,6 +338,21 @@ internal class BoilerVerificationService : IBoilerVerificationService
         {
             _checkSemaphore.Release();
         }
+    }
+
+    public bool IsWatching(string valveEntityId, bool boilerTurnedOn) =>
+        _pendingVerification is { } verification
+        && verification.BoilerTurnedOn == boilerTurnedOn
+        && verification.MonitoredValves.Exists(mv => string.Equals(mv.Valve.EntityId, valveEntityId, StringComparison.OrdinalIgnoreCase));
+
+    public void DiscardPendingVerification()
+    {
+        if (_pendingVerification != null)
+        {
+            _logger.LogInformation("Boiler verification: discarding the pending verification of a boiler turn-{Direction}: the belief it was judging has changed", _pendingVerification.BoilerTurnedOn ? "ON" : "OFF");
+        }
+
+        _pendingVerification = null;
     }
 
     public void Reset()
@@ -451,7 +486,10 @@ internal class BoilerVerificationService : IBoilerVerificationService
                 mv.LowestSinceSettled = currentTemp.Value;
             }
 
-            if (currentTemp.Value - mv.LowestSinceSettled.Value >= TurnOffReheatThreshold && currentTemp.Value >= mv.BaselineTemp)
+            // Only for a radiator that had had hot water half an hour. One that had less was near room temperature at the
+            // turn-off, so once it has cooled back to the room, a degree of warmth from anything else (a heater plug, the
+            // sun) would take it past its turn-off reading. It is judged by the rule below alone.
+            if (mv.RadiatorSettled && currentTemp.Value - mv.LowestSinceSettled.Value >= TurnOffReheatThreshold && currentTemp.Value >= mv.BaselineTemp)
             {
                 reheated.Add($"{mv.RoomName} (down to {mv.LowestSinceSettled.Value:F1}°C, back up to {currentTemp.Value:F1}°C, was {mv.BaselineTemp:F1}°C at the turn-off)");
             }
@@ -460,7 +498,9 @@ internal class BoilerVerificationService : IBoilerVerificationService
             // settling period, so it had no low to come back up from and the rule above would have waited for yet
             // another 1 °C. It must be a new high, not merely equal to the settling peak (owner, 2026-10-22): TRVs lag
             // 10-17 minutes and report in 0.5 °C steps, so one that coasted up a degree on the water left in it and then
-            // peaked can still be showing that peak at 30 minutes with the boiler off.
+            // peaked can still be showing that peak at 30 minutes with the boiler off. This is also what catches a turn-off
+            // soon after a turn-on (2026-10-23, Bedroom 3 after 14 minutes of hot water): if the boiler runs on, its
+            // radiator is still climbing after settling; if not, the water left in it has peaked and fallen within it.
             else if (currentTemp.Value > mv.PeakTemp && currentTemp.Value - mv.BaselineTemp >= TurnOffReheatThreshold)
             {
                 reheated.Add($"{mv.RoomName} (still climbing: {mv.BaselineTemp:F1}°C at the turn-off, {currentTemp.Value:F1}°C now)");
@@ -521,6 +561,9 @@ internal class MonitoredValve
     public bool Warm { get; init; }
     // Turn-off only: the lowest reading since settling ended, from which a radiator heating up again is measured.
     public double? LowestSinceSettled { get; set; }
+    // Turn-off only: its radiator had had hot water for RadiatorSettledMinutes at the turn-off, so it was well above room
+    // temperature, and heating up again past that reading means hot water. One that had less is judged only by climbing.
+    public bool RadiatorSettled { get; init; }
 }
 
 internal enum VerificationState

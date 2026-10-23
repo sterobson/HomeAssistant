@@ -309,14 +309,30 @@ Four more heating notes:
   then `LocalStorageFolder` uses the add-on's persistent `/data/HomeAssistant` when it runs as an add-on,
   and logs the path at startup ("Boiler belief is kept in ..." in the NetDaemon add-on log). A fingerbot
   movement the app did not command (HA UI, a script) flips it; a press is refused while the
-  fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
-  pressed. Before that fix the turn-on verification could never arm in the running app, because
+  fingerbot is unavailable. A **corrective press**, either way, is checked and pressed again if it did not work, up to
+  5 in a row, the later ones further apart in case the trouble is the network (owner, 2026-10-23: the app must be
+  certain the boiler did what it was told; until then a second disagreement was only logged). `CorrectionDelays`: the
+  first at once, then 5, 15, 30 and 60 minutes after each failed check (each check itself takes up to 60–90 minutes).
+  After the fifth the app stops, logs an error and raises an HA persistent notification ("Boiler may still be running"
+  or "Boiler may not be running"): presses that keep failing mean something the fingerbot cannot fix, such as the
+  switch at the boiler being on the boiler thermostat. While a corrective press waits, or after giving up, the boiler
+  is evidently not where the app believes it (`BeliefStillContradicted`), so the app never presses to change the belief,
+  which would do the opposite: a room wanting heat with the boiler believed off but evidently running takes it as
+  already on, and no room calling with it believed on but evidently not running takes it as already off. Either is
+  checked like a press, and the waiting press dropped; the valve exercise is skipped. A fingerbot movement or a change
+  to the boiler thermostat drops it too. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
   A press by hand on the boiler itself is still invisible. **A press counts only once HA has confirmed it** (since
   2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not
   respond", HOME-ASSISTANT.md gotcha 24) it leaves the belief alone and decides the boiler again 1 then 2 minutes
   later. Until then a press was fire-and-forget, so the belief went to ON with the fingerbot unmoved and the next
   "off" pressed it on. (The 2026-10-21 version of this did not actually wait, see Conventions; fixed 2026-10-22.)
+  **A press HA reports as failed can still land** (2026-10-23, HOME-ASSISTANT.md gotcha 27: "The operation has
+  timed out", and the fingerbot moved 11 s later). Since then a movement the way that press asked within 50 s
+  (`LatePressWindow`, under the first 1-minute retry) is taken as the app's own press, logged "landed after all";
+  a later one is still a press from outside the app. Either way the belief follows the fingerbot and is checked
+  against the radiators. Until then it was taken as an outside press, which also wiped the verification's valve
+  history (`Reset`; it now calls `DiscardPendingVerification`), so a movement to "off" could never arm a turn-off check.
   Even a confirmed press is only the fingerbot's word: the radiator check below is what decides. The UI shows the belief in fingerbot mode ("Boiler
   on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
   app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
@@ -354,13 +370,31 @@ Four more heating notes:
     water, so the boiler is still running. Since late 2026-10-21 it also fails when a watched TRV **never stopped
     climbing**: once settling is over it is still at its highest since the turn-off and 1 °C or more above it (den
     radiator 2 went 20.0 → 23.5 °C through settling that night and had no low to come back up from). Water left in a
-    radiator peaks and falls within the settling, so it does not count. A radiator merely falling is not taken as proof of anything, because an
+    radiator peaks and falls within the settling, so it does not count. **Every open valve is watched** (since
+    2026-10-23): until then only those whose radiator had had hot water for 30 minutes were, so a turn-off within half
+    an hour of a turn-on went unchecked, and on 2026-10-23 the boiler ran on for over an hour after a turn-off 14 minutes
+    after a turn-on (HOME-ASSISTANT.md gotcha 27). A radiator with less than 30 minutes of hot water (or no history,
+    after a restart) read close to its room at the turn-off, so it fails the press only by climbing to a new high a
+    degree above that reading; heating up again from its low is not enough, since a heater plug or the sun can lift a
+    near-room-temperature TRV past its turn-off reading. A radiator merely falling is not taken as proof of anything, because an
     open TRV on a running boiler falls between cycles (Bedroom 3, 21.5–23 °C all night), and one that stays warm is
     not a failure any more either. Open valves are the only useful ones to watch: a shut valve's radiator cools
     whether the boiler runs or not, so ignoring or shutting the open ones would leave nothing that could ever
-    show the boiler running. Not covered: a TRV that holds its setpoint within 1 °C on a running boiler is
-    not caught at the turn-off; the next turn-on's check then fails and corrects it.
-  Pinned by the 2026-10-20 cases in `BoilerVerificationServiceTests` and `HeatingBoilerControlTests`.
+    show the boiler running.
+  - **Every press has a valve open to check against** (owner, 2026-10-23), turn-on and turn-off alike. If no valve is
+    open after the pass (say only the towel rail called for heat, which has no sensor), the app opens one (setpoint
+    reading + 5), preferring one its device rules allow. For a **turn-off**, the radiator that reads warmest: it had hot
+    water most recently, so with the boiler off it can only cool, and nothing else warming the room can lift it to a new
+    high. For a **turn-on**, the coldest, which shows the clearest rise. One open valve, chosen the same way, is then
+    **held** for the whole check (`_valveHeldForBoilerCheck`, `IsHeldForBoilerCheck`): its room does not move it, so it
+    cannot be shut and leave nothing to watch (after a failed turn-off check, when valves follow their rooms and warm
+    rooms' valves shut; or when its room warms before a turn-on has shown). Its setpoint is kept at least 2 °C above its
+    reading (`HeldValveHeadroomCelsius`), so its TRV cannot throttle at its setpoint and stop climbing, which used to be
+    the turn-off check's one blind spot. The hold ends when the check does, or when the belief changes. A held room may
+    overshoot its target a little while the check runs; a turn-on usually shows within half an hour. "The turn-OFF
+    cannot be checked" (Warning) now means no valve has a reading at all.
+  Pinned by the 2026-10-20 and 2026-10-23 cases in `BoilerVerificationServiceTests` and `HeatingBoilerControlTests`.
+  The 2026-10-23 changes are live since 17:30 BST that day (NetDaemon version `20261023162858`, commit `9c1f6b2`).
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
   physical switch at the boiler chooses between the fingerbot and the **boiler thermostat**
   (the boiler's own thermostat: portable, normally in the kitchen; called "external scheduler" or
@@ -404,17 +438,21 @@ Four more heating notes:
     after a boost was cancelled.
   - **Valves move only when there may be hot water behind them.** While the boiler is believed off, valves
     are neither opened nor shut (`_valvesWaitForBoiler`): their position makes no difference, and each move
-    costs TRV battery. They are brought into line in the pass that turns the boiler on. The one exception is
-    evidence: a turn-off verification that sees an open radiator heat up again sets `_boilerMayBeRunning`, and valves
-    then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself.
+    costs TRV battery. They are brought into line in the pass that turns the boiler on. There are two exceptions.
+    Evidence: a turn-off verification that sees an open radiator heat up again sets `_boilerMayBeRunning`, and valves
+    then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself. And the
+    check of a press (since 2026-10-23): the valve it holds open is kept open with headroom, and one is opened if none is.
     While waiting, a valve room reports `heatingActive: false` even if its valve was left open.
   - **Order inside `EvaluateAllSchedules`:**
     1. `UpdateBoilerControlPathAsync`: the mode, the saved belief, and presses made outside the app.
     2. `ResolveTargetAsync` for every room: what each room wants, before anything moves.
     3. `DecideBoiler`: verification corrections, then on/off presses (each press only noted in `_pressToVerify`).
+       For a turn-off to check, the warmest open valve is then chosen to be held open through the pass (for a
+       turn-on, the valve to hold is chosen after the rooms have moved theirs).
     4. The rooms' devices, each decided on its own in `EvaluateSchedule` (see "Each device decides for itself" below).
     5. `RecordValvesAndVerifyAsync`: arms the verification of this pass's press with the valves open after the
-       pass, then records valves (one only counts as heating while open *and* the boiler is believed on) and checks.
+       pass (opening one first if none is), then records valves (one only counts as heating while
+       open *and* the boiler is believed on) and checks.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
   - **Monthly valve exercise** (owner, 2026-10-19, after finding a TRV seized from months without moving):
