@@ -303,8 +303,12 @@ Four more heating notes:
   then `LocalStorageFolder` uses the add-on's persistent `/data/HomeAssistant` when it runs as an add-on,
   and logs the path at startup ("Boiler belief is kept in ..." in the NetDaemon add-on log). A fingerbot
   movement the app did not command (HA UI, a script) flips it; a press is refused while the
-  fingerbot is unavailable; and after one corrective press a second disagreement is logged, not
-  pressed. Before that fix the turn-on verification could never arm in the running app, because
+  fingerbot is unavailable; and after one corrective press to turn the boiler **on**, a second disagreement is
+  logged, not pressed. A corrective press to turn it **off** is checked and pressed again if it did not work, up to
+  3 in a row (`MaxTurnOffCorrectionsInARow`; owner, 2026-10-23: the app must be certain the boiler went off), after
+  which the app stops, logs an error and raises an HA persistent notification ("Boiler may still be running").
+  Presses that keep failing mean something the fingerbot cannot fix, such as the switch at the boiler being on the
+  boiler thermostat. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
   A press by hand on the boiler itself is still invisible. **A press counts only once HA has confirmed it** (since
   2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not
@@ -360,13 +364,21 @@ Four more heating notes:
     after a turn-on (HOME-ASSISTANT.md gotcha 27). A radiator with less than 30 minutes of hot water (or no history,
     after a restart) read close to its room at the turn-off, so it fails the press only by climbing to a new high a
     degree above that reading; heating up again from its low is not enough, since a heater plug or the sun can lift a
-    near-room-temperature TRV past its turn-off reading. A turn-off with no open valve to watch is logged at
-    Information ("cannot be checked"), not Debug. A radiator merely falling is not taken as proof of anything, because an
+    near-room-temperature TRV past its turn-off reading. A radiator merely falling is not taken as proof of anything, because an
     open TRV on a running boiler falls between cycles (Bedroom 3, 21.5–23 °C all night), and one that stays warm is
     not a failure any more either. Open valves are the only useful ones to watch: a shut valve's radiator cools
     whether the boiler runs or not, so ignoring or shutting the open ones would leave nothing that could ever
-    show the boiler running. Not covered: a TRV that holds its setpoint within 1 °C on a running boiler is
-    not caught at the turn-off; the next turn-on's check then fails and corrects it.
+    show the boiler running.
+  - **A turn-off always has a valve open to check against** (owner, 2026-10-23). If no valve is open after the pass
+    (say only the towel rail called for heat), the app opens the one whose radiator reads warmest (setpoint reading
+    + 5), preferring one its device rules allow: it had hot water most recently, so with the boiler off it can only cool,
+    and nothing else warming the room can lift it to a new high. One open valve, the warmest, is then **held** for the
+    whole check (`_valveHeldForTurnOffCheck`, `IsHeldForTurnOffCheck`): its room does not move it, so after a failed
+    check, when valves follow their rooms and warm rooms' valves shut, the corrective press still has one to be checked
+    against. Its setpoint is kept at least 2 °C above its reading (`HeldValveHeadroomCelsius`), so its TRV cannot
+    throttle at its setpoint and stop climbing on a running boiler, which used to be the check's one blind spot. The
+    hold ends when the check does, or when the boiler is believed on again. "The turn-OFF cannot be checked" (Warning)
+    now means no valve has a reading at all.
   Pinned by the 2026-10-20 and 2026-10-23 cases in `BoilerVerificationServiceTests` and `HeatingBoilerControlTests`.
   The 2026-10-23 changes were not deployed when written; check the NetDaemon app's version before assuming them live.
 - **The app isn't the only thing that can run the boiler, and it has to be told which.** A
@@ -412,17 +424,20 @@ Four more heating notes:
     after a boost was cancelled.
   - **Valves move only when there may be hot water behind them.** While the boiler is believed off, valves
     are neither opened nor shut (`_valvesWaitForBoiler`): their position makes no difference, and each move
-    costs TRV battery. They are brought into line in the pass that turns the boiler on. The one exception is
-    evidence: a turn-off verification that sees an open radiator heat up again sets `_boilerMayBeRunning`, and valves
-    then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself.
+    costs TRV battery. They are brought into line in the pass that turns the boiler on. There are two exceptions.
+    Evidence: a turn-off verification that sees an open radiator heat up again sets `_boilerMayBeRunning`, and valves
+    then follow their rooms (so warm rooms' valves shut) until the app next turns the boiler on or off itself. And the
+    turn-off check (since 2026-10-23): the valve it holds open is kept open with headroom, and one is opened if none is.
     While waiting, a valve room reports `heatingActive: false` even if its valve was left open.
   - **Order inside `EvaluateAllSchedules`:**
     1. `UpdateBoilerControlPathAsync`: the mode, the saved belief, and presses made outside the app.
     2. `ResolveTargetAsync` for every room: what each room wants, before anything moves.
     3. `DecideBoiler`: verification corrections, then on/off presses (each press only noted in `_pressToVerify`).
+       For a turn-off to check, the warmest open valve is then chosen to be held open through the pass.
     4. The rooms' devices, each decided on its own in `EvaluateSchedule` (see "Each device decides for itself" below).
     5. `RecordValvesAndVerifyAsync`: arms the verification of this pass's press with the valves open after the
-       pass, then records valves (one only counts as heating while open *and* the boiler is believed on) and checks.
+       pass (for a turn-off, opening one first if none is), then records valves (one only counts as heating while
+       open *and* the boiler is believed on) and checks.
   - In boiler-thermostat mode none of this applies, and valves follow their rooms as before, since the boiler
     thermostat may be running the boiler.
   - **Monthly valve exercise** (owner, 2026-10-19, after finding a TRV seized from months without moving):

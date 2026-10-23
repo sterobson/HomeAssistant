@@ -37,6 +37,9 @@ internal interface IBoilerVerificationService
     /// never arm a turn-off check.)
     /// </summary>
     void DiscardPendingVerification();
+
+    /// <summary>Whether a turn-off verification is pending and watching this valve.</summary>
+    bool IsWatchingTurnOff(string valveEntityId);
 }
 
 /// <summary>
@@ -221,8 +224,8 @@ internal class BoilerVerificationService : IBoilerVerificationService
         if (qualifyingValves.Count == 0)
         {
             _pendingVerification = null;
-            // Information, so it shows in the add-on log: nothing will catch a boiler that kept running.
-            _logger.LogInformation(
+            // The app opens a valve for the check when none is open, so this means no valve has a reading at all.
+            _logger.LogWarning(
                 "Boiler verification: the turn-OFF cannot be checked, because no radiator valve is open with a reading ({Open} open), so nothing would show the boiler still running",
                 openValves.Count);
             return;
@@ -336,6 +339,10 @@ internal class BoilerVerificationService : IBoilerVerificationService
             _checkSemaphore.Release();
         }
     }
+
+    public bool IsWatchingTurnOff(string valveEntityId) =>
+        _pendingVerification is { BoilerTurnedOn: false } verification
+        && verification.MonitoredValves.Exists(mv => string.Equals(mv.Valve.EntityId, valveEntityId, StringComparison.OrdinalIgnoreCase));
 
     public void DiscardPendingVerification()
     {

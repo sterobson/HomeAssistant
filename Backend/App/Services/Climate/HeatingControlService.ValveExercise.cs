@@ -81,7 +81,7 @@ internal partial class HeatingControlService
                 {
                     SetBoilerBelief(true, _timeProvider.GetUtcNow());
                     _boilerOnForExercise = true;
-                    _lastBoilerPressWasCorrection = false;
+                    _correctionsInARow = 0;
                 }
             }
 
