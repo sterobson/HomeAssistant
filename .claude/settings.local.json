@@ -155,7 +155,15 @@
       "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"Boiler|boiler\" --from 40000 --lines 200)",
       "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"^\\\\[0[3-4]:[0-5]\" --from 40000 --lines 400)",
       "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log --from 40000 --lines 100000)",
-      "Bash(node tools/ha/find-entities.cjs \"bedroom_3.*temperature|bathroom.*temperature|den_climate_temperature\")"
+      "Bash(node tools/ha/find-entities.cjs \"bedroom_3.*temperature|bathroom.*temperature|den_climate_temperature\")",
+      "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"Boiler \\(turned|verification\\)|fingerbot\" --from 300)",
+      "PowerShell(Set-Location C:\\\\Users\\\\stero\\\\source\\\\repos\\\\HomeAssistant\\\\Backend\\\\HomeAssistant.Functions; $stamp = \\(Get-Date\\).ToUniversalTime\\(\\).ToString\\('yyyy.MM.dd.HH.mm'\\); $sha = \\(git rev-parse --short HEAD\\).Trim\\(\\); $ver = \"$stamp-$sha\"; Write-Output \"Version $ver\"; func azure functionapp publish homeassistant-prod-functions --dotnet-isolated --dotnet-cli-params \"/p:DeploymentVersion=$ver\" 2>&1 | Select-Object -Last 12)",
+      "PowerShell(& \"C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\21b01419-8aca-41e4-a813-d91724588b70\\\\scratchpad\\\\deploy-netdaemon.ps1\" 2>&1)",
+      "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"version|Boiler control|Boiler belief|ERR|Exception|evaluation failed|replayed\" --from 200)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const r=JSON.parse\\(s\\);for\\(const room of r.roomStates\\){for\\(const d of room.devices||[]\\){if\\(d.role==='radiatorValve'\\)console.log\\(room.roomId,d.entityId,JSON.stringify\\(d.valveHealth\\)\\)}}}\\)\")",
+      "PowerShell(& \"C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\21b01419-8aca-41e4-a813-d91724588b70\\\\scratchpad\\\\deploy-frontend.ps1\" 2>&1)",
+      "Bash(node tools/ha/list-devices.cjs --model S60ZBTPG)",
+      "Bash(node tools/ha/list-devices.cjs)"
     ],
     "deny": [],
     "ask": []

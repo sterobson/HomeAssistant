@@ -1,0 +1,21 @@
+{
+  "id": "den_tall_lamp_on_with_sideboard_lamp",
+  "alias": "Den tall lamp on with sideboard lamp",
+  "description": "Turns the den tall lamp (WiZ) on when the sideboard lamp's plug goes from under 1 W to 1 W or more (owner, 2026-10-23). The plug measures whole watts, and the sideboard lamp at its lowest setting draws under 1 W and reads 0, so that setting cannot be seen; at its highest it draws 9 W. Fires only on that change between two real readings: a reading coming back from unavailable never counts, and there is deliberately no re-check on HA start or reload, so the tall lamp can still be used on its own. Pair: den_tall_lamp_off_with_sideboard_lamp. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    { "trigger": "state", "entity_id": "sensor.den_plug_sideboard_lamp_power" }
+  ],
+  "conditions": [
+    {
+      "condition": "template",
+      "value_template": "{{ 0 <= trigger.from_state.state | float(-1) < 1 and trigger.to_state.state | float(-1) >= 1 }}"
+    }
+  ],
+  "actions": [
+    {
+      "action": "light.turn_on",
+      "target": { "entity_id": "light.den_tall_lamp" }
+    }
+  ],
+  "mode": "single"
+}

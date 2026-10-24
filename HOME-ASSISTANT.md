@@ -14,7 +14,8 @@ Everything here was verified against the live instance on **2026-10-17**.
 | Token | `Backend/App/appsettings.secrets.development.json` → `HomeAssistant.Token` |
 | Fallback token locations | `appsettings.secrets.all.json`, `appsettings.development.json` → `HomeAssistant.Token` or `HomeAssistantApiEndpoints.Token` |
 | Auth header | `Authorization: Bearer <token>` |
-| Hardware | Home Assistant Green; Zigbee via ZHA on a Sonoff Zigbee 3.0 USB Dongle Plus |
+| Hardware | Home Assistant Green; Zigbee via ZHA on a Sonoff Zigbee 3.0 USB Dongle Plus (ZBDongle-E) |
+| Network | Wired: Ethernet (`end0`, `192.168.1.188`), the only interface; the Green has no Wi-Fi (read from the Supervisor's `/network/info`, 2026-10-24) |
 | Scale | ~791 entities, 31 config entries, 20 battery sensors |
 
 `appsettings.json` is committed and holds **placeholders** — a token containing
@@ -80,6 +81,7 @@ row before you finish — that is how this list earns its keep.
 | 25 | A "TV on" threshold on a plug's power either flaps while someone watches, or fires when nobody is there | A TV's draw follows the picture, and its standby is not flat. Den TV, read from the plug's recorder history on 2026-10-22: about 4 W in standby, but 35–80 W on its own at night (about 40 W for a minute or two most hours, 55–80 W for 35 minutes around 3 am, cause unknown: nobody knows if anyone was watching); watching YouTube, anywhere from 73 to 160 W, changing every reading; a single reading of 185 W the evening before. The ranges overlap, so no single threshold separates them: 30 W made the den "in use" at night and started the boiler, and 100 W flipped the den motion lights six times in two minutes. The plug reports every ~5 s, so an automation's "for 5 s" is about one reading and smooths nothing | Use two thresholds (on at a high one, off only below a low one) rather than one, and read a draw over minutes before choosing them. Den TV: on at ≥ 100 W, off at ≤ 30 W, in both the app (`PowerLatch`) and the motion-lights automations |
 | 26 | A device just added to HA is missing from the 3D house view, though the page's list was rebuilt a moment ago | The view's device list (`HouseDevicesService.ReadDevices`) comes from NetDaemon's registry (`IHaRegistry.Devices`), which in the running app did not include a device added after it started. Seen 2026-10-23 with the den tall lamp on the LocalEnv stack: added and named in HA at about 12:45 BST, still absent from a list rebuilt at 12:52, while the lamp's state read fine from HA. The guard proxy passes events through, so it is not the cause. Not established whether NetDaemon refreshes on some registry changes, or only at startup | Restart the NetDaemon app after adding a device you want in the 3D view (production: `addon.cjs c6a2317c_netdaemon6 restart`), or check `house-devices` for it before assuming it is there |
 | 27 | The heating page says "Boiler off" but the radiators say it is running, and no verification ever catches it | Seen 2026-10-23: the app pressed the boiler on at 14:23 BST, and pressed it off at 14:36:58 when no room was calling. HA answered "The operation has timed out", so the app kept its belief (on); 11 s later the fingerbot reported it had moved, which the app took as a press **outside the app** and flipped its belief to off. The boiler kept running: Bedroom 3's open valve climbed 17.3 → 21 °C from 14:37 to 15:28 and den radiator 2 (shut) 20 → 27 °C. No turn-off verification was armed, for two reasons found in the code afterwards: it only watched valves that had been open with the boiler on for 30 minutes (`RadiatorSettledMinutes`), and at 14:37 Bedroom 3's had been for 14; and an outside press called the verification's `Reset`, which wiped that valve history anyway, so a movement to "off" could never have armed one. The skip was logged at Debug only. So any turn-off within half an hour of a turn-on, and any belief flipped to "off" by a fingerbot movement, went unchecked. Resolved at 15:53 with `realign-boiler.cjs --apply` (one press with the app stopped), and the owner confirmed at the boiler that it went off, which also confirms it had been running since 14:23 | Read den radiator 2's own sensor (a high-20s plateau means the boiler is on), then `realign-boiler.cjs`. **Fixed 2026-10-23, live since 17:30 BST that day (NetDaemon `20261023162858`):** every open valve is watched at a turn-off, one with under 30 minutes of hot water judged only by climbing to a new high; a fingerbot movement keeps the valve history; a movement within 50 s of a press HA called failed, the way that press asked, is taken as the app's own press ("landed after all" in the add-on log); and a turn-off that cannot be checked is logged. Later the same day (owner), for turn-ons and turn-offs alike: every press has a valve to check against (one is opened if none is open, and one is held open with its setpoint 2 °C clear of its reading until the check ends: the warmest radiator for a turn-off, the coldest for a turn-on), and a corrective press that did not work is pressed again, up to 5 in a row, each waiting longer after its failed check (0, 5, 15, 30, 60 min), then an HA persistent notification. See CLAUDE.md → Heating |
+| 28 | A lamp that is visibly on reads 0.0 W and 0.0 A on its Sonoff plug | The S60ZBTPG measures power in **whole watts** (`ac_power_divisor` 1) and current in steps of 0.01 A (about 2 W at 230 V), so anything under 1 W reads exactly 0. Seen 2026-10-23 on the den sideboard lamp at its lowest setting: 0 W, read from the plug itself rather than HA's last report, while 9 W at full. A plug can therefore not tell a very dim lamp from an off one | Before building a "lamp on" threshold, read the load at its lowest setting directly from the plug (electrical measurement cluster `0x0B04`, attribute `active_power` `0x050B`, through `zha/devices/clusters/attributes/value`). Anything that reads 0 there cannot be detected |
 | 29 | A radiator warms with the boiler's heating off | Owner, 2026-10-24: running hot water (a shower) also sends hot water round the heating. Measured from 10 days of recorder history (2026-10-14 to 24): with the boiler evidently off (no open radiator rising in the 45 min before, no fingerbot movement from 1 h before to 2 h after, outside the known-wrong periods of gotchas 23, 24 and 27; the app's belief was not trusted), Bedroom 3's radiator, valve open, rose 1.0–2.5 °C on its TRV's own sensor after 5 of 15 showers (bathroom humidity +8 %RH within 20 min), peaking 38–89 min after the humidity began to rise, and never by 1 °C in 185 comparable windows without a shower. No shut valve's radiator responded; Bedroom 3 was the only valve open in most windows, so whether others would is unknown. All 5 were before 19 Oct 08:03, while the fingerbot was unavailable and the kitchen thermostat ran the boiler; in 4 showers since, with a valve open and the app running the boiler, nothing rose more than 0.5 °C. So it is not consistent, the thermostat firing during those showers is not ruled out, and the cause is not established (a passing diverter valve in a combi is a guess) | A radiator rising after a shower is not proof that the boiler's heating is on, nor after a turn-off that it is still running, and the boiler verification does not allow for it yet. Check `sensor.bathroom_humidity` before reading a rise that way. A controlled test (shower run with the boiler confirmed off and a valve open, TRVs followed for 90 min) would settle whether it still happens |
 
 ## Recipes
@@ -311,7 +313,8 @@ washing machine plug is barely heard (10). The porch sensor's last parent was th
 router near the porch. **"Bookcase Light Strip" is a dead router** (not seen since 2026-08-10) still in ZHA;
 remove it or power it. Bedroom 2 and the bathroom have no router of their own. Most useful addition: a mains
 Zigbee plug between the den and the living room (the hallway has no sockets; see the den re-read below); another
-near the front door for the porch sensor.
+near the front door for the porch sensor. A fifth den plug, the sideboard lamp's, joined on 2026-10-23; it is in
+the 2026-10-24 re-read below. Where the sideboard stands in the den is not recorded.
 
 **Den re-read 2026-10-21 ~23:05 BST** (same script, plus each den router's full neighbour table and HA's system
 log). Unchanged in shape. *Inside* the den the links are good: the four plugs hear each other at 138–201, and every
@@ -332,6 +335,20 @@ hallway light.
 `zha/devices`' own `lqi`/`rssi` per device are no use for this: all ten den devices read 180 / −55 dBm (or close),
 which looks like the coordinator's reading of the last hop into it, not each device's own link (inferred from the
 identical values; not confirmed in ZHA's source). Use the neighbour tables.
+
+**Re-read 2026-10-24 ~16:15 BST**, the day after two plugs joined (den sideboard lamp, living room motion lights).
+**Neither improved the way out of the den.** The sideboard plug is inside the den (games room heater 187, desk plug
+175) and leaves the same way as the others (kitchen heater 102/111; the hub hears it at 59, it does not list the hub).
+The living room motion lights plug sits on the hub's side (light tree 200, Bedroom 1 heater 149, hub 177/108), and
+the den plugs hear it at 0–24, so it is no bridge. The hub now hears the den plugs at 59–103 (TV 103, the best yet)
+and none lists it; the kitchen heater plug reads 118/49 (98/31 on the 21st). One snapshot each, and LQI moves
+between reads, so treat those small rises as noise. The fingerbot is still on the games room desk plug (116). Failed
+commands in the NetDaemon log (`did not respond` / `timed out`, including retries): 6 from 08:34 to 17:50 on the
+23rd, none from then to 02:38, and **32 from 02:38 to 16:51 on the 24th**: Bedroom 3 TRV 9, den radiator 2 9,
+fingerbot 5, den radiator 1 3, living room TRV 3, games room heater plug 2, Bedroom 2 TRV 1. Not like for like
+(a colder day, more commands), but no sign of improvement, and Bedroom 3's and the living room's failures mean the
+den's backhaul is not the whole story. The fix still stands: a router on the den side of the living room, or the
+dongle moved that way.
 
 **House layout as the mesh shows it** (drawn from the same tables, 2026-10-21; the owner said it was right apart
 from left and right being swapped, and on 2026-10-22 that the den runs all the way to the back wall, both corrected
@@ -567,13 +584,35 @@ Radiator`, entities `{room}_radiator_*`), or the entities stay `sonoff_trvzb_*`.
 (`--model TRVZB --name "{Room} - Radiator" --prefix {room}_radiator`); it was first used on the den
 thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing radiator first.
 
-**Living room plugs** — both Sonoff S60ZBTPGs, both now the living room's **presence sensors** in
-`Backend/App` (see CLAUDE.md → presence):
+**Plug start-up behaviour** (what a Sonoff plug does when power returns after a cut; read from HA on
+2026-10-23 with `list-devices.cjs`, changed with `plug-startup.cjs`). **On**: the den sideboard lamp, both motion lights plugs (den and
+living room), the living room TV, the washing machine, and `Bedroom3LampPlug` (the Bedroom 3 lamp,
+set to On by the owner on 2026-10-23 and read back). Every other S60ZBTPG is **Off**, the heater plugs included.
+The two TP-Link plugs (Christmas tree, Lego village) offer no such setting in HA.
+
+**Living room plugs** — three Sonoff S60ZBTPGs. The TV and stick lights plugs are the living room's
+**presence sensors** in `Backend/App` (see CLAUDE.md → presence); the motion lights plug is not:
 
 | Device | Switch | Feeds | Presence rule |
 |---|---|---|---|
 | Living Room - Plug - TV | `switch.living_room_plug_tv_switch` | the living room TV | `sensor.living_room_plug_tv_power` ≥ 30 W for the whole last 5 s (the switch is not read) |
 | LivingRoomLightTreePlug (the owner calls them the **stick lights**) | `switch.livingroomlighttreeplug` | the stick lights | switched on |
+| Living Room - Plug - Motion lights | `switch.living_room_plug_motion_lights_switch` | the living room's motion-sensing lights (owner, 2026-10-23) | none: not referenced by `Backend/App` |
+
+**The living room motion lights follow the TV** (owner, 2026-10-23), like the den's, through
+`automation.living_room_motion_lights_off_when_tv_is_on` (TV plug ≥ 30 W for 5 s → lights plug off) and
+`automation.living_room_motion_lights_on_when_tv_is_off` (TV plug under 5 W for 5 s → lights plug on), both from
+[tools/ha/automations/](tools/ha/automations/), with the den pair's re-checks on HA start, automation reload and
+the lights plug coming back from `unavailable`. The thresholds come from the TV plug's recorder history,
+2026-10-19 to 23: 0 W in standby, 34–91 W while on, dips to 21 W of at most 5 s, and never 30 s or more between
+5 and 30 W. So unlike the den TV (gotcha 25), one threshold near the bottom would probably have done, and the
+two thresholds are a margin. The lights plug starts up **On** (owner; set with `plug-startup.cjs` and read back),
+so the lights work after a power cut until the TV is switched on. Created 2026-10-23 23:13 BST, with the TV off and
+the lights plug on, which matched. Neither has yet been seen to fire. The plug was paired at 22:48 that evening,
+meant for the den's stand-up lamp. It sat unnamed until it was moved here and renamed with `rename-device.cjs`.
+
+A second **"Living Room - Plug - TV"** device (`d1bb2953bd765b18c3d4a12c7dd2653a`) has no entities: a leftover
+registry entry, not a plug. The real one is `291798e85dcf946c2040f2708bd16f91`.
 
 The TV plug was the **charging dock** plug under the TV until 2026-10-19, when it was repurposed and renamed
 with `tools/ha/rename-device.cjs` (it was "Living room plug - charging dock", entities misspelt
@@ -584,22 +623,45 @@ with `tools/ha/rename-device.cjs` (it was "Living room plug - charging dock", en
 tree on" (lamp power > 1 W, or back from `unavailable`) and "… off" (lamp turned off, `unavailable`, or 23:00) —
 hence the lag in gotcha 15.
 
-**Den plugs** — two Sonoff S60ZBTPGs in the **Games Room** area, both paired 2026-10-19 with
-`tools/ha/pair-zigbee.cjs`, each joining within 30 s of being plugged in:
+**Den plugs** — three Sonoff S60ZBTPGs in the **Games Room** area, all paired with
+`tools/ha/pair-zigbee.cjs`. The first two (2026-10-19) each joined within 30 s of being plugged in. The
+sideboard lamp plug (2026-10-23) did not: its first-power-up pairing had ended before the join window
+opened, so it joined only after its button was held until the LED flashed, about a minute later.
 
 | Device | Switch | Feeds |
 |---|---|---|
 | Den - Plug - TV | `switch.den_plug_tv_switch` | the den TV |
 | Den - Plug - Motion lights | `switch.den_plug_motion_lights_switch` | the den's motion-sensitive lights, which have their **own built-in motion sensor** (owner, 2026-10-19). HA cannot see that sensor; it can only cut the lights' power |
+| Den - Plug - Sideboard lamp | `switch.den_plug_sideboard_lamp_switch` | the den sideboard lamp (owner, 2026-10-23), a dimmable lamp: **9 W at its highest** setting, and **under 1 W at its lowest**, so that setting reads 0 W (gotcha 28). Both read from the plug itself, 2026-10-23. Not referenced by `Backend/App`. Its power drives the den tall lamp (below) |
 
 Mains powered, with the usual `_power`, `_current`, `_voltage` and `_summation_delivered` sensors.
-Both shipped with start-up behaviour **Off**, so after a power cut whatever they feed stays unpowered
-until the plug is switched on. The TV plug is also the den's **presence sensor** in `Backend/App`
+All three shipped with start-up behaviour **Off**. At the owner's request on 2026-10-23, the **sideboard lamp**
+and **motion lights** plugs were set to **On** with `tools/ha/plug-startup.cjs` (both read back as On), so after a
+power cut those come back on by themselves. The **TV plug stays Off**, so the TV stays unpowered until someone
+switches its plug on. The sideboard plug read off straight after pairing and was switched on at 22:46 BST. Over a
+minute later its power still read 0.0 W and its voltage `unknown`, so the readings did not show whether the lamp lit.
+
+The TV plug is also the den's **presence sensor** in `Backend/App`
 (`DenTvPlugPower` only — the switch is not read; in use at ≥ 30 W within 5 minutes, see `PresenceService`), so
 den schedules can be set for occupied or unoccupied. The motion lights plug is not referenced by
 `Backend/App`. ZHA reused the same temporary
 entity IDs (`sonoff_s60zbtpg_3`, `_11`) for the second plug once the first had been renamed, so a
-default entity ID does not identify a device; the device ID does.
+default entity ID does not identify a device; the device ID does. It did so again on 2026-10-23: the sideboard
+plug and the living room motion lights plug both joined as `switch.sonoff_s60zbtpg_3`.
+
+**The den tall lamp follows the sideboard lamp** (owner, 2026-10-23), through two HA automations created from
+[tools/ha/automations/](tools/ha/automations/): `automation.den_tall_lamp_on_with_sideboard_lamp` turns
+`light.den_tall_lamp` on when the sideboard plug's power goes from under 1 W to 1 W or more, and
+`automation.den_tall_lamp_off_with_sideboard_lamp` turns it off when the power drops from 1 W or more to 0 W. The owner
+asked for "on at the lamp's lowest setting", which the plug cannot see (gotcha 28), and chose 1 W / 0 W knowing that.
+So at the lowest setting the tall lamp is not switched on, and dimming the sideboard lamp to its lowest turns the tall
+lamp off. Unlike the motion-lights pair, these fire only on a change between two real readings, with no re-check on
+HA start or reload, so the tall lamp can still be switched on its own without being forced back. Created 2026-10-23
+21:55 BST (read back as matching the repo files). **Seen working** the same evening: from 22:55 to 23:01 BST the
+tall lamp went off and on four times each, every change attributed to these automations by `who-changed.cjs`.
+At the time the sideboard lamp read 4 W. The den's two WiZ bulbs (tall lamp, games room desk lamp) each have a
+`sensor.*_power` that reads `unknown` even while they are on, so they report no power. The den motion lights plug
+read 0 W for three days, either the lights idling under 1 W (gotcha 28) or never lighting.
 
 **The motion lights follow the TV**, through two HA automations (not `Backend/App`), created
 2026-10-19 from [tools/ha/automations/](tools/ha/automations/):
@@ -609,8 +671,8 @@ default entity ID does not identify a device; the device ID does.
   lights plug on. An `unavailable` power reading counts as neither.
 
 The 30 W triggers fire on a *crossing*, not a level, so on their own they would leave the lights in
-the wrong state after anything that skips a crossing (a power cut — both plugs start up Off — or an
-HA restart mid-change). So both automations also **re-check on HA start, on automation reload, and
+the wrong state after anything that skips a crossing (a power cut, after which the TV plug starts up Off
+and, since 2026-10-23, the lights plug On; or an HA restart mid-change). So both automations also **re-check on HA start, on automation reload, and
 when the lights plug comes back from `unavailable`**, and both carry a condition repeating their
 threshold, so whichever trigger fires they act only if the TV's power is really on that side of 30 W.
 

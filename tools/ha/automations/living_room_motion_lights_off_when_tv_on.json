@@ -1,0 +1,28 @@
+{
+  "id": "living_room_motion_lights_off_when_tv_on",
+  "alias": "Living room motion lights off when TV is on",
+  "description": "Cuts power to the living room's motion-sensing lights once the TV draws 30 W or more for 5 s (owner, 2026-10-23), so watching TV doesn't keep setting them off. They stay off until the TV is under 5 W (the pair). From 2026-10-19 to 23 the TV read 0 W in standby and 34-91 W while on, dipping to 21 W for up to 5 s, and was never between 5 and 30 W for 30 s or more, so the gap between the thresholds keeps the lights from flapping. Also re-checks on HA start, on automation reload and when the lights plug comes back online. Pair: living_room_motion_lights_on_when_tv_off. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "template",
+      "value_template": "{{ states('sensor.living_room_plug_tv_power') | float(-1) >= 30 }}",
+      "for": { "seconds": 5 }
+    },
+    { "trigger": "homeassistant", "event": "start" },
+    { "trigger": "event", "event_type": "automation_reloaded" },
+    { "trigger": "state", "entity_id": "switch.living_room_plug_motion_lights_switch", "from": "unavailable" }
+  ],
+  "conditions": [
+    {
+      "condition": "template",
+      "value_template": "{{ states('sensor.living_room_plug_tv_power') | float(-1) >= 30 }}"
+    }
+  ],
+  "actions": [
+    {
+      "action": "switch.turn_off",
+      "target": { "entity_id": "switch.living_room_plug_motion_lights_switch" }
+    }
+  ],
+  "mode": "single"
+}

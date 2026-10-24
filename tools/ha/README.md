@@ -22,6 +22,8 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `pair-zigbee.cjs --model ... --name ... --prefix ...` | **yes** | Opens the ZHA join window, waits for a new device of that model, then names the device and all its entities |
 | `rename-device.cjs <device_id> --name ... --prefix ... [--platform wiz]` | no | Dry run: the renames an existing device would get, which entities of *other* integrations it leaves alone, and any clashes. Renames ZHA entities unless `--platform` names the device's own integration (`wiz` for a WiZ bulb; how the den tall lamp was named, 2026-10-23) |
 | `rename-device.cjs <device_id> ... --apply` | **yes** | Renames an existing device and its own entities the house way (how the living room TV plug was renamed, 2026-10-19). Check what refers to the old IDs first — HOME-ASSISTANT.md gotcha 16 |
+| `plug-startup.cjs <select entity_id>` | no | A smart plug's start-up behaviour (what it does when power returns after a cut) and the options it offers |
+| `plug-startup.cjs <select entity_id> --set On` | **yes** | Changes it and reads it back. Moves nothing now; only the next power cut. The entity is `select.*_start_up_behaviour` or `*_power_on_behaviour`, depending on how ZHA named it. How the den sideboard lamp plug was set to On, 2026-10-23 |
 | `put-automation.cjs --delete <id> --backup <file.json>` | **yes** | Saves an automation's config to a file, then deletes it from HA |
 | `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
@@ -52,8 +54,14 @@ tree, washing machine and so on) are not here.
 | `den_motion_lights_off_when_tv_on.json` | Den TV plug ≥ 30 W for 5 s → motion lights plug off |
 | `den_motion_lights_on_when_tv_off.json` | Den TV plug < 30 W for 5 s → motion lights plug on |
 
-Both also re-check on HA start, on `automation_reloaded` and when the lights plug comes back from
-`unavailable`, guarded by a condition that repeats the threshold.
+| `living_room_motion_lights_off_when_tv_on.json` | Living room TV plug ≥ 30 W for 5 s → living room motion lights plug off |
+| `living_room_motion_lights_on_when_tv_off.json` | Living room TV plug under 5 W for 5 s → living room motion lights plug on |
+| `den_tall_lamp_on_with_sideboard_lamp.json` | Sideboard lamp plug goes from under 1 W to 1 W or more → den tall lamp (WiZ) on |
+| `den_tall_lamp_off_with_sideboard_lamp.json` | Sideboard lamp plug goes from 1 W or more to 0 W → den tall lamp off |
+
+Both motion-lights pairs also re-check on HA start, on `automation_reloaded` and when the lights plug comes back from
+`unavailable`, guarded by a condition that repeats the threshold. The tall-lamp pair deliberately does not: it fires only on a
+change between two real readings (never to or from `unavailable`), so the tall lamp can still be switched by hand.
 
 Prefer entity-based triggers (`numeric_state`, `state`, `template`) over the UI's device triggers,
 which reference opaque registry IDs and can't be read without a lookup. Threshold triggers fire on a
@@ -104,6 +112,10 @@ brand-new SNZB-02D joins as soon as it is powered on; a TRVZB needs the button s
 HOME-ASSISTANT.md → Radiator TRVs. The window is 254 s, ZHA's maximum. The script ignores any other
 model that joins in that time, waits for the entity count to stop changing before renaming, and stops
 without renaming anything if a target ID is taken.
+
+For a smart plug, **ask the owner what its start-up behaviour should be** (what it does when power comes back after a cut)
+before pairing it or repurposing it (owner, 2026-10-23). S60ZBTPGs ship with Off, which is wrong for most lights. Set the
+answer with `plug-startup.cjs` and read it back.
 
 What it does not do: bind the new entity into `Backend/App`. For that, run `dotnet nd-codegen`, add it
 to `NamedEntities.cs`, and if it feeds heating, update the room arms in `HeatingControlService` and

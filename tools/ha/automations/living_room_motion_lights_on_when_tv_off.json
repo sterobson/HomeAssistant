@@ -1,0 +1,28 @@
+{
+  "id": "living_room_motion_lights_on_when_tv_off",
+  "alias": "Living room motion lights on when TV is off",
+  "description": "Restores power to the living room's motion-sensing lights once the TV draws under 5 W for 5 s (owner, 2026-10-23). The TV reads 0 W in standby and never dropped below 21 W while on (2026-10-19 to 23), so the pair has two thresholds: off at 30 W, back on under 5 W. Also re-checks on HA start, on automation reload and when the lights plug comes back online, so the lights don't stay off just because no crossing happened. An unavailable power reading never counts as under 5 W. The lights plug starts up On after a power cut. Pair: living_room_motion_lights_off_when_tv_on. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "template",
+      "value_template": "{{ 0 <= states('sensor.living_room_plug_tv_power') | float(-1) < 5 }}",
+      "for": { "seconds": 5 }
+    },
+    { "trigger": "homeassistant", "event": "start" },
+    { "trigger": "event", "event_type": "automation_reloaded" },
+    { "trigger": "state", "entity_id": "switch.living_room_plug_motion_lights_switch", "from": "unavailable" }
+  ],
+  "conditions": [
+    {
+      "condition": "template",
+      "value_template": "{{ 0 <= states('sensor.living_room_plug_tv_power') | float(-1) < 5 }}"
+    }
+  ],
+  "actions": [
+    {
+      "action": "switch.turn_on",
+      "target": { "entity_id": "switch.living_room_plug_motion_lights_switch" }
+    }
+  ],
+  "mode": "single"
+}
