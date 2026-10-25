@@ -558,7 +558,18 @@ it went on while the owner was pressing on 2026-10-23 and was turned off from HA
 **Relearnt at about 16:20 BST on 2026-10-23** by that power-on sequence ("Ad" shown); it stayed paired. Its limit
 voltages then read closing/opening 2542/2147, the same way round as radiator 1's (2584/2195) instead of reversed.
 Whether it now stops the water is to be judged at the next boiler run with its valve shut: its sensor should stay near
-the room's temperature rather than climb into the high 20s.
+the room's temperature rather than climb into the high 20s. **It does not, at least not always** (read from the recorder
+and the app's boiler history, 2026-10-25). In the two boiler runs since the relearn with its valve shut throughout:
+02:39–03:57 BST on the 24th it stayed at 18.3 °C (setpoint 17, `idle`; Bedroom 3's open radiator rose 5 °C, so the boiler
+ran); but 20:26–21:21 BST that evening it climbed 19.9 → 26.5 °C, starting 10 minutes into the run and peaking 2 minutes
+after it, while reporting `idle` with its setpoint at 19.5 the whole time, so the shut command had landed. Radiator 1,
+also shut and `idle`, did not move, and bathroom humidity was flat, so it was the boiler's heating, not hot water drawn
+(gotcha 29). The app's valve-health monitor flagged it ("leaks when shut"). So the relearn did not cure it, and the
+reversed limit voltages were a symptom at most. Not established why it held in one run and not the other: in the
+leaking run its setpoint was only 0.4 °C below its reading (shut at 16:26 at reading − 5, then the radiator cooled almost
+to it), against 1.3 °C in the clean run, but a TRV merely regulating would have closed again once 7 °C above its
+setpoint. A sticking valve pin or a worn valve seat is the likely cause, and the next step is physical: take the head
+off, check that the pin springs back freely, and feel the radiator during a run with the valve shut.
 
 **A quick check for a badly calibrated TRV** (all seven read 2026-10-23, after radiator 2's relearn): every TRV that
 shuts properly has `valve_closing_limit_voltage` well above `valve_opening_limit_voltage` (closing/opening, mV: living
