@@ -339,7 +339,8 @@ Four more heating notes:
   Each of those pressed twice when the first press had landed (12:12-12:13 and 12:49-12:50 on 2026-10-28). A check that
   finds the boiler where the rooms now want it (on while any is calling, off while they do not want it on) is taken as
   it is, with no corrective press. Even a confirmed press is only the fingerbot's word: the radiator check below is
-  what decides. Tests: the 2026-10-28 cases in `HeatingBoilerControlTests`. The UI shows the belief in fingerbot mode ("Boiler
+  what decides. Tests: the 2026-10-28 cases in `HeatingBoilerControlTests`. Live since 15:02 GMT on 2026-10-28
+  (NetDaemon `20261028150144`, commit `7da0349`), with the stricter turn-off climb and the shower guard below. The UI shows the belief in fingerbot mode ("Boiler
   on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
   app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
   was backfilled, marked inferred, by `tools/ha/boiler-history-backfill.cjs` from the valves warming and cooling; owner, 2026-10-19): the app sends it as `boiler` on every

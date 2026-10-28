@@ -240,6 +240,12 @@ frontend. Production's five blobs were saved first. Found:
 - **Auto mode's permission classifier refused the deploy outright**, even `dotnet test` once it judged the session to be
   deploying. It ran with auto mode switched off.
 
+The 2026-10-28 15:02 GMT NetDaemon-only deploy (`7da0349`, version `20261028150144`: no boiler press while one is in
+doubt, presses at least 10 minutes apart, the shower guard; HOME-ASSISTANT.md gotcha 31) was the same stop, copy, start
+and OTA upload, as one script (34 files, `HomeAssistant.dll` and `version.txt` checked on the share). Before it, the boiler
+was off by the owner's hand press, the app believed off, and its last check had passed at 14:22, so the stop dropped
+nothing. It came back on the new version within 30 s, carrying on from the saved belief (off since 12:50:04).
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
