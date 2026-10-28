@@ -40,6 +40,12 @@ internal interface IBoilerVerificationService
 
     /// <summary>Whether a verification of a turn-on (or turn-off) is pending and watching this valve.</summary>
     bool IsWatching(string valveEntityId, bool boilerTurnedOn);
+
+    /// <summary>
+    /// Whether a check of a press is still running: the radiators have not yet shown what the boiler did. False once it has
+    /// passed, once a failure has been taken (<see cref="GetVerifiedBoilerState"/>), and when nothing could be watched.
+    /// </summary>
+    bool IsPending { get; }
 }
 
 /// <summary>
@@ -59,18 +65,22 @@ internal interface IBoilerVerificationService
 /// <item>Turn-off: fails only if a watched radiator, after settling, <b>heats up again</b>: rises
 /// <see cref="TurnOffReheatThreshold"/> above its lowest reading and gets back to at least its reading when the
 /// boiler was turned off. That is a TRV with hot water behind it regulating itself. Or if it <b>never stopped
-/// climbing</b>: a new high once settled, a degree above its turn-off reading. Falling is not evidence of a
+/// climbing</b>: a degree past its highest reading by the end of settling. Falling is not evidence of a
 /// turn-off: valves are left open while the boiler is believed off, and an open TRV on a running boiler cycles
 /// (Bedroom 3, 21.5 to 23 °C all night), so it falls between cycles. A shut valve's radiator cools whether
 /// or not the boiler runs, so only open valves are watched, but every open one is, however briefly it has had hot
 /// water (since 2026-10-23). One that had it for under <see cref="RadiatorSettledMinutes"/> was still near room
 /// temperature at the turn-off, so it fails the press only by climbing to a new high.</item>
+/// <item>Neither passes a turn-on nor fails a turn-off on a radiator warming while a shower may be warming it (owner,
+/// 2026-10-28; HOME-ASSISTANT.md gotcha 29): running hot water can send hot water round the heating with the boiler's
+/// heating off. The check waits until the shower can no longer be the cause, and judges from what it sees after.</item>
 /// </list>
 /// </summary>
 internal class BoilerVerificationService : IBoilerVerificationService
 {
     private readonly ILogger<BoilerVerificationService> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly IShowerDetector? _showers;
     private readonly SemaphoreSlim _checkSemaphore = new(1, 1);
 
     internal const double TurnOnTemperatureRiseThreshold = 1.0;
@@ -92,12 +102,15 @@ internal class BoilerVerificationService : IBoilerVerificationService
     private BoilerToggleEvent? _pendingVerification;
     private readonly Dictionary<string, ValveHeatingRecord> _valveHeatingRecords = [];
 
+    /// <param name="showers">Null takes no showers into account (tests that are not about them).</param>
     public BoilerVerificationService(
         ILogger<BoilerVerificationService> logger,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IShowerDetector? showers = null)
     {
         _logger = logger;
         _timeProvider = timeProvider;
+        _showers = showers;
     }
 
     public void NotifyBoilerToggled(bool boilerNowOn, List<(string RoomName, ICustomClimateControlEntity Valve)> openValves, DateTimeOffset? boilerOffSince)
@@ -297,8 +310,11 @@ internal class BoilerVerificationService : IBoilerVerificationService
         if (_pendingVerification is { BoilerTurnedOn: true, State: not VerificationState.Failed } verification
             && verification.MonitoredValves.Exists(mv => mv.RoomName == roomName))
         {
-            // Its last reading still counts: it may have risen since the last check.
-            if (PassTurnOnIfAnyRose(verification))
+            // Its last reading still counts: it may have risen since the last check. One that has risen far enough has
+            // shown the boiler on, so it stays watched, and the check at the end of this pass passes the press (unless a
+            // shower may have warmed it).
+            UpdateTurnOnPeaks(verification);
+            if (verification.MonitoredValves.Exists(mv => mv.RoomName == roomName && HasRisen(mv, verification)))
             {
                 return;
             }
@@ -327,11 +343,11 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
             if (verification.BoilerTurnedOn)
             {
-                CheckTurnOnVerification(verification, minutesSinceToggle);
+                await CheckTurnOnVerificationAsync(verification, minutesSinceToggle, now);
             }
             else
             {
-                CheckTurnOffVerification(verification, minutesSinceToggle, now);
+                await CheckTurnOffVerificationAsync(verification, minutesSinceToggle, now);
             }
         }
         finally
@@ -344,6 +360,8 @@ internal class BoilerVerificationService : IBoilerVerificationService
         _pendingVerification is { } verification
         && verification.BoilerTurnedOn == boilerTurnedOn
         && verification.MonitoredValves.Exists(mv => string.Equals(mv.Valve.EntityId, valveEntityId, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsPending => _pendingVerification != null;
 
     public void DiscardPendingVerification()
     {
@@ -378,16 +396,17 @@ internal class BoilerVerificationService : IBoilerVerificationService
         return !failedToTurnOn;
     }
 
-    private void CheckTurnOnVerification(BoilerToggleEvent verification, double minutesSinceToggle)
+    private async Task CheckTurnOnVerificationAsync(BoilerToggleEvent verification, double minutesSinceToggle, DateTimeOffset now)
     {
         // Every check counts, not just the last: a radiator that warmed and was then shut has still shown the boiler on.
-        if (PassTurnOnIfAnyRose(verification))
+        if (await PassTurnOnIfAnyRoseAsync(verification, now))
             return;
 
         // A cold radiator has its deadline, from when it began to be watched, so one that opened later gets its full hour.
-        DateTimeOffset now = _timeProvider.GetUtcNow();
+        // A shower cannot hide a boiler that never fired (it only adds heat), so it does not hold this back; but a radiator
+        // that has risen, and is only waiting for a shower to be over before it passes the press, is no evidence.
         List<string> evidence = [.. verification.MonitoredValves
-            .Where(mv => !mv.Warm && mv.Valve.CurrentTemperature.HasValue && (now - mv.WatchedSince).TotalMinutes >= TurnOnDeadlineMinutes)
+            .Where(mv => !mv.Warm && !HasRisen(mv, verification) && mv.Valve.CurrentTemperature.HasValue && (now - mv.WatchedSince).TotalMinutes >= TurnOnDeadlineMinutes)
             .Select(mv => $"{mv.RoomName} cold, most +{mv.PeakTemp - mv.BaselineTemp:F1}°C over {(now - mv.WatchedSince).TotalMinutes:F0} min")];
 
         // A warm one may already be near its hottest, so not rising proves nothing; cooling does. With its valve open
@@ -414,11 +433,7 @@ internal class BoilerVerificationService : IBoilerVerificationService
         verification.State = VerificationState.Failed;
     }
 
-    /// <summary>
-    /// Brings each watched valve's highest reading up to date and, if any has risen far enough, passes the turn-on
-    /// verification and returns true.
-    /// </summary>
-    private bool PassTurnOnIfAnyRose(BoilerToggleEvent verification)
+    private static void UpdateTurnOnPeaks(BoilerToggleEvent verification)
     {
         foreach (MonitoredValve mv in verification.MonitoredValves)
         {
@@ -428,35 +443,75 @@ internal class BoilerVerificationService : IBoilerVerificationService
                 mv.PeakTemp = currentTemp.Value;
             }
         }
+    }
 
-        List<string> risen = [.. verification.MonitoredValves
-            .Where(mv => mv.PeakTemp - mv.BaselineTemp >= TurnOnTemperatureRiseThreshold)
-            .Select(mv => $"{mv.RoomName} (+{mv.PeakTemp - mv.BaselineTemp:F1}°C)")];
+    /// <summary>
+    /// Whether a watched radiator has shown the boiler on: risen far enough at any check, or, once a shower has been seen
+    /// during this check, still that far up now. A radiator a shower warmed may have peaked during it with the boiler off.
+    /// </summary>
+    private static bool HasRisen(MonitoredValve mv, BoilerToggleEvent verification) =>
+        (verification.ShowerSeen ? mv.Valve.CurrentTemperature ?? mv.BaselineTemp : mv.PeakTemp) - mv.BaselineTemp >= TurnOnTemperatureRiseThreshold;
+
+    /// <summary>
+    /// Brings each watched valve's highest reading up to date and, if any has risen far enough, passes the turn-on
+    /// verification and returns true. Not while a shower may be warming the radiators.
+    /// </summary>
+    private async Task<bool> PassTurnOnIfAnyRoseAsync(BoilerToggleEvent verification, DateTimeOffset now)
+    {
+        UpdateTurnOnPeaks(verification);
+
+        List<MonitoredValve> risen = [.. verification.MonitoredValves.Where(mv => HasRisen(mv, verification))];
+        if (risen.Count == 0)
+            return false;
+
+        if (await IsShowerWarmingRadiatorsAsync(verification, now, "turn-ON"))
+            return false;
+
+        // A shower seen earlier in this check may have gone on the deadline's hour; a radiator still that far up once it
+        // is over has hot water behind it.
+        risen = [.. verification.MonitoredValves.Where(mv => HasRisen(mv, verification))];
         if (risen.Count == 0)
             return false;
 
         _logger.LogInformation(
             "Boiler verification PASSED: {PassedCount}/{TotalCount} valve(s) show temperature rise after {Minutes:F0} minutes - boiler is ON. Passed: {Passed}",
-            risen.Count, verification.MonitoredValves.Count, (_timeProvider.GetUtcNow() - verification.ToggleTime).TotalMinutes,
-            string.Join(", ", risen));
+            risen.Count, verification.MonitoredValves.Count, (now - verification.ToggleTime).TotalMinutes,
+            string.Join(", ", risen.Select(mv => $"{mv.RoomName} (+{(verification.ShowerSeen ? mv.Valve.CurrentTemperature ?? mv.BaselineTemp : mv.PeakTemp) - mv.BaselineTemp:F1}°C)")));
 
         _pendingVerification = null;
         return true;
     }
 
-    private void CheckTurnOffVerification(BoilerToggleEvent verification, double minutesSinceToggle, DateTimeOffset now)
+    /// <summary>
+    /// Whether a shower may be what is warming the radiators now (HOME-ASSISTANT.md gotcha 29), so a radiator warming
+    /// proves nothing about the boiler. Asked only when a radiator warming would decide the check, and remembered for the
+    /// rest of the check, so the bathroom's history is read once per shower.
+    /// </summary>
+    private async Task<bool> IsShowerWarmingRadiatorsAsync(BoilerToggleEvent verification, DateTimeOffset now, string direction)
+    {
+        if (verification.ShowerWindowEndsAt is { } endsAt && now < endsAt)
+            return true;
+        if (_showers == null)
+            return false;
+
+        DateTimeOffset? showerStarted = await _showers.ShowerWarmingRadiatorsAsync(now);
+        if (showerStarted is not { } started)
+            return false;
+
+        verification.ShowerWindowEndsAt = started + ShowerDetector.WarmsRadiatorsFor;
+        verification.ShowerSeen = true;
+        _logger.LogInformation(
+            "Boiler verification of the turn-{Direction}: a radiator warmed, but a shower began at {Started:HH:mm} (the bathroom's humidity rose), and a shower can warm the radiators with the boiler's heating off (HOME-ASSISTANT.md gotcha 29). Not judging it until {Ends:HH:mm}, and then only from what the radiators do after",
+            direction, started.ToLocalTime(), verification.ShowerWindowEndsAt.Value.ToLocalTime());
+        return true;
+    }
+
+    private async Task CheckTurnOffVerificationAsync(BoilerToggleEvent verification, double minutesSinceToggle, DateTimeOffset now)
     {
         // During settling the radiators may still be warm from the water already in them: track how hot each got.
         if (minutesSinceToggle <= TurnOffSettlingMinutes)
         {
-            foreach (MonitoredValve mv in verification.MonitoredValves)
-            {
-                double? currentTemp = mv.Valve.CurrentTemperature;
-                if (currentTemp.HasValue && currentTemp.Value > mv.PeakTemp)
-                {
-                    mv.PeakTemp = currentTemp.Value;
-                }
-            }
+            RecordTurnOffPeaks(verification);
             return;
         }
 
@@ -465,10 +520,24 @@ internal class BoilerVerificationService : IBoilerVerificationService
             verification.State = VerificationState.Measuring;
             verification.MeasuringStartedAt = now;
 
+            // The first reading after settling counts as part of it. Readings only reach the check at a pass, so one that
+            // arrived late in the settling, with no pass between it and the end, would otherwise look like a new high: on
+            // 2026-10-27 the dining TRV's 21.5 °C came at 07:06, settling ended at 07:09, and the check failed at 07:09 on
+            // "still climbing" with the boiler off (HOME-ASSISTANT.md gotcha 30), and a corrective press turned it back on.
+            RecordTurnOffPeaks(verification);
+
             _logger.LogDebug(
                 "Boiler verification: settling complete. Peak temps: {Peaks}. Now watching for {Minutes} minutes for a radiator heating up again",
                 string.Join(", ", verification.MonitoredValves.Select(v => $"{v.RoomName} ({v.PeakTemp:F1}°C)")),
                 TurnOffVerificationMinutes);
+        }
+
+        // While a shower may be warming the radiators, they show nothing about the boiler: it is more settling, and the
+        // watch starts again once the shower can no longer be the cause.
+        if (verification.ShowerWindowEndsAt is { } showerEnds && now < showerEnds)
+        {
+            ResettleAfterShower(verification);
+            return;
         }
 
         // A radiator heating up again with its valve still open has hot water behind it: the boiler is running.
@@ -493,18 +562,24 @@ internal class BoilerVerificationService : IBoilerVerificationService
             {
                 reheated.Add($"{mv.RoomName} (down to {mv.LowestSinceSettled.Value:F1}°C, back up to {currentTemp.Value:F1}°C, was {mv.BaselineTemp:F1}°C at the turn-off)");
             }
-            // One that never cooled at all: once settling is over it reads higher than anything it read during settling,
-            // and well above where it was. On 2026-10-21 den radiator 2 climbed 20.0 -> 23.5 °C through the whole
-            // settling period, so it had no low to come back up from and the rule above would have waited for yet
-            // another 1 °C. It must be a new high, not merely equal to the settling peak (owner, 2026-10-22): TRVs lag
-            // 10-17 minutes and report in 0.5 °C steps, so one that coasted up a degree on the water left in it and then
-            // peaked can still be showing that peak at 30 minutes with the boiler off. This is also what catches a turn-off
+            // One that never cooled at all: once settling is over it climbs a degree past anything it read up to then. On
+            // 2026-10-21 den radiator 2 climbed 20.0 -> 23.5 °C through the whole settling period, so it had no low to come
+            // back up from and the rule above would have waited for yet another 1 °C. This is also what catches a turn-off
             // soon after a turn-on (2026-10-23, Bedroom 3 after 14 minutes of hot water): if the boiler runs on, its
-            // radiator is still climbing after settling; if not, the water left in it has peaked and fallen within it.
-            else if (currentTemp.Value > mv.PeakTemp && currentTemp.Value - mv.BaselineTemp >= TurnOffReheatThreshold)
+            // radiator goes on climbing; if not, the water left in it peaks and stops. A degree, not merely a new high
+            // (owner, 2026-10-28): a radiator that had hot water for only minutes before the turn-off keeps warming its TRV
+            // for half an hour, each 0.5 °C step slower (the dining TRV on 2026-10-27: 4, 4, 4, 6 and 10 minutes), so one
+            // more step after settling is no proof. On a running boiler the next degree came in 10-20 minutes.
+            else if (currentTemp.Value >= mv.PeakTemp + TurnOffReheatThreshold)
             {
-                reheated.Add($"{mv.RoomName} (still climbing: {mv.BaselineTemp:F1}°C at the turn-off, {currentTemp.Value:F1}°C now)");
+                reheated.Add($"{mv.RoomName} (still climbing: {mv.BaselineTemp:F1}°C at the turn-off, {mv.PeakTemp:F1}°C by the end of settling, {currentTemp.Value:F1}°C now)");
             }
+        }
+
+        if (reheated.Count > 0 && await IsShowerWarmingRadiatorsAsync(verification, now, "OFF"))
+        {
+            ResettleAfterShower(verification);
+            return;
         }
 
         if (reheated.Count > 0)
@@ -530,6 +605,34 @@ internal class BoilerVerificationService : IBoilerVerificationService
 
         _pendingVerification = null;
     }
+
+    /// <summary>Raises each watched radiator's highest reading to what it reads now.</summary>
+    private static void RecordTurnOffPeaks(BoilerToggleEvent verification)
+    {
+        foreach (MonitoredValve mv in verification.MonitoredValves)
+        {
+            double? currentTemp = mv.Valve.CurrentTemperature;
+            if (currentTemp.HasValue && currentTemp.Value > mv.PeakTemp)
+            {
+                mv.PeakTemp = currentTemp.Value;
+            }
+        }
+    }
+
+    /// <summary>
+    /// During a shower that may be warming the radiators: what they read counts as more settling, so a radiator must climb
+    /// or heat up again from where it got to by the end of it, and the hour's watch starts again then.
+    /// </summary>
+    private static void ResettleAfterShower(BoilerToggleEvent verification)
+    {
+        RecordTurnOffPeaks(verification);
+        foreach (MonitoredValve mv in verification.MonitoredValves)
+        {
+            mv.LowestSinceSettled = null;
+        }
+
+        verification.MeasuringStartedAt = verification.ShowerWindowEndsAt;
+    }
 }
 
 internal class BoilerToggleEvent
@@ -543,6 +646,10 @@ internal class BoilerToggleEvent
     // valves have been open since it, so a valve opening for the first time since the press is known to be cold.
     public bool RadiatorsWereColdAtToggle { get; init; }
     public HashSet<string> OpenSinceToggle { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    // Until when a shower seen during this check may still be warming the radiators; null if none has been seen.
+    public DateTimeOffset? ShowerWindowEndsAt { get; set; }
+    // A shower has been seen during this check, so a turn-on is passed only by a radiator still warm, not one that peaked.
+    public bool ShowerSeen { get; set; }
 }
 
 internal class MonitoredValve
@@ -550,8 +657,8 @@ internal class MonitoredValve
     public required string RoomName { get; init; }
     public required ICustomClimateControlEntity Valve { get; init; }
     public required double BaselineTemp { get; set; }
-    // The highest reading since the press (for a turn-off, only during settling): for a turn-on, how far it has risen;
-    // for a turn-off, how hot it got before settling ended.
+    // The highest reading since the press: for a turn-on, how far it has risen; for a turn-off, how hot it got by the end
+    // of settling (the first check after it included) or of a shower that may have warmed it.
     public required double PeakTemp { get; set; }
     // When it began to be watched: the press, or for a turn-on a valve that opened later. A turn-on fails once one has
     // been watched TurnOnDeadlineMinutes with no rise.

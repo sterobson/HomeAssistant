@@ -322,18 +322,24 @@ Four more heating notes:
   checked like a press, and the waiting press dropped; the valve exercise is skipped. A fingerbot movement or a change
   to the boiler thermostat drops it too. Before that fix the turn-on verification could never arm in the running app, because
   valves were reported as heating before the press, which wiped the "shut since" time it needs.
-  A press by hand on the boiler itself is still invisible. **A press counts only once HA has confirmed it** (since
-  2026-10-21): `PressBoilerFingerbotAsync` waits for HA's answer, and on an error (on 2026-10-21 "device did not
-  respond", HOME-ASSISTANT.md gotcha 24) it leaves the belief alone and decides the boiler again 1 then 2 minutes
-  later. Until then a press was fire-and-forget, so the belief went to ON with the fingerbot unmoved and the next
-  "off" pressed it on. (The 2026-10-21 version of this did not actually wait, see Conventions; fixed 2026-10-22.)
-  **A press HA reports as failed can still land** (2026-10-23, HOME-ASSISTANT.md gotcha 27: "The operation has
-  timed out", and the fingerbot moved 11 s later). Since then a movement the way that press asked within 50 s
-  (`LatePressWindow`, under the first 1-minute retry) is taken as the app's own press, logged "landed after all";
-  a later one is still a press from outside the app. Either way the belief follows the fingerbot and is checked
-  against the radiators. Until then it was taken as an outside press, which also wiped the verification's valve
-  history (`Reset`; it now calls `DiscardPendingVerification`), so a movement to "off" could never arm a turn-off check.
-  Even a confirmed press is only the fingerbot's word: the radiator check below is what decides. The UI shows the belief in fingerbot mode ("Boiler
+  A press by hand on the boiler itself is still invisible. **Every press sent counts, whatever HA answers, and none
+  follows one in doubt** (owner, 2026-10-28, after the app pressed the boiler twice within a minute and left it
+  running: HOME-ASSISTANT.md gotcha 31). A press HA answers with an error ("device did not respond", "The operation
+  has timed out") can still land, with or without the fingerbot ever reporting it, so `PressBoilerFingerbotAsync`
+  counts it, the belief moves, and it is checked against the radiators like any other. It is **in doubt**
+  (`_pressInDoubtSince`) until the fingerbot reports the move or its radiator check is over, and `WhyNotPressNow` holds
+  back every press meanwhile: decisions, corrections and the exercise alike ("Not pressing the boiler … yet" in the
+  log, once). Any report of the press, however late, is the switch catching up, never a press from outside the app
+  (`_expectedFingerbotState` is kept until it comes). And **no two presses are ever under 10 minutes apart**
+  (`MinimumTimeBetweenPresses`, counting fingerbot movements from outside the app too), which is also a minimum run
+  and off time. The cost: a press that really did not land waits for its check (a turn-on up to an hour, a turn-off up
+  to 90 minutes if the fingerbot never reports it) instead of being retried. Before, from 2026-10-21, a failed press
+  left the belief alone and was retried 1 then 2 minutes later; from 2026-10-23 a movement within 50 s was taken as
+  that press landing late; and a failed corrective press took the check's word, so the next pass pressed again.
+  Each of those pressed twice when the first press had landed (12:12-12:13 and 12:49-12:50 on 2026-10-28). A check that
+  finds the boiler where the rooms now want it (on while any is calling, off while they do not want it on) is taken as
+  it is, with no corrective press. Even a confirmed press is only the fingerbot's word: the radiator check below is
+  what decides. Tests: the 2026-10-28 cases in `HeatingBoilerControlTests`. The UI shows the belief in fingerbot mode ("Boiler
   on since …" at the top of the heating page, which opens the **boiler history** chart since 2026-10-21; the Functions
   app records each change of belief from the room-state uploads in the `boilerhistory` table, and the week before that
   was backfilled, marked inferred, by `tools/ha/boiler-history-backfill.cjs` from the valves warming and cooling; owner, 2026-10-19): the app sends it as `boiler` on every
@@ -368,9 +374,17 @@ Four more heating notes:
   - **Turn-off** fails only when a watched open valve's TRV **heats up again** after the 30-minute settling: 1 °C
     above its lowest reading and back to at least its reading at the turn-off. That is a TRV regulating on hot
     water, so the boiler is still running. Since late 2026-10-21 it also fails when a watched TRV **never stopped
-    climbing**: once settling is over it is still at its highest since the turn-off and 1 °C or more above it (den
-    radiator 2 went 20.0 → 23.5 °C through settling that night and had no low to come back up from). Water left in a
-    radiator peaks and falls within the settling, so it does not count. **Every open valve is watched** (since
+    climbing** (den radiator 2 went 20.0 → 23.5 °C through settling that night and had no low to come back up from):
+    since 2026-10-28, once it reads 1 °C above its highest reading by the end of settling, the first check after
+    settling included, since a reading that came late in the settling only reaches the check at the next pass. Until
+    then any new high a degree above the turn-off reading counted, and on 2026-10-27 a dining radiator that had had hot
+    water for only minutes, coasting up in ever slower steps, failed the check with the boiler off and its corrective
+    press turned it back on (HOME-ASSISTANT.md gotcha 30). **Neither check is decided by a radiator warming while a shower
+    may be warming it** (since 2026-10-28; gotcha 29): `ShowerDetector` reads `sensor.bathroom_humidity` from HA's
+    history (a rise of 8 points within 20 minutes) only when a warming radiator would decide a check, and for 90 minutes
+    from the start of a shower a turn-off is not failed (it settles again, and its hour's watch restarts after) and a
+    turn-on is not passed (afterwards only a radiator still warm counts, and the hour's deadline still catches a boiler
+    that never fired). **Every open valve is watched** (since
     2026-10-23): until then only those whose radiator had had hot water for 30 minutes were, so a turn-off within half
     an hour of a turn-on went unchecked, and on 2026-10-23 the boiler ran on for over an hour after a turn-off 14 minutes
     after a turn-on (HOME-ASSISTANT.md gotcha 27). A radiator with less than 30 minutes of hot water (or no history,
@@ -459,9 +473,9 @@ Four more heating notes:
     08:00 on the 1st (`ValveExerciseCron`), or on demand with `tools/ha/valve-exercise.cjs` (an HA event). If the
     boiler is believed on, the heating is evidently working and that month is skipped. Otherwise the boiler is
     pressed on and every TRV flipped (open to shut, shut to open); after 2½ minutes each is put back to its exact
-    setpoint, and at 5 minutes the boiler goes off unless the rooms would have turned it on themselves
-    (`_boilerOnForExercise` in `DecideBoiler`). Normal evaluations are skipped while it runs, and the turn-on
-    verification is reset, since a 5-minute burn would fail it and provoke a corrective press. In
+    setpoint, and at 10 minutes (`MinimumTimeBetweenPresses`; 5 until 2026-10-28) the boiler goes off unless the rooms
+    would have turned it on themselves (`_boilerOnForExercise` in `DecideBoiler`). Normal evaluations are skipped while
+    it runs, and the turn-on verification is reset, since a 10-minute burn would fail it and provoke a corrective press. In
     boiler-thermostat mode only the valves are exercised. [HeatingControlService.ValveExercise.cs](Backend/App/Services/Climate/HeatingControlService.ValveExercise.cs)
   - **One command per device per pass.** HA reports a device's new state only a moment after the command, so
     anything that reads a device again in the same pass sees the old state and sends the command again (seen

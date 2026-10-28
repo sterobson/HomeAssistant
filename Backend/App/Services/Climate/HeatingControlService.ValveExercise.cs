@@ -12,7 +12,7 @@ namespace HomeAssistant.Services.Climate;
 /// <summary>
 /// The monthly boiler and radiator valve exercise (owner, 2026-10-19, after finding a TRV seized from months of not
 /// moving). At 08:00 on the 1st every radiator valve is switched to the opposite of what it is (open to shut, shut
-/// to open) and the boiler run, then 2½ minutes later each valve is put back to its exact setpoint, and at 5
+/// to open) and the boiler run, then 2½ minutes later each valve is put back to its exact setpoint, and at 10
 /// minutes the boiler goes back to what the rooms want. If the boiler is already on, the heating is evidently
 /// working and that month's exercise is skipped. Normal evaluations wait while it runs, so they cannot undo it.
 /// In boiler-thermostat mode the app cannot drive the boiler, so only the valves are exercised.
@@ -26,7 +26,8 @@ internal partial class HeatingControlService
     internal const string ValveExerciseEvent = "home_heating_valve_exercise";
 
     internal static readonly TimeSpan ValveExerciseFlipFor = TimeSpan.FromSeconds(150);
-    internal static readonly TimeSpan ValveExerciseBoilerFor = TimeSpan.FromMinutes(5);
+    // As short as the boiler can be run: it cannot be pressed off any sooner (5 minutes until 2026-10-28).
+    internal static TimeSpan ValveExerciseBoilerFor => MinimumTimeBetweenPresses;
 
     // Set from the start of an exercise to its end; normal evaluations are skipped meanwhile.
     private bool _valveExerciseRunning;
@@ -79,7 +80,7 @@ internal partial class HeatingControlService
 
             if (controlPath == BoilerControlPath.Fingerbot)
             {
-                // A 5-minute burn would fail the turn-on verification, which would then "correct" it with a press.
+                // A 10-minute burn would fail the turn-on verification, which would then "correct" it with a press.
                 _boilerVerification.Reset();
                 if (await PressBoilerFingerbotAsync())
                 {

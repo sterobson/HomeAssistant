@@ -112,6 +112,7 @@ try
                 .AddScoped<ISchedulePersistenceService, SchedulePersistenceService>()
                 .AddScoped<IRoomStatePersistenceService, RoomStatePersistenceService>()
                 .AddScoped<IBatteryOverview, BatteryOverview>()
+                .AddScoped<IShowerDetector, ShowerDetector>()
                 .AddScoped<IBoilerVerificationService, BoilerVerificationService>()
                 .AddScoped<IBoilerStatePersistence, BoilerStatePersistence>()
                 .AddScoped<IWarmUpRateStore, WarmUpRateStore>()

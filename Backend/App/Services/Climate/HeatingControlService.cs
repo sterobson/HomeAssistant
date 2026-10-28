@@ -63,12 +63,21 @@ internal partial class HeatingControlService
     internal const double HeldValveHeadroomCelsius = 2.0;
     private bool _hasLoggedFingerbotUnavailable = false;
 
-    // A press Home Assistant reported as failed leaves the belief alone, and the boiler is decided again a little later
-    // rather than waiting for the 5-minute recheck. Each failure in a row waits longer; past the last, the recheck
-    // carries on trying (HOME-ASSISTANT.md gotcha 24).
-    internal static readonly TimeSpan[] FailedPressRetryDelays = [TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(2)];
-    private int _failedPressesInARow = 0;
-    private bool _failedPressRetryPending = false;
+    // Two presses of the boiler's button are never closer together than this (owner, 2026-10-28, after the app pressed it
+    // twice within a minute and left it running: HOME-ASSISTANT.md gotcha 31). Enforced in PressBoilerFingerbotAsync,
+    // which every press goes through, so no decision, correction or exercise can get round it. It also keeps the boiler on
+    // (or off) at least this long; that day it was pressed off 3 minutes after on.
+    internal static readonly TimeSpan MinimumTimeBetweenPresses = TimeSpan.FromMinutes(10);
+    // When the app last sent the fingerbot a command, or saw it move by itself; null if neither since startup.
+    private DateTimeOffset? _lastPressAt;
+    // When Home Assistant answered the last press with an error, while that press is in doubt. Such a press can still
+    // land, with or without the fingerbot reporting it (gotcha 31: at 12:49 on 2026-10-28 a "timed out" press landed,
+    // and the app's next press 32 s later landed too, with one report between them), so it counts as pressed, and
+    // nothing is pressed again until the fingerbot reports the move or the radiators have shown what the boiler did.
+    // Until then a failed press was taken as not pressed, and retried a minute later. Guarded by _fingerbotLock.
+    private DateTimeOffset? _pressInDoubtSince;
+    // Why the last press was held back, so it is logged once rather than on every pass.
+    private string? _lastPressHoldLogged;
 
     // Whether the boiler was believed on when the pass began, before it was decided. A room reaching its target is
     // usually the last one calling, which turns the boiler off in that very pass, and a warm-up that ends that way
@@ -79,20 +88,11 @@ internal partial class HeatingControlService
     // _fingerbotLock because state changes arrive outside the evaluation semaphore.
     private readonly object _fingerbotLock = new();
     private bool? _lastSeenFingerbotState;
+    // The state the app's last press asked for, until the fingerbot reports it. Kept even when Home Assistant called the
+    // press failed, however late the report: the press was counted when it was sent, so its report is the switch
+    // catching up, not someone else's press (2026-10-23: 11 s after "timed out"; 2026-10-28: 9 s, and 32 s).
     private bool? _expectedFingerbotState;
     private int _pressesSeenOutsideTheApp = 0;
-
-    // A press of the app's own that Home Assistant reported as failed, which may still land: the fingerbot moving to
-    // State within LatePressWindow of FailedAt is taken as that press, not one from outside the app. On 2026-10-23 HA
-    // answered an "off" press with "The operation has timed out" and the fingerbot reported the move 11 s later
-    // (HOME-ASSISTANT.md gotcha 27). Cleared by the app's next press, which supersedes it.
-    private (bool State, DateTimeOffset FailedAt, bool WasCorrection)? _unconfirmedPress;
-    // How long after HA reported a press as failed a movement to the state it asked for still counts as that press.
-    // Shorter than the first retry (FailedPressRetryDelays), so the two never overlap.
-    internal static readonly TimeSpan LatePressWindow = TimeSpan.FromSeconds(50);
-    // A press reported as failed that the fingerbot has since shown did land, for the next evaluation to take as the
-    // app's own; null if none. Seconds is how long after the failure the fingerbot moved.
-    private (double Seconds, bool WasCorrection)? _unconfirmedPressLanded;
 
     /// <summary>Just over the longest steady-draw rule (the living room TV, Ruth's desk), so a re-evaluation sees it settled.</summary>
     private static readonly TimeSpan PresencePowerSettleDelay =
@@ -305,6 +305,7 @@ internal partial class HeatingControlService
     private async Task OnBoilerFingerbotStateChanged()
     {
         string? trigger = null;
+        double? doubtfulPressReportedAfterSeconds = null;
 
         lock (_fingerbotLock)
         {
@@ -318,22 +319,29 @@ internal partial class HeatingControlService
                 DateTimeOffset now = _timeProvider.GetUtcNow();
                 if (_expectedFingerbotState == current)
                 {
+                    // The app's own press, reported. One Home Assistant called failed is now known to have reached the
+                    // fingerbot, as far as the fingerbot can say: no longer in doubt.
                     _expectedFingerbotState = null;
-                }
-                else if (_unconfirmedPress is { } unconfirmed && unconfirmed.State == current && now - unconfirmed.FailedAt <= LatePressWindow)
-                {
-                    // Moving the way the app's press asked, seconds after HA called that press failed: it is that press.
-                    _unconfirmedPress = null;
-                    _unconfirmedPressLanded = ((now - unconfirmed.FailedAt).TotalSeconds, unconfirmed.WasCorrection);
-                    trigger = "boiler fingerbot press reported as failed landed after all";
+                    if (_pressInDoubtSince is { } since)
+                    {
+                        doubtfulPressReportedAfterSeconds = (now - since).TotalSeconds;
+                        _pressInDoubtSince = null;
+                    }
                 }
                 else
                 {
-                    _unconfirmedPress = null;
                     _pressesSeenOutsideTheApp++;
+                    _lastPressAt = now;
                     trigger = "boiler fingerbot pressed outside the app";
                 }
             }
+        }
+
+        if (doubtfulPressReportedAfterSeconds is { } seconds)
+        {
+            _logger.LogInformation(
+                "The boiler fingerbot reported the press Home Assistant called failed, {Seconds:F0} s later. It was counted when it was sent, so the belief stays as it is",
+                seconds);
         }
 
         if (trigger != null)
@@ -1473,7 +1481,6 @@ internal partial class HeatingControlService
         bool pathChanged = controlPath != previousControlPath;
         _lastSeenBoilerControlPath = controlPath;
         int pressesSeenOutsideTheApp = TakePressesSeenOutsideTheApp();
-        (double Seconds, bool WasCorrection)? unconfirmedPressLanded = TakeUnconfirmedPressLanded();
 
         if (controlPath == BoilerControlPath.BoilerThermostat)
         {
@@ -1527,38 +1534,22 @@ internal partial class HeatingControlService
         // Each fingerbot movement is taken as one press of a toggle button. It is only the switch's word for it: at 02:42
         // on 2026-10-22 it reported "on" by itself and the boiler never fired. So a changed belief is checked against
         // the radiators like a press the app has confirmed, and a report that moved nothing is caught.
+        // The app's own presses, Home Assistant's errors included, were counted when they were sent; a late report of one
+        // changes nothing (see OnBoilerFingerbotStateChanged).
         DateTimeOffset? offSinceBeforeMovement = _boilerOn ? null : _boilerBeliefSince;
-        bool beliefChangedByMovement = false;
-
-        if (unconfirmedPressLanded is { } landed)
-        {
-            // The app's own press, which HA reported as failed, so the belief was left alone; it moves now. Until
-            // 2026-10-23 this was taken as a press from outside the app.
-            SetBoilerBelief(!_boilerOn, _timeProvider.GetUtcNow());
-            beliefChangedByMovement = true;
-            _failedPressesInARow = 0;
-            _boilerMayBeRunning = false;
-            _logger.LogWarning(
-                "The boiler fingerbot press Home Assistant reported as failed landed after all: the fingerbot moved {Seconds:F0} s later. Taking it as the app's press: now believing the boiler is {State}, and checking that against the radiators. Triggered by {Trigger}",
-                landed.Seconds, _boilerOn ? "ON" : "OFF", trigger);
-        }
 
         if (pressesSeenOutsideTheApp > 0)
         {
-            bool flips = pressesSeenOutsideTheApp % 2 == 1;
-            if (flips)
+            bool beliefChangedByMovement = pressesSeenOutsideTheApp % 2 == 1;
+            if (beliefChangedByMovement)
             {
                 SetBoilerBelief(!_boilerOn, _timeProvider.GetUtcNow());
-                beliefChangedByMovement = !beliefChangedByMovement;
             }
 
             _logger.LogWarning(
                 "The boiler fingerbot was pressed {Count} time(s) outside the app. Now believing the boiler is {State}{Check}. Triggered by {Trigger}",
                 pressesSeenOutsideTheApp, _boilerOn ? "ON" : "OFF", beliefChangedByMovement ? ", and checking that against the radiators" : "", trigger);
-        }
 
-        if (unconfirmedPressLanded != null || pressesSeenOutsideTheApp > 0)
-        {
             // Any pending verification was judging the old belief and would "correct" the new one. The valve history
             // is kept: the new belief's check needs to know which radiators have had hot water (until 2026-10-23 it was
             // wiped too, so a movement to "off" could never arm a turn-off check).
@@ -1566,8 +1557,7 @@ internal partial class HeatingControlService
             // The movement settles the belief afresh, so a corrective press waiting its turn would act on the old one.
             CancelCorrection();
             _fingerbotMovementToVerify = beliefChangedByMovement ? (_boilerOn, offSinceBeforeMovement) : null;
-            // A corrective press that landed late is still a correction, and counts towards the limit.
-            _correctionsInARow = pressesSeenOutsideTheApp == 0 && unconfirmedPressLanded!.Value.WasCorrection ? _correctionsInARow + 1 : 0;
+            _correctionsInARow = 0;
         }
 
         return controlPath;
@@ -1641,9 +1631,27 @@ internal partial class HeatingControlService
             }
         }
 
+        bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
+        bool roomsWantItOn = _roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
+
         // Check if a previous verification has failed and we need to correct the boiler state
         bool? verifiedState = _boilerVerification.GetVerifiedBoilerState();
-        if (verifiedState.HasValue && verifiedState.Value != _boilerOn)
+        // Where the radiators say the boiler is, if that is where the rooms would keep it now: on while any is calling, or
+        // off while they do not want it on.
+        bool roomsKeepItThere = verifiedState == true ? _roomsCallingForHeat.Count > 0 : !roomsWantItOn;
+        if (verifiedState.HasValue && verifiedState.Value != _boilerOn && roomsKeepItThere)
+        {
+            // Pressing it back would only have to be undone, and every press is a chance to go wrong (owner, 2026-10-28):
+            // taken as it is, with nothing pressed. The boiler has really been that way since the press believed in.
+            CancelCorrection();
+            SetBoilerBelief(verifiedState.Value, _boilerBeliefSince ?? _timeProvider.GetUtcNow());
+            _correctionsInARow = 0;
+            _boilerMayBeRunning = false;
+            _logger.LogWarning(
+                "Boiler verification says the boiler is {Actually}, not {Believed} as the app believed. That is where the rooms want it now, so it is not pressed: taking it as {Taken}. Triggered by {Trigger}",
+                verifiedState.Value ? "ON" : "OFF", verifiedState.Value ? "off" : "on", verifiedState.Value ? "ON" : "OFF", trigger);
+        }
+        else if (verifiedState.HasValue && verifiedState.Value != _boilerOn)
         {
             if (verifiedState.Value)
             {
@@ -1701,9 +1709,6 @@ internal partial class HeatingControlService
                 _boilerOn ? "on" : "off", _correctionsInARow + 1, MaxCorrectionsInARow, _boilerOn ? "not running" : "still running");
             await PressToCorrectAsync(verifiedState: !_boilerOn);
         }
-
-        bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
-        bool roomsWantItOn = _roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
 
         if (_boilerOn && _boilerOnForExercise)
         {
@@ -1800,7 +1805,7 @@ internal partial class HeatingControlService
         // The boiler has really been in the verified state since the press we believed in.
         DateTimeOffset? actuallySince = _boilerBeliefSince;
 
-        if (await PressBoilerFingerbotAsync(correction: true))
+        if (await PressBoilerFingerbotAsync())
         {
             // The press puts the boiler where we believed it was.
             SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
@@ -1809,7 +1814,10 @@ internal partial class HeatingControlService
         }
         else
         {
-            // Nothing could be pressed, so the verification is the best evidence there is.
+            // Nothing was sent (the fingerbot is unavailable, or the last press was too recent), so the verification is
+            // the best evidence there is, and the next pass presses from there. A press Home Assistant reported as failed
+            // is not this case: it may have landed, so it counts as sent (until 2026-10-28 it was this case, and at 12:50
+            // that day the next pass pressed again, 32 s after one that had landed).
             SetBoilerBelief(verifiedState, actuallySince ?? _timeProvider.GetUtcNow());
         }
     }
@@ -2045,16 +2053,6 @@ internal partial class HeatingControlService
         }
     }
 
-    private (double Seconds, bool WasCorrection)? TakeUnconfirmedPressLanded()
-    {
-        lock (_fingerbotLock)
-        {
-            (double Seconds, bool WasCorrection)? landed = _unconfirmedPressLanded;
-            _unconfirmedPressLanded = null;
-            return landed;
-        }
-    }
-
     /// <summary>
     /// Which control path the boiler is wired to, according to device settings. Nothing in Home
     /// Assistant can read the physical switch at the boiler, so this is configuration, not a
@@ -2075,16 +2073,16 @@ internal partial class HeatingControlService
     }
 
     /// <summary>
-    /// Presses the boiler's button by flipping the fingerbot's switch state; each change is one press.
-    /// Returns false, pressing nothing, when the fingerbot is unavailable: HA accepts a command for an
-    /// unreachable device with HTTP 200, so pressing anyway would flip the belief with nothing moved.
-    /// Also false when Home Assistant answers the command with an error, such as "device did not respond"
-    /// (2026-10-21, HOME-ASSISTANT.md gotcha 24): until then the command was fire-and-forget, so the belief
-    /// went to ON with the fingerbot unmoved, and the next "off" then pressed a boiler that was off.
-    /// A failed press that the fingerbot shows landed within <see cref="LatePressWindow"/> is still taken as this
-    /// press, by the next evaluation; <paramref name="correction"/> says whether it was a corrective press.
+    /// Presses the boiler's button by sending the fingerbot the opposite of its reported state. Returns whether a press
+    /// was sent, which then counts as one press of the toggle, whatever Home Assistant answers: its error does not mean
+    /// the button was not pressed (HOME-ASSISTANT.md gotchas 27 and 31), so the caller moves the belief either way, and
+    /// the press is checked against the radiators like any other. One that got an error is in doubt until the fingerbot
+    /// reports it or that check is over, and nothing is pressed meanwhile.
+    /// Returns false, pressing nothing, when the fingerbot is unavailable (HA accepts a command for an unreachable device
+    /// with HTTP 200, so pressing anyway would flip the belief with nothing moved), or when it is not yet time for another
+    /// press (<see cref="WhyNotPressNow"/>).
     /// </summary>
-    private async Task<bool> PressBoilerFingerbotAsync(bool correction = false)
+    private async Task<bool> PressBoilerFingerbotAsync()
     {
         bool? fingerbotState = ReadFingerbotState();
 
@@ -2103,11 +2101,22 @@ internal partial class HeatingControlService
 
         _hasLoggedFingerbotUnavailable = false;
 
+        if (WhyNotPressNow() is { } heldBack)
+        {
+            if (heldBack != _lastPressHoldLogged)
+            {
+                _logger.LogInformation("Not pressing the boiler {Direction} yet: {Reason}", _boilerOn ? "off" : "on", heldBack);
+                _lastPressHoldLogged = heldBack;
+            }
+
+            return false;
+        }
+
+        _lastPressHoldLogged = null;
         lock (_fingerbotLock)
         {
             _expectedFingerbotState = !fingerbotState.Value;
-            // This press supersedes an earlier one reported as failed: a movement now is this press.
-            _unconfirmedPress = null;
+            _lastPressAt = _timeProvider.GetUtcNow();
         }
 
         // Never retried by the service call layer: a retry of a press that did land after all would be a second press.
@@ -2115,53 +2124,55 @@ internal partial class HeatingControlService
             ? await _namedEntities.BoilerFingerbot.TurnOffConfirmedAsync()
             : await _namedEntities.BoilerFingerbot.TurnOnConfirmedAsync();
 
-        if (!accepted && ReadFingerbotState() == !fingerbotState.Value)
-        {
-            // The answer was lost but the fingerbot did move, and its state change was taken as this press.
-            _logger.LogWarning("Home Assistant reported the boiler fingerbot press as failed, but the fingerbot moved, so it counts as pressed");
-            accepted = true;
-        }
-
         if (accepted)
         {
-            _failedPressesInARow = 0;
             return true;
         }
 
+        bool reported;
         lock (_fingerbotLock)
         {
-            // Not expected as such any more, but a movement the way this press asked within LatePressWindow is this press
-            // landing late (2026-10-23: 11 s after "The operation has timed out"), and the next evaluation takes it as the
-            // app's own. Any later movement is a press from outside the app. Either way the belief follows it.
-            _expectedFingerbotState = null;
-            _unconfirmedPress = (!fingerbotState.Value, _timeProvider.GetUtcNow(), correction);
+            // Already reported (the answer was lost but the fingerbot moved), or still to come, or never.
+            reported = _expectedFingerbotState != !fingerbotState.Value || ReadFingerbotState() == !fingerbotState.Value;
+            if (!reported)
+            {
+                _pressInDoubtSince = _timeProvider.GetUtcNow();
+            }
         }
 
-        _failedPressesInARow++;
-        if (_failedPressesInARow <= FailedPressRetryDelays.Length && !_failedPressRetryPending)
-        {
-            TimeSpan retryIn = FailedPressRetryDelays[_failedPressesInARow - 1];
-            _failedPressRetryPending = true;
-            _scheduler.Schedule(retryIn, async () => await RetryAfterFailedPressAsync());
-            _logger.LogWarning(
-                "The boiler fingerbot press failed (Home Assistant reported an error), so the boiler was not pressed. Keeping the belief that it is {State}; deciding again in {Minutes} min",
-                _boilerOn ? "ON" : "OFF", retryIn.TotalMinutes);
-        }
-        else
-        {
-            _logger.LogWarning(
-                "The boiler fingerbot press failed again ({Count} in a row), so the boiler was not pressed. Keeping the belief that it is {State}; the {Recheck}-minute recheck will try again",
-                _failedPressesInARow, _boilerOn ? "ON" : "OFF", _recheckEveryXMinutes);
-        }
-
-        return false;
+        _logger.LogWarning(reported
+            ? "Home Assistant reported the boiler fingerbot press as failed, but the fingerbot moved, so it counts as pressed"
+            : "Home Assistant reported the boiler fingerbot press as failed. A press reported as failed can still land, with or without the fingerbot reporting it (HOME-ASSISTANT.md gotcha 31), so it counts as pressed, and the boiler is not pressed again until the fingerbot reports it or the radiators have shown what the boiler did");
+        return true;
     }
 
-    /// <summary>What runs <see cref="FailedPressRetryDelays"/> after a failed press: the boiler is decided again.</summary>
-    internal async Task RetryAfterFailedPressAsync()
+    /// <summary>
+    /// Why the boiler must not be pressed now, or null if it may be: the last press is in doubt and its check is still
+    /// running, or the last press was under <see cref="MinimumTimeBetweenPresses"/> ago. A press in doubt whose check is
+    /// over, or could not be armed, is settled: the belief already follows what the radiators showed.
+    /// </summary>
+    private string? WhyNotPressNow()
     {
-        _failedPressRetryPending = false;
-        await EvaluateAllSchedules("retry after the boiler fingerbot press failed");
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        lock (_fingerbotLock)
+        {
+            if (_pressInDoubtSince is { } since)
+            {
+                if (_boilerVerification.IsPending)
+                {
+                    return $"Home Assistant reported the press at {since.ToLocalTime():HH:mm:ss} as failed, the fingerbot has not reported it, and the radiators have not yet shown whether it landed";
+                }
+
+                _pressInDoubtSince = null;
+            }
+
+            if (_lastPressAt is { } last && now - last < MinimumTimeBetweenPresses)
+            {
+                return $"the last press was at {last.ToLocalTime():HH:mm:ss}, and presses are at least {MinimumTimeBetweenPresses.TotalMinutes:F0} minutes apart";
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

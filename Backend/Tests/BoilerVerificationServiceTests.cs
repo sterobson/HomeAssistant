@@ -173,11 +173,11 @@ public sealed class BoilerVerificationServiceTests
     }
 
     [TestMethod]
-    public async Task TurnOff_AnOpenValveThatNeverStopsClimbing_ShowsTheBoilerStillRunning_AsSoonAsSettlingEnds()
+    public async Task TurnOff_AnOpenValveThatNeverStopsClimbing_ShowsTheBoilerStillRunning()
     {
         // 2026-10-21 21:58 BST: the app's "off" press had in fact turned the boiler on (HOME-ASSISTANT.md gotcha 24).
         // Den radiator 2, open, read 20.0 °C at the turn-off and climbed straight through the 30-minute settling to
-        // 23.5 °C. Measured from its low after settling, it needed yet another 1 °C before anything was concluded.
+        // 23.5 °C. It has no low to heat up again from, so what shows it is climbing on: a degree past the settling.
         (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
         FakeCustomClimateControlEntity valve = CreateValve(20.0);
         service.NotifyValveStartedHeating("den", valve);
@@ -189,6 +189,11 @@ public sealed class BoilerVerificationServiceTests
         await service.CheckAsync();
         Advance(timeProvider, minutes: 10);
         valve.CurrentTemperature = 23.5;
+        await service.CheckAsync();
+        service.GetVerifiedBoilerState().ShouldBeNull("the reading that ends the settling counts as part of it");
+
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 24.5;
         await service.CheckAsync();
 
         service.GetVerifiedBoilerState().ShouldBe(true, "a radiator still climbing after half an hour has hot water behind it");
@@ -292,8 +297,13 @@ public sealed class BoilerVerificationServiceTests
         Advance(timeProvider, minutes: 5);
         valve.CurrentTemperature = 20.0;
         await service.CheckAsync();
+        service.GetVerifiedBoilerState().ShouldBeNull("the first reading after settling may have arrived during it");
 
-        service.GetVerifiedBoilerState().ShouldBe(true, "half an hour after the turn-off it is still climbing, so hot water is still reaching it");
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 21.0;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(true, "a degree further after settling, so hot water is still reaching it");
     }
 
     [TestMethod]
@@ -353,6 +363,9 @@ public sealed class BoilerVerificationServiceTests
         await service.CheckAsync();
         Advance(timeProvider, minutes: 15);
         valve.CurrentTemperature = 20.5;
+        await service.CheckAsync();
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 21.5;
         await service.CheckAsync();
 
         service.GetVerifiedBoilerState().ShouldBe(true);
@@ -662,14 +675,163 @@ public sealed class BoilerVerificationServiceTests
         service.GetVerifiedBoilerState().ShouldBeNull();
     }
 
-    private static (BoilerVerificationService Service, FakeTimeProvider TimeProvider) CreateService()
+    [TestMethod]
+    public async Task TurnOff_ARadiatorWithMinutesOfHotWater_CoastingInEverSlowerSteps_IsNoReasonToPress()
+    {
+        // 2026-10-27 (HOME-ASSISTANT.md gotcha 30): the dining valve opened for pre-heat at 06:24, and the boiler went off,
+        // as it should, at 06:38. Its TRV read 19.0 °C then and went on catching up with the water in the radiator, each
+        // 0.5 °C step slower: 06:42, 06:46, 06:50, 06:56, and 21.5 at 07:06, which no pass saw until 07:09, after the
+        // settling. The check failed on "still climbing", and its corrective press turned the boiler back on.
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService();
+        FakeCustomClimateControlEntity valve = CreateValve(18.6);
+        service.NotifyValveStartedHeating("dining room", valve);
+        Advance(timeProvider, minutes: 14);
+        valve.CurrentTemperature = 19.0;
+        service.NotifyBoilerToggled(false, [("dining room", valve)], boilerOffSince: null);
+        service.NotifyValveStopped("dining room");
+
+        foreach ((int minutes, double reading) in new[] { (4, 19.5), (4, 20.0), (4, 20.5), (6, 21.0), (13, 21.5), (14, 22.0), (20, 22.0), (25, 21.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.GetVerifiedBoilerState().ShouldBeNull($"{reading} °C is the water already in it, coasting");
+        }
+
+        Advance(timeProvider, minutes: 5);
+        valve.CurrentTemperature = 21.0;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBeNull();
+        service.IsPending.ShouldBeFalse("passed: the boiler is off");
+    }
+
+    // Running hot water can send hot water round the heating with the boiler's heating off (HOME-ASSISTANT.md gotcha
+    // 29): Bedroom 3's open radiator rose 1.0-2.5 °C after some showers, peaking 38-89 minutes after one began.
+
+    [TestMethod]
+    public async Task TurnOff_ARadiatorWarmedByAShower_IsNoReasonToPress()
+    {
+        FakeShowers showers = new();
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService(showers);
+        FakeCustomClimateControlEntity valve = CreateValve(22.0);
+        service.NotifyValveStartedHeating(Room, valve);
+        Advance(timeProvider, minutes: 60);
+        DateTimeOffset offAt = timeProvider.GetUtcNow();
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
+
+        // It settles and cools; 40 minutes after the turn-off someone showers, and the radiator warms 1.5 °C.
+        showers.ShowerAt = offAt.AddMinutes(40);
+        foreach ((int minutes, double reading) in new[] { (15, 21.5), (16, 21.0), (24, 21.5), (15, 22.5), (20, 22.0), (40, 21.5), (30, 21.0), (31, 20.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.GetVerifiedBoilerState().ShouldBeNull($"{reading} °C is the shower's doing, not the boiler's");
+        }
+
+        service.IsPending.ShouldBeFalse("passed, an hour after the shower could last have warmed it");
+    }
+
+    [TestMethod]
+    public async Task TurnOff_ABoilerStillRunning_IsCaughtOnceTheShowerIsOver()
+    {
+        FakeShowers showers = new();
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService(showers);
+        FakeCustomClimateControlEntity valve = CreateValve(22.0);
+        service.NotifyValveStartedHeating(Room, valve);
+        Advance(timeProvider, minutes: 60);
+        DateTimeOffset offAt = timeProvider.GetUtcNow();
+        service.NotifyBoilerToggled(false, [(Room, valve)], boilerOffSince: null);
+
+        showers.ShowerAt = offAt.AddMinutes(40);
+        foreach ((int minutes, double reading) in new[] { (15, 21.5), (16, 21.0), (24, 21.5), (15, 22.5), (20, 23.0), (40, 23.5) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.GetVerifiedBoilerState().ShouldBeNull("the shower may be the cause");
+        }
+
+        Advance(timeProvider, minutes: 10);
+        valve.CurrentTemperature = 24.0;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(true, "still climbing once the shower can no longer be the cause");
+    }
+
+    [TestMethod]
+    public async Task TurnOn_ARiseDuringAShower_DoesNotPassIt_SoABoilerThatNeverFiredIsStillCaught()
+    {
+        FakeShowers showers = new();
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService(showers);
+        FakeCustomClimateControlEntity valve = CreateValve(ColdValveTemperature);
+        service.NotifyValveStopped(Room);
+        Advance(timeProvider, minutes: 31);
+        DateTimeOffset pressedAt = timeProvider.GetUtcNow();
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: pressedAt.AddMinutes(-31));
+
+        showers.ShowerAt = pressedAt.AddMinutes(5);
+        foreach ((int minutes, double reading) in new[] { (10, 15.5), (15, 16.5), (20, 16.0) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.IsPending.ShouldBeTrue($"{reading} °C during a shower passes nothing");
+        }
+
+        Advance(timeProvider, minutes: 20);
+        valve.CurrentTemperature = 15.5;
+        await service.CheckAsync();
+
+        service.GetVerifiedBoilerState().ShouldBe(false, "an hour on, and once the shower's warmth has gone the radiator is cold");
+    }
+
+    [TestMethod]
+    public async Task TurnOn_ARunningBoiler_IsPassedOnceTheShowerIsOver()
+    {
+        FakeShowers showers = new();
+        (BoilerVerificationService service, FakeTimeProvider timeProvider) = CreateService(showers);
+        FakeCustomClimateControlEntity valve = CreateValve(ColdValveTemperature);
+        service.NotifyValveStopped(Room);
+        Advance(timeProvider, minutes: 31);
+        DateTimeOffset pressedAt = timeProvider.GetUtcNow();
+        service.NotifyBoilerToggled(true, [(Room, valve)], boilerOffSince: pressedAt.AddMinutes(-31));
+
+        showers.ShowerAt = pressedAt.AddMinutes(5);
+        foreach ((int minutes, double reading) in new[] { (10, 15.5), (15, 16.5), (20, 18.0), (20, 19.0) })
+        {
+            Advance(timeProvider, minutes);
+            valve.CurrentTemperature = reading;
+            await service.CheckAsync();
+            service.GetVerifiedBoilerState().ShouldBeNull("risen, so not failed by the deadline, but not passed during the shower either");
+            service.IsPending.ShouldBeTrue();
+        }
+
+        Advance(timeProvider, minutes: 35);
+        await service.CheckAsync();
+
+        service.IsPending.ShouldBeFalse("passed: still warm once the shower is over");
+        service.GetVerifiedBoilerState().ShouldBeNull();
+    }
+
+    private static (BoilerVerificationService Service, FakeTimeProvider TimeProvider) CreateService(IShowerDetector? showers = null)
     {
         FakeTimeProvider timeProvider = new();
         timeProvider.SetSpecificDateTime(new DateTimeOffset(new DateTime(2025, 11, 24, 12, 00, 00), TimeSpan.Zero));
 
-        BoilerVerificationService service = new(Substitute.For<ILogger<BoilerVerificationService>>(), timeProvider);
+        BoilerVerificationService service = new(Substitute.For<ILogger<BoilerVerificationService>>(), timeProvider, showers);
 
         return (service, timeProvider);
+    }
+
+    /// <summary>A shower that began at <see cref="ShowerAt"/>, reported as <see cref="ShowerDetector"/> would.</summary>
+    private sealed class FakeShowers : IShowerDetector
+    {
+        public DateTimeOffset? ShowerAt { get; set; }
+
+        public Task<DateTimeOffset?> ShowerWarmingRadiatorsAsync(DateTimeOffset now) =>
+            Task.FromResult(ShowerAt is { } at && at <= now && now - at <= ShowerDetector.WarmsRadiatorsFor ? ShowerAt : null);
     }
 
     private static FakeCustomClimateControlEntity CreateValve(double currentTemperature)
