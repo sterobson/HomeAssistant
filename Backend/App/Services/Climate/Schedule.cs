@@ -73,6 +73,9 @@ public class RoomState
 
     /// <summary>Tracks due now that only their room-occupancy condition holds back. Display only.</summary>
     public List<int> WaitingForOccupancyTrackIds { get; set; } = [];
+
+    /// <summary>When the zone's thermometer last reported, while it has been silent too long to trust; null otherwise.</summary>
+    public DateTimeOffset? ThermometerSilentSince { get; set; }
 }
 
 public class HeatingScheduleTrack

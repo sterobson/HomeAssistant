@@ -26,7 +26,14 @@
           <!-- Before the temperature, so temperatures stay in one column down the page. -->
           <BatteryBadge v-if="lowestBattery" :battery="lowestBattery" :others-low="lowBatteries.length - 1" />
           <ValveHealthBadge v-if="flaggedValves.length" :flagged="flaggedValves" @open="showDevices = true" />
-          <span class="current-temp">{{ formatTempWithUnit(room.currentTemperature) }}</span>
+          <!-- The zone's thermometer has stopped reporting, so the app gives it no heat (HOME-ASSISTANT.md gotcha 32). -->
+          <span v-if="thermometerSilentTitle" class="silent-badge" :title="thermometerSilentTitle" role="img" :aria-label="thermometerSilentTitle">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8.982 1.566a1.13 1.13 0 00-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 01-1.1 0L7.1 5.995A.905.905 0 018 5zm.002 6a1 1 0 110 2 1 1 0 010-2z"/>
+            </svg>
+            <span>No reading</span>
+          </span>
+          <span class="current-temp">{{ thermometerSilentTitle ? '—' : formatTempWithUnit(room.currentTemperature) }}</span>
         </div>
       </div>
       <div v-if="!editMode" class="header-actions">
@@ -253,6 +260,14 @@ const showShare = ref(false)
 const lowestBattery = computed(() => lowestLow(props.lowBatteries))
 // This zone's radiator valves the app has seen misbehaving and not cleared since (utils/valveHealth.js).
 const flaggedValves = computed(() => flaggedValveIssues(props.room.devices))
+
+// Set while the zone's thermometer is silent (since 2026-10-31): when it last reported, as a sentence for the badge.
+const thermometerSilentTitle = computed(() => {
+  const since = props.room.thermometerSilentSince
+  if (!since) return null
+  const time = new Date(since).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return `Thermometer silent since ${time}. No heat until it reports again: press its button, or take its battery out and put it back`
+})
 // Every battery shown on this zone: its heating devices' and those its HA area is mapped to.
 const roomBatteries = computed(() =>
   layoutContext ? batteriesForRoom(layoutContext.batteryPlacement.value, props.room.id) : [])
@@ -508,6 +523,21 @@ const handleHistoryClose = () => {
   font-weight: 600;
   color: var(--text-primary);
   margin-right: 0.5rem;
+}
+
+/* Like the valve badge, but not a button: there is nothing to open. */
+.silent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--color-warning);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .header-actions {

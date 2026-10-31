@@ -97,6 +97,20 @@ internal partial class HeatingControlService
     // 2026-10-23). Optional so tests need not supply it.
     private readonly IValveHealthMonitor? _valveHealth;
 
+    // When each room thermometer last reported (owner, 2026-10-31). Optional so tests need not supply it; without it no
+    // thermometer is ever taken as silent.
+    private readonly IThermometerReports? _thermometerReports;
+
+    // A thermometer that has not reported for this long has stopped, and its zone's temperature is unknown (HOME-ASSISTANT.md
+    // gotcha 32: Ste's desk thermometer went silent at 12:57 on 2026-10-31 and the app heated on its last reading for over
+    // three hours). Working ones can go 8 hours with no change of value, and HA's last_reported can sit for hours too, so
+    // what is measured is when ZHA last heard from the device at all (ThermometerReports). Sampled for an hour on
+    // 2026-10-31, every room thermometer was heard from at least every 32 minutes (most within 15), so 90 leaves room.
+    internal static readonly TimeSpan ThermometerSilentAfter = TimeSpan.FromMinutes(90);
+
+    // Thermometers that have gone silent, by entity ID, with when each last reported. Refreshed at the start of every pass.
+    private readonly Dictionary<string, DateTimeOffset> _silentThermometers = new(StringComparer.OrdinalIgnoreCase);
+
     // The warmer track an Auto valve has begun pre-heating for, by entity ID, so that the pre-heat, once started, is
     // kept until the track begins. Without it the time needed would shrink as the room warmed, and a valve whose rate
     // was a little pessimistic would shut again part-way and start over.
@@ -116,11 +130,13 @@ internal partial class HeatingControlService
         IDeviceSettingsPersistenceService deviceSettings,
         IBatteryOverview? batteryOverview = null,
         IWarmUpRates? warmUpRates = null,
-        IValveHealthMonitor? valveHealth = null)
+        IValveHealthMonitor? valveHealth = null,
+        IThermometerReports? thermometerReports = null)
     {
         _batteryOverview = batteryOverview;
         _warmUpRates = warmUpRates;
         _valveHealth = valveHealth;
+        _thermometerReports = thermometerReports;
         _ha = ha;
         _namedEntities = namedEntities;
         _scheduler = scheduler;
@@ -345,6 +361,8 @@ internal partial class HeatingControlService
 
             await PrepareDeviceRulesAsync();
             RoomSchedules schedules = await LoadSchedulesAsync();
+            // Before anything reads a temperature: a thermometer gone silent makes its zones' temperature unknown.
+            bool thermometersChanged = await RefreshSilentThermometersAsync(schedules);
 
             // 1. The boiler's mode, and on entering relay mode, what the relay is doing.
             BoilerStateDto boilerBefore = DescribeBoiler();
@@ -375,12 +393,16 @@ internal partial class HeatingControlService
 
             // 4. The rooms' devices.
             _valvesWaitForBoiler = relayMode && !_boilerOn;
-            bool hasStateChanged = false;
+            bool hasStateChanged = thermometersChanged;
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
                 if (targets.TryGetValue(schedule.Id, out RoomTarget? target))
                 {
                     hasStateChanged |= await EvaluateSchedule(schedule, target, trigger);
+                }
+                else if (GetCurrentTemperatureForRoom(schedule) == null && GetSwitchesForRoom(schedule).Length > 0)
+                {
+                    hasStateChanged |= await StopHeatingWithoutAReadingAsync(schedule, trigger);
                 }
             }
 
@@ -1053,9 +1075,106 @@ internal partial class HeatingControlService
         };
     }
 
+    /// <summary>The room's temperature, or null when it is unknown: no thermometer, unavailable, or gone silent.</summary>
     private double? GetCurrentTemperatureForRoom(RoomSchedule roomHeatingSchedule)
     {
-        return GetThermometerForRoom(roomHeatingSchedule)?.State;
+        ICustomNumericSensorEntity? thermometer = GetThermometerForRoom(roomHeatingSchedule);
+        return thermometer == null || _silentThermometers.ContainsKey(thermometer.EntityId) ? null : thermometer.State;
+    }
+
+    /// <summary>
+    /// Finds which room thermometers have gone silent (<see cref="ThermometerSilentAfter"/>), logs each going silent and
+    /// coming back once, and marks every room that reads one. Returns whether any room's mark changed, for the upload.
+    /// </summary>
+    private async Task<bool> RefreshSilentThermometersAsync(RoomSchedules schedules)
+    {
+        if (_thermometerReports == null)
+        {
+            return false;
+        }
+
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        foreach (ICustomNumericSensorEntity thermometer in schedules.Rooms.Select(GetThermometerForRoom).OfType<ICustomNumericSensorEntity>().DistinctBy(t => t.EntityId))
+        {
+            // Unknown (ZHA unreachable, or not a ZHA device) is taken as working: a check that cannot run must not stop the heating.
+            DateTimeOffset? reportedAt = await _thermometerReports.LastHeardFromAsync(thermometer.EntityId);
+            bool silent = reportedAt is { } at && now - at > ThermometerSilentAfter;
+            bool wasSilent = _silentThermometers.ContainsKey(thermometer.EntityId);
+            if (silent && !wasSilent)
+            {
+                _silentThermometers[thermometer.EntityId] = reportedAt!.Value;
+                _logger.LogWarning(
+                    "Thermometer {Entity} has not been heard from since {Since:HH:mm} ({Minutes:F0} minutes; last reading {Reading}°C). Its zone's temperature is taken as unknown, so the zone gets no heat until it reports again. Press its button, or take its battery out and put it back",
+                    thermometer.EntityId, reportedAt.Value.ToLocalTime(), (now - reportedAt.Value).TotalMinutes, thermometer.State);
+            }
+            else if (!silent && wasSilent)
+            {
+                _silentThermometers.Remove(thermometer.EntityId);
+                _logger.LogInformation("Thermometer {Entity} is reporting again ({Reading}°C)", thermometer.EntityId, thermometer.State);
+            }
+        }
+
+        bool changed = false;
+        foreach (RoomSchedule room in schedules.Rooms)
+        {
+            if (!_roomStates.TryGetValue(room.Id, out RoomState? state))
+            {
+                continue;
+            }
+
+            DateTimeOffset? silentSince = GetThermometerForRoom(room) is { } thermometer && _silentThermometers.TryGetValue(thermometer.EntityId, out DateTimeOffset lastReport)
+                ? lastReport
+                : null;
+            if (state.ThermometerSilentSince != silentSince)
+            {
+                state.ThermometerSilentSince = silentSince;
+                state.CurrentTemperature = GetCurrentTemperatureForRoom(room);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// A zone with devices whose temperature is unknown (its thermometer unavailable or silent) gets no heat: its heater
+    /// plugs are switched off and its valves shut. Until 2026-10-31 such a zone was skipped and its devices left as they
+    /// were, so a heater that was on stayed on. It does not call for the boiler either: <see cref="DecideBoiler"/> finds
+    /// no target for it. A valve waiting for the boiler is left alone, as ever. Returns whether the room's state changed.
+    /// </summary>
+    private async Task<bool> StopHeatingWithoutAReadingAsync(RoomSchedule room, string trigger)
+    {
+        foreach (object device in GetSwitchesForRoom(room))
+        {
+            string? entityId = EntityIdOf(device);
+            Func<bool, Task<bool>>? toggle = GetOnToggleFuncForSingleDevice(device);
+            if (entityId == null || toggle == null)
+            {
+                continue;
+            }
+
+            _devicesWantingHeat[entityId] = false;
+            if (IsDeviceOn(device) && !IsWaitingForBoiler(device) && await toggle(false))
+            {
+                if (device is ICustomClimateControlEntity)
+                {
+                    _valvesCommandedThisPass[entityId] = false;
+                }
+
+                _logger.LogWarning(
+                    "Room {Room}: {Device} turned off, because the room's temperature is unknown (its thermometer is unavailable or silent). Triggered by {Trigger}",
+                    room.Name, entityId, trigger);
+            }
+        }
+
+        if (!_roomStates.TryGetValue(room.Id, out RoomState? state) || !state.HeatingActive)
+        {
+            return false;
+        }
+
+        state.HeatingActive = false;
+        state.LastUpdated = DateTimeOffset.UtcNow;
+        return true;
     }
 
     private ICustomNumericSensorEntity? GetThermometerForRoom(RoomSchedule roomHeatingSchedule)

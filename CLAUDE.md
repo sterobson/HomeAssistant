@@ -299,6 +299,22 @@ More heating notes:
   thermometer (`sensor.*`); valve health reads the TRV's own onboard sensor
   (`climate.*` → `Attributes.CurrentTemperature`). They are different numbers from
   different devices. Don't assume one when you mean the other.
+- **A silent thermometer makes its zone's temperature unknown, and an unknown temperature means no heat (since
+  2026-10-31; HOME-ASSISTANT.md gotcha 32).** HA keeps a battery thermometer's last value and calls it available for
+  hours after it stops reporting, and NetDaemon sees only changes of value (a working thermometer can go 8 hours
+  without one), so at the start of every pass `RefreshSilentThermometersAsync` asks when ZHA last heard from each room
+  thermometer's device (`IThermometerReports` → `ThermometerReports`: `zha/devices` → `last_seen`, cached a minute).
+  Not the state's `last_reported`, which sat 3¾ hours old on working thermometers while ZHA had heard from them within
+  minutes (measured 2026-10-31). `last_seen` has no time zone, so after the first reading the app counts from when it
+  saw the value change, on its own clock. One silent for more than `ThermometerSilentAfter` (90 minutes; an hour's sample that day heard from every
+  room thermometer at least every 32 minutes) is logged once
+  ("has not been heard from since"), and
+  `GetCurrentTemperatureForRoom` returns null for every zone that reads it. A zone with devices and no reading, silent
+  or unavailable, is switched off by `StopHeatingWithoutAReadingAsync`: heater plugs off, valves shut (unless waiting
+  for the boiler), and no call for the boiler. Until then such a zone was skipped and its devices left as they were,
+  so a heater that was on stayed on. A report time that cannot be read is taken as working, so a failed check never
+  stops the heating. Room states carry `thermometerSilentSince`, and the room card shows "No reading" with a dash for
+  the temperature. Tests: the silent-thermometer cases in `DeviceRulesHeatingTests` and `HeatingBoilerControlTests`.
 - **The boiler is switched by a relay, and the app keeps the relay where it wants it (since 2026-10-31).**
   `switch.den_boiler_relay` ("Den - Boiler relay", a SONOFF MINI-ZBD dry-contact relay on the boiler's control
   input; owner: nothing else can fire the boiler) is `NamedEntities.BoilerRelay`. `_boilerOn` is what the app wants

@@ -82,6 +82,12 @@ public class RoomStateDto
     /// during a boost, and from an app too old to send it.
     /// </summary>
     public List<int> WaitingForOccupancyTrackIds { get; set; } = [];
+
+    /// <summary>
+    /// When the zone's thermometer last reported, ISO 8601, while it has been silent too long to trust (since 2026-10-31,
+    /// HOME-ASSISTANT.md gotcha 32); null while it reports. The zone's temperature is then null and it gets no heat.
+    /// </summary>
+    public string? ThermometerSilentSince { get; set; }
 }
 
 public class RoomOccupancyDto

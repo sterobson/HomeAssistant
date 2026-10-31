@@ -488,7 +488,9 @@ const mergeSchedulesWithStates = (schedules, states) => {
       // Which presence detectors count for the zone, and all there are (utils/zoneOccupancy.js). Display only.
       occupancy: state?.occupancy ?? null,
       // Tracks due now but held back by their room-occupancy condition (since 2026-10-21). Display only.
-      waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? []
+      waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? [],
+      // When the zone's thermometer last reported, while it is silent and the zone gets no heat (since 2026-10-31).
+      thermometerSilentSince: state?.thermometerSilentSince ?? null
     }
   })
 }
@@ -587,7 +589,8 @@ const loadRoomStates = async () => {
         capabilities: state?.capabilities ?? room.capabilities,
         devices: state?.devices ?? room.devices,
         occupancy: state?.occupancy ?? room.occupancy ?? null,
-        waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? room.waitingForOccupancyTrackIds ?? []
+        waitingForOccupancyTrackIds: state?.waitingForOccupancyTrackIds ?? room.waitingForOccupancyTrackIds ?? [],
+        thermometerSilentSince: state ? state.thermometerSilentSince ?? null : room.thermometerSilentSince ?? null
       }
     })
   } catch (err) {

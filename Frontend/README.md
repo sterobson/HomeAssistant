@@ -231,6 +231,9 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
   on/off or active track changes, so a device-only change (plug switched, TV power, valve target) waits for
   the next such upload. Left that way deliberately (2026-10-19).
+- **Silent thermometer.** A room card shows "No reading" and a dash for the temperature while its room state's
+  `thermometerSilentSince` is set (since 2026-10-31): the zone's thermometer has stopped reporting, and the app gives
+  the zone no heat until it does. Carried through both room-state merges in `HeatingView.vue`.
 - **Boiler indicator.** In relay mode the heating page's toolbar shows "Boiler on/off since …" from the
   `boiler` that comes with room states (`boilerState` in `HeatingView.vue`): the state the app keeps the boiler
   relay in (until 2026-10-31, a belief from fingerbot presses). Nothing is shown while the boiler thermostat runs it.

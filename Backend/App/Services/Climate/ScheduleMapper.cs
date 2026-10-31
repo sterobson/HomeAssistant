@@ -164,7 +164,8 @@ public static class ScheduleMapper
             Capabilities = dto.Capabilities,
             Devices = [.. dto.Devices ?? []],
             Occupancy = dto.Occupancy,
-            WaitingForOccupancyTrackIds = [.. dto.WaitingForOccupancyTrackIds ?? []]
+            WaitingForOccupancyTrackIds = [.. dto.WaitingForOccupancyTrackIds ?? []],
+            ThermometerSilentSince = DateTimeOffset.TryParse(dto.ThermometerSilentSince, out DateTimeOffset silentSince) ? silentSince : null
         };
     }
 
@@ -187,7 +188,8 @@ public static class ScheduleMapper
             Capabilities = state.Capabilities,
             Devices = [.. state.Devices],
             Occupancy = state.Occupancy,
-            WaitingForOccupancyTrackIds = [.. state.WaitingForOccupancyTrackIds]
+            WaitingForOccupancyTrackIds = [.. state.WaitingForOccupancyTrackIds],
+            ThermometerSilentSince = state.ThermometerSilentSince?.ToString("O")
         };
     }
 }

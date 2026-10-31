@@ -122,6 +122,27 @@ public sealed class HeatingBoilerControlTests
         context.BoilerRelay.IsOff().ShouldBeTrue();
     }
 
+    [TestMethod]
+    public async Task ARoomWhoseThermometerHasGoneSilent_ShutsItsValve_AndNoLongerCallsForTheBoiler()
+    {
+        // HOME-ASSISTANT.md gotcha 32: a silent thermometer's last reading is not the room's temperature.
+        BoilerTestContext context = BoilerTestContext.Create(BoilerControlPath.Relay);
+        await context.Service.EvaluateAllSchedules("both rooms cold");
+        context.BoilerRelay.IsOn().ShouldBeTrue();
+        context.ValvesAreOpen().ShouldBeTrue();
+        TimeSpan silent = HeatingControlService.ThermometerSilentAfter + TimeSpan.FromMinutes(1);
+
+        context.Thermometers.SilentFor(context.LivingRoomTemperature.EntityId, silent);
+        await context.Service.EvaluateAllSchedules("living room thermometer silent");
+        context.LivingRoomThermostat.TargetTemperature!.Value.ShouldBeLessThan(context.LivingRoomThermostat.CurrentTemperature!.Value, "its valve is shut");
+        context.BoilerRelay.IsOn().ShouldBeTrue("bedroom 2 still wants heat");
+
+        context.Thermometers.SilentFor(context.Bedroom2Temperature.EntityId, silent);
+        await context.Service.EvaluateAllSchedules("bedroom 2 thermometer silent too");
+        context.BoilerRelay.IsOff().ShouldBeTrue("no room with a reading is calling");
+        context.Logger.CountMessagesContaining("has not been heard from since", LogLevel.Warning).ShouldBe(2, "once per thermometer");
+    }
+
     // At every check the relay is put in the state the app wants the boiler in (owner, 2026-10-31). Its commands can be
     // repeated without harm, unlike the fingerbot's presses of a toggle, which needed a belief, checks and corrections.
 
@@ -894,6 +915,8 @@ public sealed class HeatingBoilerControlTests
         public required IScheduler Scheduler { get; init; }
         // Only the app's direct calls; entities are fakes and do not go through it.
         public required NetDaemon.HassModel.IHaContext Ha { get; init; }
+        // When each thermometer last reported; every one is reporting until a test says otherwise.
+        public required FakeThermometerReports Thermometers { get; init; }
 
         /// <summary>Delays of everything the service has scheduled so far, in order.</summary>
         public List<TimeSpan> ScheduledDelays() => [.. Scheduler.ReceivedCalls()
@@ -987,6 +1010,8 @@ public sealed class HeatingBoilerControlTests
             services.AddSingleton(Substitute.For<ISchedulePersistenceService>());
             services.AddSingleton(Substitute.For<IRoomStatePersistenceService>());
             services.AddSingleton<IDeviceSettingsPersistenceService>(deviceSettings);
+            services.AddSingleton(provider => new FakeThermometerReports(provider.GetRequiredService<FakeTimeProvider>()));
+            services.AddSingleton<IThermometerReports>(provider => provider.GetRequiredService<FakeThermometerReports>());
 
             ServiceProvider provider = services.BuildServiceProvider();
 
@@ -1045,7 +1070,8 @@ public sealed class HeatingBoilerControlTests
                 Presence = (MockPresenceService)provider.GetRequiredService<IPresenceService>(),
                 StatePersistence = provider.GetRequiredService<IRoomStatePersistenceService>(),
                 Scheduler = scheduler,
-                Ha = provider.GetRequiredService<NetDaemon.HassModel.IHaContext>()
+                Ha = provider.GetRequiredService<NetDaemon.HassModel.IHaContext>(),
+                Thermometers = provider.GetRequiredService<FakeThermometerReports>()
             };
         }
 

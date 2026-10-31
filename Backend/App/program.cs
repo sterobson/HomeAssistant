@@ -116,6 +116,7 @@ try
                 .AddScoped<IWarmUpRates, WarmUpRates>()
                 .AddScoped<IValveHealthStore, ValveHealthStore>()
                 .AddScoped<IValveHealthMonitor, ValveHealthMonitor>()
+                .AddScoped<IThermometerReports, ThermometerReports>()
                 .AddScoped<HeatingControlService>()
                 .AddScoped<BatteryControlService>()
                 .AddHttpClient<IBatteryRulesApiClient, BatteryRulesApiClient>((serviceProvider, client) =>

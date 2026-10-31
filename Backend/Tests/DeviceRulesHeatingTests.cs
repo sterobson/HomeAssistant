@@ -959,6 +959,74 @@ public sealed class DeviceRulesHeatingTests
         HeatingControlService.NextWarmerTrackTemperature(room, new DateTime(2026, 10, 20, 12, 0, 0), 15).ShouldBe(22);
     }
 
+    // A thermometer that stops reporting (owner, 2026-10-31; HOME-ASSISTANT.md gotcha 32): Ste's desk thermometer went
+    // silent at 12:57, HA kept its 19.2 °C and called it available, and the desk heater ran on into a 22 °C room.
+
+    [TestMethod]
+    public async Task ASilentThermometer_SwitchesItsZonesHeaterOff_UntilItReportsAgain()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 0, 0), "games desk");
+        context.Presence.SetRoomValue("games desk", true);
+        await context.Service.EvaluateAllSchedules("desk cold");
+        context.GamesHeater.IsOn().ShouldBeTrue();
+        string thermometer = context.Entities.GamesRoomDeskTemperature.EntityId;
+
+        context.Thermometers.SilentFor(thermometer, HeatingControlService.ThermometerSilentAfter + TimeSpan.FromMinutes(1));
+        await context.Service.EvaluateAllSchedules("5 minute period recheck");
+
+        context.GamesHeater.IsOff().ShouldBeTrue("its last reading is no longer the room's temperature");
+        RoomState desk = context.CapturedStates()[1];
+        desk.ThermometerSilentSince.ShouldNotBeNull();
+        desk.CurrentTemperature.ShouldBeNull();
+        desk.HeatingActive.ShouldBeFalse();
+
+        context.Thermometers.Reporting(thermometer);
+        await context.Service.EvaluateAllSchedules("desk thermometer reported");
+
+        context.GamesHeater.IsOn().ShouldBeTrue("reporting again, and still cold");
+        context.CapturedStates()[1].ThermometerSilentSince.ShouldBeNull();
+    }
+
+    [TestMethod]
+    public async Task AThermometerThatReportedJustInside_TheLimit_IsTrusted()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 0, 0), "games desk");
+        context.Presence.SetRoomValue("games desk", true);
+        context.Thermometers.SilentFor(context.Entities.GamesRoomDeskTemperature.EntityId, HeatingControlService.ThermometerSilentAfter - TimeSpan.FromMinutes(1));
+
+        await context.Service.EvaluateAllSchedules("desk cold");
+
+        context.GamesHeater.IsOn().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task AThermometerWhoseReportTimeCannotBeRead_IsTakenAsWorking()
+    {
+        // HA unreachable: a check that cannot run must not stop the heating.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 0, 0), "games desk");
+        context.Presence.SetRoomValue("games desk", true);
+        context.Thermometers.Unknown(context.Entities.GamesRoomDeskTemperature.EntityId);
+
+        await context.Service.EvaluateAllSchedules("desk cold");
+
+        context.GamesHeater.IsOn().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task AnUnavailableThermometer_SwitchesItsZonesHeaterOff()
+    {
+        // Until 2026-10-31 a zone with no reading was skipped, and a heater that was on stayed on.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(16, 0, 0), "games desk");
+        context.Presence.SetRoomValue("games desk", true);
+        await context.Service.EvaluateAllSchedules("desk cold");
+        context.GamesHeater.IsOn().ShouldBeTrue();
+
+        ((FakeCustomNumericSensorEntity)context.Entities.GamesRoomDeskTemperature).State = null;
+        await context.Service.EvaluateAllSchedules("desk thermometer unavailable");
+
+        context.GamesHeater.IsOff().ShouldBeTrue();
+    }
+
     private sealed class RulesTestContext
     {
         private const double RoomTemperature = 15;
@@ -980,6 +1048,9 @@ public sealed class DeviceRulesHeatingTests
 
         /// <summary>The valve-health monitor the service publishes from.</summary>
         public required IValveHealthMonitor ValveHealth { get; init; }
+
+        /// <summary>When each thermometer last reported; every one is reporting until a test says otherwise.</summary>
+        public required FakeThermometerReports Thermometers { get; init; }
 
         /// <summary>Makes the valve's measured rate this many degrees an hour, as if it had warmed its room at that pace.</summary>
         public void GiveRadiatorARate(string entityId, double degreesPerHour) =>
@@ -1044,6 +1115,8 @@ public sealed class DeviceRulesHeatingTests
             services.AddSingleton<IWarmUpRates>(provider => provider.GetRequiredService<WarmUpRates>());
             services.AddSingleton<IValveHealthStore, InMemoryValveHealthStore>();
             services.AddSingleton<IValveHealthMonitor, ValveHealthMonitor>();
+            services.AddSingleton(provider => new FakeThermometerReports(provider.GetRequiredService<FakeTimeProvider>()));
+            services.AddSingleton<IThermometerReports>(provider => provider.GetRequiredService<FakeThermometerReports>());
 
             ServiceProvider provider = services.BuildServiceProvider();
 
@@ -1091,7 +1164,8 @@ public sealed class DeviceRulesHeatingTests
                 Rooms = rooms,
                 WarmUp = provider.GetRequiredService<WarmUpRates>(),
                 Clock = provider.GetRequiredService<FakeTimeProvider>(),
-                ValveHealth = provider.GetRequiredService<IValveHealthMonitor>()
+                ValveHealth = provider.GetRequiredService<IValveHealthMonitor>(),
+                Thermometers = provider.GetRequiredService<FakeThermometerReports>()
             };
         }
     }
