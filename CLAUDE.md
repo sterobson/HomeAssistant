@@ -321,7 +321,8 @@ More heating notes:
   `believedOn` keeps its old name and now means the relay's wanted state), shown as "Boiler on since …" at the top of
   the heating page, which opens the **boiler history** chart (the Functions app records each change in the
   `boilerhistory` table; the week before 2026-10-21 was backfilled, marked inferred, by
-  `tools/ha/boiler-history-backfill.cjs`). Tests: `HeatingBoilerControlTests`.
+  `tools/ha/boiler-history-backfill.cjs`). Tests: `HeatingBoilerControlTests`. Live since 16:01 GMT on 2026-10-31
+  (NetDaemon `20261031155756`, commit `85b1e9b`), with the frontend's "Relay" option.
 - **Who runs the boiler is a setting.** `heating.boilerControlPath` in the **device-settings** blob, a number:
   0 = `BoilerThermostat` (the default: run by hand with the portable boiler thermostat, normally in the kitchen;
   "external" or "kitchen scheduler" in older notes), 1 = `Relay` (the value the fingerbot had, so a saved 1 carried

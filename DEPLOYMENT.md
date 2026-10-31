@@ -246,6 +246,14 @@ and OTA upload, as one script (34 files, `HomeAssistant.dll` and `version.txt` c
 was off by the owner's hand press, the app believed off, and its last check had passed at 14:22, so the stop dropped
 nothing. It came back on the new version within 30 s, carrying on from the saved belief (off since 12:50:04).
 
+The 2026-10-31 16:01 GMT deploy (`85b1e9b`: the boiler run through its relay, the fingerbot belief code removed) was
+NetDaemon `20261031155756` (the same stop, copy, start and OTA upload) and the frontend (entry `index-DZEFE_qE.js`, the
+same build-check-`swa deploy` script); the Functions app was not redeployed (only an enum renamed, stored as the same
+number). Production's `boilerControlPath` was already 1, so the app came up in relay mode, read the relay as on and kept
+it on with rooms calling. **Since the relay, a restart drops nothing:** the app reads the relay at startup, so there is
+no boiler belief to line up before stopping the add-on. The Samba share refused port 445 again with the add-on
+"started"; `addon.cjs core_samba restart` fixed it within seconds, as on 2026-10-17.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
