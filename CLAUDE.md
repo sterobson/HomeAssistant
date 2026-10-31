@@ -314,7 +314,9 @@ More heating notes:
   for the boiler), and no call for the boiler. Until then such a zone was skipped and its devices left as they were,
   so a heater that was on stayed on. A report time that cannot be read is taken as working, so a failed check never
   stops the heating. Room states carry `thermometerSilentSince`, and the room card shows "No reading" with a dash for
-  the temperature. Tests: the silent-thermometer cases in `DeviceRulesHeatingTests` and `HeatingBoilerControlTests`.
+  the temperature. Tests: the silent-thermometer cases in `DeviceRulesHeatingTests` and `HeatingBoilerControlTests`,
+  and `ThermometerReportsTests`. Live since 18:48 GMT on 2026-10-31 (NetDaemon `20261031184734`, Functions
+  `2026.10.31.18.45-d4bfa74`, commit `d4bfa74`).
 - **The boiler is switched by a relay, and the app keeps the relay where it wants it (since 2026-10-31).**
   `switch.den_boiler_relay` ("Den - Boiler relay", a SONOFF MINI-ZBD dry-contact relay on the boiler's control
   input; owner: nothing else can fire the boiler) is `NamedEntities.BoilerRelay`. `_boilerOn` is what the app wants

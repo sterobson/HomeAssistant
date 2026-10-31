@@ -254,6 +254,12 @@ it on with rooms calling. **Since the relay, a restart drops nothing:** the app 
 no boiler belief to line up before stopping the add-on. The Samba share refused port 445 again with the add-on
 "started"; `addon.cjs core_samba restart` fixed it within seconds, as on 2026-10-17.
 
+The 2026-10-31 18:45 GMT deploy (`d4bfa74`: no heat for a zone whose thermometer ZHA has not heard from for 90 minutes;
+HOME-ASSISTANT.md gotcha 32) was all three, in order: Functions `2026.10.31.18.45-d4bfa74` first (room states gained
+`thermometerSilentSince`, which an older Functions app would drop), then NetDaemon `20261031184734` (35 files, checked
+on the share; up and in relay mode at 18:48:17 with the relay off), then the frontend (entry `index-ALEQMavL.js`). The
+Samba share answered first time.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
