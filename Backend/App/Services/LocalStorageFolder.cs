@@ -4,7 +4,7 @@ using System.IO;
 namespace HomeAssistant.Services;
 
 /// <summary>
-/// Where the app keeps its on-disk caches (schedules, device settings, battery rules, the boiler belief).
+/// Where the app keeps its on-disk caches (schedules, device settings, battery rules, warm-up rates, valve health).
 ///
 /// Running as a Home Assistant add-on - which is how the app is deployed - that is the add-on's
 /// <c>/data</c> folder. The Supervisor recreates an add-on's container whenever the add-on restarts,

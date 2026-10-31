@@ -25,8 +25,7 @@
       <div v-if="rooms.length > 0" class="layout-toolbar">
         <!-- Status on the left, opposite the layout buttons. -->
         <div class="toolbar-status">
-          <!-- Only in fingerbot mode, when the app drives the boiler. A belief, not a reading: nothing sees the
-               boiler itself (CLAUDE.md, "The boiler has no feedback"). -->
+          <!-- Only in relay mode, when the app drives the boiler: the state the app keeps the relay in. -->
           <button
             v-if="boilerState?.appControlsBoiler"
             type="button"

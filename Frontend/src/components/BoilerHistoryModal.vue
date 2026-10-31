@@ -76,10 +76,10 @@
         </template>
 
         <p class="belief-note">
-          What the app believed from its own presses of the fingerbot. Nothing can read the boiler itself, so a press
-          that did not take, or one made by hand at the boiler, is not shown. Recorded since 21 October 2026.
-          Hatched stretches before that were worked out afterwards from the radiators warming and cooling: what the
-          boiler evidently did, whoever ran it, and only roughly when.
+          Since 31 October 2026, when the app switched the boiler relay. From 21 to 31 October, what the app believed
+          from its own presses of the fingerbot, which could be wrong. Hatched stretches before that were worked out
+          afterwards from the radiators warming and cooling: what the boiler evidently did, whoever ran it, and only
+          roughly when.
         </p>
       </div>
 

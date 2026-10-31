@@ -335,8 +335,6 @@ public sealed class RoomZoneBindingTests
             services.AddSingleton(Substitute.For<ILogger<ISchedulePersistenceService>>());
             services.AddSingleton(schedulePersistence);
             services.AddSingleton(statePersistence);
-            services.AddSingleton(Substitute.For<IBoilerVerificationService>());
-            services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
             services.AddSingleton<FakeDeviceSettingsPersistenceService>();
             services.AddSingleton<IDeviceSettingsPersistenceService>(provider => provider.GetRequiredService<FakeDeviceSettingsPersistenceService>());
 

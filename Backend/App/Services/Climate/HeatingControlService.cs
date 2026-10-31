@@ -25,9 +25,7 @@ internal partial class HeatingControlService
     private readonly INamedEntities _namedEntities;
     private readonly ISchedulePersistenceService _schedulePersistence;
     private readonly IRoomStatePersistenceService _statePersistence;
-    private readonly IBoilerVerificationService _boilerVerification;
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
-    private readonly IBoilerStatePersistence _boilerStatePersistence;
     private const int _recheckEveryXMinutes = 5;
     internal const double HysteresisOffset = 0.2;
     // The boiler is switched on once the rooms with a radiator valve are, between them, this many
@@ -35,64 +33,21 @@ internal partial class HeatingControlService
     internal const double BoilerDeficitThresholdCelsius = 3;
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
-    // What the app believes the boiler is doing in fingerbot mode, and since when (null when unknown).
-    // The boiler has no feedback; see BoilerBelief.
+    // In relay mode, whether the app wants the boiler on, and since when (null when unknown). The relay is put in that
+    // state at every check (EnsureBoilerRelayAsync), so it is also what the boiler is doing unless the relay is unavailable.
+    // Until 2026-10-31 the boiler was pressed by a fingerbot with no feedback, and this was a belief kept by counting
+    // presses, saved across restarts and checked against the radiators. The relay replaced all of that.
     private bool _boilerOn = false;
-    private DateTimeOffset? _boilerBeliefSince = null;
-    // Corrective presses since the last ordinary one. A check that disagrees again after a correction is pressed again,
-    // either way (owner, 2026-10-23: the app must be certain the boiler did what it was told, even if a corrective press
-    // did not work), up to MaxCorrectionsInARow, after which the app stops and raises a notification: presses that keep
-    // failing mean something it cannot fix, such as the switch at the boiler being on the boiler thermostat, where every
-    // press is dead. Until 2026-10-23 a second disagreement was only logged.
-    private int _correctionsInARow = 0;
-    // How long after its check fails each corrective press waits: the first at once, the later ones further apart, in
-    // case what stops them is a network problem that passes (owner, 2026-10-23). One entry per press allowed.
-    internal static readonly TimeSpan[] CorrectionDelays =
-        [TimeSpan.Zero, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(60)];
-    internal static readonly int MaxCorrectionsInARow = CorrectionDelays.Length;
-    // A corrective press waiting its turn (see CorrectionDelays); null if none.
-    private DateTimeOffset? _correctionDueAt;
-    // Set once MaxCorrectionsInARow presses have not put the boiler where the app believes it is; cleared when the belief
-    // is settled some other way.
-    private bool _correctionGivenUp = false;
-    // The valve held open for the check of a press, so it can show what the boiler is doing (owner, 2026-10-23). See
-    // IsHeldForBoilerCheck.
-    private string? _valveHeldForBoilerCheck;
-    // A held valve's setpoint is kept at least this far above its reading, so its TRV never throttles at its setpoint,
-    // which would stop it climbing on a running boiler and so hide that from the check.
-    internal const double HeldValveHeadroomCelsius = 2.0;
-    private bool _hasLoggedFingerbotUnavailable = false;
+    private DateTimeOffset? _boilerOnSince = null;
+    private bool _hasLoggedRelayUnavailable = false;
+    // The last command sent to the relay, so the next pass does not send it again before Home Assistant has reported it.
+    private (bool On, DateTimeOffset At)? _lastRelayCommand;
+    internal static readonly TimeSpan RelayReportGrace = TimeSpan.FromSeconds(30);
 
-    // Two presses of the boiler's button are never closer together than this (owner, 2026-10-28, after the app pressed it
-    // twice within a minute and left it running: HOME-ASSISTANT.md gotcha 31). Enforced in PressBoilerFingerbotAsync,
-    // which every press goes through, so no decision, correction or exercise can get round it. It also keeps the boiler on
-    // (or off) at least this long; that day it was pressed off 3 minutes after on.
-    internal static readonly TimeSpan MinimumTimeBetweenPresses = TimeSpan.FromMinutes(10);
-    // When the app last sent the fingerbot a command, or saw it move by itself; null if neither since startup.
-    private DateTimeOffset? _lastPressAt;
-    // When Home Assistant answered the last press with an error, while that press is in doubt. Such a press can still
-    // land, with or without the fingerbot reporting it (gotcha 31: at 12:49 on 2026-10-28 a "timed out" press landed,
-    // and the app's next press 32 s later landed too, with one report between them), so it counts as pressed, and
-    // nothing is pressed again until the fingerbot reports the move or the radiators have shown what the boiler did.
-    // Until then a failed press was taken as not pressed, and retried a minute later. Guarded by _fingerbotLock.
-    private DateTimeOffset? _pressInDoubtSince;
-    // Why the last press was held back, so it is logged once rather than on every pass.
-    private string? _lastPressHoldLogged;
-
-    // Whether the boiler was believed on when the pass began, before it was decided. A room reaching its target is
+    // Whether the boiler was on when the pass began, before it was decided. A room reaching its target is
     // usually the last one calling, which turns the boiler off in that very pass, and a warm-up that ends that way
     // still had the boiler on right up to the reading that finished it (see WarmUpRates).
     private bool _boilerWasOnAtStartOfPass = false;
-
-    // Fingerbot movements the app did not command (the HA UI, a script, an automation). Guarded by
-    // _fingerbotLock because state changes arrive outside the evaluation semaphore.
-    private readonly object _fingerbotLock = new();
-    private bool? _lastSeenFingerbotState;
-    // The state the app's last press asked for, until the fingerbot reports it. Kept even when Home Assistant called the
-    // press failed, however late the report: the press was counted when it was sent, so its report is the switch
-    // catching up, not someone else's press (2026-10-23: 11 s after "timed out"; 2026-10-28: 9 s, and 32 s).
-    private bool? _expectedFingerbotState;
-    private int _pressesSeenOutsideTheApp = 0;
 
     /// <summary>Just over the longest steady-draw rule (the living room TV, Ruth's desk), so a re-evaluation sees it settled.</summary>
     private static readonly TimeSpan PresencePowerSettleDelay =
@@ -101,27 +56,12 @@ internal partial class HeatingControlService
     private BoilerControlPath? _lastSeenBoilerControlPath = null;
     private static readonly SemaphoreSlim _evaluationSemaphore = new(1, 1);
 
-    // Set for each pass over the rooms: in fingerbot mode, while the boiler is believed off, radiator valves
-    // are not moved at all, neither opened nor shut. With no hot water behind them their position makes no
-    // difference, and every move spends the TRV's battery (owner, 2026-10-19). The boiler is decided before
-    // the rooms, so they are brought into line in the same pass that turns it on. In boiler-thermostat mode
-    // the app cannot know when the boiler runs, so valves follow their rooms as before.
+    // Set for each pass over the rooms: in relay mode, while the boiler is off, radiator valves are not moved at all,
+    // neither opened nor shut. With no hot water behind them their position makes no difference, and every move spends
+    // the TRV's battery (owner, 2026-10-19). The boiler is decided before the rooms, so they are brought into line in the
+    // same pass that turns it on. In boiler-thermostat mode the app cannot know when the boiler runs, so valves follow
+    // their rooms.
     private bool _valvesWaitForBoiler = false;
-
-    // Set when a turn-off verification finds the radiators still hot, so the boiler may be running although
-    // the app believes it off. Until the app next turns the boiler on or off itself, valves follow their rooms
-    // again, shutting those that are warm enough: that evidence is the one reason to move them with the
-    // boiler believed off.
-    private bool _boilerMayBeRunning = false;
-
-    // A press made this pass, whose verification is armed only after the rooms have moved their valves, with the
-    // valves open after the pass (RecordValvesAndVerifyAsync). Until 2026-10-21 it was armed in DecideBoilerAsync with the
-    // valves open before the pass, so on 2026-10-20 it watched the dining valve that same pass shut, which could never
-    // warm. Null when nothing was pressed.
-    private (bool BoilerNowOn, DateTimeOffset? BoilerOffSince)? _pressToVerify;
-    // A fingerbot movement the app did not make, which flipped the belief: checked against the radiators in the same
-    // pass as a press of the app's own (since 2026-10-22; until then it cancelled every check).
-    private (bool BoilerNowOn, DateTimeOffset? BoilerOffSince)? _fingerbotMovementToVerify;
 
     // The valves commanded this pass and whether each was sent open. HA reports a command only a moment after it is
     // sent, so reading a valve back in the same pass still shows where it was (see IsValveOpenAfterPass).
@@ -173,9 +113,7 @@ internal partial class HeatingControlService
         TimeProvider timeProvider,
         ISchedulePersistenceService schedulePersistence,
         IRoomStatePersistenceService statePersistence,
-        IBoilerVerificationService boilerVerification,
         IDeviceSettingsPersistenceService deviceSettings,
-        IBoilerStatePersistence boilerStatePersistence,
         IBatteryOverview? batteryOverview = null,
         IWarmUpRates? warmUpRates = null,
         IValveHealthMonitor? valveHealth = null)
@@ -193,10 +131,7 @@ internal partial class HeatingControlService
         _timeProvider = timeProvider;
         _schedulePersistence = schedulePersistence;
         _statePersistence = statePersistence;
-        _boilerVerification = boilerVerification;
         _deviceSettings = deviceSettings;
-        _boilerStatePersistence = boilerStatePersistence;
-        _lastSeenFingerbotState = ReadFingerbotState();
 
         EntityExistenceValidator.ValidateEntities(ha, logger,
             namedEntities.GamesRoomHeaterSmartPlugOnOff.EntityId,
@@ -224,7 +159,7 @@ internal partial class HeatingControlService
             namedEntities.Bedroom3RadiatorThermostat.EntityId,
             namedEntities.DenRadiator1Thermostat.EntityId,
             namedEntities.DenRadiator2Thermostat.EntityId,
-            namedEntities.BoilerFingerbot.EntityId);
+            namedEntities.BoilerRelay.EntityId);
     }
 
     public void Start()
@@ -287,77 +222,9 @@ internal partial class HeatingControlService
         _homeBattery.OnBatteryChargePercentChanged(async _ => await EvaluateAllSchedules("home battery charge changed"));
         _electricityMeter.OnCurrentRatePerKwhChanged(async _ => await EvaluateAllSchedules("electricity import rate changed"));
 
-        WatchBoilerFingerbot();
-    }
-
-    /// <summary>
-    /// Notices the fingerbot moving when the app did not tell it to, so a press from the HA UI, a
-    /// script or an automation flips the boiler belief instead of silently inverting it. The
-    /// fingerbot's HA state latches (after a press on 2026-10-19 it stayed "on" and never reverted), so any
-    /// on/off change the app did not command is someone else's press. A press made by hand on the
-    /// boiler itself goes through no device and cannot be seen.
-    /// </summary>
-    internal void WatchBoilerFingerbot()
-    {
-        _namedEntities.BoilerFingerbot.SubscribeToStateChangesAsync(async _ => await OnBoilerFingerbotStateChanged());
-    }
-
-    private async Task OnBoilerFingerbotStateChanged()
-    {
-        string? trigger = null;
-        double? doubtfulPressReportedAfterSeconds = null;
-
-        lock (_fingerbotLock)
-        {
-            bool? previous = _lastSeenFingerbotState;
-            bool? current = ReadFingerbotState();
-            _lastSeenFingerbotState = current;
-
-            // Going unavailable or coming back is not a press.
-            if (current.HasValue && previous.HasValue && current != previous)
-            {
-                DateTimeOffset now = _timeProvider.GetUtcNow();
-                if (_expectedFingerbotState == current)
-                {
-                    // The app's own press, reported. One Home Assistant called failed is now known to have reached the
-                    // fingerbot, as far as the fingerbot can say: no longer in doubt.
-                    _expectedFingerbotState = null;
-                    if (_pressInDoubtSince is { } since)
-                    {
-                        doubtfulPressReportedAfterSeconds = (now - since).TotalSeconds;
-                        _pressInDoubtSince = null;
-                    }
-                }
-                else
-                {
-                    _pressesSeenOutsideTheApp++;
-                    _lastPressAt = now;
-                    trigger = "boiler fingerbot pressed outside the app";
-                }
-            }
-        }
-
-        if (doubtfulPressReportedAfterSeconds is { } seconds)
-        {
-            _logger.LogInformation(
-                "The boiler fingerbot reported the press Home Assistant called failed, {Seconds:F0} s later. It was counted when it was sent, so the belief stays as it is",
-                seconds);
-        }
-
-        if (trigger != null)
-        {
-            await EvaluateAllSchedules(trigger);
-        }
-    }
-
-    /// <summary>The fingerbot's reported switch state, or null when it is unavailable or unknown.</summary>
-    private bool? ReadFingerbotState()
-    {
-        if (_namedEntities.BoilerFingerbot.IsOn())
-            return true;
-        if (_namedEntities.BoilerFingerbot.IsOff())
-            return false;
-        return null;
+        // The relay switched by anything else (the HA UI, a power cut) is put back at once, not at the next periodic check.
+        // The app's own commands come back here too, and change nothing.
+        _namedEntities.BoilerRelay.SubscribeToStateChangesAsync(async change => await EvaluateAllSchedules("boiler relay changed"));
     }
 
     /// <summary>
@@ -471,7 +338,7 @@ internal partial class HeatingControlService
             await _evaluationSemaphore.WaitAsync();
             if (_valveExerciseRunning)
             {
-                // The monthly valve exercise owns the valves and the boiler for its 5 minutes; it evaluates when done.
+                // The monthly valve exercise owns the valves and the boiler while it runs; it evaluates when done.
                 _logger.LogDebug("Evaluation skipped during the valve exercise. Triggered by {Trigger}", trigger);
                 return;
             }
@@ -479,10 +346,10 @@ internal partial class HeatingControlService
             await PrepareDeviceRulesAsync();
             RoomSchedules schedules = await LoadSchedulesAsync();
 
-            // 1. The boiler's mode and belief: a mode change, the saved belief at startup, outside presses.
+            // 1. The boiler's mode, and on entering relay mode, what the relay is doing.
             BoilerStateDto boilerBefore = DescribeBoiler();
             BoilerControlPath controlPath = await UpdateBoilerControlPathAsync(trigger);
-            bool fingerbotMode = controlPath == BoilerControlPath.Fingerbot;
+            bool relayMode = controlPath == BoilerControlPath.Relay;
 
             // 2. What every room wants, before anything moves.
             Dictionary<int, RoomTarget> targets = [];
@@ -495,30 +362,19 @@ internal partial class HeatingControlService
                 }
             }
 
-            // 3. The boiler, decided and pressed before any valve moves, so that valves are only moved when
-            //    there may be hot water behind them.
+            // 3. The boiler, decided and its relay switched before any valve moves, so that valves are only moved when
+            //    there will be hot water behind them. The relay is checked on every pass, whether or not the decision
+            //    changed (owner, 2026-10-31).
             _boilerWasOnAtStartOfPass = _boilerOn;
-            // A press seen outside the app is verified like the app's own; a press the app makes this pass replaces it.
-            _pressToVerify = fingerbotMode ? _fingerbotMovementToVerify : null;
-            _fingerbotMovementToVerify = null;
             _valvesCommandedThisPass.Clear();
-            if (fingerbotMode)
+            if (relayMode)
             {
-                await DecideBoilerAsync(schedules, targets, trigger);
-            }
-
-            // A turn-off to check: keep the warmest open valve open through this pass, so the rooms cannot shut every
-            // valve (they would, after a failed check, with the boiler possibly running) and leave nothing to watch.
-            // A turn-on: the rooms bring their valves into line first, and the valve to hold is chosen after them.
-            if (_pressToVerify is { } pressThisPass)
-            {
-                _valveHeldForBoilerCheck = pressThisPass.BoilerNowOn
-                    ? null
-                    : WarmestValve(ValvesOf(schedules).Where(v => IsValveOpen(v.Valve)))?.EntityId;
+                DecideBoiler(schedules, targets, trigger);
+                await EnsureBoilerRelayAsync(trigger);
             }
 
             // 4. The rooms' devices.
-            _valvesWaitForBoiler = fingerbotMode && !_boilerOn && !_boilerMayBeRunning;
+            _valvesWaitForBoiler = relayMode && !_boilerOn;
             bool hasStateChanged = false;
             foreach (RoomSchedule schedule in schedules.Rooms)
             {
@@ -552,13 +408,13 @@ internal partial class HeatingControlService
                 }
             }
 
-            // 5. What the valves did this pass, for the boiler verification, and the verification itself.
-            if (fingerbotMode)
+            // 5. What the valves did this pass, for the valve-health monitor, which needs to know when the boiler ran.
+            if (relayMode)
             {
-                await RecordValvesAndVerifyAsync(schedules);
+                ObserveValveHealth(schedules);
             }
 
-            // The UI shows the boiler too, so a change of mode or belief is worth an upload on its own.
+            // The UI shows the boiler too, so a change of mode or of the boiler is worth an upload on its own.
             BoilerStateDto boilerAfter = DescribeBoiler();
             hasStateChanged |= boilerAfter.AppControlsBoiler != boilerBefore.AppControlsBoiler
                 || boilerAfter.BelievedOn != boilerBefore.BelievedOn
@@ -799,7 +655,7 @@ internal partial class HeatingControlService
         {
             if (device is TowelRail)
             {
-                // Nothing to switch: the boiler was already decided for it (DecideBoilerAsync). It sets the room's target
+                // Nothing to switch: the boiler was already decided for it (DecideBoiler). It sets the room's target
                 // all the same, and is heating whenever the app has the boiler on.
                 DeviceTarget railTarget = TargetFor(roomHeatingSchedule, target, device);
                 if (railTarget.Temperature > roomTarget.Temperature)
@@ -839,17 +695,8 @@ internal partial class HeatingControlService
 
             _devicesWantingHeat[entityId] = wanting;
 
-            bool heldForCheck = IsHeldForBoilerCheck(device);
-            if (heldForCheck || IsWaitingForBoiler(device))
+            if (IsWaitingForBoiler(device))
             {
-                // A valve held open for the check of a press is not the room's to move until the check is over. With
-                // the boiler believed on it is open with hot water behind it, so it is heating the room.
-                if (heldForCheck)
-                {
-                    KeepOpenForBoilerCheck(roomHeatingSchedule.Name, (ICustomClimateControlEntity)device, trigger);
-                    anyHeating |= _boilerOn;
-                }
-
                 // With the boiler off a valve's position makes no difference, so it is neither opened nor shut,
                 // and it is not heating the room whatever its setpoint says. The exception is the pass in which the
                 // boiler was just turned off: the valve is still open from before, and the reading that finished its
@@ -864,7 +711,7 @@ internal partial class HeatingControlService
             bool allowed = IsDeviceAllowed(device);
             bool desiredOn = wanting && allowed;
 
-            // A valve counts as warming its room while it is meant to be open and the boiler is believed on. The
+            // A valve counts as warming its room while it is meant to be open and the boiler is on. The
             // intended state rather than the one read back: HA reports a command a moment after it is sent.
             // A heater plug needs no boiler: it is warming its room whenever it is meant to be on (owner, 2026-10-21).
             if (device is ICustomClimateControlEntity)
@@ -1334,7 +1181,7 @@ internal partial class HeatingControlService
                         EntityId = rail.Id,
                         Role = RoomDeviceRoles.TowelRail,
                         Name = rail.Name,
-                        State = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot ? (IsTowelRailHot() ? "on" : "off") : null
+                        State = _lastSeenBoilerControlPath == BoilerControlPath.Relay ? (IsTowelRailHot() ? "on" : "off") : null
                     });
                     break;
             }
@@ -1470,105 +1317,53 @@ internal partial class HeatingControlService
     }
 
     /// <summary>
-    /// Reads the boiler control path and brings the belief up to date with it: a mode change, the saved
-    /// belief at startup, and fingerbot movements the app did not command. Runs before the rooms, so they
-    /// see the belief this pass starts from.
+    /// Reads the boiler control path. Entering relay mode (at startup, or from the boiler thermostat), the app carries on
+    /// from what the relay is doing, so a restart does not switch a running boiler off and on again. Leaving it, the
+    /// relay is switched off once, so it cannot keep the boiler running while the house is meant to be on its thermostat.
     /// </summary>
     private async Task<BoilerControlPath> UpdateBoilerControlPathAsync(string trigger)
     {
         BoilerControlPath controlPath = await GetBoilerControlPathAsync();
         BoilerControlPath? previousControlPath = _lastSeenBoilerControlPath;
-        bool pathChanged = controlPath != previousControlPath;
         _lastSeenBoilerControlPath = controlPath;
-        int pressesSeenOutsideTheApp = TakePressesSeenOutsideTheApp();
-
-        if (controlPath == BoilerControlPath.BoilerThermostat)
+        if (controlPath == previousControlPath)
         {
-            if (pathChanged)
-            {
-                // Logged once per transition: this runs on every evaluation cycle.
-                _logger.LogInformation(
-                    "Boiler control is DISABLED: the house is on its boiler thermostat, which leaves the boiler's button dead, so a fingerbot press would do nothing. Room-level control (valves and heater plugs) continues as normal. Change this in device settings when the switch at the boiler is flipped. Triggered by {Trigger}",
-                    trigger);
-
-                // Drop anything left over from fingerbot mode so a stale verification cannot
-                // resurface and provoke a corrective press later.
-                _boilerVerification.Reset();
-            }
-
-            // We have no belief about the boiler to hold while something else is driving it, and a
-            // fingerbot press seen in this mode hit a dead button. Nothing is saved, so the belief
-            // last saved in fingerbot mode is left alone.
-            _boilerOn = false;
-            _boilerBeliefSince = null;
-            _boilerMayBeRunning = false;
-            CancelCorrection();
             return controlPath;
         }
 
-        if (pathChanged)
+        // Logged once per change of mode: this runs on every evaluation pass.
+        if (controlPath == BoilerControlPath.BoilerThermostat)
         {
-            // Only at startup does a saved belief describe the boiler now. Coming from the boiler
-            // thermostat, the thermostat has been driving it, so whatever was saved is stale.
-            BoilerBelief? savedBelief = previousControlPath == null ? _boilerStatePersistence.Load() : null;
-
-            if (savedBelief != null)
+            _logger.LogInformation(
+                "Boiler control is DISABLED: the boiler is run by hand with its thermostat, so the app leaves it alone. Room-level control (valves and heater plugs) continues as normal. Triggered by {Trigger}",
+                trigger);
+            if (previousControlPath == BoilerControlPath.Relay && ReadRelayState() == true)
             {
-                _boilerOn = savedBelief.BoilerOn;
-                _boilerBeliefSince = savedBelief.Since;
-                _logger.LogInformation(
-                    "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Carrying on from the saved belief that the boiler has been {State} since {Since:O}. Triggered by {Trigger}",
-                    _boilerOn ? "ON" : "OFF", savedBelief.Since, trigger);
-            }
-            else
-            {
-                SetBoilerBelief(false, _timeProvider.GetUtcNow());
-                _logger.LogInformation(
-                    "Boiler control is ENABLED: device settings say the boiler is wired to the fingerbot. Assuming the boiler is currently OFF. Triggered by {Trigger}",
-                    trigger);
+                _logger.LogInformation("Switching the boiler relay off, now that the app no longer runs the boiler");
+                await _namedEntities.BoilerRelay.TurnOffConfirmedAsync();
             }
 
-            _correctionsInARow = 0;
+            _boilerOn = false;
+            _boilerOnSince = null;
+            _lastRelayCommand = null;
+            return controlPath;
         }
 
-        // Each fingerbot movement is taken as one press of a toggle button. It is only the switch's word for it: at 02:42
-        // on 2026-10-22 it reported "on" by itself and the boiler never fired. So a changed belief is checked against
-        // the radiators like a press the app has confirmed, and a report that moved nothing is caught.
-        // The app's own presses, Home Assistant's errors included, were counted when they were sent; a late report of one
-        // changes nothing (see OnBoilerFingerbotStateChanged).
-        DateTimeOffset? offSinceBeforeMovement = _boilerOn ? null : _boilerBeliefSince;
-
-        if (pressesSeenOutsideTheApp > 0)
-        {
-            bool beliefChangedByMovement = pressesSeenOutsideTheApp % 2 == 1;
-            if (beliefChangedByMovement)
-            {
-                SetBoilerBelief(!_boilerOn, _timeProvider.GetUtcNow());
-            }
-
-            _logger.LogWarning(
-                "The boiler fingerbot was pressed {Count} time(s) outside the app. Now believing the boiler is {State}{Check}. Triggered by {Trigger}",
-                pressesSeenOutsideTheApp, _boilerOn ? "ON" : "OFF", beliefChangedByMovement ? ", and checking that against the radiators" : "", trigger);
-
-            // Any pending verification was judging the old belief and would "correct" the new one. The valve history
-            // is kept: the new belief's check needs to know which radiators have had hot water (until 2026-10-23 it was
-            // wiped too, so a movement to "off" could never arm a turn-off check).
-            _boilerVerification.DiscardPendingVerification();
-            // The movement settles the belief afresh, so a corrective press waiting its turn would act on the old one.
-            CancelCorrection();
-            _fingerbotMovementToVerify = beliefChangedByMovement ? (_boilerOn, offSinceBeforeMovement) : null;
-            _correctionsInARow = 0;
-        }
-
+        _boilerOn = ReadRelayState() == true;
+        _boilerOnSince = RelayLastChanged();
+        _lastRelayCommand = null;
+        _logger.LogInformation(
+            "Boiler control is ENABLED: the app runs the boiler through its relay, which is {State}. Carrying on from there. Triggered by {Trigger}",
+            ReadRelayState() switch { true => "on", false => "off", null => "unavailable" }, trigger);
         return controlPath;
     }
 
     /// <summary>
-    /// Fingerbot mode only. Corrects the belief if a verification has failed, then turns the boiler on or off
-    /// from what the rooms want this pass, before any valve has moved, so the rooms can then move their valves
-    /// only if there may be hot water behind them.
+    /// Relay mode only. Turns the boiler on or off from what the rooms want this pass, before any valve has moved, so
+    /// the rooms can then move their valves only if there will be hot water behind them. The relay itself is switched
+    /// straight after (<see cref="EnsureBoilerRelayAsync"/>).
     /// </summary>
-    private async Task DecideBoilerAsync(RoomSchedules schedules, Dictionary<int, RoomTarget> targets, string trigger)
+    private void DecideBoiler(RoomSchedules schedules, Dictionary<int, RoomTarget> targets, string trigger)
     {
         // Sum how far each room with a radiator valve is below its target. A room at or above its
         // target contributes nothing: it is disregarded, not a credit against the cold rooms.
@@ -1634,82 +1429,6 @@ internal partial class HeatingControlService
         bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
         bool roomsWantItOn = _roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
 
-        // Check if a previous verification has failed and we need to correct the boiler state
-        bool? verifiedState = _boilerVerification.GetVerifiedBoilerState();
-        // Where the radiators say the boiler is, if that is where the rooms would keep it now: on while any is calling, or
-        // off while they do not want it on.
-        bool roomsKeepItThere = verifiedState == true ? _roomsCallingForHeat.Count > 0 : !roomsWantItOn;
-        if (verifiedState.HasValue && verifiedState.Value != _boilerOn && roomsKeepItThere)
-        {
-            // Pressing it back would only have to be undone, and every press is a chance to go wrong (owner, 2026-10-28):
-            // taken as it is, with nothing pressed. The boiler has really been that way since the press believed in.
-            CancelCorrection();
-            SetBoilerBelief(verifiedState.Value, _boilerBeliefSince ?? _timeProvider.GetUtcNow());
-            _correctionsInARow = 0;
-            _boilerMayBeRunning = false;
-            _logger.LogWarning(
-                "Boiler verification says the boiler is {Actually}, not {Believed} as the app believed. That is where the rooms want it now, so it is not pressed: taking it as {Taken}. Triggered by {Trigger}",
-                verifiedState.Value ? "ON" : "OFF", verifiedState.Value ? "off" : "on", verifiedState.Value ? "ON" : "OFF", trigger);
-        }
-        else if (verifiedState.HasValue && verifiedState.Value != _boilerOn)
-        {
-            if (verifiedState.Value)
-            {
-                // Evidence that a turn-off did not work: the radiators stayed hot. Until the app next turns the
-                // boiler on or off itself, valves follow their rooms again, so the warm rooms' valves shut.
-                _boilerMayBeRunning = true;
-            }
-
-            // A corrective press that has not worked is pressed again, each press checked like the first, and the later
-            // ones further apart in case the trouble is the network and it passes; after the last, the app stops and
-            // raises a notification (owner, 2026-10-23). The same both ways: a boiler left running wastes gas unseen,
-            // and one that never fired leaves the house cold.
-            if (_correctionDueAt != null)
-            {
-                // Already waiting to press again; the press due will be checked in its turn.
-            }
-            else if (_correctionsInARow >= MaxCorrectionsInARow)
-            {
-                _correctionGivenUp = true;
-                string actually = verifiedState.Value ? "still running" : "not running";
-                _logger.LogError(
-                    "Boiler verification says the boiler is {Actually} after {Count} corrective presses to turn it {Direction}. Not pressing again: something the fingerbot cannot fix is wrong (is the switch at the boiler on the boiler thermostat?). Check the boiler by hand",
-                    actually, _correctionsInARow, _boilerOn ? "on" : "off");
-                _ha.CallService("notify", "persistent_notification", data: new
-                {
-                    title = verifiedState.Value ? "Boiler may still be running" : "Boiler may not be running",
-                    message = $"The boiler should be {(_boilerOn ? "on" : "off")}, and the heating app has pressed it {_correctionsInARow} more times to correct it, but the radiators still say it is {actually}. It has stopped pressing. Check the boiler, and the switch that chooses between the fingerbot and the boiler thermostat."
-                });
-            }
-            else if (CorrectionDelays[_correctionsInARow] > TimeSpan.Zero)
-            {
-                TimeSpan wait = CorrectionDelays[_correctionsInARow];
-                _correctionDueAt = _timeProvider.GetUtcNow() + wait;
-                _scheduler.Schedule(wait, async () => await EvaluateAllSchedules("corrective boiler press due"));
-                _logger.LogWarning(
-                    "Boiler verification says the boiler is {Actually} after {Count} corrective press(es) to turn it {Direction}. Pressing again in {Minutes} min (corrective press {Next} of {Max})",
-                    verifiedState.Value ? "still running" : "not running", _correctionsInARow, _boilerOn ? "on" : "off",
-                    wait.TotalMinutes, _correctionsInARow + 1, MaxCorrectionsInARow);
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "Boiler verification detected state mismatch: we thought boiler was {Expected}, but it appears to be {Actual}. Correcting by toggling fingerbot",
-                    _boilerOn ? "ON" : "OFF", verifiedState.Value ? "ON" : "OFF");
-                await PressToCorrectAsync(verifiedState.Value);
-            }
-        }
-
-        // A corrective press that was waiting its turn: it puts the boiler where the app believes it is.
-        if (_correctionDueAt is { } due && _timeProvider.GetUtcNow() >= due)
-        {
-            _correctionDueAt = null;
-            _logger.LogWarning(
-                "Pressing the boiler {Direction} again (corrective press {Number} of {Max}): the last check said it was {Actually}",
-                _boilerOn ? "on" : "off", _correctionsInARow + 1, MaxCorrectionsInARow, _boilerOn ? "not running" : "still running");
-            await PressToCorrectAsync(verifiedState: !_boilerOn);
-        }
-
         if (_boilerOn && _boilerOnForExercise)
         {
             // On only for the valve exercise: off again, unless the rooms would have turned it on themselves.
@@ -1718,195 +1437,127 @@ internal partial class HeatingControlService
             {
                 _logger.LogInformation("Boiler left ON after the valve exercise: the rooms need it. Triggered by {Trigger}", trigger);
             }
-            else if (await PressBoilerFingerbotAsync())
+            else
             {
-                SetBoilerBelief(false, _timeProvider.GetUtcNow());
-                _correctionsInARow = 0;
+                SetBoiler(false);
                 _logger.LogInformation("Boiler turned OFF after the valve exercise. Triggered by {Trigger}", trigger);
             }
         }
-        else if (!_boilerOn)
+        else if (!_boilerOn && roomsWantItOn)
         {
-            // Boiler is OFF - should we turn it ON?
-            if (roomsWantItOn)
-            {
-                string why = deficitReached ? "deficit reached the threshold"
-                    : boostedRoomsCalling.Count > 0 ? $"boost running in {string.Join(", ", boostedRoomsCalling)}"
-                    : $"in use: {string.Join(", ", occupiedRoomsCalling)}";
-
-                DateTimeOffset? offSince = _boilerBeliefSince;
-
-                if (BeliefStillContradicted)
-                {
-                    // The last check said the boiler is still running, and nothing has corrected it yet, so pressing "on"
-                    // would turn it off. It is taken as already on, and checked against the radiators like a press.
-                    CancelCorrection();
-                    SetBoilerBelief(true, _timeProvider.GetUtcNow());
-                    _correctionsInARow = 0;
-                    _boilerMayBeRunning = false;
-                    _pressToVerify = (true, offSince);
-                    _logger.LogWarning(
-                        "Boiler wanted ON ({Why}), and the last check said it is still running after the app turned it off, so it is not pressed: taking it as already on, and checking that against the radiators. Triggered by {Trigger}",
-                        why, trigger);
-                }
-                else if (await PressBoilerFingerbotAsync())
-                {
-                    SetBoilerBelief(true, _timeProvider.GetUtcNow());
-                    _correctionsInARow = 0;
-                    _boilerMayBeRunning = false;
-                    _logger.LogInformation(
-                        "Boiler turned ON ({Why}; total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
-                        why,
-                        totalDeficit, BoilerDeficitThresholdCelsius, trigger,
-                        string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
-
-                    // Verified against the valves open once the rooms have moved them: those that open with this press
-                    // and those left open, which with the boiler off had no hot water behind them.
-                    _pressToVerify = (true, offSince);
-                }
-            }
+            string why = deficitReached ? "deficit reached the threshold"
+                : boostedRoomsCalling.Count > 0 ? $"boost running in {string.Join(", ", boostedRoomsCalling)}"
+                : $"in use: {string.Join(", ", occupiedRoomsCalling)}";
+            SetBoiler(true);
+            _logger.LogInformation(
+                "Boiler turned ON ({Why}; total deficit {Deficit:0.0}°C, threshold {Threshold}°C). Triggered by {Trigger}. Rooms: {Rooms}",
+                why,
+                totalDeficit, BoilerDeficitThresholdCelsius, trigger,
+                string.Join(", ", roomsBelowTarget.Select(r => $"{r.RoomName} ({r.Deficit:0.0}°C)")));
         }
-        else if (_roomsCallingForHeat.Count == 0)
+        else if (_boilerOn && _roomsCallingForHeat.Count == 0)
         {
-            // Boiler is ON and no room is calling for heat: turn it OFF. The valves are left where they are
-            // (see _valvesWaitForBoiler), and the open ones are the radiators the verification watches for heating
-            // up again, which they would if the boiler were still running.
-            if (BeliefStillContradicted)
+            // No room is calling for heat. The valves are left where they are (see _valvesWaitForBoiler).
+            SetBoiler(false);
+            _logger.LogInformation("Boiler turned OFF (no room with a radiator valve or towel rail is calling for heat). Triggered by {Trigger}", trigger);
+        }
+    }
+
+    /// <summary>What the app wants the boiler to do from now on. The relay is put that way by <see cref="EnsureBoilerRelayAsync"/>.</summary>
+    private void SetBoiler(bool on)
+    {
+        _boilerOn = on;
+        _boilerOnSince = _timeProvider.GetUtcNow();
+    }
+
+    /// <summary>
+    /// Puts the boiler relay in the state the app wants the boiler in, at every check (owner, 2026-10-31): a relay switched
+    /// from Home Assistant or the 3D view, a command that never arrived, or a relay that came back from a power cut the
+    /// other way is put right at the next pass. A relay's commands can be repeated without harm, unlike the fingerbot's
+    /// presses of a toggle, so it is simply told again; but not while Home Assistant may not yet have reported the last
+    /// command (<see cref="RelayReportGrace"/>). Commands go out once each, not through the retry layer: the next pass is
+    /// the retry.
+    /// </summary>
+    private async Task EnsureBoilerRelayAsync(string trigger)
+    {
+        bool? relay = ReadRelayState();
+        if (relay == null)
+        {
+            if (!_hasLoggedRelayUnavailable)
             {
-                // The last check said the boiler never fired, and nothing has corrected it yet, so pressing "off" would
-                // turn it on. It is taken as already off, and checked against the radiators like a press.
-                CancelCorrection();
-                SetBoilerBelief(false, _timeProvider.GetUtcNow());
-                _correctionsInARow = 0;
-                _boilerMayBeRunning = false;
-                _pressToVerify = (false, null);
                 _logger.LogWarning(
-                    "Boiler wanted OFF (no room calling), and the last check said it is not running after the app turned it on, so it is not pressed: taking it as already off, and checking that against the radiators. Triggered by {Trigger}",
-                    trigger);
+                    "The boiler relay is unavailable, so the boiler cannot be switched {State}. Trying again at every check. Triggered by {Trigger}",
+                    _boilerOn ? "on" : "off", trigger);
+                _hasLoggedRelayUnavailable = true;
             }
-            else if (await PressBoilerFingerbotAsync())
-            {
-                SetBoilerBelief(false, _timeProvider.GetUtcNow());
-                _correctionsInARow = 0;
-                _boilerMayBeRunning = false;
-                _logger.LogInformation("Boiler turned OFF (no room with a radiator valve or towel rail is calling for heat). Triggered by {Trigger}", trigger);
 
-                _pressToVerify = (false, null);
-            }
+            return;
+        }
+
+        if (_hasLoggedRelayUnavailable)
+        {
+            _logger.LogInformation("The boiler relay is available again, and reads {State}", relay.Value ? "on" : "off");
+            _hasLoggedRelayUnavailable = false;
+        }
+
+        if (relay.Value == _boilerOn)
+        {
+            return;
+        }
+
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        if (_lastRelayCommand is { } last && last.On == _boilerOn && now - last.At < RelayReportGrace)
+        {
+            return;
+        }
+
+        if (_lastRelayCommand?.On == _boilerOn || _boilerOn == _boilerWasOnAtStartOfPass)
+        {
+            // Not this pass's decision: the relay has gone the other way since the app last set it, or never got there.
+            _logger.LogWarning(
+                "The boiler relay reads {Actual}, but the boiler should be {Wanted}: switching it {Wanted} again. Triggered by {Trigger}",
+                relay.Value ? "on" : "off", _boilerOn ? "on" : "off", _boilerOn ? "on" : "off", trigger);
+        }
+
+        _lastRelayCommand = (_boilerOn, now);
+        bool accepted = _boilerOn
+            ? await _namedEntities.BoilerRelay.TurnOnConfirmedAsync()
+            : await _namedEntities.BoilerRelay.TurnOffConfirmedAsync();
+        if (!accepted)
+        {
+            _logger.LogWarning(
+                "Home Assistant reported switching the boiler relay {State} as failed. It is checked again at the next pass",
+                _boilerOn ? "on" : "off");
         }
     }
 
-    /// <summary>
-    /// A corrective press: puts the boiler back where the app believes it is, after a check found it the other way
-    /// (<paramref name="verifiedState"/>), and checks that press like any other.
-    /// </summary>
-    private async Task PressToCorrectAsync(bool verifiedState)
+    /// <summary>The boiler relay's reported state, or null when it is unavailable or unknown.</summary>
+    private bool? ReadRelayState()
     {
-        // The boiler has really been in the verified state since the press we believed in.
-        DateTimeOffset? actuallySince = _boilerBeliefSince;
-
-        if (await PressBoilerFingerbotAsync())
-        {
-            // The press puts the boiler where we believed it was.
-            SetBoilerBelief(_boilerOn, _timeProvider.GetUtcNow());
-            _correctionsInARow++;
-            _pressToVerify = (_boilerOn, actuallySince);
-        }
-        else
-        {
-            // Nothing was sent (the fingerbot is unavailable, or the last press was too recent), so the verification is
-            // the best evidence there is, and the next pass presses from there. A press Home Assistant reported as failed
-            // is not this case: it may have landed, so it counts as sent (until 2026-10-28 it was this case, and at 12:50
-            // that day the next pass pressed again, 32 s after one that had landed).
-            SetBoilerBelief(verifiedState, actuallySince ?? _timeProvider.GetUtcNow());
-        }
+        if (_namedEntities.BoilerRelay.IsOn())
+            return true;
+        if (_namedEntities.BoilerRelay.IsOff())
+            return false;
+        return null;
     }
 
     /// <summary>
-    /// Whether the last check said the boiler is not where the app believes it, and no corrective press has yet answered
-    /// it: one is waiting its turn, or the app has given up. Pressing to change the belief would then do the opposite.
+    /// When Home Assistant last saw the relay change, for "Boiler on since" after a restart, or null if unknown. HA rewrites
+    /// it when it restarts (HOME-ASSISTANT.md gotcha 3), so it is only an indication.
     /// </summary>
-    private bool BeliefStillContradicted => _correctionDueAt != null || _correctionGivenUp;
-
-    /// <summary>Drops a corrective press waiting its turn, and a give-up, when the belief has been settled some other way.</summary>
-    private void CancelCorrection()
+    private DateTimeOffset? RelayLastChanged()
     {
-        _correctionDueAt = null;
-        _correctionGivenUp = false;
-    }
-
-    /// <summary>
-    /// Arms the verification of this pass's press, if any, with the valves open after the pass; then tells it which
-    /// radiators have hot water behind them (an open valve while the boiler is believed on) and which do not, and
-    /// runs it. Called after the rooms have moved their valves. The press is armed first, so a valve that has just
-    /// opened still shows how long its radiator was cold.
-    /// </summary>
-    private async Task RecordValvesAndVerifyAsync(RoomSchedules schedules)
-    {
-        if (_pressToVerify is { } press)
+        if (_ha.GetState(_namedEntities.BoilerRelay.EntityId)?.LastChanged is not DateTime changed)
         {
-            List<(string RoomName, ICustomClimateControlEntity Valve)> openAfterPass = [.. ValvesOf(schedules).Where(v => IsValveOpenAfterPass(v.Valve))];
-
-            // A press can only be checked against an open valve: a shut one's radiator stays cold whether the boiler runs
-            // or not. With none open, one is opened for the check (owner, 2026-10-23).
-            // For a turn-off, the warmest: it had hot water most recently, so if the boiler is off it can only cool, and
-            // nothing else warming the room can lift it to a new high, while if it is running it heats up again. For a
-            // turn-on, the coldest, which shows the clearest rise when hot water reaches it.
-            if (!openAfterPass.Exists(v => v.Valve.CurrentTemperature.HasValue))
-            {
-                List<(string RoomName, ICustomClimateControlEntity Valve)> candidates = [.. ValvesOf(schedules)
-                    .Where(v => v.Valve.CurrentTemperature.HasValue && !_valvesCommandedThisPass.ContainsKey(v.Valve.EntityId))];
-                // Preferably one its device rules allow, so a room held off is heated only as long as the check needs.
-                List<(string RoomName, ICustomClimateControlEntity Valve)> allowed = [.. candidates.Where(v => IsDeviceAllowed(v.Valve))];
-                ICustomClimateControlEntity? probe = ValveToWatch(allowed, press.BoilerNowOn) ?? ValveToWatch(candidates, press.BoilerNowOn);
-                if (probe != null)
-                {
-                    (string RoomName, ICustomClimateControlEntity Valve) opened = candidates.First(v => v.Valve == probe);
-                    OpenValveForBoilerCheck(opened.RoomName, probe, press.BoilerNowOn, "no valve was open");
-                    openAfterPass.Add(opened);
-                }
-            }
-
-            // The one held open until the check is over: for a turn-off the one kept open through this pass, else the
-            // warmest or coldest open now.
-            if (press.BoilerNowOn || !openAfterPass.Exists(v => string.Equals(v.Valve.EntityId, _valveHeldForBoilerCheck, StringComparison.OrdinalIgnoreCase)))
-            {
-                _valveHeldForBoilerCheck = ValveToWatch(openAfterPass, press.BoilerNowOn)?.EntityId;
-            }
-
-            _boilerVerification.NotifyBoilerToggled(press.BoilerNowOn, openAfterPass, press.BoilerOffSince);
-            _pressToVerify = null;
+            return null;
         }
 
-        ObserveValveHealth(schedules);
-
-        foreach (RoomSchedule roomSchedule in schedules.Rooms)
-        {
-            List<ICustomClimateControlEntity> radiatorValves = [.. GetSwitchesForRoom(roomSchedule).OfType<ICustomClimateControlEntity>()];
-            if (radiatorValves.Count == 0)
-            {
-                continue;
-            }
-
-            List<ICustomClimateControlEntity> heating = _boilerOn ? [.. radiatorValves.Where(IsValveOpenAfterPass)] : [];
-            if (heating.Count == 0)
-            {
-                _boilerVerification.NotifyValveStopped(roomSchedule.Name);
-                continue;
-            }
-
-            foreach (ICustomClimateControlEntity valve in heating)
-            {
-                _boilerVerification.NotifyValveStartedHeating(roomSchedule.Name, valve);
-            }
-        }
-
-        await _boilerVerification.CheckAsync();
+        return new DateTimeOffset(changed.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(changed, DateTimeKind.Utc) : changed.ToUniversalTime());
     }
 
     /// <summary>
     /// Feeds every radiator valve to the valve-health monitor once per pass, after the valves have moved: whether the
-    /// app has it open, its own reading, and the boiler belief (only in fingerbot mode; on the boiler thermostat the app
+    /// app has it open, its own reading, and whether the boiler is on (relay mode only; on the boiler thermostat the app
     /// cannot know, and the monitor goes by other radiators warming instead).
     /// </summary>
     private void ObserveValveHealth(RoomSchedules schedules)
@@ -1916,7 +1567,7 @@ internal partial class HeatingControlService
             return;
         }
 
-        bool? boilerBelievedOn = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot ? _boilerOn : null;
+        bool? boilerBelievedOn = _lastSeenBoilerControlPath == BoilerControlPath.Relay ? _boilerOn : null;
         DateTimeOffset now = _timeProvider.GetUtcNow();
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
         foreach (RoomSchedule room in schedules.Rooms)
@@ -1960,69 +1611,6 @@ internal partial class HeatingControlService
             })];
     }
 
-    /// <summary>Every radiator valve, once each, with the room it belongs to.</summary>
-    private IEnumerable<(string RoomName, ICustomClimateControlEntity Valve)> ValvesOf(RoomSchedules schedules) => schedules.Rooms
-        .SelectMany(room => GetSwitchesForRoom(room).OfType<ICustomClimateControlEntity>().Select(valve => (room.Name, Valve: valve)))
-        .DistinctBy(v => v.Valve.EntityId);
-
-    /// <summary>The valve whose own sensor reads warmest (ties by entity ID, so the choice is stable), or null if none reads.</summary>
-    private static ICustomClimateControlEntity? WarmestValve(IEnumerable<(string RoomName, ICustomClimateControlEntity Valve)> valves) => valves
-        .Where(v => v.Valve.CurrentTemperature.HasValue)
-        .OrderByDescending(v => v.Valve.CurrentTemperature)
-        .ThenBy(v => v.Valve.EntityId, StringComparer.OrdinalIgnoreCase)
-        .Select(v => v.Valve)
-        .FirstOrDefault();
-
-    /// <summary>The valve that best shows the check of a press: the warmest for a turn-off, the coldest for a turn-on.</summary>
-    private static ICustomClimateControlEntity? ValveToWatch(IEnumerable<(string RoomName, ICustomClimateControlEntity Valve)> valves, bool boilerNowOn) => boilerNowOn
-        ? valves
-            .Where(v => v.Valve.CurrentTemperature.HasValue)
-            .OrderBy(v => v.Valve.CurrentTemperature)
-            .ThenBy(v => v.Valve.EntityId, StringComparer.OrdinalIgnoreCase)
-            .Select(v => v.Valve)
-            .FirstOrDefault()
-        : WarmestValve(valves);
-
-    /// <summary>
-    /// Whether this is the valve held open for the check of a press (owner, 2026-10-23): while the check is being armed
-    /// this pass or is still watching it, and the boiler is still believed the way that press put it. Its room does not
-    /// move it, so it cannot be shut (after a failed turn-off check, when valves follow their rooms; or when its room
-    /// warms before a turn-on has shown) and leave nothing to watch.
-    /// </summary>
-    private bool IsHeldForBoilerCheck(object device) =>
-        device is ICustomClimateControlEntity valve
-        && string.Equals(valve.EntityId, _valveHeldForBoilerCheck, StringComparison.OrdinalIgnoreCase)
-        && (_pressToVerify is { } press ? press.BoilerNowOn == _boilerOn : _boilerVerification.IsWatching(valve.EntityId, _boilerOn));
-
-    /// <summary>
-    /// Keeps a held valve open with its setpoint at least <see cref="HeldValveHeadroomCelsius"/> above its reading. A TRV
-    /// at its setpoint throttles and stops climbing, which on a running boiler is exactly what the check must not miss.
-    /// </summary>
-    private void KeepOpenForBoilerCheck(string roomName, ICustomClimateControlEntity valve, string trigger)
-    {
-        if (valve.CurrentTemperature is not double reading || _valvesCommandedThisPass.ContainsKey(valve.EntityId))
-        {
-            return;
-        }
-
-        if (valve.TargetTemperature is double setpoint && setpoint >= reading + HeldValveHeadroomCelsius)
-        {
-            return;
-        }
-
-        OpenValveForBoilerCheck(roomName, valve, _boilerOn, $"its setpoint was within {HeldValveHeadroomCelsius}°C of its reading. Triggered by {trigger}");
-    }
-
-    private void OpenValveForBoilerCheck(string roomName, ICustomClimateControlEntity valve, bool boilerNowOn, string why)
-    {
-        double reading = valve.CurrentTemperature.GetValueOrDefault();
-        valve.SetTargetTemperature(reading + 5);
-        _valvesCommandedThisPass[valve.EntityId] = true;
-        _logger.LogInformation(
-            "Room {Room}: {Valve} opened (setpoint {Setpoint}°C, reading {Reading}°C) and held open so the boiler turn-{Direction} can be checked against it: {Why}",
-            roomName, valve.EntityId, reading + 5, reading, boilerNowOn ? "on" : "off", why);
-    }
-
     /// <summary>A valve is open when its setpoint is at or above its own reading, which is how the app sets it.</summary>
     private static bool IsValveOpen(ICustomClimateControlEntity valve) => valve.TargetTemperature >= valve.CurrentTemperature;
 
@@ -2031,27 +1619,10 @@ internal partial class HeatingControlService
         _valvesCommandedThisPass.TryGetValue(valve.EntityId, out bool sentOpen) ? sentOpen : IsValveOpen(valve);
 
     /// <summary>
-    /// Whether a towel rail is known to be hot: the app runs the boiler and believes it on. On the boiler thermostat
+    /// Whether a towel rail is known to be hot: the app runs the boiler and has it on. On the boiler thermostat
     /// nobody can tell, so it is not claimed.
     /// </summary>
-    private bool IsTowelRailHot() => _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot && _boilerOn;
-
-    private void SetBoilerBelief(bool boilerOn, DateTimeOffset since)
-    {
-        _boilerOn = boilerOn;
-        _boilerBeliefSince = since;
-        _boilerStatePersistence.Save(new BoilerBelief(boilerOn, since));
-    }
-
-    private int TakePressesSeenOutsideTheApp()
-    {
-        lock (_fingerbotLock)
-        {
-            int presses = _pressesSeenOutsideTheApp;
-            _pressesSeenOutsideTheApp = 0;
-            return presses;
-        }
-    }
+    private bool IsTowelRailHot() => _lastSeenBoilerControlPath == BoilerControlPath.Relay && _boilerOn;
 
     /// <summary>
     /// Which control path the boiler is wired to, according to device settings. Nothing in Home
@@ -2070,109 +1641,6 @@ internal partial class HeatingControlService
             _logger.LogError(ex, "Error reading the boiler control path from device settings - leaving the boiler alone");
             return BoilerControlPath.BoilerThermostat;
         }
-    }
-
-    /// <summary>
-    /// Presses the boiler's button by sending the fingerbot the opposite of its reported state. Returns whether a press
-    /// was sent, which then counts as one press of the toggle, whatever Home Assistant answers: its error does not mean
-    /// the button was not pressed (HOME-ASSISTANT.md gotchas 27 and 31), so the caller moves the belief either way, and
-    /// the press is checked against the radiators like any other. One that got an error is in doubt until the fingerbot
-    /// reports it or that check is over, and nothing is pressed meanwhile.
-    /// Returns false, pressing nothing, when the fingerbot is unavailable (HA accepts a command for an unreachable device
-    /// with HTTP 200, so pressing anyway would flip the belief with nothing moved), or when it is not yet time for another
-    /// press (<see cref="WhyNotPressNow"/>).
-    /// </summary>
-    private async Task<bool> PressBoilerFingerbotAsync()
-    {
-        bool? fingerbotState = ReadFingerbotState();
-
-        if (fingerbotState == null)
-        {
-            if (!_hasLoggedFingerbotUnavailable)
-            {
-                _logger.LogWarning(
-                    "The boiler fingerbot is unavailable, so the boiler cannot be pressed. Keeping the belief that it is {State} until the fingerbot comes back",
-                    _boilerOn ? "ON" : "OFF");
-                _hasLoggedFingerbotUnavailable = true;
-            }
-
-            return false;
-        }
-
-        _hasLoggedFingerbotUnavailable = false;
-
-        if (WhyNotPressNow() is { } heldBack)
-        {
-            if (heldBack != _lastPressHoldLogged)
-            {
-                _logger.LogInformation("Not pressing the boiler {Direction} yet: {Reason}", _boilerOn ? "off" : "on", heldBack);
-                _lastPressHoldLogged = heldBack;
-            }
-
-            return false;
-        }
-
-        _lastPressHoldLogged = null;
-        lock (_fingerbotLock)
-        {
-            _expectedFingerbotState = !fingerbotState.Value;
-            _lastPressAt = _timeProvider.GetUtcNow();
-        }
-
-        // Never retried by the service call layer: a retry of a press that did land after all would be a second press.
-        bool accepted = fingerbotState.Value
-            ? await _namedEntities.BoilerFingerbot.TurnOffConfirmedAsync()
-            : await _namedEntities.BoilerFingerbot.TurnOnConfirmedAsync();
-
-        if (accepted)
-        {
-            return true;
-        }
-
-        bool reported;
-        lock (_fingerbotLock)
-        {
-            // Already reported (the answer was lost but the fingerbot moved), or still to come, or never.
-            reported = _expectedFingerbotState != !fingerbotState.Value || ReadFingerbotState() == !fingerbotState.Value;
-            if (!reported)
-            {
-                _pressInDoubtSince = _timeProvider.GetUtcNow();
-            }
-        }
-
-        _logger.LogWarning(reported
-            ? "Home Assistant reported the boiler fingerbot press as failed, but the fingerbot moved, so it counts as pressed"
-            : "Home Assistant reported the boiler fingerbot press as failed. A press reported as failed can still land, with or without the fingerbot reporting it (HOME-ASSISTANT.md gotcha 31), so it counts as pressed, and the boiler is not pressed again until the fingerbot reports it or the radiators have shown what the boiler did");
-        return true;
-    }
-
-    /// <summary>
-    /// Why the boiler must not be pressed now, or null if it may be: the last press is in doubt and its check is still
-    /// running, or the last press was under <see cref="MinimumTimeBetweenPresses"/> ago. A press in doubt whose check is
-    /// over, or could not be armed, is settled: the belief already follows what the radiators showed.
-    /// </summary>
-    private string? WhyNotPressNow()
-    {
-        DateTimeOffset now = _timeProvider.GetUtcNow();
-        lock (_fingerbotLock)
-        {
-            if (_pressInDoubtSince is { } since)
-            {
-                if (_boilerVerification.IsPending)
-                {
-                    return $"Home Assistant reported the press at {since.ToLocalTime():HH:mm:ss} as failed, the fingerbot has not reported it, and the radiators have not yet shown whether it landed";
-                }
-
-                _pressInDoubtSince = null;
-            }
-
-            if (_lastPressAt is { } last && now - last < MinimumTimeBetweenPresses)
-            {
-                return $"the last press was at {last.ToLocalTime():HH:mm:ss}, and presses are at least {MinimumTimeBetweenPresses.TotalMinutes:F0} minutes apart";
-            }
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -2257,15 +1725,18 @@ internal partial class HeatingControlService
             : string.Join("\n", batteries.Select(battery =>
                 $"{battery.EntityId}|{battery.Percent}|{battery.Area}|{battery.Name}|{string.Join(",", battery.DeviceEntityIds)}"));
 
-    /// <summary>What the app believes the boiler is doing, for the UI. Only meaningful in fingerbot mode.</summary>
+    /// <summary>
+    /// What the app has the boiler doing, for the UI. Only meaningful in relay mode. <c>BelievedOn</c> keeps its name from
+    /// the fingerbot, when it was a belief; it is now the state the relay is kept in.
+    /// </summary>
     private BoilerStateDto DescribeBoiler()
     {
-        bool appControls = _lastSeenBoilerControlPath == BoilerControlPath.Fingerbot;
+        bool appControls = _lastSeenBoilerControlPath == BoilerControlPath.Relay;
         return new BoilerStateDto
         {
             AppControlsBoiler = appControls,
             BelievedOn = appControls && _boilerOn,
-            Since = appControls ? _boilerBeliefSince?.ToString("O") : null
+            Since = appControls ? _boilerOnSince?.ToString("O") : null
         };
     }
 
@@ -2312,7 +1783,7 @@ internal partial class HeatingControlService
             source => _presenceInUse.TryGetValue(source.Trim(), out bool inUse) && inUse);
     }
 
-    /// <summary>A radiator valve held shut because, in fingerbot mode, the boiler is believed off.</summary>
+    /// <summary>A radiator valve left where it is because, in relay mode, the boiler is off.</summary>
     private bool IsWaitingForBoiler(object device) => _valvesWaitForBoiler && device is ICustomClimateControlEntity;
 
     private static string DeviceName(object device) => device switch

@@ -93,7 +93,7 @@ GUARD_ALLOW_ENTITIES=switch.games_room_plug_heater_switch node LocalEnv/ha-guard
 ```
 
 Mind that the production app on the HA host is also controlling these devices. Two controllers will fight.
-Never allow the SolaX inverter entities, the boiler fingerbot or anything the production app drives.
+Never allow the SolaX inverter entities, the boiler relay (`switch.den_boiler_relay`) or anything the production app drives.
 
 ## Things that will surprise you
 

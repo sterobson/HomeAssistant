@@ -44,10 +44,8 @@ public class BatterySettingsDto
 public class HeatingSettingsDto
 {
     /// <summary>
-    /// Which control path the boiler is physically wired to. Nothing in Home Assistant can
-    /// read the switch at the boiler, so this has to be set by hand to match it, and defaults
-    /// to the safe option of leaving the boiler alone. Unrelated to the heating-config stack's
-    /// BoilerControlMode, which describes how a boiler switch is actuated.
+    /// Whether the app runs the boiler through its relay, or leaves it to the boiler thermostat (the default).
+    /// Unrelated to the heating-config stack's BoilerControlMode, which describes how a boiler switch is actuated.
     /// </summary>
     public BoilerControlPath BoilerControlPath { get; set; } = BoilerControlPath.BoilerThermostat;
 
@@ -79,22 +77,19 @@ public class HeatingSettingsDto
 }
 
 /// <summary>
-/// The two exclusive boiler control paths. A physical switch at the boiler selects between
-/// them and is invisible to Home Assistant, so this value is a statement of belief about the
-/// house, not a reading from it.
+/// Who runs the boiler. Stored as a number; keep the values.
 /// </summary>
 public enum BoilerControlPath
 {
     /// <summary>
-    /// The boiler is driven by the boiler thermostat (portable, normally in the kitchen), which
-    /// leaves the boiler's physical button dead. Fingerbot presses are no-ops, so the app
-    /// must not attempt boiler control at all. This is the default.
+    /// Run by hand with the boiler thermostat (portable, normally in the kitchen). The app leaves the boiler, and its
+    /// relay, alone, and only controls radiator valves and heater plugs. This is the default.
     /// </summary>
     BoilerThermostat = 0,
 
     /// <summary>
-    /// The boiler's button is live and the fingerbot can press it, so the app owns boiler
-    /// control.
+    /// The app runs the boiler through its relay (<c>switch.den_boiler_relay</c>, since 2026-10-31). Until then this was
+    /// the fingerbot pressing the boiler's button; the relay replaced it, so a saved 1 now means the relay.
     /// </summary>
-    Fingerbot = 1
+    Relay = 1
 }

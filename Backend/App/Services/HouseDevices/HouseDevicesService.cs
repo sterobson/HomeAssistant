@@ -259,7 +259,8 @@ internal sealed class HouseDevicesService
         const string heating = "Switched by the heating, which would undo the change at its next check. Use the heating page.";
         Dictionary<string, string> owned = new(StringComparer.OrdinalIgnoreCase)
         {
-            [_namedEntities.BoilerFingerbot.EntityId] = "Pressed only by the heating, which keeps track of whether the boiler is on.",
+            // The boiler relay is a Zigbee switch like any plug, so without this the 3D view could fire the boiler.
+            [_namedEntities.BoilerRelay.EntityId] = "Switched by the heating, which puts the boiler back as it wants it at every check. Use the heating page.",
             [_namedEntities.KitchenHeaterSmartPlugOnOff.EntityId] = heating,
             [_namedEntities.Bedroom1HeaterSmartPlugOnOff.EntityId] = heating,
             [_namedEntities.DiningRoomHeaterSmartPlugOnOff.EntityId] = heating,

@@ -12,7 +12,7 @@ namespace HomeAssistant.Services.Climate;
 /// <summary>
 /// The monthly boiler and radiator valve exercise (owner, 2026-10-19, after finding a TRV seized from months of not
 /// moving). At 08:00 on the 1st every radiator valve is switched to the opposite of what it is (open to shut, shut
-/// to open) and the boiler run, then 2½ minutes later each valve is put back to its exact setpoint, and at 10
+/// to open) and the boiler run, then 2½ minutes later each valve is put back to its exact setpoint, and at 5
 /// minutes the boiler goes back to what the rooms want. If the boiler is already on, the heating is evidently
 /// working and that month's exercise is skipped. Normal evaluations wait while it runs, so they cannot undo it.
 /// In boiler-thermostat mode the app cannot drive the boiler, so only the valves are exercised.
@@ -26,8 +26,7 @@ internal partial class HeatingControlService
     internal const string ValveExerciseEvent = "home_heating_valve_exercise";
 
     internal static readonly TimeSpan ValveExerciseFlipFor = TimeSpan.FromSeconds(150);
-    // As short as the boiler can be run: it cannot be pressed off any sooner (5 minutes until 2026-10-28).
-    internal static TimeSpan ValveExerciseBoilerFor => MinimumTimeBetweenPresses;
+    internal static readonly TimeSpan ValveExerciseBoilerFor = TimeSpan.FromMinutes(5);
 
     // Set from the start of an exercise to its end; normal evaluations are skipped meanwhile.
     private bool _valveExerciseRunning;
@@ -36,7 +35,7 @@ internal partial class HeatingControlService
     private Dictionary<string, (ICustomClimateControlEntity Valve, double Setpoint)>? _valveExerciseSetpoints;
 
     // The exercise turned the boiler on, so the first evaluation afterwards turns it off again unless the
-    // rooms would have turned it on themselves (see DecideBoilerAsync).
+    // rooms would have turned it on themselves (see DecideBoiler).
     private bool _boilerOnForExercise;
 
     private void ScheduleValveExercise()
@@ -60,8 +59,7 @@ internal partial class HeatingControlService
             }
 
             BoilerControlPath controlPath = await UpdateBoilerControlPathAsync(trigger);
-            // Also when the last turn-off check said the boiler is still running: pressing "on" would turn it off.
-            if (controlPath == BoilerControlPath.Fingerbot && (_boilerOn || BeliefStillContradicted))
+            if (controlPath == BoilerControlPath.Relay && _boilerOn)
             {
                 _logger.LogInformation("Valve exercise skipped: the boiler is already on, so the heating is evidently working. Triggered by {Trigger}", trigger);
                 return false;
@@ -78,16 +76,11 @@ internal partial class HeatingControlService
             // Every valve is about to be flipped, so a shut radiator warming in the next half hour is the exercise's doing.
             _valveHealth?.ResetSpells();
 
-            if (controlPath == BoilerControlPath.Fingerbot)
+            if (controlPath == BoilerControlPath.Relay)
             {
-                // A 10-minute burn would fail the turn-on verification, which would then "correct" it with a press.
-                _boilerVerification.Reset();
-                if (await PressBoilerFingerbotAsync())
-                {
-                    SetBoilerBelief(true, _timeProvider.GetUtcNow());
-                    _boilerOnForExercise = true;
-                    _correctionsInARow = 0;
-                }
+                SetBoiler(true);
+                _boilerOnForExercise = true;
+                await EnsureBoilerRelayAsync(trigger);
             }
 
             _valveExerciseSetpoints = [];
@@ -107,7 +100,7 @@ internal partial class HeatingControlService
 
             _logger.LogInformation(
                 "Valve exercise started ({Boiler}): {Valves}. Putting them back in {FlipSeconds} s, ending in {EndMinutes} min. Triggered by {Trigger}",
-                _boilerOnForExercise ? "boiler on" : controlPath == BoilerControlPath.Fingerbot ? "the boiler could not be pressed" : "boiler left to its thermostat",
+                _boilerOnForExercise ? "boiler on" : "boiler left to its thermostat",
                 string.Join(", ", moved), ValveExerciseFlipFor.TotalSeconds, ValveExerciseBoilerFor.TotalMinutes, trigger);
 
             _scheduler.Schedule(ValveExerciseFlipFor, async () => await RestoreValvesAfterExerciseAsync());

@@ -1038,8 +1038,6 @@ public sealed class DeviceRulesHeatingTests
             services.AddSingleton<TimeProvider>(provider => provider.GetRequiredService<FakeTimeProvider>());
             services.AddSingleton(schedulePersistence);
             services.AddSingleton(statePersistence);
-            services.AddSingleton(Substitute.For<IBoilerVerificationService>());
-            services.AddSingleton(Substitute.For<IBoilerStatePersistence>());
             services.AddSingleton<IDeviceSettingsPersistenceService>(settings);
             services.AddSingleton<IWarmUpRateStore, InMemoryWarmUpRateStore>();
             services.AddSingleton<WarmUpRates>();

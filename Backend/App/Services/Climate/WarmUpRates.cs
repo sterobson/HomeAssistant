@@ -224,7 +224,7 @@ internal sealed class WarmUpRates : IWarmUpRates
     }
 }
 
-/// <summary>Keeps the measured warm-ups in <c>warm-up-rates.json</c> in the app's local cache folder. Local only, like the boiler belief.</summary>
+/// <summary>Keeps the measured warm-ups in <c>warm-up-rates.json</c> in the app's local cache folder. Local only.</summary>
 internal sealed class WarmUpRateStore : IWarmUpRateStore
 {
     private const string _storageFileName = "warm-up-rates.json";

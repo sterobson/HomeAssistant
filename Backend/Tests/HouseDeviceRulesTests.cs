@@ -91,16 +91,16 @@ public class HouseDeviceRulesTests
     [TestMethod]
     public void ACommand_IsRefusedUnlessTheSnapshotOffersIt()
     {
-        Dictionary<string, string> owners = new() { ["switch.tz3210_j4pdtz9v_ts0001"] = "Pressed only by the heating." };
+        Dictionary<string, string> owners = new() { ["switch.den_boiler_relay"] = "Switched by the heating." };
         List<HouseDeviceDto> devices = HouseDeviceRules.Describe(
         [
             Device("tv", "Games Room", Entity("switch.den_plug_tv_switch")),
-            Device("fingerbot", null, Entity("switch.tz3210_j4pdtz9v_ts0001"))
+            Device("Den - Boiler relay", "Games Room", Entity("switch.den_boiler_relay"))
         ], owners);
 
         HouseDeviceRules.RefuseCommand(devices, "switch.den_plug_tv_switch", HouseDeviceActions.Toggle).ShouldBeNull();
         HouseDeviceRules.RefuseCommand(devices, "switch.den_plug_tv_switch", HouseDeviceActions.Press).ShouldNotBeNull();
-        HouseDeviceRules.RefuseCommand(devices, "switch.tz3210_j4pdtz9v_ts0001", HouseDeviceActions.TurnOn).ShouldBe("Pressed only by the heating.");
+        HouseDeviceRules.RefuseCommand(devices, "switch.den_boiler_relay", HouseDeviceActions.TurnOn).ShouldBe("Switched by the heating.");
         HouseDeviceRules.RefuseCommand(devices, "switch.not_there", HouseDeviceActions.TurnOn).ShouldNotBeNull();
     }
 }

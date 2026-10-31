@@ -49,6 +49,11 @@ curl -s -o /dev/null -w "%{http_code}\n" http://homeassistant.local:8123/
 These each produced a wrong conclusion during the October 2026 boiler investigation. Read
 before trusting any timestamp or any HTTP 200.
 
+**Since 2026-10-31 the boiler is switched by a relay whose state the app reads and re-asserts at every check**
+(Device inventory → Boiler relay), so the gotchas about the fingerbot and the app's belief about the boiler (13, 18, 23,
+24, 27, 30 and 31) no longer describe the running app. They are kept as history, and for what they say about Zigbee
+commands, HA's answers and radiators in general.
+
 **Add to this table.** If an API, timestamp or status code misleads you, append a numbered
 row before you finish — that is how this list earns its keep.
 
@@ -413,12 +418,15 @@ owner to replace the fingerbot with an on/off input that reports its state: swit
 where every fingerbot command is a press of a toggle (gotcha 31). Paired 2026-10-31 15:02 GMT with
 `pair-zigbee.cjs`; start-up behaviour set to **PreviousValue** (owner's choice: after a power cut it comes back as it
 was), read back from `select.den_boiler_relay_power_on_behaviour`. It also has an external switch input (S1/S2) set to
-"Edge trigger", which toggles the relay on every change of a switch wired there, and `_detach_relay` (off). **As of
-2026-10-31 it is not wired to the boiler as far as recorded, and the app does not drive it**: the boiler is still
-pressed by the fingerbot. Wiring it to the boiler's thermostat input is for a Gas Safe engineer or electrician, and
-the app needs a code change to use it.
+"Edge trigger", which toggles the relay on every change of a switch wired there, and `_detach_relay` (off). **Wired to
+the boiler and replacing the fingerbot since 2026-10-31** (owner: connected, tested by switching it on from HA at
+15:31 GMT, read back on 1 s later, and the boiler ran; and nothing else can make the boiler fire). The app drives it in
+`Relay` mode (`boilerControlPath: 1`) and puts it back to the state it wants at every evaluation pass (CLAUDE.md →
+Heating). Its state is a reading of the relay, not of the boiler: a relay that reads on with the boiler cold means
+the boiler, not the relay, is at fault.
 
-**Boiler fingerbot** — `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
+**Boiler fingerbot (retired 2026-10-31)** — replaced by the boiler relay above; the app no longer uses it. What
+follows is its history. `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
 Tuya TS0001 (`_TZ3210_j4pdtz9v`) on ZHA. Takes a **CR2 battery**, and replacing it is
 **toolless** — the case opens by hand. It is a *momentary
 button pusher*, so one switch toggle equals one physical press of the boiler's button, and

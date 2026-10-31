@@ -69,9 +69,8 @@ internal class FakeNamedEntities : INamedEntities
     public ICustomNumericSensorEntity UpstairsBathroomTemperature { get; } = new FakeCustomNumericSensorEntity { EntityId = nameof(UpstairsBathroomTemperature) };
 
 
-    // Reachable and reporting "off", as the real one does between presses; a fingerbot with no
-    // state at all is unavailable, and the app refuses to press it.
-    public ICustomSwitchEntity BoilerFingerbot { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerFingerbot), InitialState = false };
+    // Reachable and reporting "off"; a relay with no state at all is unavailable.
+    public ICustomSwitchEntity BoilerRelay { get; } = new FakeCustomSwitchEntity { EntityId = nameof(BoilerRelay), InitialState = false };
 }
 
 public class FakeCustomNumericSensorEntity : ICustomNumericSensorEntity
@@ -104,7 +103,7 @@ public class FakeCustomSwitchEntity : ICustomSwitchEntity
     public required string EntityId { get; init; }
 
     /// <summary>
-    /// How many times this switch has actually been driven. For the boiler fingerbot each one
+    /// How many times this switch has actually been driven: commands sent, whatever they changed. For the old boiler fingerbot each one
     /// is a physical press of the boiler's button, so tests count them rather than reading state.
     /// </summary>
     public int TurnOnCount { get; private set; }

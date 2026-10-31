@@ -127,8 +127,7 @@
             <transition name="accordion">
               <div v-show="expandedSection === 'boiler'" class="accordion-content">
                 <p class="setting-description">
-                  Set this to match the physical switch at the boiler. Nothing can check it, so if
-                  this is wrong the app will be heating a boiler it isn't connected to.
+                  Choose who runs the boiler.
                 </p>
                 <div class="setting-options">
                   <button
@@ -141,17 +140,17 @@
                   </button>
                   <button
                     class="setting-btn"
-                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.FINGERBOT }"
+                    :class="{ active: boilerControlPath === BOILER_CONTROL_PATHS.RELAY }"
                     :disabled="savingBoilerPath"
-                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.FINGERBOT)"
+                    @click="setBoilerControlPath(BOILER_CONTROL_PATHS.RELAY)"
                   >
-                    <span>Fingerbot</span>
+                    <span>Relay</span>
                   </button>
                 </div>
                 <p class="setting-description">
-                  On the boiler thermostat the boiler's button is dead, so the app leaves the
-                  boiler alone and only controls radiator valves and heater plugs. On fingerbot
-                  the app presses the boiler's button itself.
+                  On the boiler thermostat you run the boiler by hand, and the app only controls
+                  radiator valves and heater plugs. On relay the app switches the boiler on and off
+                  itself, and checks the relay is right every few minutes.
                 </p>
                 <div v-if="boilerPathError" class="pending-message">{{ boilerPathError }}</div>
               </div>

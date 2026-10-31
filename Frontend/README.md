@@ -231,9 +231,9 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   the NetDaemon app last uploaded room states, which it does only when some room's temperature, heating
   on/off or active track changes, so a device-only change (plug switched, TV power, valve target) waits for
   the next such upload. Left that way deliberately (2026-10-19).
-- **Boiler indicator.** In fingerbot mode the heating page's toolbar shows "Boiler on/off since …" from the
-  `boiler` that comes with room states (`boilerState` in `HeatingView.vue`). It is the app's belief from its
-  own presses, not a reading; nothing is shown while the boiler thermostat drives the boiler.
+- **Boiler indicator.** In relay mode the heating page's toolbar shows "Boiler on/off since …" from the
+  `boiler` that comes with room states (`boilerState` in `HeatingView.vue`): the state the app keeps the boiler
+  relay in (until 2026-10-31, a belief from fingerbot presses). Nothing is shown while the boiler thermostat runs it.
 - **Low batteries** (owner, 2026-10-20). Room states carry `batteries`, every replaceable battery with its HA
   area and its device's entities. `utils/batteries.js` (with tests) places each: on every zone whose heating
   uses the device; else on the zone or group its HA area is mapped to (`heating.areaPlacement`, edited in the

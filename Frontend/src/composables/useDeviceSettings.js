@@ -3,12 +3,11 @@ import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
 import { firstSaveMap } from '../utils/deviceRules.js'
 import { occupancyFirstSaveMap } from '../utils/zoneOccupancy.js'
 
-// Which control path the boiler is physically wired to. A switch at the boiler selects between
-// the fingerbot and the boiler thermostat, and nothing can read it, so this is a statement of
-// what someone saw at the boiler. Values match the BoilerControlPath enum in the API.
+// Who runs the boiler: by hand with the boiler thermostat, or the app through the boiler relay (which replaced the
+// fingerbot on 2026-10-31, keeping its value). Values match the BoilerControlPath enum in the API.
 export const BOILER_CONTROL_PATHS = {
   BOILER_THERMOSTAT: 0,
-  FINGERBOT: 1
+  RELAY: 1
 }
 
 // Singleton reactive state
@@ -78,8 +77,8 @@ function entitiesByDomain(domain) {
 
 const boilerControlPath = computed(() => {
   const path = settings.value?.heating?.boilerControlPath
-  return path === BOILER_CONTROL_PATHS.FINGERBOT
-    ? BOILER_CONTROL_PATHS.FINGERBOT
+  return path === BOILER_CONTROL_PATHS.RELAY
+    ? BOILER_CONTROL_PATHS.RELAY
     : BOILER_CONTROL_PATHS.BOILER_THERMOSTAT
 })
 

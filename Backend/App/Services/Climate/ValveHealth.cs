@@ -55,7 +55,7 @@ internal readonly record struct ValveObservation(bool Open, double? ValveTempera
 internal interface IValveHealthMonitor
 {
     /// <summary>
-    /// Records a valve this pass, with what the app believes the boiler is doing (null in boiler-thermostat mode, when
+    /// Records a valve this pass, with whether the app has the boiler on (the relay; null in boiler-thermostat mode, when
     /// the app cannot know). Call it for every valve in the same pass with the same <paramref name="now"/>.
     /// </summary>
     void Observe(string entityId, ValveObservation observation, bool? boilerBelievedOn, DateTimeOffset now);
