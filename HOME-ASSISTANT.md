@@ -407,6 +407,17 @@ likely cause than the cell. While unavailable it sees no motion at all (gotcha 6
 Zigbee device nearer the porch to act as a repeater, or re-pairing. Last motion before the 20 October outage:
 22:15 BST on the 19th.
 
+**Boiler relay** — `switch.den_boiler_relay`, device "Den - Boiler relay" (SONOFF MINI-ZBD, a mains-powered Zigbee
+dry-contact relay, so a router with no battery), area Games Room (the den, where the boiler cupboard is). Bought by the
+owner to replace the fingerbot with an on/off input that reports its state: switching it "off" twice is harmless,
+where every fingerbot command is a press of a toggle (gotcha 31). Paired 2026-10-31 15:02 GMT with
+`pair-zigbee.cjs`; start-up behaviour set to **PreviousValue** (owner's choice: after a power cut it comes back as it
+was), read back from `select.den_boiler_relay_power_on_behaviour`. It also has an external switch input (S1/S2) set to
+"Edge trigger", which toggles the relay on every change of a switch wired there, and `_detach_relay` (off). **As of
+2026-10-31 it is not wired to the boiler as far as recorded, and the app does not drive it**: the boiler is still
+pressed by the fingerbot. Wiring it to the boiler's thermostat input is for a Gas Safe engineer or electrician, and
+the app needs a code change to use it.
+
 **Boiler fingerbot** — `switch.tz3210_j4pdtz9v_ts0001`, friendly name `Boiler-Fingerbot`.
 Tuya TS0001 (`_TZ3210_j4pdtz9v`) on ZHA. Takes a **CR2 battery**, and replacing it is
 **toolless** — the case opens by hand. It is a *momentary
