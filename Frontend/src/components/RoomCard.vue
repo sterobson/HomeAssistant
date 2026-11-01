@@ -94,7 +94,9 @@
         :boost-end-time="room.boost.endTime"
         :boost-temperature="room.boost.temperature"
         :locked-by="lockedBy"
+        :held-off-text="heldOffText"
         @cancel="handleCancelBoost"
+        @show-devices="showDevices = true"
       />
 
       <template v-else>
@@ -169,7 +171,7 @@
       v-if="showDevices"
       :title="`Devices in ${roomDisplayName}`"
       :sections="deviceSectionsForRoom"
-      :presence-zones="layoutContext?.presenceZones.value ?? []"
+      :presence-sources="layoutContext?.presenceSources.value ?? []"
       :all-devices="layoutContext?.drivableDevices.value ?? []"
       :all-zones="layoutContext?.zones.value ?? []"
       @close="showDevices = false"
@@ -194,7 +196,7 @@ import { useFormatting } from '../composables/useFormatting.js'
 import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
-import { deviceSections } from '../utils/roomDevices.js'
+import { deviceSections, heldOffByRulesText } from '../utils/roomDevices.js'
 import { zoneDetectors } from '../utils/zoneOccupancy.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 
@@ -260,6 +262,8 @@ const showShare = ref(false)
 const lowestBattery = computed(() => lowestLow(props.lowBatteries))
 // This zone's radiator valves the app has seen misbehaving and not cleared since (utils/valveHealth.js).
 const flaggedValves = computed(() => flaggedValveIssues(props.room.devices))
+// This zone's devices that want heat but are held off by their rules, as a sentence for the boost card.
+const heldOffText = computed(() => heldOffByRulesText(props.room.devices))
 
 // Set while the zone's thermometer is silent (since 2026-10-31): when it last reported, as a sentence for the badge.
 const thermometerSilentTitle = computed(() => {

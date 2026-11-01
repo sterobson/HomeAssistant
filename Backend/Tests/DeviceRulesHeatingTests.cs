@@ -185,6 +185,58 @@ public sealed class DeviceRulesHeatingTests
     }
 
     [TestMethod]
+    public async Task APresenceRuleCanNameAPhone_WhichStillDoesNotMeanHouse()
+    {
+        // Phones are left out of "house" (owner, 2026-10-20), but a device's rules can wait for one (owner, 2026-11-01).
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.SaveRules(new()
+        {
+            [context.KitchenHeater.EntityId] = new DeviceRulesDto
+            {
+                Presence = new PresenceRuleDto { Sources = [PresenceSources.House, PresenceService.StePhoneHome] }
+            }
+        });
+        context.Presence.SetRoomValue("games desk", false);
+        context.Presence.SetDetectorValue(PresenceService.StePhoneHome, false);
+
+        await context.Service.EvaluateAllSchedules("nobody detected");
+        context.KitchenHeater.TurnOnCount.ShouldBe(0);
+
+        context.Presence.SetDetectorValue(PresenceService.StePhoneHome, true);
+        await context.Service.EvaluateAllSchedules("Ste's phone joins the Wi-Fi");
+        context.KitchenHeater.IsOn().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task ADeviceHeldOffByItsRules_IsPublishedAsSuch()
+    {
+        // The kitchen heater sat off through a boost on 2026-11-01 with nobody detected at home, and nothing on the
+        // page said why; the room state now says so for each device.
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(12, 0, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+
+        await context.Service.EvaluateAllSchedules("nobody home");
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).HeldOffByRules.ShouldBeTrue();
+
+        context.Presence.SetRoomValue("games desk", true);
+        await context.Service.EvaluateAllSchedules("someone home");
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).HeldOffByRules.ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task ADeviceThatDoesNotWantHeat_IsNotHeldOffByItsRules()
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(23, 30, 0), "kitchen");
+        context.Presence.SetRoomValue("games desk", false);
+        ((FakeCustomNumericSensorEntity)context.Entities.KitchenTemperature).State = 25;
+
+        await context.Service.EvaluateAllSchedules("warm already");
+
+        context.CapturedStates()[1].Devices.Single(d => d.Role == RoomDeviceRoles.HeaterPlug).HeldOffByRules
+            .ShouldBeFalse("its rules would hold it off, but it is warm enough not to want heat");
+    }
+
+    [TestMethod]
     public async Task SavedRulesReplaceTheDefaults_AndAMissingEntryMeansNoRules()
     {
         RulesTestContext context = RulesTestContext.Create(new TimeSpan(23, 30, 0), "kitchen");

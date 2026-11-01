@@ -25,6 +25,11 @@
         </div>
       </div>
     </div>
+    <!-- A boost never overrides a device's rules, so say when they are why it is not heating (owner, 2026-11-01). -->
+    <p v-if="heldOffText" class="boost-held-off">
+      {{ heldOffText }}
+      <button type="button" class="link-btn" @click="$emit('show-devices')">See the rules</button>
+    </p>
     <!-- A group's boost is changed or cancelled on the group, never zone by zone (utils/boosts.js). -->
     <p v-if="lockedBy" class="boost-locked">Boosted with {{ lockedBy }}. Change or cancel it there.</p>
     <button v-else class="btn-cancel" @click="$emit('cancel')">
@@ -52,10 +57,15 @@ const props = defineProps({
   lockedBy: {
     type: String,
     default: null
+  },
+  // Which devices the zone's rules are holding off, as a sentence (utils/roomDevices.js heldOffByRulesText); '' for none.
+  heldOffText: {
+    type: String,
+    default: ''
   }
 })
 
-defineEmits(['cancel'])
+defineEmits(['cancel', 'show-devices'])
 
 const now = ref(Date.now())
 let intervalId = null
@@ -193,6 +203,27 @@ const timeRemaining = computed(() => {
   margin: 0;
   font-size: 0.95rem;
   color: var(--text-secondary);
+}
+
+.boost-held-off {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border-left: 3px solid var(--color-warning);
+  border-radius: 4px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.25rem;
+  color: var(--color-primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 @media (max-width: 600px) {

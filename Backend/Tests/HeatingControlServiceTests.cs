@@ -441,10 +441,17 @@ public sealed class HeatingControlServiceTests
 internal class MockPresenceService : IPresenceService
 {
     private readonly Dictionary<string, bool> _presenceValue = [];
+    private readonly Dictionary<string, bool> _detectorValue = [];
 
     public void SetRoomValue(string roomName, bool value)
     {
         _presenceValue[roomName] = value;
+    }
+
+    /// <summary>A single detector's state, such as a phone's, for rules that name it. Counts towards no zone or "house".</summary>
+    public void SetDetectorValue(string detectorId, bool value)
+    {
+        _detectorValue[detectorId] = value;
     }
 
     public Task<bool> IsRoomInUse(string roomName)
@@ -493,7 +500,7 @@ internal class MockPresenceService : IPresenceService
     {
         Dictionary<string, bool> zones = new(_presenceValue, StringComparer.OrdinalIgnoreCase);
         bool someoneHome = (HouseZonesOverride ?? PresenceZones).Any(zone => _presenceValue.TryGetValue(zone, out bool inUse) && inUse);
-        return Task.FromResult(new PresenceSnapshot(zones, someoneHome, new Dictionary<string, bool>()));
+        return Task.FromResult(new PresenceSnapshot(zones, someoneHome, new Dictionary<string, bool>(_detectorValue)));
     }
 }
 

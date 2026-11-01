@@ -71,6 +71,18 @@
             <span>{{ option.label }}</span>
           </label>
 
+          <template v-if="phoneOptions.length">
+            <p class="sub-heading">Phones <span class="sub-help">(never count towards House)</span></p>
+            <label v-for="option in phoneOptions" :key="option.value" class="check-row">
+              <input
+                type="checkbox"
+                :checked="draft.presence.sources.includes(option.value)"
+                @change="toggleSource(option.value)"
+              />
+              <span>{{ option.label }}</span>
+            </label>
+          </template>
+
           <div v-if="draft.presence.sources.length >= 2" class="match-toggle" role="group" aria-label="How many must be in use">
             <button
               type="button"
@@ -175,8 +187,8 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
-  // [{ name, label }] zones that can detect presence, already sorted.
-  presenceZones: {
+  // [{ name, label, kind }] zones that can detect presence, then phones, already sorted (presenceSources).
+  presenceSources: {
     type: Array,
     default: () => []
   },
@@ -232,19 +244,21 @@ const autoExplanation = computed(() => {
 })
 const submitted = ref(false)
 
-// House first, then each zone. A source the rules already name but that no zone offers any more is kept
-// visible, so it can be unticked rather than silently carried along.
+// House first, then each zone, then the phones under their own heading. A source the rules already name but that
+// nothing offers any more is kept visible, so it can be unticked rather than silently carried along.
 const presenceOptions = computed(() => {
-  const known = new Set(props.presenceZones.map(z => z.name))
+  const known = new Set(props.presenceSources.map(z => z.name))
   const orphans = draft.presence.sources
     .filter(s => s !== HOUSE_SOURCE && !known.has(s))
     .map(s => ({ value: s, label: s }))
   return [
     { value: HOUSE_SOURCE, label: 'House' },
-    ...props.presenceZones.map(z => ({ value: z.name, label: z.label })),
+    ...props.presenceSources.filter(z => z.kind !== 'phone').map(z => ({ value: z.name, label: z.label })),
     ...orphans
   ]
 })
+const phoneOptions = computed(() =>
+  props.presenceSources.filter(z => z.kind === 'phone').map(z => ({ value: z.name, label: z.label })))
 
 const toggleDay = (timeWindow, dayValue) => {
   timeWindow.days = (timeWindow.days & dayValue) !== 0 ? timeWindow.days & ~dayValue : timeWindow.days | dayValue
@@ -491,6 +505,18 @@ const handleSave = () => {
   width: 1.1rem;
   height: 1.1rem;
   flex: 0 0 auto;
+}
+
+.sub-heading {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sub-help {
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .match-toggle {

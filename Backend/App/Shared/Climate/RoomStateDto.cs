@@ -113,6 +113,12 @@ public class PresenceDetectorDto
 
     /// <summary>Whether it was active when the room state was published.</summary>
     public bool Active { get; set; }
+
+    /// <summary>
+    /// A phone on the home Wi-Fi (since 2026-11-01). The UI offers these as sources for a device's presence rule, by
+    /// <see cref="Id"/>, besides "house" and the zones.
+    /// </summary>
+    public bool IsPhone { get; set; }
 }
 
 /// <summary>
@@ -149,6 +155,13 @@ public class RoomDeviceDto
 
     /// <summary>True when <see cref="Rules"/> are the app's built-in defaults rather than saved ones.</summary>
     public bool RulesAreDefault { get; set; }
+
+    /// <summary>
+    /// Drivable devices only (since 2026-11-01): the device wants heat for its zone's target but its rules are holding
+    /// it off, so the UI can say why a boost is not heating (owner, after the kitchen heater sat off through a boost
+    /// with nobody detected at home).
+    /// </summary>
+    public bool HeldOffByRules { get; set; }
 
     /// <summary>Radiator valves and heater plugs: whether the pre-heat is Auto, worked out from the warm-up rate below.</summary>
     public bool PreHeatAuto { get; set; }

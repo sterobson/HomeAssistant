@@ -84,6 +84,9 @@ internal partial class HeatingControlService
     private Dictionary<string, bool> _presenceInUse = new(StringComparer.OrdinalIgnoreCase);
     private PresenceSnapshot? _presence;
 
+    // Devices that want heat but whose rules hold them off, by entity ID, published as HeldOffByRules (owner, 2026-11-01).
+    private readonly HashSet<string> _devicesHeldOffByRules = new(StringComparer.OrdinalIgnoreCase);
+
     // The house's replaceable batteries, sent with every room-state upload for the UI's low-battery icons (owner,
     // 2026-10-20). Optional so tests need not supply it. A battery changing is a reason to upload on its own.
     private readonly IBatteryOverview? _batteryOverview;
@@ -716,6 +719,8 @@ internal partial class HeatingControlService
             }
 
             _devicesWantingHeat[entityId] = wanting;
+            bool allowed = IsDeviceAllowed(device);
+            SetHeldOffByRules(entityId, wanting && !allowed);
 
             if (IsWaitingForBoiler(device))
             {
@@ -725,12 +730,11 @@ internal partial class HeatingControlService
                 // warm-up arrived in this pass.
                 _warmUpRates?.Observe(
                     entityId,
-                    (_boilerOn || _boilerWasOnAtStartOfPass) && wanting && IsDeviceAllowed(device),
+                    (_boilerOn || _boilerWasOnAtStartOfPass) && wanting && allowed,
                     currentTemperature, deviceTarget.Temperature, _timeProvider.GetUtcNow());
                 continue;
             }
 
-            bool allowed = IsDeviceAllowed(device);
             bool desiredOn = wanting && allowed;
 
             // A valve counts as warming its room while it is meant to be open and the boiler is on. The
@@ -823,7 +827,7 @@ internal partial class HeatingControlService
     /// </summary>
     private static string DescribeDeviceSetup(List<RoomDeviceDto> devices) =>
         string.Join('|', devices.Select(device =>
-            $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"
+            $"{device.EntityId}/{device.Role}/{device.RulesAreDefault}/{device.HeldOffByRules}/{(device.Rules == null ? "" : JsonSerializer.Serialize(device.Rules))}"
             + $"/{device.PreHeatAuto}/{device.HeatingRateCelsiusPerHour}/{device.HeatingRateSamples}/{device.HeatingRateFromEntityId}"
             + $"/{(device.ValveHealth == null ? "" : JsonSerializer.Serialize(device.ValveHealth))}"));
 
@@ -1154,6 +1158,7 @@ internal partial class HeatingControlService
             }
 
             _devicesWantingHeat[entityId] = false;
+            SetHeldOffByRules(entityId, false);
             if (IsDeviceOn(device) && !IsWaitingForBoiler(device) && await toggle(false))
             {
                 if (device is ICustomClimateControlEntity)
@@ -1319,6 +1324,19 @@ internal partial class HeatingControlService
     {
         device.Rules = GetRulesFor(device.EntityId);
         device.RulesAreDefault = _deviceRulesAreDefault;
+        device.HeldOffByRules = _devicesHeldOffByRules.Contains(device.EntityId);
+    }
+
+    private void SetHeldOffByRules(string entityId, bool heldOff)
+    {
+        if (heldOff)
+        {
+            _devicesHeldOffByRules.Add(entityId);
+        }
+        else
+        {
+            _devicesHeldOffByRules.Remove(entityId);
+        }
     }
 
     /// <summary>
@@ -1808,6 +1826,13 @@ internal partial class HeatingControlService
             }
 
             inUse[PresenceSources.House] = _presence.SomeoneHome;
+
+            // A rule can also name a single detector, which is how a phone is chosen (owner, 2026-11-01). Detector ids
+            // are hyphenated and zone names are not, so the two cannot collide; a zone keeps its name if they ever do.
+            foreach ((string detectorId, bool detectorActive) in _presence.Detectors)
+            {
+                inUse.TryAdd(detectorId, detectorActive);
+            }
         }
         catch (Exception ex)
         {
@@ -1871,6 +1896,7 @@ internal partial class HeatingControlService
                 Id = detector.Id,
                 Label = detector.Label,
                 MeansSomeoneHome = detector.MeansSomeoneHome,
+                IsPhone = detector.IsPhone,
                 Active = _presence?.Detectors.TryGetValue(detector.Id, out bool active) == true && active
             })]
         };

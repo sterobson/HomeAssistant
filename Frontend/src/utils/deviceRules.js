@@ -17,12 +17,14 @@
 // - An `end` at or before `start` means the window runs past midnight.
 // - No windows means any time. Null presence, or no sources, means no presence is needed.
 // - `match` is 0 for Any and 1 for All.
-// - A source is 'house' (any presence zone in use) or a zone's canonical `name`.
+// - A source is 'house' (any presence zone in use), a zone's canonical `name`, or a presence detector's id, which
+//   is how a phone is chosen (since 2026-11-01; phones never count towards 'house').
 //
 // While the blob is null each drivable device on a room state carries its effective built-in
 // `rules` and `rulesAreDefault`.
 
 import { roomLabel } from './rooms.js'
+import { parentOf, roomKey } from './roomLayout.js'
 
 export const HOUSE_SOURCE = 'house'
 export const PRESENCE_MATCH = { ANY: 0, ALL: 1 }
@@ -177,19 +179,47 @@ export const validateWindow = (window) => {
 }
 
 /**
- * The zones a presence rule can name: every room whose state has the occupancy capability (flag 2),
- * labelled and naturally sorted. Rooms sharing a name appear once.
+ * What a presence rule can name besides 'house': every room whose state has the occupancy capability (flag 2),
+ * labelled and naturally sorted, then each phone the app offers (a detector with `isPhone`, named by its id; owner,
+ * 2026-11-01). Rooms sharing a name appear once. Zones whose labels clash (the den's and the dining room's "Whole
+ * room") are told apart by the group each sits in, e.g. "Whole room (Den)".
  * @param {object[]} rooms rooms merged with their states
- * @returns {{ name: string, label: string }[]}
+ * @param {object[]} [layoutTree] the layout (utils/roomLayout.js), for the groups
+ * @returns {{ name: string, label: string, kind: 'zone'|'phone' }[]}
  */
-export const presenceZones = (rooms) => {
+export const presenceSources = (rooms, layoutTree = []) => {
   const byName = new Map()
   for (const room of rooms ?? []) {
     if (room && ((room.capabilities ?? 0) & 2) !== 0 && !byName.has(room.name)) {
-      byName.set(room.name, { name: room.name, label: roomLabel(room) })
+      byName.set(room.name, { name: room.name, label: roomLabel(room), kind: 'zone', roomId: room.id })
     }
   }
-  return [...byName.values()].sort((a, b) => naturalCompare(a.label, b.label))
+
+  const zones = [...byName.values()]
+  const labelCounts = new Map()
+  for (const zone of zones) {
+    const key = zone.label.toLocaleLowerCase()
+    labelCounts.set(key, (labelCounts.get(key) ?? 0) + 1)
+  }
+  const labelled = zones.map(({ roomId, ...zone }) => {
+    if (labelCounts.get(zone.label.toLocaleLowerCase()) < 2) return zone
+    const group = parentOf(layoutTree ?? [], roomKey(roomId))
+    return group?.name ? { ...zone, label: `${zone.label} (${group.name})` } : zone
+  })
+
+  const phones = new Map()
+  for (const room of rooms ?? []) {
+    for (const detector of room?.occupancy?.available ?? []) {
+      if (detector?.isPhone && !phones.has(detector.id)) {
+        phones.set(detector.id, { name: detector.id, label: detector.label, kind: 'phone' })
+      }
+    }
+  }
+
+  return [
+    ...labelled.sort((a, b) => naturalCompare(a.label, b.label)),
+    ...[...phones.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }))
+  ]
 }
 
 /** Every drivable device across the rooms, each entity once. */

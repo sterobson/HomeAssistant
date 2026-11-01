@@ -254,7 +254,9 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   zone's built-in detectors plus the edit (`occupancyFirstSaveMap`). Pure helpers and tests are in
   `utils/zoneOccupancy.js`.
 - **Device rules.** Each heater plug and radiator valve in a devices list shows its rules summary and a
-  **Rules** button opening `DeviceRulesModal` (schedule windows, presence sources with Any/All, and the device's
+  **Rules** button opening `DeviceRulesModal` (schedule windows, presence sources with Any/All: House, the zones and
+  the phones, from `presenceSources(rooms, layoutTree)` in `utils/deviceRules.js`, which names a clashing zone label
+  by its group; and the device's
   **pre-heat**, 0–60 minutes in 5-minute steps; unset is **Auto** for a radiator valve (the app works it out from how
   fast that valve has warmed its room; saved as no value, `PRE_HEAT_AUTO` while editing) and none for a heater plug, so
   the dialog takes the device's `role`, and the summary mentions pre-heat only when it differs from that default).

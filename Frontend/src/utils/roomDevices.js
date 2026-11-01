@@ -39,6 +39,18 @@ export const roleLabel = (role) => ROLE_LABELS[role] ?? 'Device'
 export const deviceName = (device) => device?.name?.trim() || device?.entityId || ''
 
 /**
+ * "Kitchen heater is held off by its rules, so it is not heating.", for the devices that want heat but whose rules
+ * hold them off (`heldOffByRules`, since 2026-11-01), or '' when none is. Shown on a boost, which never overrides rules.
+ */
+export const heldOffByRulesText = (devices) => {
+  const names = (devices ?? []).filter(device => device?.heldOffByRules).map(deviceName)
+  if (names.length === 0) return ''
+  if (names.length === 1) return `${names[0]} is held off by its rules, so it is not heating.`
+  const list = `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  return `${list} are held off by their rules, so they are not heating.`
+}
+
+/**
  * Home Assistant reports a device it cannot reach as `unavailable` (or `unknown` before it has
  * reported). A missing state means the entity was not found at all. None of those are readings.
  * A towel rail is not in Home Assistant at all, so it is never unavailable.

@@ -397,7 +397,13 @@ More heating notes:
   start runs past midnight and belongs to the start day; none = any time) AND a presence rule (sources
   combined Any/All; none = no presence needed). A source is a presence zone's canonical name or `house` =
   any of the zones that mean someone is home in use (games desk, dining desk, den, living room; not the
-  dining room's "desk switched on"; never motion sensors, the cat sets them off). Each device also has a
+  dining room's "desk switched on"; never motion sensors, the cat sets them off), or, since 2026-11-01, a single
+  detector's id, which is how a **phone** is chosen (`ste-phone-home` etc.; owner: phones never count towards
+  `house`, but a device may wait for one). The UI lists the phones under their own heading (`isPhone` on each
+  detector), and zones whose labels clash ("Whole room" in the den and the dining room) carry their group's name.
+  A device that wants heat while its rules hold it off publishes `heldOffByRules`, and a running boost on its zone
+  says so ("… is held off by its rules"): found when the kitchen heater sat off through a boost at 07:06 that day,
+  because Ste's desk had been switched off 47 s earlier and nothing else showed anyone home. Each device also has a
   **pre-heat** (`PreHeatMinutes`, 0–60; owner, 2026-10-19): how long before a warmer track starts it begins
   heating for it. Unset means **Auto** for a radiator valve (owner, 2026-10-20) and none for a heater plug; a valve can
   still be given a fixed value. Since 2026-10-21 `PreHeatAuto` (bool?) says Auto or fixed outright, so a **heater plug

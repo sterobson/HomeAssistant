@@ -6,6 +6,7 @@ import {
   distinctDeviceCount,
   filterSection,
   groupDevices,
+  heldOffByRulesText,
   houseDeviceSections,
   isUnavailable,
   roleLabel,
@@ -214,5 +215,24 @@ describe('houseDeviceSections', () => {
 
   it('copes with no battery placement yet', () => {
     expect(houseDeviceSections(tree, rooms, null).map(s => s.title)).toEqual(['Den', 'kitchen'])
+  })
+})
+
+describe('heldOffByRulesText', () => {
+  it('names each device its rules hold off', () => {
+    expect(heldOffByRulesText([
+      { entityId: 'switch.kitchen', name: 'Kitchen heater', heldOffByRules: true },
+      { entityId: 'sensor.kitchen', name: 'Kitchen thermometer' }
+    ])).toBe('Kitchen heater is held off by its rules, so it is not heating.')
+    expect(heldOffByRulesText([
+      { entityId: 'a', name: 'A', heldOffByRules: true },
+      { entityId: 'b', name: 'B', heldOffByRules: true },
+      { entityId: 'c', name: 'C', heldOffByRules: true }
+    ])).toBe('A, B and C are held off by their rules, so they are not heating.')
+  })
+
+  it('is empty when nothing is held off, or from an app too old to say', () => {
+    expect(heldOffByRulesText([{ entityId: 'a', name: 'A', heldOffByRules: false }, { entityId: 'b' }])).toBe('')
+    expect(heldOffByRulesText(undefined)).toBe('')
   })
 })

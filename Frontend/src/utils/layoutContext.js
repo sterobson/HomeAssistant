@@ -6,7 +6,7 @@
 //
 //   roomsById        Map of room id to room, for looking a node's room up
 //   layoutTree       ref(tree)  the whole layout, for working out which group's boost locks a node
-//   presenceZones    computed [{ name, label }] zones that can detect presence, for device rules
+//   presenceSources  computed [{ name, label, kind }] zones that can detect presence, then phones, for device rules
 //   drivableDevices  computed [device] every heater plug and radiator valve, for device rules
 //   zones            ref([room]) every zone with its `occupancy`, for the first save of zone occupancy
 //   editLayout       ref(boolean)   reordering / icon mode

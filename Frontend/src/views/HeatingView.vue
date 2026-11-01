@@ -95,7 +95,7 @@
       v-if="showHouseDevices"
       title="Devices in the house"
       :sections="houseSections"
-      :presence-zones="presenceZoneList"
+      :presence-sources="presenceSourceList"
       :all-devices="drivableDeviceList"
       :all-zones="rooms"
       @close="showHouseDevices = false"
@@ -154,7 +154,7 @@ import {
   newGroupId, normaliseIcon, roomIdsIn
 } from '../utils/roomLayout.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
-import { drivableDevices, presenceZones } from '../utils/deviceRules.js'
+import { drivableDevices, presenceSources } from '../utils/deviceRules.js'
 import { groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
 import { useFormatting } from '../composables/useFormatting.js'
 
@@ -230,7 +230,7 @@ const handleSaveAreas = async (placement) => {
   }
 }
 // What the device rules editor needs: the zones a presence rule can name, and every device it could be saved for.
-const presenceZoneList = computed(() => presenceZones(rooms.value))
+const presenceSourceList = computed(() => presenceSources(rooms.value, layoutTree.value))
 const drivableDeviceList = computed(() => drivableDevices(rooms.value))
 
 // Layout editing: reorder, move into groups, choose icons, make and delete groups.
@@ -897,7 +897,7 @@ const handleToggleExpand = (roomId) => {
 // Everything LayoutNode needs, provided last so every handler it points at already exists.
 provide(HEATING_LAYOUT, {
   roomsById,
-  presenceZones: presenceZoneList,
+  presenceSources: presenceSourceList,
   drivableDevices: drivableDeviceList,
   // Every zone with its occupancy, for the first save of the zones' presence detectors.
   zones: rooms,

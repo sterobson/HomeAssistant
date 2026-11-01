@@ -96,7 +96,7 @@
       v-if="showDevices"
       :title="`Devices in ${node.name}`"
       :sections="groupDeviceSections"
-      :presence-zones="layoutContext?.presenceZones.value ?? []"
+      :presence-sources="layoutContext?.presenceSources.value ?? []"
       :all-devices="layoutContext?.drivableDevices.value ?? []"
       :all-zones="layoutContext?.zones.value ?? []"
       @close="showDevices = false"

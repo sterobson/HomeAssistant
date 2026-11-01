@@ -234,7 +234,13 @@ internal class PresenceService : IPresenceService
     }
 
     public IReadOnlyList<PresenceDetectorDto> Detectors =>
-        [.. _detectors.Select(d => new PresenceDetectorDto { Id = d.Id, Label = d.Label, MeansSomeoneHome = d.MeansSomeoneHome })];
+        [.. _detectors.Select(d => new PresenceDetectorDto
+        {
+            Id = d.Id,
+            Label = d.Label,
+            MeansSomeoneHome = d.MeansSomeoneHome,
+            IsPhone = Phones.Any(phone => phone.DetectorId == d.Id)
+        })];
 
     public bool ZoneOccupancyIsDefault { get; private set; } = true;
 

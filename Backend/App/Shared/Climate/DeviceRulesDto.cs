@@ -78,8 +78,10 @@ public class PresenceRuleDto
     public PresenceMatch Match { get; set; } = PresenceMatch.Any;
 
     /// <summary>
-    /// <see cref="PresenceSources.House"/>, or the canonical name of a zone that can detect presence
-    /// ("games desk", "den", ...).
+    /// <see cref="PresenceSources.House"/>, the canonical name of a zone that can detect presence
+    /// ("games desk", "den", ...), or a presence detector's id. The UI offers the phones' detectors
+    /// ("ste-phone-home", ...) this way (owner, 2026-11-01): they never count towards "house", but a device
+    /// can still be made to wait for one.
     /// </summary>
     public List<string> Sources { get; set; } = [];
 }

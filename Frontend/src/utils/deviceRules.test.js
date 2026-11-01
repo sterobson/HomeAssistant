@@ -8,7 +8,7 @@ import {
   PRE_HEAT_AUTO,
   PRE_HEAT_OPTIONS,
   preHeatFor,
-  presenceZones,
+  presenceSources,
   summariseRules,
   validateWindow
 } from './deviceRules.js'
@@ -113,7 +113,7 @@ describe('firstSaveMap', () => {
   })
 })
 
-describe('presenceZones', () => {
+describe('presenceSources', () => {
   it('keeps zones that can detect occupancy, by label in natural order', () => {
     const rooms = [
       { name: 'zone 10', capabilities: 3 },
@@ -121,8 +121,39 @@ describe('presenceZones', () => {
       { name: 'kitchen', capabilities: 1 },
       { name: 'den', displayName: 'The den', capabilities: 3 }
     ]
-    expect(presenceZones(rooms).map(z => z.label)).toEqual(['The den', 'Zone 2', 'zone 10'])
-    expect(presenceZones(rooms)[0].name).toBe('den')
+    expect(presenceSources(rooms).map(z => z.label)).toEqual(['The den', 'Zone 2', 'zone 10'])
+    expect(presenceSources(rooms)[0].name).toBe('den')
+  })
+
+  it('tells zones with the same label apart by their group', () => {
+    const rooms = [
+      { id: 1, name: 'den', displayName: 'Whole room', capabilities: 3 },
+      { id: 2, name: 'dining room', displayName: 'Whole room', capabilities: 3 },
+      { id: 3, name: 'games desk', displayName: "Ste's desk", capabilities: 3 }
+    ]
+    const tree = [
+      { type: 'group', key: 'group-g1', id: 'g1', name: 'Den', children: [{ type: 'room', key: 'room-1', roomId: 1 }, { type: 'room', key: 'room-3', roomId: 3 }] },
+      { type: 'group', key: 'group-g2', id: 'g2', name: 'Dining room', children: [{ type: 'room', key: 'room-2', roomId: 2 }] }
+    ]
+    expect(presenceSources(rooms, tree).map(z => z.label)).toEqual(["Ste's desk", 'Whole room (Den)', 'Whole room (Dining room)'])
+    expect(presenceSources(rooms).map(z => z.label)).toEqual(["Ste's desk", 'Whole room', 'Whole room'])
+  })
+
+  it('offers the phones after the zones, once each, by their detector ids', () => {
+    const available = [
+      { id: 'games-desk-in-use', label: "Ste's desk in use", isPhone: false },
+      { id: 'ruth-phone-home', label: "Ruth's phone on the home Wi-Fi", isPhone: true },
+      { id: 'ellie-phone-home', label: "Ellie's phone on the home Wi-Fi", isPhone: true }
+    ]
+    const rooms = [
+      { id: 1, name: 'den', capabilities: 3, occupancy: { available } },
+      { id: 2, name: 'kitchen', capabilities: 1, occupancy: { available } }
+    ]
+    expect(presenceSources(rooms)).toEqual([
+      { name: 'den', label: 'den', kind: 'zone' },
+      { name: 'ellie-phone-home', label: "Ellie's phone on the home Wi-Fi", kind: 'phone' },
+      { name: 'ruth-phone-home', label: "Ruth's phone on the home Wi-Fi", kind: 'phone' }
+    ])
   })
 })
 

@@ -565,6 +565,9 @@ public sealed class PresenceServiceTests
         context.Service.Detectors.Single(d => d.Id == PresenceService.RuthPhoneHome).MeansSomeoneHome.ShouldBeFalse();
         context.Service.Detectors.Single(d => d.Id == PresenceService.EllePhoneHome).MeansSomeoneHome.ShouldBeFalse();
         context.Service.Detectors.ShouldAllBe(d => d.Label.Length > 0);
+        context.Service.Detectors.Where(d => d.IsPhone).Select(d => d.Id).ShouldBe(
+            [PresenceService.StePhoneHome, PresenceService.RuthPhoneHome, PresenceService.EllePhoneHome],
+            "the phones are offered as device-rule sources (owner, 2026-11-01)");
     }
 
     [TestMethod]

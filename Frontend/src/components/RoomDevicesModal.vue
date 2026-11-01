@@ -133,7 +133,7 @@
       :rate-from-name="editingDevice.heatingRateFromEntityId ? nameOfDevice(editingDevice.heatingRateFromEntityId) : ''"
       :rules="effectiveRules(editingDevice, deviceRules)"
       :is-default="rulesAreBuiltIn(editingDevice)"
-      :presence-zones="presenceZones"
+      :presence-sources="presenceSources"
       :saving="savingRules"
       :error="rulesError"
       :z-index="zIndex + 100"
@@ -193,8 +193,9 @@ const props = defineProps({
     type: Number,
     default: 1000
   },
-  // [{ name, label }] zones that can detect presence, sorted, for labelling and choosing rule sources.
-  presenceZones: {
+  // [{ name, label, kind }] zones that can detect presence, then phones (utils/deviceRules.js presenceSources), for
+  // labelling and choosing rule sources.
+  presenceSources: {
     type: Array,
     default: () => []
   },
@@ -242,7 +243,7 @@ const nameOfDevice = (entityId) => {
 }
 const warmUpRateFor = (device) => describeWarmUpRate(device, currentTempUnit.value, nameOfDevice)
 
-const zoneLabel = (name) => props.presenceZones.find(z => z.name === name)?.label ?? name
+const zoneLabel = (name) => props.presenceSources.find(z => z.name === name)?.label ?? name
 const rulesSummary = (device) => summariseRules(effectiveRules(device, deviceRules.value), zoneLabel, device.role)
 // Built-in defaults only apply while nothing has been saved.
 const rulesAreBuiltIn = (device) => deviceRules.value === null && device.rulesAreDefault === true
