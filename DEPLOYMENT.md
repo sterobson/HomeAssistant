@@ -260,6 +260,13 @@ HOME-ASSISTANT.md gotcha 32) was all three, in order: Functions `2026.10.31.18.4
 on the share; up and in relay mode at 18:48:17 with the relay off), then the frontend (entry `index-ALEQMavL.js`). The
 Samba share answered first time.
 
+The 2026-11-01 08:10 GMT deploy (`611a254`: devices held off by their rules shown on a boost, phones as rule sources,
+clashing zone labels named by group) was all three, in order: Functions `2026.11.01.08.06-611a254` first (devices gained
+`heldOffByRules` and detectors `isPhone`, which an older Functions app would drop), then NetDaemon `20261101080600`
+(34 files, checked on the share; up in relay mode at 08:10:00 with the relay off; room states read back with both new
+fields), then the frontend (entry `index-BfDX-IAx.js`). Auto mode's classifier refuses a production publish, so the
+deploy ran with it off.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
