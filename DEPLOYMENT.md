@@ -267,6 +267,13 @@ clashing zone labels named by group) was all three, in order: Functions `2026.11
 fields), then the frontend (entry `index-BfDX-IAx.js`). Auto mode's classifier refuses a production publish, so the
 deploy ran with it off.
 
+The 2026-11-03 06:39 GMT NetDaemon-only deploy (`f184bad`, version `20261103063855`: a room about to stop needing heat no
+longer starts the boiler) was the same tests, publish, stop, copy, start and OTA upload, as one script (34 files,
+`HomeAssistant.dll` and `version.txt` checked on the share). Only the app's boiler decision changed, so the Functions app
+and the frontend were not redeployed. Done with the boiler on: the relay stayed on through the restart (no change in its
+history), and the app came up at 06:39:26 carrying on from it, with 11 apps running and `app-release/running` reporting the
+new version. The Samba share answered first time.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this

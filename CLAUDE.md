@@ -373,7 +373,8 @@ More heating notes:
     19 °C at 22:58:59 on 2026-11-02, with 18 °C from 23:00 and the room at 18.7 °C. **A boost replaces the schedule**, so
     a schedule drop during a boost does not count, but a boost ending within the 5 minutes is judged by the schedule after
     it. A valve pre-heating for a warmer track is exempt, and a boiler already on carries on until the room really
-    stops calling. It is logged once ("is not counted towards starting the boiler"). Not yet deployed as of this note.
+    stops calling. It is logged once ("is not counted towards starting the boiler"). Live since 06:39 GMT on 2026-11-03 (NetDaemon
+    `20261103063855`, commit `f184bad`).
   - **Off** once no room is calling. Until 2026-10-19 it was "total deficit is 0", so Bedroom 3 at 17.9 °C
     against 18 °C, too little to open its valve, held the boiler on with every valve shut. That was found live
     after a boost was cancelled. There is no minimum run or off time: the relay can switch as often as the rooms ask.
