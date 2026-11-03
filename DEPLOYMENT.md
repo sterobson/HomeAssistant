@@ -274,6 +274,18 @@ and the frontend were not redeployed. Done with the boiler on: the relay stayed 
 history), and the app came up at 06:39:26 carrying on from it, with 11 apps running and `app-release/running` reporting the
 new version. The Samba share answered first time.
 
+The 2026-11-03 17:29–17:35 GMT deploy (`dc3e1be`: group history, genuine heating, and heat by source on the temperature
+charts) was all three, in order: Functions `2026.11.03.17.29-dc3e1be` first (room states and history points gained
+`heatingFromBoiler` and `heatingFromElectric`, which an older Functions app would drop; production's five blobs were saved
+first), then NetDaemon `20261103173128` (34 files; the add-on stopped, a recursive copy without `appsettings.*.json`,
+`HomeAssistant.dll` and `version.txt` checked on the share, the add-on started, then the OTA upload; 11 apps running, relay
+mode carried on from the relay being on, and the next room-state upload carried the new fields), then the frontend (entry
+`index-BmRGtXCg.js`, which the live site then served). Each step was a script file in the session's scratchpad that
+dot-sources `Output.ps1`, `SecretsManagement.ps1` and `ConfigManagement.ps1` and resolves the function key in-process.
+Auto mode's classifier refused stopping the add-on ("Production Deploy"), as it did on 2026-10-23 and 2026-11-01, so the
+Functions publish ran in auto mode and the rest after it was switched off. Heating history recorded before this deploy has
+no per-source flags, so a zone with both a radiator and a heater (Bedroom 1) counts it in the total only.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
