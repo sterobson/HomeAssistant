@@ -358,6 +358,23 @@ fingerbot 5, den radiator 1 3, living room TRV 3, games room heater plug 2, Bedr
 den's backhaul is not the whole story. The fix still stands: a router on the den side of the living room, or the
 dongle moved that way.
 
+**Re-read 2026-11-02 ~14:40 GMT**, two days after the boiler relay replaced the fingerbot (`tools/ha/zigbee-mesh.cjs`,
+compared with the 21 October dump by `zigbee-mesh-compare.mjs`). **Signal has not improved; failed commands have.**
+Each device's weakest link on its best path to the hub averages 108 against 116 (14 better, 27 worse), and the den 111
+against 122, which is within what LQI moves between reads. The den still leaves by the kitchen heater plug (den 141,
+then dining bookshelf 113, desk plug 175, light tree 173, hub 142). The hub hears the four original den plugs at
+41–70 (46–65 on the 21st). **Den - Boiler relay is the first den device to hear the hub back** (78/82; it is a
+router, in the boiler cupboard), which is a second way out, though weaker than the one in use. The sideboard plug
+reads 33. Battery devices have changed parents, several for the worse: **dining TRV 42 on the Bedroom 1 heater plug**
+(132 on the dining bookshelf plug), **living room TRV 59 on the Bedroom 3 lamp plug** (120 on the light tree),
+Bedroom 2 TRV 73 (117), bathroom thermometer 58, Bedroom 1 thermometer 61. One improved a lot: Bedroom 3 TRV 101 on the
+lamp plug (42 on the shelf plug). Failed Zigbee commands (`failed-commands.cjs`; retries count, moves are the logged
+valve and boiler changes): 22–30 October 252 in 390 moves (0.65 a move, 0.56 without the fingerbot), 1 November to
+14:30 on the 2nd 14 in 89 (0.16), none of them on the relay. That is two days, and no fewer moves. The cause is not
+established: the signal figures don't explain it, and the 31 October deploy also removed the fingerbot's presses and the
+valve-holding around them, so fewer commands may be colliding. The fingerbot is still paired and answering (last seen
+that afternoon, on the relay at 140), and "Bookcase Light Strip" is still a dead router in ZHA.
+
 **House layout as the mesh shows it** (drawn from the same tables, 2026-10-21; the owner said it was right apart
 from left and right being swapped, and on 2026-10-22 that the den runs all the way to the back wall, both corrected
 here; room sizes, doors and the rooms without a plug are still guesses). Ground floor, seen from the front: the
