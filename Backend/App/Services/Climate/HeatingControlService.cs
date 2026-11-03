@@ -31,6 +31,10 @@ internal partial class HeatingControlService
     // The boiler is switched on once the rooms with a radiator valve are, between them, this many
     // degrees Celsius short of their targets, and off again only when none is short at all.
     internal const double BoilerDeficitThresholdCelsius = 3;
+    // How far ahead a room's target is looked at before the room may help start the boiler (owner, 2026-11-03).
+    internal static readonly TimeSpan BoilerStartLookAhead = TimeSpan.FromMinutes(5);
+    // Rooms already logged as not counting towards starting the boiler, so each is logged once per spell.
+    private readonly HashSet<int> _roomsLoggedAsStoppingSoon = [];
     private readonly Dictionary<int, RoomState> _roomStates = [];
     private bool _hasUploadedState = false;
     // In relay mode, whether the app wants the boiler on, and since when (null when unknown). The relay is put in that
@@ -474,7 +478,8 @@ internal partial class HeatingControlService
         double CurrentTemperature,
         DeviceTarget Base,
         IReadOnlyList<(TimeSpan StartsAt, HeatingScheduleTrack Track)> UpcomingWarmer,
-        TimeSpan Now)
+        TimeSpan Now,
+        string? HeatStopsSoon)
     {
         /// <summary>The target for a device that pre-heats this many minutes ahead.</summary>
         public DeviceTarget For(int preHeatMinutes)
@@ -644,7 +649,8 @@ internal partial class HeatingControlService
         {
             return new RoomTarget(currentTemperature.Value,
                 new DeviceTarget(roomHeatingSchedule.Boost?.Temperature ?? 0, null, "boost is active"),
-                [], now.TimeOfDay);
+                [], now.TimeOfDay,
+                await WhyHeatStopsSoonAsync(houseOccupancyState, roomHeatingSchedule, now, currentTemperature.Value));
         }
 
         // What it should be RIGHT NOW: the latest track that has started.
@@ -660,7 +666,36 @@ internal partial class HeatingControlService
 
         return new RoomTarget(currentTemperature.Value,
             new DeviceTarget(currentActiveTrack.Temperature, currentActiveTrack, "current active schedule"),
-            upcoming, now.TimeOfDay);
+            upcoming, now.TimeOfDay,
+            await WhyHeatStopsSoonAsync(houseOccupancyState, roomHeatingSchedule, now, currentTemperature.Value));
+    }
+
+    /// <summary>
+    /// Why the room will have no use for heat by <see cref="BoilerStartLookAhead"/> from now, so it should not help start
+    /// the boiler; null if it still will. It looks at the track that will be active then, at the room's temperature now.
+    /// A boost replaces the schedule until it ends, so a running boost only looks at the schedule once it ends within
+    /// that time. Found 2026-11-03, when Bedroom 3 started the boiler at 22:58:59 for a 19 °C target that fell to 18 °C at
+    /// 23:00, with the room at 18.7 °C: a run of 61 seconds.
+    /// </summary>
+    private async Task<string?> WhyHeatStopsSoonAsync(HouseOccupancyState houseOccupancyState, RoomSchedule room, DateTime now, double currentTemperature)
+    {
+        bool boostRunning = IsBoostRunning(room);
+        if (boostRunning && room.Boost!.EndTime > _timeProvider.GetUtcNow() + BoilerStartLookAhead)
+        {
+            return null;
+        }
+
+        DateTime soon = now + BoilerStartLookAhead;
+        HeatingScheduleTrack? track = await FindCurrentActiveSchedule(houseOccupancyState, room, soon, ToDays(soon.DayOfWeek));
+        string change = boostRunning ? "its boost is about to end" : "its schedule is about to change";
+        if (track == null)
+        {
+            return $"{change}, and no schedule applies after that";
+        }
+
+        return currentTemperature >= track.Temperature
+            ? $"{change} to {track.Temperature}°C, and it is already at {currentTemperature}°C"
+            : null;
     }
 
     /// <summary>
@@ -1511,6 +1546,8 @@ internal partial class HeatingControlService
         // room's presence says so (the den's TV, a desk). Empty rooms still wait for the total (owner, 2026-10-19).
         List<string> occupiedRoomsCalling = [];
         double totalDeficit = 0;
+        // Calling rooms that can help start the boiler: all of them but those about to stop needing heat.
+        bool anyRoomCallingToStart = false;
 
         _roomsCallingForHeat.RemoveWhere(id => !schedules.Rooms.Exists(r => r.Id == id));
 
@@ -1534,7 +1571,12 @@ internal partial class HeatingControlService
             // a radiator pre-heating for a warmer track calls for the boiler from the start of its pre-heat.
             DeviceTarget valveTarget = boilerRadiators.Select(radiator => TargetFor(roomSchedule, target, radiator)).MaxBy(t => t.Temperature)!;
             double current = target.CurrentTemperature;
-            if (valveTarget.Temperature > current)
+            // A room about to stop needing heat neither starts the boiler nor adds to the total that would. A radiator
+            // pre-heating is aiming past the schedule's next step, so that step does not stop it. This only holds back a
+            // start: a boiler already on carries on until the room really stops calling, and the wait is over within
+            // BoilerStartLookAhead, when the target has changed or the room has become a real demand again.
+            bool heatStopsSoon = target.HeatStopsSoon != null && valveTarget.Track == target.Base.Track;
+            if (valveTarget.Temperature > current && !heatStopsSoon)
             {
                 double deficit = valveTarget.Temperature - current;
                 roomsBelowTarget.Add((roomSchedule.Name, deficit));
@@ -1550,8 +1592,23 @@ internal partial class HeatingControlService
                 _roomsCallingForHeat.Remove(roomSchedule.Id);
             }
 
+            if (heatStopsSoon)
+            {
+                if (!_boilerOn && _roomsCallingForHeat.Contains(roomSchedule.Id) && _roomsLoggedAsStoppingSoon.Add(roomSchedule.Id))
+                {
+                    _logger.LogInformation(
+                        "Room {Room} is not counted towards starting the boiler: {Why}. Triggered by {Trigger}",
+                        roomSchedule.Name, target.HeatStopsSoon, trigger);
+                }
+
+                continue;
+            }
+
+            _roomsLoggedAsStoppingSoon.Remove(roomSchedule.Id);
+
             if (_roomsCallingForHeat.Contains(roomSchedule.Id))
             {
+                anyRoomCallingToStart = true;
                 if (IsBoostRunning(roomSchedule))
                 {
                     boostedRoomsCalling.Add(roomSchedule.Name);
@@ -1564,7 +1621,7 @@ internal partial class HeatingControlService
         }
 
         bool deficitReached = totalDeficit >= BoilerDeficitThresholdCelsius;
-        bool roomsWantItOn = _roomsCallingForHeat.Count > 0 && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
+        bool roomsWantItOn = anyRoomCallingToStart && (deficitReached || boostedRoomsCalling.Count > 0 || occupiedRoomsCalling.Count > 0);
 
         if (_boilerOn && _boilerOnForExercise)
         {

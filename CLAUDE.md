@@ -367,6 +367,13 @@ More heating notes:
     below target; a room that is too hot adds nothing and does not offset a cold one. Boosts include owner
     zone and group boosts and guest QR overrides. A boost sets the target for every device in its zone, and
     heater plugs follow it whenever their rules allow (`ABoostRunsAHeaterPlug_OnlyIfItsRulesAllow`).
+  - **A room about to stop needing heat cannot start the boiler** (owner, 2026-11-03; `WhyHeatStopsSoonAsync`). If the
+    track active 5 minutes from now (`BoilerStartLookAhead`) is at or below the room's temperature now, the room neither
+    starts the boiler nor adds to the total. It came from Bedroom 3 running the boiler for 61 seconds: 0.3 °C short of
+    19 °C at 22:58:59 on 2026-11-02, with 18 °C from 23:00 and the room at 18.7 °C. **A boost replaces the schedule**, so
+    a schedule drop during a boost does not count, but a boost ending within the 5 minutes is judged by the schedule after
+    it. A valve pre-heating for a warmer track is exempt, and a boiler already on carries on until the room really
+    stops calling. It is logged once ("is not counted towards starting the boiler"). Not yet deployed as of this note.
   - **Off** once no room is calling. Until 2026-10-19 it was "total deficit is 0", so Bedroom 3 at 17.9 °C
     against 18 °C, too little to open its valve, held the boiler on with every valve shut. That was found live
     after a boost was cancelled. There is no minimum run or off time: the relay can switch as often as the rooms ask.

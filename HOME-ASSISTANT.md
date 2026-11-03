@@ -620,7 +620,8 @@ thermometer, not yet on a TRV, so dry-run it with `--plan` against an existing r
 **Plug start-up behaviour** (what a Sonoff plug does when power returns after a cut; read from HA on
 2026-10-23 with `list-devices.cjs`, changed with `plug-startup.cjs`). **On**: the den sideboard lamp, both motion lights plugs (den and
 living room), the living room TV, the washing machine, and `Bedroom3LampPlug` (the Bedroom 3 lamp,
-set to On by the owner on 2026-10-23 and read back). Every other S60ZBTPG is **Off**, the heater plugs included.
+set to On by the owner on 2026-10-23 and read back), and the den TV (set to On by the owner on 2026-11-01 and
+read back). Every other S60ZBTPG is **Off**, the heater plugs included.
 The two TP-Link plugs (Christmas tree, Lego village) offer no such setting in HA.
 
 **Living room plugs** — three Sonoff S60ZBTPGs. The TV and stick lights plugs are the living room's
@@ -670,8 +671,9 @@ opened, so it joined only after its button was held until the LED flashed, about
 Mains powered, with the usual `_power`, `_current`, `_voltage` and `_summation_delivered` sensors.
 All three shipped with start-up behaviour **Off**. At the owner's request on 2026-10-23, the **sideboard lamp**
 and **motion lights** plugs were set to **On** with `tools/ha/plug-startup.cjs` (both read back as On), so after a
-power cut those come back on by themselves. The **TV plug stays Off**, so the TV stays unpowered until someone
-switches its plug on. The sideboard plug read off straight after pairing and was switched on at 22:46 BST. Over a
+power cut those come back on by themselves. The **TV plug** stayed Off until the owner asked for it to be **On** on
+2026-11-01 (set with `plug-startup.cjs` and read back as On), so after a power cut the TV gets power again by
+itself. The sideboard plug read off straight after pairing and was switched on at 22:46 BST. Over a
 minute later its power still read 0.0 W and its voltage `unknown`, so the readings did not show whether the lamp lit.
 
 The TV plug is also the den's **presence sensor** in `Backend/App`
@@ -704,8 +706,8 @@ read 0 W for three days, either the lights idling under 1 W (gotcha 28) or never
   lights plug on. An `unavailable` power reading counts as neither.
 
 The 30 W triggers fire on a *crossing*, not a level, so on their own they would leave the lights in
-the wrong state after anything that skips a crossing (a power cut, after which the TV plug starts up Off
-and, since 2026-10-23, the lights plug On; or an HA restart mid-change). So both automations also **re-check on HA start, on automation reload, and
+the wrong state after anything that skips a crossing (a power cut, after which the lights plug starts up On
+since 2026-10-23 and the TV plug On since 2026-11-01; or an HA restart mid-change). So both automations also **re-check on HA start, on automation reload, and
 when the lights plug comes back from `unavailable`**, and both carry a condition repeating their
 threshold, so whichever trigger fires they act only if the TV's power is really on that side of 30 W.
 

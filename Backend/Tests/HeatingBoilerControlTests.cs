@@ -498,6 +498,162 @@ public sealed class HeatingBoilerControlTests
         context.BoilerRelay.ToggleCount.ShouldBe(presses);
     }
 
+    // A room about to stop needing heat does not start the boiler (owner, 2026-11-03). Bedroom 3 ran it for 61 seconds
+    // the night before: 0.3 °C short of 19 °C at 22:58:59, with its target falling to 18 °C at 23:00.
+
+    [TestMethod]
+    public async Task TheNightOfThe61SecondRun_StartsOnlyWhenTheRoomReallyNeedsIt()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.Rooms[0].ScheduleTracks =
+        [
+            new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 17, Conditions = ConditionType.RoomNotInUse },
+            new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(19, 0), Temperature = 19, Conditions = ConditionType.RoomInUse },
+            new HeatingScheduleTrack { Id = 3, TargetTime = new TimeOnly(23, 0), Temperature = 18, Conditions = ConditionType.RoomInUse }
+        ];
+        context.Presence.SetRoomValue("Living room", true);
+        context.LivingRoomTemperature.State = 18.7;
+
+        context.SetClock(22, 59);
+        await context.Service.EvaluateAllSchedules("bedroom 3 temperature changed");
+        context.BoilerRelay.ToggleCount.ShouldBe(0, "18.7 °C is already past the 18 °C that starts at 23:00");
+
+        context.SetClock(23, 0);
+        await context.Service.EvaluateAllSchedules("stick lights switched");
+        context.BoilerRelay.ToggleCount.ShouldBe(0);
+
+        context.AdvanceMinutes(114);
+        context.LivingRoomTemperature.State = 17.7;
+        await context.Service.EvaluateAllSchedules("bedroom 3 temperature changed");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "at 00:54 the room is 0.3 °C short of the 18 °C that carries over from 23:00");
+    }
+
+    [TestMethod]
+    [DataRow(3, 0, DisplayName = "Target drops in 3 minutes: held back")]
+    [DataRow(5, 0, DisplayName = "Target drops in exactly 5 minutes: held back")]
+    [DataRow(6, 1, DisplayName = "Target drops in 6 minutes: starts")]
+    public async Task ATargetAboutToDrop_HoldsBackTheStart_OnlyWithinTheLookAhead(int minutesAway, int starts)
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.GiveLivingRoomAnInUseTargetThatChanges(16, new TimeOnly(12, minutesAway), 14);
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(starts);
+    }
+
+    [TestMethod]
+    public async Task ATargetDroppingButStillAboveTheRoom_StillStartsTheBoiler()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.GiveLivingRoomAnInUseTargetThatChanges(17, new TimeOnly(12, 3), 16);
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "the room at 15 °C is still short of 16 °C after the drop");
+    }
+
+    [TestMethod]
+    public async Task ATargetAboutToDropAcrossMidnight_HoldsBackTheStart()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(23, 58);
+        context.Rooms[0].ScheduleTracks =
+        [
+            new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 2), Temperature = 14, Conditions = ConditionType.RoomInUse },
+            new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(19, 0), Temperature = 16, Conditions = ConditionType.RoomInUse }
+        ];
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(0);
+    }
+
+    [TestMethod]
+    [DataRow(20, 1, DisplayName = "Another room 5 °C short: starts for that room")]
+    [DataRow(16, 0, DisplayName = "Another room 1 °C short: the room about to drop adds nothing to the total")]
+    public async Task ARoomAboutToDrop_AddsNothingToTheTotal(double bedroom2Target, int starts)
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: bedroom2Target);
+        context.SetClock(12, 0);
+        context.Rooms[0].ScheduleTracks =
+        [
+            new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = 20 },
+            new HeatingScheduleTrack { Id = 2, TargetTime = new TimeOnly(12, 3), Temperature = 14 }
+        ];
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(starts);
+    }
+
+    [TestMethod]
+    public async Task ABoilerAlreadyOn_CarriesOnUntilTheTargetReallyDrops()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.GiveLivingRoomAnInUseTargetThatChanges(16, new TimeOnly(12, 10), 14);
+        context.Presence.SetRoomValue("Living room", true);
+        await context.Service.EvaluateAllSchedules("started well before the drop");
+        context.BoilerRelay.IsOn().ShouldBeTrue();
+
+        context.SetClock(12, 7);
+        await context.Service.EvaluateAllSchedules("inside the look-ahead");
+        context.BoilerRelay.IsOn().ShouldBeTrue("the look-ahead only holds back a start");
+
+        context.SetClock(12, 10);
+        await context.Service.EvaluateAllSchedules("the target has dropped");
+        context.BoilerRelay.IsOn().ShouldBeFalse();
+    }
+
+    [TestMethod]
+    public async Task HoldingBackAStart_IsLoggedOncePerSpell()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.GiveLivingRoomAnInUseTargetThatChanges(16, new TimeOnly(12, 3), 14);
+        context.Presence.SetRoomValue("Living room", true);
+
+        await context.Service.EvaluateAllSchedules("first pass");
+        await context.Service.EvaluateAllSchedules("second pass");
+
+        context.Logger.CountMessagesContaining("Room Living room is not counted towards starting the boiler: its schedule is about to change to 14°C").ShouldBe(1);
+    }
+
+    [TestMethod]
+    public async Task ABoost_IsNotHeldBackByAScheduleDropItReplaces()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.GiveLivingRoomAnInUseTargetThatChanges(16, new TimeOnly(12, 3), 14);
+        context.BoostLivingRoom(20);
+
+        await context.Service.EvaluateAllSchedules("boost");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "the boost runs for an hour, whatever the schedule does in the next few minutes");
+    }
+
+    [TestMethod]
+    [DataRow(3, 14, 0, DisplayName = "Boost ends in 3 minutes, schedule then satisfied: held back")]
+    [DataRow(5, 14, 0, DisplayName = "Boost ends in exactly 5 minutes, schedule then satisfied: held back")]
+    [DataRow(6, 14, 1, DisplayName = "Boost ends in 6 minutes: starts")]
+    [DataRow(3, 18, 1, DisplayName = "Boost ends in 3 minutes, schedule still wants heat: starts")]
+    public async Task ABoostAboutToEnd_StartsTheBoilerOnlyIfTheRoomWillStillWantHeat(int boostMinutesLeft, double scheduleAfterwards, int starts)
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: scheduleAfterwards, bedroom2Target: 15);
+        context.SetClock(12, 0);
+        context.BoostLivingRoom(20, boostMinutesLeft);
+
+        await context.Service.EvaluateAllSchedules("boost");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(starts);
+    }
+
     // The UI shows what the app has the boiler doing, in relay mode (owner, 2026-10-19).
 
     [TestMethod]
@@ -1083,10 +1239,27 @@ public sealed class HeatingBoilerControlTests
         private static bool IsOpen(FakeCustomClimateControlEntity valve) =>
             valve.TargetTemperature.GetValueOrDefault() >= valve.CurrentTemperature.GetValueOrDefault();
 
-        public void BoostLivingRoom(double temperature)
+        public void BoostLivingRoom(double temperature, int minutes = 60)
         {
             DateTimeOffset now = TimeProvider.GetUtcNow();
-            Rooms[0].Boost = new Boost { StartTime = now, EndTime = now.AddHours(1), Temperature = temperature };
+            Rooms[0].Boost = new Boost { StartTime = now, EndTime = now.AddMinutes(minutes), Temperature = temperature };
+        }
+
+        /// <summary>Sets the time of day, on the same date.</summary>
+        public void SetClock(int hour, int minute)
+        {
+            DateTimeOffset now = TimeProvider.GetUtcNow();
+            TimeProvider.SetSpecificDateTime(new DateTimeOffset(now.Year, now.Month, now.Day, hour, minute, 0, TimeSpan.Zero));
+        }
+
+        /// <summary>An "in use" target for the living room that changes at <paramref name="changesAt"/>.</summary>
+        public void GiveLivingRoomAnInUseTargetThatChanges(double temperature, TimeOnly changesAt, double changesTo)
+        {
+            Rooms[0].ScheduleTracks =
+            [
+                new HeatingScheduleTrack { Id = 1, TargetTime = new TimeOnly(0, 0), Temperature = temperature, Conditions = ConditionType.RoomInUse },
+                new HeatingScheduleTrack { Id = 2, TargetTime = changesAt, Temperature = changesTo, Conditions = ConditionType.RoomInUse }
+            ];
         }
 
         public void BoostBathroom(double temperature)
