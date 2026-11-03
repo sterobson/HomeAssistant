@@ -711,6 +711,11 @@ internal partial class HeatingControlService
         DeviceTarget roomTarget = target.Base;
         bool anyHeating = false;
 
+        // Which kind of heat it is, for the history: radiator valves and the towel rail take theirs from the boiler,
+        // a heater plug is electric and needs no boiler (owner, 2026-11-03). A zone with Bedroom 1's two can have both.
+        bool heatingFromBoiler = false;
+        bool heatingFromElectric = false;
+
         foreach (object device in GetSwitchesForRoom(roomHeatingSchedule))
         {
             if (device is TowelRail)
@@ -723,7 +728,9 @@ internal partial class HeatingControlService
                     roomTarget = railTarget;
                 }
 
-                anyHeating |= IsTowelRailHot();
+                bool railHot = IsTowelRailHot();
+                anyHeating |= railHot;
+                heatingFromBoiler |= railHot;
                 continue;
             }
 
@@ -798,11 +805,15 @@ internal partial class HeatingControlService
             }
 
             anyHeating |= desiredOn;
+            heatingFromBoiler |= desiredOn && device is ICustomClimateControlEntity;
+            heatingFromElectric |= desiredOn && device is ICustomSwitchEntity;
         }
 
         // Ensure that our cached state is updated.
         _roomStates.TryGetValue(roomHeatingSchedule.Id, out RoomState? roomState);
         bool? previousHeatingActive = roomState?.HeatingActive;
+        bool? previousHeatingFromBoiler = roomState?.HeatingFromBoiler;
+        bool? previousHeatingFromElectric = roomState?.HeatingFromElectric;
         bool stateChanged = false;
 
         if (roomState == null)
@@ -820,6 +831,8 @@ internal partial class HeatingControlService
         roomState.CurrentTemperature = currentTemperature;
         roomState.TargetTemperature = roomTarget.Temperature;
         roomState.HeatingActive = anyHeating;
+        roomState.HeatingFromBoiler = heatingFromBoiler;
+        roomState.HeatingFromElectric = heatingFromElectric;
         roomState.ActiveScheduleTrackId = roomTarget.Track?.Id ?? 0;
         roomState.LastUpdated = DateTimeOffset.UtcNow;
         RoomCapabilities previousCapabilities = roomState.Capabilities;
@@ -838,6 +851,9 @@ internal partial class HeatingControlService
             || roomState.ActiveScheduleTrackId != previousTrackId
             || previousHeatingActive == null
             || roomState.HeatingActive != previousHeatingActive
+            // The history records which source is heating, so a change of either is one even when the total is not.
+            || roomState.HeatingFromBoiler != previousHeatingFromBoiler
+            || roomState.HeatingFromElectric != previousHeatingFromElectric
             // Choosing a zone's presence detectors gains or loses its occupancy tracks, which the UI reads from here.
             // Until 2026-10-20 this was not compared, so a new choice reached the UI only when something else changed.
             || roomState.Capabilities != previousCapabilities
@@ -1213,6 +1229,8 @@ internal partial class HeatingControlService
         }
 
         state.HeatingActive = false;
+        state.HeatingFromBoiler = false;
+        state.HeatingFromElectric = false;
         state.LastUpdated = DateTimeOffset.UtcNow;
         return true;
     }

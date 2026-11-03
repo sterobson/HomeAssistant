@@ -348,6 +348,30 @@ public sealed class DeviceRulesHeatingTests
         context.Bedroom1Heater.IsOn().ShouldBe(heaterOn);
     }
 
+    // The history says which kind of heat a zone had (owner, 2026-11-03): the radiator's comes from the boiler, the
+    // heater plug's is electric, and in Bedroom 1 they can run together.
+    [TestMethod]
+    [DataRow(17, 25, false, false, false, DisplayName = "17:25: neither has started")]
+    [DataRow(17, 40, true, true, false, DisplayName = "17:40: the radiator only, so heat from the boiler")]
+    [DataRow(17, 55, true, true, true, DisplayName = "17:55: both, so both kinds at once")]
+    public async Task TheRoomSaysWhichKindsOfHeatAreRunning(int hour, int minute, bool heating, bool fromBoiler, bool fromElectric)
+    {
+        RulesTestContext context = RulesTestContext.Create(new TimeSpan(hour, minute, 0), "bedroom 1");
+        context.Rooms[0].ScheduleTracks = Bedroom1WarmsAt18();
+        context.SaveRules(new()
+        {
+            [context.Bedroom1Radiator.EntityId] = new DeviceRulesDto { PreHeatMinutes = 30 },
+            [context.Bedroom1Heater.EntityId] = new DeviceRulesDto { PreHeatMinutes = 10 }
+        });
+
+        await context.Service.EvaluateAllSchedules("unit test");
+
+        RoomState state = context.CapturedStates()[1];
+        state.HeatingActive.ShouldBe(heating);
+        state.HeatingFromBoiler.ShouldBe(fromBoiler);
+        state.HeatingFromElectric.ShouldBe(fromElectric);
+    }
+
     [TestMethod]
     public async Task ARoomShowsTheHighestTargetAnyOfItsDevicesIsAimingAt()
     {

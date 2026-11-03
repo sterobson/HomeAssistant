@@ -1,6 +1,6 @@
 <template>
   <div class="chart-container">
-    <Line :data="chartData" :options="chartOptions" />
+    <Line :data="chartData" :options="chartOptions" :plugins="plugins" />
   </div>
 </template>
 
@@ -73,7 +73,29 @@ const props = defineProps({
   period: {
     type: String,
     default: 'Day'
+  },
+  // When the zone was heating, as [{ start: Date, end: Date }]: shaded behind the lines.
+  heatingStretches: {
+    type: Array,
+    default: () => []
+  },
+  // Whether those stretches also needed the boiler on, so the legend says so.
+  usesBoilerHistory: {
+    type: Boolean,
+    default: false
+  },
+  // A group: the points carry the lowest and highest temperature and target across its zones (utils/groupHistory.js).
+  range: {
+    type: Boolean,
+    default: false
   }
+})
+
+const HEATING_BACKGROUND_COLOR = 'rgba(251, 140, 0, 0.18)'
+
+const heatingLabel = computed(() => {
+  const what = props.range ? 'Anything heating' : 'Heating'
+  return props.usesBoilerHistory ? `${what} (boiler on and calling for heat)` : what
 })
 
 const chartData = computed(() => {
@@ -103,58 +125,80 @@ const chartData = computed(() => {
       y: convertToDisplay(point.targetTemperature)
     }))
 
-  // Create heating active background segments
-  const heatingSegments = []
-  let heatingStart = null
-
-  sortedData.forEach((point, index) => {
-    if (point.heatingActive && heatingStart === null) {
-      heatingStart = new Date(point.timestamp)
-    } else if (!point.heatingActive && heatingStart !== null) {
-      heatingSegments.push({
-        x: heatingStart,
-        x2: new Date(point.timestamp)
-      })
-      heatingStart = null
-    }
+  const line = (label, data, color, fill, extra = {}) => ({
+    label,
+    data,
+    borderColor: color,
+    backgroundColor: fill,
+    fill: false,
+    tension: 0.4,
+    pointRadius: 0,
+    pointHoverRadius: 0,
+    borderWidth: 2,
+    ...extra
   })
 
-  // If heating is still on at the end
-  if (heatingStart !== null && sortedData.length > 0) {
-    heatingSegments.push({
-      x: heatingStart,
-      x2: new Date(sortedData[sortedData.length - 1].timestamp)
-    })
-  }
+  const series = (field) => sortedData
+    .filter(point => point[field] != null)
+    .map(point => ({ x: new Date(point.timestamp), y: convertToDisplay(point[field]) }))
+
+  const BLUE = 'rgb(66, 165, 245)'
+  const ORANGE = 'rgb(251, 140, 0)'
+
+  // A zone is its current temperature and its target. A group is the range across its zones: each a shaded band
+  // between its lowest and highest line (a dataset fills down to the one after it).
+  const temperatureDatasets = props.range
+    ? [
+        line('Warmest zone', series('currentTemperatureMax'), BLUE, 'rgba(66, 165, 245, 0.15)', { fill: '+1' }),
+        line('Coolest zone', series('currentTemperature'), BLUE, 'transparent'),
+        line('Highest target', series('targetTemperatureMax'), ORANGE, 'rgba(251, 140, 0, 0.12)', { fill: '+1', borderDash: [5, 5] }),
+        line('Lowest target', series('targetTemperature'), ORANGE, 'transparent', { borderDash: [5, 5] })
+      ]
+    : [
+        line('Current temperature', currentTempData, BLUE, 'rgba(66, 165, 245, 0.1)', { fill: true }),
+        line('Target temperature', targetTempData, ORANGE, 'transparent', { borderDash: [5, 5] })
+      ]
 
   return {
     datasets: [
+      ...temperatureDatasets,
       {
-        label: 'Current Temperature',
-        data: currentTempData,
-        borderColor: 'rgb(66, 165, 245)',
-        backgroundColor: 'rgba(66, 165, 245, 0.1)',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        borderWidth: 2
-      },
-      {
-        label: 'Target Temperature',
-        data: targetTempData,
-        borderColor: 'rgb(251, 140, 0)',
-        backgroundColor: 'transparent',
-        borderDash: [5, 5],
-        fill: false,
-        tension: 0.4,
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        borderWidth: 2
+        // No points: it exists so the legend names the background, and toggling it hides the background
+        // (see heatingBackgroundPlugin). Read here so the chart redraws when the stretches change.
+        label: heatingLabel.value,
+        data: [],
+        stretches: props.heatingStretches,
+        borderColor: HEATING_BACKGROUND_COLOR,
+        backgroundColor: HEATING_BACKGROUND_COLOR,
+        pointStyle: 'rect',
+        borderWidth: 0
       }
     ]
   }
 })
+
+// The stretches the zone was heating, shaded behind the lines, full height. The dataset that names them in the legend
+// is the last one.
+const heatingBackgroundPlugin = {
+  id: 'heatingBackground',
+  beforeDatasetsDraw(chart) {
+    const datasetIndex = chart.data.datasets.findIndex(dataset => dataset.stretches)
+    if (datasetIndex === -1 || !chart.isDatasetVisible(datasetIndex)) return
+
+    const { ctx, chartArea, scales } = chart
+    ctx.save()
+    ctx.fillStyle = HEATING_BACKGROUND_COLOR
+    for (const stretch of chart.data.datasets[datasetIndex].stretches ?? []) {
+      const left = Math.max(scales.x.getPixelForValue(stretch.start.getTime()), chartArea.left)
+      const right = Math.min(scales.x.getPixelForValue(stretch.end.getTime()), chartArea.right)
+      if (right > left) {
+        ctx.fillRect(left, chartArea.top, right - left, chartArea.bottom - chartArea.top)
+      }
+    }
+    ctx.restore()
+  }
+}
+const plugins = [heatingBackgroundPlugin]
 
 const chartOptions = computed(() => {
   // Configure X-axis based on period

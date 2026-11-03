@@ -152,13 +152,9 @@
 
     <TemperatureHistoryModal
       :show="showHistory"
-      :room-name="roomDisplayName"
-      :history-data="historyData"
-      :loading="historyLoading"
-      :error="historyError"
+      :name="roomDisplayName"
+      :rooms="[room]"
       @close="handleHistoryClose"
-      @retry="handleHistory"
-      @date-change="handleDateChange"
     />
 
     <ShareRoomModal
@@ -194,7 +190,6 @@ import ValveHealthBadge from './ValveHealthBadge.vue'
 import { flaggedValveIssues } from '../utils/valveHealth.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
-import { heatingApi } from '../services/heatingApi.js'
 import { roomLabel } from '../utils/rooms.js'
 import { deviceSections, heldOffByRulesText } from '../utils/roomDevices.js'
 import { zoneDetectors } from '../utils/zoneOccupancy.js'
@@ -286,9 +281,6 @@ const deviceSectionsForRoom = computed(() =>
 // What the app is using for this zone's occupancy right now, with each detector's state, for its tracks. The app's
 // report rather than the saved setting: it is what the schedule is actually being judged by.
 const trackOccupancyDetectors = computed(() => zoneDetectors(props.room, null))
-const historyData = ref([])
-const historyLoading = ref(false)
-const historyError = ref(null)
 
 // Check if room can set temperature (flag 1 in RoomCapabilities)
 const canSetTemperature = computed(() => {
@@ -412,25 +404,9 @@ const handleCancelBoost = () => {
   emit('cancel-boost', props.room.id)
 }
 
-const handleHistory = async () => {
+// The modal loads the history itself when it opens.
+const handleHistory = () => {
   showHistory.value = true
-  // Initial data load will be triggered by the modal's date-change event
-}
-
-const handleDateChange = async (startDate, endDate) => {
-  historyLoading.value = true
-  historyError.value = null
-  historyData.value = []
-
-  try {
-    const response = await heatingApi.getRoomHistory(props.room.id, startDate, endDate)
-    historyData.value = response.points
-  } catch (error) {
-    console.error('Error fetching temperature history:', error)
-    historyError.value = 'Failed to load temperature history. Please try again.'
-  } finally {
-    historyLoading.value = false
-  }
 }
 
 const handleHistoryClose = () => {

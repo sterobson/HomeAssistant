@@ -32,7 +32,9 @@ public class RoomHistoryStorageService
         double? currentTemperature,
         double? targetTemperature,
         bool heatingActive,
-        DateTimeOffset recordedAt)
+        DateTimeOffset recordedAt,
+        bool? heatingFromBoiler = null,
+        bool? heatingFromElectric = null)
     {
         try
         {
@@ -45,6 +47,8 @@ public class RoomHistoryStorageService
                 CurrentTemperature = currentTemperature,
                 TargetTemperature = targetTemperature,
                 HeatingActive = heatingActive,
+                HeatingFromBoiler = heatingFromBoiler,
+                HeatingFromElectric = heatingFromElectric,
                 RecordedAt = recordedAt
             };
 

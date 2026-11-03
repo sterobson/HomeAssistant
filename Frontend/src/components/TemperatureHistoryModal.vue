@@ -4,7 +4,7 @@
       <div v-if="show" class="modal-overlay" @click="handleOverlayClick">
         <div class="modal-content" @click.stop>
           <div class="modal-header">
-            <h2>History - {{ roomName }}</h2>
+            <h2>History - {{ name }}</h2>
             <button class="close-btn" @click="emit('close')" title="Close">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <path d="M18 6L6 18M6 6l12 12" stroke-width="2" stroke-linecap="round"/>
@@ -74,10 +74,10 @@
                     <path d="M12 8v4m0 4h.01" stroke-width="2" stroke-linecap="round"/>
                   </svg>
                   <p>{{ error }}</p>
-                  <button class="retry-btn" @click="emit('retry')">Try Again</button>
+                  <button class="retry-btn" @click="reload">Try again</button>
                 </div>
 
-                <div v-else-if="!historyData || historyData.length === 0" class="chart-overlay empty-overlay">
+                <div v-else-if="points.length === 0" class="chart-overlay empty-overlay">
                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path d="M3 3h18v18H3V3z" stroke-width="2"/>
                     <path d="M8 12h8M12 8v8" stroke-width="2" stroke-linecap="round"/>
@@ -86,10 +86,13 @@
                 </div>
 
                 <TemperatureChart
-                  v-show="!loading && !error && historyData && historyData.length > 0"
-                  :history-data="historyData"
-                  :room-name="roomName"
+                  v-show="!loading && !error && points.length > 0"
+                  :history-data="points"
+                  :room-name="name"
                   :period="period"
+                  :heating-stretches="heatingStretches"
+                  :uses-boiler-history="usesBoilerHistory"
+                  :range="isGroup"
                 />
               </div>
 
@@ -101,11 +104,24 @@
                       </svg>
                     </div>
                     <div class="summary-info">
-                      <div class="summary-label">Heating</div>
+                      <div class="summary-label">{{ isGroup ? 'Anything heating' : 'Heating' }}</div>
                       <div class="summary-value">
                         <div v-if="loading" class="value-spinner"></div>
-                        <span v-else>{{ heatingDurationHours }}</span>
+                        <span v-else>{{ formatDuration(heatingMinutes) }}</span>
                       </div>
+                      <!-- By source, only where there is more than one. Both can run together, so these can add up to
+                           more than the total above. -->
+                      <template v-if="!loading && showSourceBreakdown">
+                        <ul class="source-list">
+                          <li v-for="source in heatingSources" :key="source.key">
+                            <span class="source-name">{{ source.label }}</span>
+                            <span class="source-time">{{ formatDuration(totalMinutes(source.stretches)) }}</span>
+                          </li>
+                        </ul>
+                        <p class="summary-note">Sources can run together, so they may add up to more than the total.</p>
+                        <p v-if="splitIncomplete" class="summary-note">Earlier heating can't be split by source, so it counts in the total only.</p>
+                      </template>
+                      <p v-else-if="!loading && usesBoilerHistory" class="summary-note">Boiler on and calling for heat.</p>
                     </div>
                   </div>
 
@@ -153,33 +169,37 @@
 import { computed, ref, watch } from 'vue'
 import TemperatureChart from './TemperatureChart.vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { useZoneHistory } from '../composables/useZoneHistory.js'
+import { totalMinutes } from '../utils/heatingStretches.js'
 
 const { convertToDisplay, currentTempUnit } = useFormatting()
 
+// One history view for a zone and for a group alike: give it the zones to show, and it loads and draws them. A group
+// shows the range across its zones and everything in it that was heating.
 const props = defineProps({
   show: {
     type: Boolean,
     required: true
   },
-  roomName: {
+  // The zone's or group's name, for the title.
+  name: {
     type: String,
     default: 'Room'
   },
-  historyData: {
+  // The zones to show, as room states (`id`, `devices`): the one zone, or every zone in the group.
+  rooms: {
     type: Array,
-    default: () => []
+    required: true
   },
-  loading: {
+  isGroup: {
     type: Boolean,
     default: false
-  },
-  error: {
-    type: String,
-    default: null
   }
 })
 
-const emit = defineEmits(['close', 'retry', 'date-change'])
+const emit = defineEmits(['close'])
+
+const { points, heatingStretches, heatingSources, splitIncomplete, usesBoilerHistory, loading, error, load } = useZoneHistory()
 
 const periods = ['Day', 'Week', 'Month']
 const period = ref('Day')
@@ -244,9 +264,12 @@ const canNavigateForward = computed(() => {
   return endDate < new Date()
 })
 
+// Loads the zones' history for the period shown.
+const reload = () => load(props.rooms, props.isGroup, dateRange.value.startDate, dateRange.value.endDate)
+
 const changePeriod = (newPeriod) => {
   period.value = newPeriod
-  emit('date-change', dateRange.value.startDate, dateRange.value.endDate)
+  reload()
 }
 
 const navigateDate = (direction) => {
@@ -261,7 +284,7 @@ const navigateDate = (direction) => {
   }
 
   selectedDate.value = date
-  emit('date-change', dateRange.value.startDate, dateRange.value.endDate)
+  reload()
 }
 
 // Watch for modal open to reset to current date
@@ -269,30 +292,13 @@ watch(() => props.show, (newShow) => {
   if (newShow) {
     selectedDate.value = new Date()
     period.value = 'Day'
-    emit('date-change', dateRange.value.startDate, dateRange.value.endDate)
+    reload()
   }
 })
 
-// Calculate heating duration in minutes/hours/days
-const heatingDurationHours = computed(() => {
-  if (!props.historyData || props.historyData.length === 0) return '0 minutes'
-
-  let totalMinutes = 0
-  let previousPoint = null
-
-  const sortedData = [...props.historyData].sort((a, b) =>
-    new Date(a.timestamp) - new Date(b.timestamp)
-  )
-
-  sortedData.forEach(point => {
-    if (previousPoint && previousPoint.heatingActive) {
-      const duration = (new Date(point.timestamp) - new Date(previousPoint.timestamp)) / (1000 * 60)
-      totalMinutes += duration
-    }
-    previousPoint = point
-  })
-
-  const roundedMinutes = Math.round(totalMinutes)
+// Minutes as "2 hours, 5 minutes", up to days.
+const formatDuration = (minutes) => {
+  const roundedMinutes = Math.round(minutes)
 
   if (roundedMinutes < 60) {
     return `${roundedMinutes} minute${roundedMinutes !== 1 ? 's' : ''}`
@@ -300,42 +306,45 @@ const heatingDurationHours = computed(() => {
 
   const days = Math.floor(roundedMinutes / (24 * 60))
   const hours = Math.floor((roundedMinutes % (24 * 60)) / 60)
-  const minutes = roundedMinutes % 60
+  const mins = roundedMinutes % 60
 
   const parts = []
   if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`)
   if (hours > 0) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`)
-  if (minutes > 0) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`)
+  if (mins > 0) parts.push(`${mins} minute${mins !== 1 ? 's' : ''}`)
 
   return parts.join(', ')
-})
+}
+
+// The time the zone was genuinely heating (a group: the time anything in it was), however many sources were running.
+const heatingMinutes = computed(() => totalMinutes(heatingStretches.value))
+
+// Broken down by source only where there is more than one kind of heat to tell apart.
+const showSourceBreakdown = computed(() => heatingSources.value.length > 1)
+
+// A zone's temperatures at each point; a group's, the mean across its zones.
+const currentTemperatures = computed(() =>
+  points.value
+    .map(point => point.currentTemperatureMean ?? point.currentTemperature)
+    .filter(temperature => temperature != null)
+    .map(temperature => convertToDisplay(temperature)))
 
 // Calculate average temperature
 const averageTemperature = computed(() => {
-  if (!props.historyData || props.historyData.length === 0) return '0.0'
+  if (currentTemperatures.value.length === 0) return '0.0'
 
-  const temps = props.historyData
-    .filter(point => point.currentTemperature != null)
-    .map(point => convertToDisplay(point.currentTemperature))
-
-  if (temps.length === 0) return '0.0'
-
-  const avg = temps.reduce((sum, temp) => sum + temp, 0) / temps.length
+  const avg = currentTemperatures.value.reduce((sum, temp) => sum + temp, 0) / currentTemperatures.value.length
   return avg.toFixed(1) + '°' + currentTempUnit.value
 })
 
-// Calculate temperature range
+// Calculate temperature range: for a group, from its coolest zone's lowest to its warmest zone's highest.
 const temperatureRange = computed(() => {
-  if (!props.historyData || props.historyData.length === 0) return '0.0°' + currentTempUnit.value
+  const lows = points.value.map(point => point.currentTemperature).filter(temperature => temperature != null)
+  const highs = points.value.map(point => point.currentTemperatureMax ?? point.currentTemperature).filter(temperature => temperature != null)
+  if (lows.length === 0) return '0.0°' + currentTempUnit.value
 
-  const temps = props.historyData
-    .filter(point => point.currentTemperature != null)
-    .map(point => convertToDisplay(point.currentTemperature))
-
-  if (temps.length === 0) return '0.0°' + currentTempUnit.value
-
-  const min = Math.min(...temps)
-  const max = Math.max(...temps)
+  const min = convertToDisplay(Math.min(...lows))
+  const max = convertToDisplay(Math.max(...highs))
   return `${min.toFixed(1)}°${currentTempUnit.value} - ${max.toFixed(1)}°${currentTempUnit.value}`
 })
 
@@ -354,13 +363,13 @@ const handleDateSelect = (event) => {
   const [year, month, day] = dateStr.split('-').map(Number)
   selectedDate.value = new Date(year, month - 1, day)
   showDatePicker.value = false
-  emit('date-change', dateRange.value.startDate, dateRange.value.endDate)
+  reload()
 }
 
 const handleTodayClick = () => {
   selectedDate.value = new Date()
   showDatePicker.value = false
-  emit('date-change', dateRange.value.startDate, dateRange.value.endDate)
+  reload()
 }
 </script>
 
@@ -722,6 +731,31 @@ const handleTodayClick = () => {
   min-height: 1.875rem;
   display: flex;
   align-items: center;
+}
+
+.source-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.source-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.source-time {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.summary-note {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 .value-spinner {

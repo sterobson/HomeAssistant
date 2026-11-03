@@ -73,7 +73,9 @@ public class RoomHistoryFunctions
                     Timestamp = p.RecordedAt.ToString("O"),
                     CurrentTemperature = p.CurrentTemperature,
                     TargetTemperature = p.TargetTemperature,
-                    HeatingActive = p.HeatingActive
+                    HeatingActive = p.HeatingActive,
+                    HeatingFromBoiler = p.HeatingFromBoiler,
+                    HeatingFromElectric = p.HeatingFromElectric
                 }).ToList()
             };
 
@@ -137,4 +139,10 @@ public class HistoryPointDto
     public double? CurrentTemperature { get; set; }
     public double? TargetTemperature { get; set; }
     public bool HeatingActive { get; set; }
+
+    /// <summary>Of HeatingActive, whether a radiator valve or towel rail was heating. Null on points recorded before 2026-11-03.</summary>
+    public bool? HeatingFromBoiler { get; set; }
+
+    /// <summary>Of HeatingActive, whether an electric heater plug was heating. Null on points recorded before 2026-11-03.</summary>
+    public bool? HeatingFromElectric { get; set; }
 }

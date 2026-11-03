@@ -660,6 +660,31 @@ public class ScheduleMapperTests
     }
 
     [TestMethod]
+    public void RoomState_CarriesWhichKindsOfHeatAreRunning_BothWays()
+    {
+        RoomState state = new RoomState { RoomId = 1, HeatingActive = true, HeatingFromBoiler = true, HeatingFromElectric = false };
+
+        RoomStateDto dto = ScheduleMapper.MapRoomStateToDto(state);
+        dto.HeatingFromBoiler.ShouldBe(true);
+        dto.HeatingFromElectric.ShouldBe(false);
+
+        RoomState back = ScheduleMapper.MapRoomStateFromDto(dto);
+        back.HeatingFromBoiler.ShouldBe(true);
+        back.HeatingFromElectric.ShouldBe(false);
+    }
+
+    [TestMethod]
+    public void MapRoomStateFromDto_FromAnAppThatDoesNotSayWhichKind_LeavesItUnknown()
+    {
+        RoomStateDto dto = new RoomStateDto { RoomId = 1, HeatingActive = true, LastUpdated = DateTimeOffset.UtcNow.ToString("O") };
+
+        RoomState result = ScheduleMapper.MapRoomStateFromDto(dto);
+
+        result.HeatingFromBoiler.ShouldBeNull();
+        result.HeatingFromElectric.ShouldBeNull();
+    }
+
+    [TestMethod]
     public void MapRoomStateFromDto_WithNullTemperature_MapsAsNull()
     {
         // Arrange

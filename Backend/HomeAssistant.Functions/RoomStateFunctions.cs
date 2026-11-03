@@ -27,6 +27,8 @@ public class RoomStateFunctions
         public double? CurrentTemperature { get; set; }
         public double? TargetTemperature { get; set; }
         public bool HeatingActive { get; set; }
+        public bool? HeatingFromBoiler { get; set; }
+        public bool? HeatingFromElectric { get; set; }
         public DateTimeOffset RecordedAt { get; set; }
     }
 
@@ -194,6 +196,13 @@ public class RoomStateFunctions
                     reason = $"heating state changed to {(state.HeatingActive ? "ON" : "OFF")}";
                 }
 
+                // Check if which source is heating changed (the total can stay on while a heater takes over from a radiator)
+                if (state.HeatingFromBoiler != lastState.HeatingFromBoiler || state.HeatingFromElectric != lastState.HeatingFromElectric)
+                {
+                    shouldRecord = true;
+                    reason = "heating source changed";
+                }
+
                 // Check if target temperature changed
                 if (state.TargetTemperature != lastState.TargetTemperature)
                 {
@@ -224,7 +233,9 @@ public class RoomStateFunctions
                     state.CurrentTemperature,
                     state.TargetTemperature,
                     state.HeatingActive,
-                    now
+                    now,
+                    state.HeatingFromBoiler,
+                    state.HeatingFromElectric
                 );
 
                 // Update last recorded state
@@ -233,6 +244,8 @@ public class RoomStateFunctions
                     CurrentTemperature = state.CurrentTemperature,
                     TargetTemperature = state.TargetTemperature,
                     HeatingActive = state.HeatingActive,
+                    HeatingFromBoiler = state.HeatingFromBoiler,
+                    HeatingFromElectric = state.HeatingFromElectric,
                     RecordedAt = now
                 };
 

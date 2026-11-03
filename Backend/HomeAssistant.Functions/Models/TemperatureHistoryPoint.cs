@@ -54,6 +54,18 @@ public class TemperatureHistoryPoint : ITableEntity
     public bool HeatingActive { get; set; }
 
     /// <summary>
+    /// Of <see cref="HeatingActive"/>, whether a radiator valve or towel rail (heat from the boiler) was heating the
+    /// room. Null on points recorded before 2026-11-03, which did not say.
+    /// </summary>
+    public bool? HeatingFromBoiler { get; set; }
+
+    /// <summary>
+    /// Of <see cref="HeatingActive"/>, whether an electric heater plug was heating the room. Null on points recorded
+    /// before 2026-11-03.
+    /// </summary>
+    public bool? HeatingFromElectric { get; set; }
+
+    /// <summary>
     /// When this data point was recorded
     /// </summary>
     public DateTimeOffset RecordedAt { get; set; }

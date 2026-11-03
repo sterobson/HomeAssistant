@@ -181,6 +181,21 @@ chart: the boiler is one on/off state over time, so it is a timeline strip of st
 headline total, a hover readout, a legend of the states shown and a table of the changes. The cutting into stretches
 is `utils/boilerHistory.js` (tested); inferred (backfilled) stretches are drawn hatched.
 
+`TemperatureHistoryModal.vue` (since 2026-11-03) is the one history view for a zone and a group alike: it takes
+`rooms` (the one zone, or every zone in the group) and `isGroup`, and loads for itself through `useZoneHistory`
+(not a singleton: one per modal). `RoomCard` and `RoomGroupCard` ("Temperature history" in an open group) only
+say what to show. A group draws the **range across its zones** (`utils/groupHistory.js`: lowest and highest
+temperature and target at each moment) as two shaded bands, and everything draws **when it was heating** as a
+background (`heatingBackgroundPlugin` in `TemperatureChart.vue`; its legend entry is a point-less dataset, so
+toggling it hides the shading). "Heating" is **genuine**: calling for heat while the boiler was on
+(`utils/heatingStretches.js`). The boiler's off time (`utils/boilerHistory.js`) is taken out of a radiator's
+stretches; a heater plug is never gated by it; where the boiler is not known (nothing recorded, thermostat mode, or
+it fails to load) the stretches are as recorded, which is how the chart worked before. The stats show the total,
+and where a zone or group has both kinds of heat, the boiler's and the electric heater's time separately; they can
+overlap, so they may add up to more than the total. Points from before 2026-11-03 do not say which source: a zone
+with one kind of hardware is assumed to be that source, and a zone with both (Bedroom 1) counts it in the total
+only. Boiler history only reaches back 31 days.
+
 `BatteryChart.vue` carries two custom plugins: `zoneRenderingPlugin` (`afterDatasetsDraw`,
 paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
 (drag-to-create, click-to-edit).

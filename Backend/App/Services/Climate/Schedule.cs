@@ -63,6 +63,13 @@ public class RoomState
     public double? CurrentTemperature { get; set; }
     public double? TargetTemperature { get; set; }
     public bool HeatingActive { get; set; }
+
+    /// <summary>Of <see cref="HeatingActive"/>, whether a radiator valve or towel rail is heating the zone. Null before the app has judged it.</summary>
+    public bool? HeatingFromBoiler { get; set; }
+
+    /// <summary>Of <see cref="HeatingActive"/>, whether an electric heater plug is heating the zone. Null before the app has judged it.</summary>
+    public bool? HeatingFromElectric { get; set; }
+
     public int ActiveScheduleTrackId { get; set; }
     public DateTimeOffset LastUpdated { get; set; } = DateTimeOffset.UtcNow;
     public RoomCapabilities Capabilities { get; set; }

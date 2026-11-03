@@ -72,6 +72,13 @@
             </svg>
             Devices in {{ node.name }} ({{ deviceCount }})
           </button>
+          <!-- The same history view a zone has: the range across the zones in this group. -->
+          <button type="button" class="devices-link" @click="showHistory = true">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M0 0h1v15h15v1H0V0zm10 3.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0V4.9l-3.613 4.417a.5.5 0 0 1-.74.037L7.06 6.767l-3.656 5.027a.5.5 0 0 1-.808-.588l4-5.5a.5.5 0 0 1 .758-.06l2.609 2.61L13.445 4H10.5a.5.5 0 0 1-.5-.5z"/>
+            </svg>
+            Temperature history
+          </button>
           <!-- A QR code that lets a guest set every zone in this group; see ShareRoomModal. -->
           <button v-if="canBoost" type="button" class="devices-link" @click="showShare = true">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -102,6 +109,14 @@
       @close="showDevices = false"
     />
 
+    <TemperatureHistoryModal
+      :show="showHistory"
+      :name="node.name"
+      :rooms="roomsInGroup"
+      is-group
+      @close="showHistory = false"
+    />
+
     <BoostModal
       v-if="showBoost"
       :room-name="node.name"
@@ -122,6 +137,7 @@
 import { computed, inject, ref } from 'vue'
 import RoomDevicesModal from './RoomDevicesModal.vue'
 import BoostModal from './BoostModal.vue'
+import TemperatureHistoryModal from './TemperatureHistoryModal.vue'
 import ShareRoomModal from './ShareRoomModal.vue'
 import BatteryBadge from './BatteryBadge.vue'
 import ValveHealthBadge from './ValveHealthBadge.vue'
@@ -251,6 +267,7 @@ const deviceCount = computed(() => {
 // Boosting and sharing need at least one zone inside that can set a temperature (capability flag 1).
 const showBoost = ref(false)
 const showShare = ref(false)
+const showHistory = ref(false)
 const boostableRooms = computed(() => roomsInGroup.value.filter(room => ((room.capabilities ?? 0) & 1) !== 0))
 const canBoost = computed(() => boostableRooms.value.length > 0)
 

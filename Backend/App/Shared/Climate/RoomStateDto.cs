@@ -58,6 +58,16 @@ public class RoomStateDto
     public double? CurrentTemperature { get; set; }
     public double? TargetTemperature { get; set; }
     public bool HeatingActive { get; set; }
+
+    /// <summary>
+    /// Of <see cref="HeatingActive"/>, whether a radiator valve or towel rail (heat from the boiler) is heating the
+    /// zone (owner, 2026-11-03), so the history can say how long each source ran. Null from an app that does not send it.
+    /// </summary>
+    public bool? HeatingFromBoiler { get; set; }
+
+    /// <summary>Of <see cref="HeatingActive"/>, whether an electric heater plug is heating the zone. Null from an app that does not send it.</summary>
+    public bool? HeatingFromElectric { get; set; }
+
     public int ActiveScheduleTrackId { get; set; }
     public string LastUpdated { get; set; } = string.Empty;
     public RoomCapabilities Capabilities { get; set; }
