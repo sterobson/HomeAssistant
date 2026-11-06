@@ -1,0 +1,20 @@
+{
+  "id": "den_multibutton_sideboard_lamp_restart",
+  "alias": "Den multibutton: restart sideboard lamp",
+  "description": "A single click on button 2 of the den's SNZB-01M multi button (owner, 2026-11-06) switches the sideboard lamp's plug (switch.den_plug_sideboard_lamp_switch) off, waits 5 seconds, and switches it back on. A click during those 5 seconds is ignored. Its own automations follow the plug's power: the den tall lamp goes off when the draw drops to 0 W and on again when it is back at 1 W or more (den_tall_lamp_off_with_sideboard_lamp and den_tall_lamp_on_with_sideboard_lamp), so the tall lamp goes off when the draw drops, and stays off: the sideboard lamp comes back off after a power cut and the plug's 5 W reading as it switches on is ignored by den_tall_lamp_on_with_sideboard_lamp for 10 seconds. If HA restarts during the 5 seconds the plug stays off. The button is the zha_event's endpoint_id and the click its command (HOME-ASSISTANT.md gotcha 33). Button 1 is den_multibutton_tall_lamp. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 2, "command": "single" }
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    { "action": "switch.turn_off", "target": { "entity_id": "switch.den_plug_sideboard_lamp_switch" } },
+    { "delay": { "seconds": 5 } },
+    { "action": "switch.turn_on", "target": { "entity_id": "switch.den_plug_sideboard_lamp_switch" } }
+  ],
+  "mode": "single",
+  "max_exceeded": "silent"
+}

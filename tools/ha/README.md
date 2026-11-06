@@ -24,6 +24,9 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 | `rename-device.cjs <device_id> ... --apply` | **yes** | Renames an existing device and its own entities the house way (how the living room TV plug was renamed, 2026-10-19). Check what refers to the old IDs first — HOME-ASSISTANT.md gotcha 16 |
 | `plug-startup.cjs <select entity_id>` | no | A smart plug's start-up behaviour (what it does when power returns after a cut) and the options it offers |
 | `plug-startup.cjs <select entity_id> --set On` | **yes** | Changes it and reads it back. Moves nothing now; only the next power cut. The entity is `select.*_start_up_behaviour` or `*_power_on_behaviour`, depending on how ZHA named it. How the den sideboard lamp plug was set to On, 2026-10-23 |
+| `ota-update.cjs <update entity_id>` | no | A ZHA firmware update's versions and progress, plus what the device itself says it runs (the entity shows the old version for minutes after an update; HOME-ASSISTANT.md gotcha 34). Asks the device, so it waits up to 90 s for a sleeping one |
+| `ota-update.cjs <update entity_id> --watch` | no | Follows an update that is already running until it finishes or stops |
+| `ota-update.cjs <update entity_id> --install` | **yes** | Starts the firmware update and follows it. A battery device stops part-way and resumes on the next `--install`, so run it again after a "STOPPED", with its button pressed every 10 to 15 s. Updated the den multi button, 2026-11-06 |
 | `put-automation.cjs --delete <id> --backup <file.json>` | **yes** | Saves an automation's config to a file, then deletes it from HA |
 | `put-automation.cjs --check <file.json> [...]` | no | Whether each automation in `automations/` matches what HA has (key order ignored) |
 | `put-automation.cjs <file.json> [...]` | **yes** | Creates or replaces those automations through HA's config API (the UI editor's), then reads them back |
@@ -60,6 +63,11 @@ tree, washing machine and so on) are not here.
 | `living_room_motion_lights_on_when_tv_off.json` | Living room TV plug under 5 W for 5 s → living room motion lights plug on |
 | `den_tall_lamp_on_with_sideboard_lamp.json` | Sideboard lamp plug goes from under 1 W to 1 W or more → den tall lamp (WiZ) on |
 | `den_tall_lamp_off_with_sideboard_lamp.json` | Sideboard lamp plug goes from 1 W or more to 0 W → den tall lamp off |
+| `den_multibutton_tall_lamp.json` | Den multi button 1: single click switches the den tall lamp off, or on in the default white (2700 K, 75 %), double steps its brightness, triple steps its colour |
+| `den_multibutton_tall_lamp_long_press.json` | Den multi button 1, long press: start the tall lamp's colour cycle, or (if it is running) stop it and set 2700 K at 75 % |
+| `den_multibutton_tall_lamp_colour_cycle.json` | The runner: one lap of every hue a minute until another click, the lamp going off or unavailable, a change of hue, or 3 hours (then sets 2700 K at 75 %) |
+| `den_tall_lamp_default_white_on_power_on.json` | Den tall lamp goes from off or unavailable to on → set 2700 K at 75 % (not while the colour cycle runs) |
+| `den_multibutton_sideboard_lamp_restart.json` | Den multi button 2, single click: sideboard lamp plug off, 5 s, on |
 
 Both motion-lights pairs also re-check on HA start, on `automation_reloaded` and when the lights plug comes back from
 `unavailable`, guarded by a condition that repeats the threshold. The tall-lamp pair deliberately does not: it fires only on a

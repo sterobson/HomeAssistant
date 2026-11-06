@@ -1,0 +1,41 @@
+{
+  "id": "den_multibutton_tall_lamp_long_press",
+  "alias": "Den multibutton: tall lamp long press",
+  "description": "A long press (hold) on button 1 of the den's SNZB-01M multi button (owner, 2026-11-06). If the den tall lamp's colour cycle is not running it starts it (den_multibutton_tall_lamp_colour_cycle, which does the cycling). If it is running, a second long press stops it and sets the lamp to the default white, 2700 K at 75 % (owner's choice; nothing in the repo recorded a default). Whether it is running comes from the runner's `current` attribute; the lamp is set 0.5 s after the stop event so that the runner's last step cannot land after it. Button 1's other clicks are den_multibutton_tall_lamp, and they also stop the cycle. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "hold" }
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "choose": [
+        {
+          "conditions": [
+            {
+              "condition": "template",
+              "value_template": "{{ state_attr('automation.den_multibutton_tall_lamp_colour_cycle', 'current') | int(0) > 0 }}"
+            }
+          ],
+          "sequence": [
+            { "event": "den_tall_lamp_colour_cycle_stop" },
+            { "delay": { "milliseconds": 500 } },
+            {
+              "action": "light.turn_on",
+              "target": { "entity_id": "light.den_tall_lamp" },
+              "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+            }
+          ]
+        }
+      ],
+      "default": [
+        { "event": "den_tall_lamp_colour_cycle_start" }
+      ]
+    }
+  ],
+  "mode": "single",
+  "max_exceeded": "silent"
+}

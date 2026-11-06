@@ -1,0 +1,32 @@
+{
+  "id": "den_tall_lamp_default_white_on_power_on",
+  "alias": "Den tall lamp default white on power on",
+  "description": "Whenever the den tall lamp (WiZ, light.den_tall_lamp) goes from off or unavailable to on, by any route (a button, the WiZ app, the sideboard-lamp follower, mains power coming back), it is set to the default white, 2700 K at 75 % (owner, 2026-11-06: the bulb came back blue after the colour cycle, in whatever colour it was last left in). Skipped while the colour cycle is running (the cycle switches the lamp on itself and would stop at once if this turned it white), and when the lamp already is that white, so the button's own switch-on in white is not repeated. The bulb first comes on in its old colour, so there can be a brief flash of it before the white. The same applies when the bulb drops off Wi-Fi and comes back, which resets a colour chosen meanwhile. What it does when HA restarts with the lamp already on (the entity can pass through unavailable) has not been seen. Related: den_multibutton_tall_lamp, den_multibutton_tall_lamp_colour_cycle. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "state",
+      "entity_id": "light.den_tall_lamp",
+      "from": ["off", "unavailable"],
+      "to": "on"
+    }
+  ],
+  "conditions": [
+    {
+      "condition": "template",
+      "value_template": "{{ state_attr('automation.den_multibutton_tall_lamp_colour_cycle', 'current') | int(0) == 0 }}"
+    },
+    {
+      "condition": "template",
+      "value_template": "{% set lamp = 'light.den_tall_lamp' %}{{ not (state_attr(lamp, 'color_mode') == 'color_temp' and 2650 <= state_attr(lamp, 'color_temp_kelvin') | int(0) <= 2750 and 188 <= state_attr(lamp, 'brightness') | int(0) <= 194) }}"
+    }
+  ],
+  "actions": [
+    {
+      "action": "light.turn_on",
+      "target": { "entity_id": "light.den_tall_lamp" },
+      "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+    }
+  ],
+  "mode": "single",
+  "max_exceeded": "silent"
+}

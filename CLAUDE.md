@@ -131,7 +131,9 @@ monthly valve exercise now (`valve-exercise.cjs`),
 finding entities by friendly name (`find-entities.cjs`),
 the device/area registry (`list-devices.cjs`), pairing a Zigbee device with house-style names
 (`pair-zigbee.cjs`) and creating HA automations from version-controlled JSON
-(`put-automation.cjs`, with the files in `tools/ha/automations/`). Only those last two write. They read the token without printing it and already
+(`put-automation.cjs`, with the files in `tools/ha/automations/`) and updating a Zigbee device's firmware (`ota-update.cjs`,
+whose `--install` is the third that writes; the entity keeps showing the old version afterwards, so it asks the device). Only those
+three write. They read the token without printing it and already
 dodge the history and timestamp traps. When you write a new query you'd want again, add it there
 and list it in that README.
 
@@ -258,7 +260,9 @@ Four consequences worth knowing before changing any of this:
   seconds" detector (den TV on now, living room TV) is a `SustainedCondition`, and Ruth's desk a `LatchedCondition`, fed by live
   readings, not a history query: the history API lags a few seconds, which made Ruth's heater flap on a
   pulsing load on 2026-10-20 (HOME-ASSISTANT.md gotcha 21). Ruth's also requires the plug to be on in the
-  same condition, since an off plug keeps its last power reading. After an app restart a steady draw counts
+  same condition. That was added because an off plug then kept its last power reading, but the recorder shows
+  Ruth's desk plug and the dining heater plug reading 0 W within 10 ms of every switch-off on 2026-11-03 to 06
+  (checked 2026-11-06), so the check is now a harmless safeguard, not a fix for something seen lately. After an app restart a steady draw counts
   as "on now" only 5 s later.
   `IsRoomInUse` returns `false` for any name it doesn't recognise, so a `RoomInUse`
   track on a presence-blind zone silently never fires, and a `RoomNotInUse` track always

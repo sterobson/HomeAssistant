@@ -1,0 +1,88 @@
+{
+  "id": "den_multibutton_tall_lamp_colour_cycle",
+  "alias": "Den multibutton: tall lamp colour cycle",
+  "description": "The runner for den_multibutton_tall_lamp_long_press (owner, 2026-11-06). On the start event it takes the den tall lamp (light.den_tall_lamp, WiZ) round every hue at full saturation, 3 degrees every half second, so one lap takes a minute, starting from the lamp's current hue (red if it is in white mode), and keeps the lamp's brightness (75 % if it was off). The WiZ integration has no transition support, so each step is its own command and the lamp's state is written every half second while it runs. It stops, leaving the lamp as it is, when a click on button 1 (single, double or triple) or the stop event arrives (mode restart cancels the run, and the run it starts for those does nothing; there is deliberately no condition on the trigger, since a trigger whose condition fails would not cancel anything), or when the lamp is no longer on, is not in a colour, or reports a hue more than 25 degrees from the one sent. So switching the lamp off, a power cut (it goes unavailable and comes back on its own settings), or a change from the WiZ app ends it. A change of brightness alone does not. After 3 hours (10800 s from the start, owner, 2026-11-06, to bound the recorder rows it writes) it ends on its own and, if the lamp is still on, sets the default white, 2700 K at 75 %, as a second long press does; the other ways of ending it leave the lamp as it is. The starter tells whether this is running from this automation's `current` attribute, so a restart of HA or a reload of automations leaves nothing stuck. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    { "trigger": "event", "event_type": "den_tall_lamp_colour_cycle_start", "id": "start" },
+    { "trigger": "event", "event_type": "den_tall_lamp_colour_cycle_stop", "id": "stop" },
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "single" },
+      "id": "stop"
+    },
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "double" },
+      "id": "stop"
+    },
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "triple" },
+      "id": "stop"
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "choose": [
+        {
+          "conditions": [{ "condition": "trigger", "id": "start" }],
+          "sequence": [
+            {
+              "variables": {
+                "start_hue": "{% set lamp = 'light.den_tall_lamp' %}{% if is_state(lamp, 'on') and state_attr(lamp, 'color_mode') == 'rgbw' and state_attr(lamp, 'hs_color') %}{{ state_attr(lamp, 'hs_color')[0] | float(0) }}{% else %}0{% endif %}",
+                "started": "{{ now().timestamp() }}"
+              }
+            },
+            {
+              "if": [{ "condition": "state", "entity_id": "light.den_tall_lamp", "state": "off" }],
+              "then": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "brightness_pct": 75 }
+                }
+              ]
+            },
+            {
+              "repeat": {
+                "sequence": [
+                  {
+                    "action": "light.turn_on",
+                    "target": { "entity_id": "light.den_tall_lamp" },
+                    "data": { "hs_color": "{{ [(start_hue + repeat.index * 3) % 360, 100] }}" }
+                  },
+                  { "delay": { "milliseconds": 500 } }
+                ],
+                "until": [
+                  {
+                    "condition": "template",
+                    "value_template": "{% set lamp = 'light.den_tall_lamp' %}{% set sent = (start_hue + repeat.index * 3) % 360 %}{% set seen = state_attr(lamp, 'hs_color') %}{{ not is_state(lamp, 'on') or state_attr(lamp, 'color_mode') != 'rgbw' or seen is none or ([(seen[0] - sent) | abs, 360 - ((seen[0] - sent) | abs)] | min) > 25 or now().timestamp() - started > 10800 }}"
+                  }
+                ]
+              }
+            },
+            {
+              "if": [
+                { "condition": "template", "value_template": "{{ now().timestamp() - started > 10800 }}" },
+                { "condition": "state", "entity_id": "light.den_tall_lamp", "state": "on" }
+              ],
+              "then": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mode": "restart",
+  "max_exceeded": "silent"
+}

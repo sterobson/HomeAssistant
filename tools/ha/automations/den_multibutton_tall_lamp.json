@@ -1,0 +1,119 @@
+{
+  "id": "den_multibutton_tall_lamp",
+  "alias": "Den multibutton: tall lamp",
+  "description": "Button 1 of the den's SNZB-01M multi button (owner, 2026-11-06) drives the den tall lamp (WiZ bulb, light.den_tall_lamp). Single click switches it off if it is on, and on in the default white, 2700 K at 75 %, if it is not (owner, 2026-11-06: a plain toggle brought it back in whatever colour it was last left in, such as after the colour cycle). Double click steps its brightness through 25, 50, 75 and 100 % and back to 25. Triple click steps its colour through warm white, red, orange, yellow, green, cyan, blue and purple, and back to warm white. On a lamp that is not on, either one only switches it on in the default white (2700 K at 75 %), because den_tall_lamp_default_white_on_power_on gives every switch-on that white anyway (owner, 2026-11-06); in a colour it picks the next after the nearest hue of those, since the bulb reports hues a few degrees off what was sent. The button is the zha_event's endpoint_id (1 to 4) and the click is its command: single, double, triple or hold (HOME-ASSISTANT.md gotcha 33); the step and stop events the remote also sends are not matched. Button 2 is den_multibutton_sideboard_lamp_restart. Source: tools/ha/automations in the HomeAssistant repo.",
+  "triggers": [
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "single" },
+      "id": "single"
+    },
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "double" },
+      "id": "double"
+    },
+    {
+      "trigger": "event",
+      "event_type": "zha_event",
+      "event_data": { "device_ieee": "a4:c1:38:10:a1:af:ff:ff", "endpoint_id": 1, "command": "triple" },
+      "id": "triple"
+    }
+  ],
+  "conditions": [],
+  "actions": [
+    {
+      "choose": [
+        {
+          "conditions": [{ "condition": "trigger", "id": "single" }],
+          "sequence": [
+            {
+              "if": [{ "condition": "state", "entity_id": "light.den_tall_lamp", "state": "on" }],
+              "then": [
+                { "action": "light.turn_off", "target": { "entity_id": "light.den_tall_lamp" } }
+              ],
+              "else": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "conditions": [{ "condition": "trigger", "id": "double" }],
+          "sequence": [
+            {
+              "if": [{ "condition": "not", "conditions": [{ "condition": "state", "entity_id": "light.den_tall_lamp", "state": "on" }] }],
+              "then": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+                },
+                { "stop": "The lamp was not on, so it came on in the default white" }
+              ]
+            },
+            {
+              "variables": {
+                "next_brightness": "{% set levels = [25, 50, 75, 100] %}{% set current = (state_attr('light.den_tall_lamp', 'brightness') | float(0)) * 100 / 255 %}{{ (levels | select('gt', current + 3) | list + [25]) | first }}"
+              }
+            },
+            {
+              "action": "light.turn_on",
+              "target": { "entity_id": "light.den_tall_lamp" },
+              "data": { "brightness_pct": "{{ next_brightness }}" }
+            }
+          ]
+        },
+        {
+          "conditions": [{ "condition": "trigger", "id": "triple" }],
+          "sequence": [
+            {
+              "if": [{ "condition": "not", "conditions": [{ "condition": "state", "entity_id": "light.den_tall_lamp", "state": "on" }] }],
+              "then": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "color_temp_kelvin": 2700, "brightness_pct": 75 }
+                },
+                { "stop": "The lamp was not on, so it came on in the default white" }
+              ]
+            },
+            {
+              "variables": {
+                "next_colour": "{% set hues = [0, 30, 60, 120, 180, 240, 285] %}{% set lamp = 'light.den_tall_lamp' %}{% if state_attr(lamp, 'color_mode') == 'rgbw' and state_attr(lamp, 'hs_color') %}{% set current = state_attr(lamp, 'hs_color')[0] | float(0) %}{% set nearest = namespace(index=0, distance=999) %}{% for hue in hues %}{% set gap = (current - hue) | abs %}{% set distance = [gap, 360 - gap] | min %}{% if distance < nearest.distance %}{% set nearest.distance = distance %}{% set nearest.index = loop.index0 %}{% endif %}{% endfor %}{{ 'warm' if nearest.index == hues | length - 1 else hues[nearest.index + 1] }}{% else %}{{ hues[0] }}{% endif %}"
+              }
+            },
+            {
+              "choose": [
+                {
+                  "conditions": [{ "condition": "template", "value_template": "{{ next_colour == 'warm' }}" }],
+                  "sequence": [
+                    {
+                      "action": "light.turn_on",
+                      "target": { "entity_id": "light.den_tall_lamp" },
+                      "data": { "color_temp_kelvin": 2700 }
+                    }
+                  ]
+                }
+              ],
+              "default": [
+                {
+                  "action": "light.turn_on",
+                  "target": { "entity_id": "light.den_tall_lamp" },
+                  "data": { "hs_color": "{{ [next_colour | float(0), 100] }}" }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mode": "queued"
+}
