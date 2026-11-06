@@ -150,7 +150,8 @@ internal class PresenceService : IPresenceService
 
         // The "for 5 seconds" detectors work from live readings (SustainedCondition), never from the history API,
         // which lags live state by a few seconds (HOME-ASSISTANT.md, gotcha 21).
-        // The desk's plug must be on as well, because a plug that is off keeps its last power reading.
+        // The desk's plug must be on as well: a plug that is off used to keep its last power reading (2026-10-20;
+        // by 2026-11-06 it reads 0 W, HOME-ASSISTANT.md gotcha 21), and the check costs nothing.
         LatchedCondition diningDeskDrawing = new(
             () => namedEntities.DiningRoomDeskPlugOnOff.IsOn() && DrawsAtLeast(namedEntities.DiningRoomDeskPlugPower, DiningDeskInUseWatts),
             DiningDeskSteadyFor, DiningDeskHold, timeProvider);

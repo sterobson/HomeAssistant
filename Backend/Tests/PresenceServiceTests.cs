@@ -316,8 +316,9 @@ public sealed class PresenceServiceTests
     [TestMethod]
     public async Task DiningDesk_AStaleReadingFromBeforeThePlugWasSwitchedOnDoesNotCount()
     {
-        // The plug keeps its last power reading while it is off (HOME-ASSISTANT.md, gotcha 21): 32 W sat there for
-        // hours, then the plug was switched on and the heater came on at once on the strength of it.
+        // The plug kept its last power reading while it was off (HOME-ASSISTANT.md, gotcha 21, 2026-10-20; it reads
+        // 0 W now): 32 W sat there for hours, then the plug was switched on and the heater came on at once on the
+        // strength of it.
         PresenceTestContext context = PresenceTestContext.Create();
         context.SetPower(DiningDeskPower, 32);
         context.Advance(TimeSpan.FromHours(3));

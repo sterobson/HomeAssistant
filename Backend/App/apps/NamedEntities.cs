@@ -82,6 +82,48 @@ public class SonoffButtonGroup : ICustomButton
     }
 }
 
+/// <summary>
+/// One of the four buttons on a SONOFF SNZB-01M remote. Unlike the SNZB-01P (<see cref="SonoffButton"/>), the 01M
+/// reports <c>single</c>, <c>double</c>, <c>triple</c> and <c>hold</c>, and the button is the event's endpoint, 1 to 4.
+/// It also sends level-control <c>step</c> and <c>stop</c> events on endpoint 1, which are never matched here.
+/// </summary>
+public class SonoffMultiButton
+{
+    private readonly IHaContext _ha;
+    public string DeviceIeee { get; }
+    public int Endpoint { get; }
+
+    public SonoffMultiButton(IHaContext ha, string deviceIeee, int endpoint)
+    {
+        _ha = ha;
+        DeviceIeee = deviceIeee;
+        Endpoint = endpoint;
+    }
+
+    public IObservable<Event<ZhaEventData>> DoublePressed()
+    {
+        return Pressed("double");
+    }
+
+    public IObservable<Event<ZhaEventData>> TriplePressed()
+    {
+        return Pressed("triple");
+    }
+
+    public IObservable<Event<ZhaEventData>> LongPressed()
+    {
+        return Pressed("hold");
+    }
+
+    private IObservable<Event<ZhaEventData>> Pressed(string command)
+    {
+        return _ha.Events.Filter<ZhaEventData>("zha_event").Where(e =>
+            string.Equals(e.Data?.DeviceIeee, DeviceIeee, StringComparison.CurrentCultureIgnoreCase)
+            && e.Data?.EndpointId == Endpoint
+            && e.Data?.Command == command);
+    }
+}
+
 public interface INamedEntities
 {
     // Dining room
