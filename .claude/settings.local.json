@@ -203,7 +203,21 @@
       "Bash(curl -s \"https://homeassistant-prod-functions.azurewebsites.net/api/room-states?houseId=1234567\" -o /tmp/rs2.json)",
       "Read(//tmp/**)",
       "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\cd405a27-b4ba-4f42-a4c4-3370435e2816\\\\scratchpad\\\\deploy-frontend.ps1' 2>&1)",
-      "Bash(node tools/ha/list-devices.cjs --name \"Den - Plug - TV\")"
+      "Bash(node tools/ha/list-devices.cjs --name \"Den - Plug - TV\")",
+      "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\aa5b5449-f03f-48d4-9846-4191f6a3bbba\\\\scratchpad\\\\copy-app.ps1')",
+      "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\aa5b5449-f03f-48d4-9846-4191f6a3bbba\\\\scratchpad\\\\ota-upload.ps1')",
+      "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"error|fail|exception|relay|apps? \\(loaded|running\\)|Heating evaluation\" --lines 25)",
+      "Bash(node -e \"const s=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\);for\\(const r of s.roomStates\\)console.log\\(r.roomId,r.heatingActive,r.heatingFromBoiler,r.heatingFromElectric,r.lastUpdated.slice\\(11,19\\)\\);console.log\\(JSON.stringify\\(s.boiler\\)\\)\")",
+      "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\aa5b5449-f03f-48d4-9846-4191f6a3bbba\\\\scratchpad\\\\build-frontend.ps1')",
+      "PowerShell(& 'C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-stero-source-repos-HomeAssistant\\\\aa5b5449-f03f-48d4-9846-4191f6a3bbba\\\\scratchpad\\\\deploy-frontend.ps1')",
+      "Bash(curl -s https://homeassistant.everymilesoftware.com/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" https://homeassistant.everymilesoftware.com/heating)",
+      "Bash(curl -s https://homeassistant-prod-functions.azurewebsites.net/api/version)",
+      "Bash(node tools/ha/list-devices.cjs --model SNZB-01)",
+      "Bash(node tools/ha/pair-zigbee.cjs --model SNZB-01M --name \"Den - Multibutton\" --area games_room --prefix den_multibutton)",
+      "Bash(node tools/ha/list-devices.cjs --name \"Den - Multibutton\")",
+      "Bash(node \"C:/Users/stero/AppData/Local/Temp/claude/C--Users-stero-source-repos-HomeAssistant/c0475c35-0f8b-4c29-b421-e8d69b1462a7/scratchpad/den-multibutton-events.cjs\")",
+      "Bash(node tools/ha/find-entities.cjs \"stand|sideboard|tall|den.*lamp|lamp.*den\")"
     ],
     "deny": [],
     "ask": []
