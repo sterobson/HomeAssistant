@@ -795,6 +795,132 @@ public sealed class HeatingBoilerControlTests
         context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThan(context.LivingRoomThermostat.CurrentTemperature.GetValueOrDefault());
     }
 
+    // A boost with a "ready by" time follows the schedule until the radiator must start to be there on time.
+
+    private static InMemoryWarmUpRateStore StoreWhereTheLivingRoomWarmsAt(double degreesPerHour)
+    {
+        string entityId = BoilerTestContext.Create(BoilerControlPath.Relay).LivingRoomThermostat.EntityId;
+        return new InMemoryWarmUpRateStore().With(entityId, degreesPerHour);
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_StartsTheRadiatorWhenItsWarmUpRateSaysTheRoomNeedsToBeThere()
+    {
+        // 15 °C to 19 °C is 4 degrees, 2 °C an hour: two hours. Due in four, so it must start in two.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(
+            BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15, warmUpStore: StoreWhereTheLivingRoomWarmsAt(2));
+        context.BoostLivingRoomReadyBy(19, readyInMinutes: 240);
+
+        await context.Service.EvaluateAllSchedules("boost set");
+        context.BoilerRelay.ToggleCount.ShouldBe(0, "the boost is four hours away: the schedule applies until then");
+        context.LivingRoomValveIsOpen().ShouldBeFalse();
+
+        context.AdvanceMinutes(119);
+        await context.Service.EvaluateAllSchedules("one minute too early");
+        context.BoilerRelay.ToggleCount.ShouldBe(0);
+        context.LivingRoomValveIsOpen().ShouldBeFalse();
+
+        context.AdvanceMinutes(1);
+        await context.Service.EvaluateAllSchedules("two hours before");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "a pre-heating radiator starts the boiler like a boost, whatever the total deficit");
+        context.LivingRoomValveIsOpen().ShouldBeTrue();
+        context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThan(18);
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_AMeasuredRateGoesByHowFarTheRoomHasToRise()
+    {
+        // At 2 °C an hour a one degree rise needs 30 minutes, not two hours.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(
+            BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15, warmUpStore: StoreWhereTheLivingRoomWarmsAt(2));
+        context.BoostLivingRoomReadyBy(16, readyInMinutes: 60);
+
+        context.AdvanceMinutes(29);
+        await context.Service.EvaluateAllSchedules("31 minutes before");
+        context.LivingRoomValveIsOpen().ShouldBeFalse();
+
+        context.AdvanceMinutes(1);
+        await context.Service.EvaluateAllSchedules("30 minutes before");
+        context.LivingRoomValveIsOpen().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_WithNoMeasuredRate_StartsTheDefaultThirtyMinutesAhead()
+    {
+        // No warm-ups measured yet: a radiator starts its default 30 minutes ahead.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15);
+        context.BoostLivingRoomReadyBy(19, readyInMinutes: 120);
+
+        context.AdvanceMinutes(89);
+        await context.Service.EvaluateAllSchedules("31 minutes before");
+        context.LivingRoomValveIsOpen().ShouldBeFalse();
+
+        context.AdvanceMinutes(1);
+        await context.Service.EvaluateAllSchedules("30 minutes before");
+        context.LivingRoomValveIsOpen().ShouldBeTrue();
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_OnceStarted_CarriesOnAsTheRoomWarmsAndTheEstimateShrinks()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(
+            BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15, warmUpStore: StoreWhereTheLivingRoomWarmsAt(2));
+        context.BoostLivingRoomReadyBy(19, readyInMinutes: 120);
+
+        await context.Service.EvaluateAllSchedules("starts now");
+        context.LivingRoomValveIsOpen().ShouldBeTrue();
+
+        // The room warms to 18 with 45 minutes to go: one more degree is 30 minutes, which would not have started it.
+        context.AdvanceMinutes(75);
+        context.LivingRoomTemperature.State = 18;
+        context.SetRadiatorValveReadings(18);
+        await context.Service.EvaluateAllSchedules("part-way");
+
+        context.LivingRoomValveIsOpen().ShouldBeTrue("it carries on until the boost holds");
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_HoldsItsTemperatureFromTheReadyByTimeUntilItEnds()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(
+            BoilerControlPath.Relay, livingRoomTarget: 15, bedroom2Target: 15, warmUpStore: StoreWhereTheLivingRoomWarmsAt(2));
+        context.BoostLivingRoomReadyBy(19, readyInMinutes: 120, holdMinutes: 60);
+
+        await context.Service.EvaluateAllSchedules("pre-heat starts");
+        context.LivingRoomValveIsOpen().ShouldBeTrue();
+
+        context.AdvanceMinutes(120);
+        context.LivingRoomTemperature.State = 19;
+        context.SetRadiatorValveReadings(19);
+        await context.Service.EvaluateAllSchedules("ready by time, room at 19");
+        context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThanOrEqualTo(19, "the boost now holds 19 °C, and the valve is open at it");
+
+        context.LivingRoomTemperature.State = 18.5;
+        context.SetRadiatorValveReadings(18.5);
+        await context.Service.EvaluateAllSchedules("room cooled during the hold");
+        context.LivingRoomValveIsOpen().ShouldBeTrue("it is held at 19 °C until the boost ends");
+
+        context.AdvanceMinutes(61);
+        await context.Service.EvaluateAllSchedules("boost over");
+        // The room is at 18.5 °C against the schedule's 15 °C: nothing calls for heat, so the boiler goes off. (A valve is
+        // left where it is while the boiler is off, see _valvesWaitForBoiler.)
+        context.BoilerRelay.IsOn().ShouldBeFalse("the schedule's 15 °C applies again");
+    }
+
+    [TestMethod]
+    public async Task AReadyByBoost_NeverPreCoolsTheRoom()
+    {
+        // The boost is cooler than the schedule's 18 °C, so nothing starts early; the schedule still applies until ready-by.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(
+            BoilerControlPath.Relay, livingRoomTarget: 18, bedroom2Target: 15, warmUpStore: StoreWhereTheLivingRoomWarmsAt(2));
+        context.BoostLivingRoomReadyBy(16, readyInMinutes: 60);
+
+        await context.Service.EvaluateAllSchedules("boost set");
+
+        context.Logger.CountMessagesContaining("due by").ShouldBe(0);
+        context.LivingRoomThermostat.TargetTemperature.GetValueOrDefault().ShouldBeGreaterThan(15, "the schedule's 18 °C is what the valve is working to");
+    }
+
     [TestMethod]
     public async Task ABoostTheRoomHasAlmostReached_DoesNotStartTheBoiler()
     {
@@ -1244,6 +1370,17 @@ public sealed class HeatingBoilerControlTests
             DateTimeOffset now = TimeProvider.GetUtcNow();
             Rooms[0].Boost = new Boost { StartTime = now, EndTime = now.AddMinutes(minutes), Temperature = temperature };
         }
+
+        /// <summary>A boost to be at <paramref name="temperature"/> in <paramref name="readyInMinutes"/> minutes, held for an hour after.</summary>
+        public void BoostLivingRoomReadyBy(double temperature, int readyInMinutes, int holdMinutes = 60)
+        {
+            DateTimeOffset now = TimeProvider.GetUtcNow();
+            DateTimeOffset readyBy = now.AddMinutes(readyInMinutes);
+            Rooms[0].Boost = new Boost { StartTime = now, EndTime = readyBy.AddMinutes(holdMinutes), Temperature = temperature, ReadyBy = readyBy };
+        }
+
+        /// <summary>Whether the living room's valve is asking for more than the room's temperature now.</summary>
+        public bool LivingRoomValveIsOpen() => IsOpen(LivingRoomThermostat);
 
         /// <summary>Sets the time of day, on the same date.</summary>
         public void SetClock(int hour, int minute)

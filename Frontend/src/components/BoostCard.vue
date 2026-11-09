@@ -7,7 +7,7 @@
         </svg>
       </div>
       <div class="boost-info">
-        <h3>Boost active</h3>
+        <h3>{{ pending ? 'Boost scheduled' : 'Boost active' }}</h3>
         <div class="boost-details">
           <div class="boost-temp">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="icon">
@@ -20,11 +20,14 @@
               <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm0 14.5a6.5 6.5 0 110-13 6.5 6.5 0 010 13z"/>
               <path d="M8 3v5l3.5 2-.75 1.25L6.5 8.5V3H8z"/>
             </svg>
-            <span>{{ timeRemaining }}</span>
+            <span>{{ pending ? readyByLabel : timeRemaining }}</span>
           </div>
         </div>
       </div>
     </div>
+    <p v-if="pending" class="boost-pending">
+      The schedule applies until each device must start to reach this temperature in time. The boost then holds until {{ endLabel }}.
+    </p>
     <!-- A boost never overrides a device's rules, so say when they are why it is not heating (owner, 2026-11-01). -->
     <p v-if="heldOffText" class="boost-held-off">
       {{ heldOffText }}
@@ -42,12 +45,17 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
 
-const { formatTempWithUnit } = useFormatting()
+const { formatTempWithUnit, formatTimeDisplay } = useFormatting()
 
 const props = defineProps({
   boostEndTime: {
     type: String,
     required: true
+  },
+  // When the zone should be at the temperature by (an ISO instant), or null for a boost that started now.
+  boostReadyBy: {
+    type: String,
+    default: null
   },
   boostTemperature: {
     type: Number,
@@ -81,6 +89,19 @@ onUnmounted(() => {
     clearInterval(intervalId)
   }
 })
+
+// Waiting for its ready-by time: the zone follows its schedule until then (the app starts each device early enough).
+const pending = computed(() => !!props.boostReadyBy && new Date(props.boostReadyBy).getTime() > now.value)
+
+// A clock time in the user's 12/24-hour format, with "tomorrow" when it is not today.
+const clockLabel = (iso) => {
+  const at = new Date(iso)
+  const time = formatTimeDisplay(`${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`)
+  return at.toDateString() === new Date(now.value).toDateString() ? time : `${time} tomorrow`
+}
+
+const readyByLabel = computed(() => `Ready by ${clockLabel(props.boostReadyBy)}`)
+const endLabel = computed(() => clockLabel(props.boostEndTime))
 
 const timeRemaining = computed(() => {
   const endTime = new Date(props.boostEndTime).getTime()
@@ -199,7 +220,8 @@ const timeRemaining = computed(() => {
   transform: translateY(0);
 }
 
-.boost-locked {
+.boost-locked,
+.boost-pending {
   margin: 0;
   font-size: 0.95rem;
   color: var(--text-secondary);

@@ -403,6 +403,24 @@ More heating notes:
     anything that reads a device again in the same pass sees the old state and sends the command again (seen
     2026-10-19 on the kitchen plug, when a separate rules pass followed the room's switch). Each device is now
     decided once per pass; `SwitchingAZoneOn_SendsEachDeviceOneCommand` pins it with a switch that reports late.
+- **A boost can be "ready by" a time (owner request, since 2026-11-09; not yet deployed, and not tried against the
+  real house).** `boost.readyBy` (ISO instant, optional; `Boost.ReadyBy` in the app) means the zone should be at the
+  boost's temperature by then, and the hold lasts from then until `endTime` (so `endTime = readyBy + duration`).
+  Without it a boost starts now, exactly as before. Until `readyBy` the boost is *pending*: `IsBoostRunning` is false,
+  `ResolveTargetAsync` returns the schedule's target as usual and attaches the `PendingBoost`, and `TargetFor` lets
+  each device (`BoostPreHeatTarget`) switch to the boost's temperature once `readyBy` minus its lead has passed. **The
+  lead is the time the room needs to rise from where it is now at that device's measured warm-up rate** (a valve
+  with none borrows the zone's slowest, as for Auto pre-heat), whatever the device's schedule pre-heat setting says,
+  capped at 6 hours; with no rate at all it uses the device's configured pre-heat (30 minutes for a radiator, none
+  for a heater plug). Once a device has started it carries on until the boost holds (`_boostPreHeatStarted`, keyed by
+  the boost's start and ready-by), because the estimate shrinks as the room warms. A boost that is not warmer than
+  the schedule's target never starts early (no pre-cooling), and rules still gate each device. A radiator pre-heating
+  for a pending boost starts the boiler like a running boost, whatever the 3 °C total (`DeviceTarget.IsBoostPreHeat`
+  in `DecideBoiler`). The estimate is the room thermometer's rate over the whole run, radiator warm-up included, so
+  a big rise on a cold room can arrive a little late: nothing corrects it once the pre-heat has begun. Tests:
+  `AReadyByBoost_*` in `HeatingBoilerControlTests`, `ABoostsReadyByTime_*` in `ScheduleMapperTests`. Guest QR
+  overrides do not offer it. **Deploy the Functions app first**: it links `BoostDto` from `Backend/App/Shared`, and an
+  older build deserialises the schedules without `readyBy` and drops it on the next save.
 - **Every heating device can carry rules, and a device runs only while its zone wants heat AND its
   rules pass (since 2026-10-19).** Rules are per device — heater plug or radiator valve — keyed by entity ID
   in the **device-settings** blob, `heating.deviceRules`: time windows (days + `HH:mm` start/end; end ≤

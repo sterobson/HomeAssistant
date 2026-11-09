@@ -47,10 +47,43 @@ export const roomLockedBy = (tree, room, now = Date.now()) => {
 export const groupLockedBy = (tree, group, roomsById, now = Date.now()) =>
   groupsAround(tree, group.key).find((outer) => groupBoostActive(outer, roomsById, now)) ?? null
 
-/** The boost a group sets on each zone inside it: the zone boost, tagged with the group. */
-export const groupBoost = (group, startTime, endTime, temperature) => ({
+/**
+ * The boost a group sets on each zone inside it: the zone boost, tagged with the group. `readyBy` (a Date) is the
+ * optional time the zones should be at the temperature by; left out, the boost starts now.
+ */
+export const groupBoost = (group, startTime, endTime, temperature, readyBy = null) => ({
   startTime: startTime.toISOString(),
   endTime: endTime.toISOString(),
   temperature,
+  ...(readyBy ? { readyBy: readyBy.toISOString() } : {}),
   groupId: group.id
+})
+
+/**
+ * Whether a running boost is still waiting for its "ready by" time: the zone follows its schedule until the app's
+ * radiators must start to be there on time, and the boost holds from that time on.
+ */
+export const isBoostPending = (boost, now = Date.now()) =>
+  isBoostActive(boost, now) && !!boost.readyBy && Date.parse(boost.readyBy) > now
+
+/**
+ * The next time the clock reads `time` ("HH:mm"): today if that is still ahead, otherwise tomorrow. A zone is
+ * never "ready by" a moment in the past.
+ */
+export const nextOccurrence = (time, now = new Date()) => {
+  const [hours, minutes] = time.split(':').map(Number)
+  const at = new Date(now)
+  at.setHours(hours, minutes, 0, 0)
+  if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1)
+  return at
+}
+
+/**
+ * When a boost set at `now` starts, is ready and ends. With `readyBy` the hold of `durationHours` begins then, so
+ * "ready by 07:00 for 2 hours" ends at 09:00; without it the hold begins now.
+ */
+export const boostTimes = (now, durationHours, readyBy = null) => ({
+  startTime: now,
+  readyBy,
+  endTime: new Date((readyBy ?? now).getTime() + durationHours * 60 * 60 * 1000)
 })

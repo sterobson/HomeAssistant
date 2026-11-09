@@ -28,6 +28,12 @@ public class Boost
     public DateTimeOffset? StartTime { get; set; }
     public DateTimeOffset? EndTime { get; set; }
     public double? Temperature { get; set; }
+
+    /// <summary>
+    /// When the room should be at <see cref="Temperature"/> (see BoostDto.ReadyBy). Null: the boost holds from now.
+    /// Before it, the room follows its schedule, with each device starting early enough to be there by then.
+    /// </summary>
+    public DateTimeOffset? ReadyBy { get; set; }
 }
 
 public class RoomSchedule

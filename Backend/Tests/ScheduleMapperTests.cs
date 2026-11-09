@@ -84,6 +84,34 @@ public class ScheduleMapperTests
     }
 
     [TestMethod]
+    public void ABoostsReadyByTime_SurvivesTheRoundTripThroughTheDomainModel()
+    {
+        DateTimeOffset readyBy = new(2026, 11, 10, 7, 0, 0, TimeSpan.Zero);
+        RoomSchedulesDto dto = new()
+        {
+            Rooms =
+            [
+                new RoomDto
+                {
+                    Id = 2,
+                    Name = "Bedroom",
+                    Boost = new BoostDto { StartTime = readyBy.AddHours(-9).ToString("O"), EndTime = readyBy.AddHours(2).ToString("O"), Temperature = 21, ReadyBy = readyBy.ToString("O") },
+                    Schedules = []
+                },
+                new RoomDto { Id = 3, Name = "Hall", Boost = new BoostDto { Temperature = 21 }, Schedules = [] }
+            ]
+        };
+
+        RoomSchedules domain = ScheduleMapper.MapFromDto(dto);
+        domain.Rooms[0].Boost.ReadyBy.ShouldBe(readyBy);
+        domain.Rooms[1].Boost.ReadyBy.ShouldBeNull("a boost without one starts now");
+
+        RoomSchedulesDto back = ScheduleMapper.MapToDto(domain);
+        DateTimeOffset.Parse(back.Rooms[0].Boost!.ReadyBy!).ShouldBe(readyBy);
+        back.Rooms[1].Boost!.ReadyBy.ShouldBeNull();
+    }
+
+    [TestMethod]
     public void MapFromDto_WithBoost_MapsBoostCorrectly()
     {
         // Arrange

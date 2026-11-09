@@ -37,6 +37,9 @@ public static class ScheduleMapper
                     ? DateTimeOffset.Parse(roomDto.Boost.EndTime)
                     : null;
                 boost.Temperature = roomDto.Boost.Temperature;
+                boost.ReadyBy = !string.IsNullOrEmpty(roomDto.Boost.ReadyBy)
+                    ? DateTimeOffset.Parse(roomDto.Boost.ReadyBy)
+                    : null;
             }
 
             RoomSchedule schedule = new()
@@ -88,7 +91,8 @@ public static class ScheduleMapper
             {
                 StartTime = schedule.Boost.StartTime?.ToString("O"),
                 EndTime = schedule.Boost.EndTime?.ToString("O"),
-                Temperature = schedule.Boost.Temperature
+                Temperature = schedule.Boost.Temperature,
+                ReadyBy = schedule.Boost.ReadyBy?.ToString("O")
             };
 
             RoomDto roomDto = new RoomDto

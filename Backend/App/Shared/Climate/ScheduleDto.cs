@@ -74,9 +74,19 @@ public class RoomDto
 
 public class BoostDto
 {
+    /// <summary>When the boost was set.</summary>
     public string? StartTime { get; set; }
+
+    /// <summary>When the boost ends. With <see cref="ReadyBy"/> set, that is the hold's length after it, not after <see cref="StartTime"/>.</summary>
     public string? EndTime { get; set; }
     public double? Temperature { get; set; }
+
+    /// <summary>
+    /// Optional "ready by" instant (ISO 8601). Null means the boost starts now. Set, the zone follows its schedule until
+    /// each device's own pre-heat (worked out from how fast it has warmed the room) says it must start to have the room
+    /// at <see cref="Temperature"/> by then, and the boost holds that temperature from this instant until <see cref="EndTime"/>.
+    /// </summary>
+    public string? ReadyBy { get; set; }
 
     /// <summary>
     /// The layout group that set this boost, when a group was boosted (the owner's ⚡ on a group card, or a guest's

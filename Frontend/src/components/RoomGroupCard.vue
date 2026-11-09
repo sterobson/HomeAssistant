@@ -92,7 +92,8 @@
           <span>Boosted with {{ lockedBy }}. Change or cancel it there.</span>
         </div>
         <div v-else-if="ownBoost" class="group-boost">
-          <span>Boost running: {{ formatTempWithUnit(ownBoost.temperature) }} until {{ formatTime(ownBoost.endTime) }}</span>
+          <span v-if="isBoostPending(ownBoost)">Boost scheduled: {{ formatTempWithUnit(ownBoost.temperature) }} by {{ formatTime(ownBoost.readyBy) }}, then until {{ formatTime(ownBoost.endTime) }}</span>
+          <span v-else>Boost running: {{ formatTempWithUnit(ownBoost.temperature) }} until {{ formatTime(ownBoost.endTime) }}</span>
           <button type="button" class="group-boost-cancel" @click="emit('cancel-boost')">Cancel boost</button>
         </div>
       </template>
@@ -145,7 +146,7 @@ import { flaggedValveIssues } from '../utils/valveHealth.js'
 import { useFormatting } from '../composables/useFormatting.js'
 import { batteriesForRoom, lowestLow } from '../utils/batteries.js'
 import { anyHeating, roomIdsIn, temperatureSummary } from '../utils/roomLayout.js'
-import { groupBoostActive } from '../utils/boosts.js'
+import { groupBoostActive, isBoostPending } from '../utils/boosts.js'
 import { deviceSections, distinctDeviceCount } from '../utils/roomDevices.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 

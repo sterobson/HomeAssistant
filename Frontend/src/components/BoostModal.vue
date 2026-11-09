@@ -32,7 +32,29 @@
         </div>
 
         <div class="form-group">
-          <label for="duration">Duration</label>
+          <label id="ready-by-label">Start</label>
+          <div class="start-options" role="radiogroup" aria-labelledby="ready-by-label">
+            <label class="start-option" :class="{ selected: !useReadyBy }">
+              <input type="radio" name="boost-start" :value="false" v-model="useReadyBy" />
+              Start now
+            </label>
+            <label class="start-option" :class="{ selected: useReadyBy }">
+              <input type="radio" name="boost-start" :value="true" v-model="useReadyBy" />
+              Ready by
+            </label>
+          </div>
+          <div v-if="useReadyBy" class="ready-by-time">
+            <input
+              type="time"
+              v-model="readyByTime"
+              required
+              aria-label="Ready by time"
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="duration">{{ useReadyBy ? 'Hold for' : 'Duration' }}</label>
           <div class="duration-selector">
             <button type="button" class="duration-btn" @click="decreaseDuration">
               <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor">
@@ -56,7 +78,12 @@
             <path d="M8 0a8 8 0 100 16A8 8 0 008 0zm.93 4.588l-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533l.816-3.833z"/>
             <circle cx="8" cy="2.5" r="1"/>
           </svg>
-          <p v-if="isGroup">
+          <p v-if="useReadyBy">
+            {{ isGroup ? 'Every zone in this group' : 'The zone' }} follows its schedule until its radiators and heaters must start
+            to reach {{ temperature.toFixed(1) }}°{{ currentTempUnit }} by {{ readyByText }}, based on how fast each has warmed
+            the room before. It then holds that temperature for {{ displayDuration }}.
+          </p>
+          <p v-else-if="isGroup">
             Every zone in this group will override its schedule and hold {{ temperature.toFixed(1) }}°{{ currentTempUnit }}
             for {{ displayDuration }}.
           </p>
@@ -82,8 +109,9 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useFormatting } from '../composables/useFormatting.js'
+import { nextOccurrence } from '../utils/boosts.js'
 
-const { convertToDisplay, convertToInternal, currentTempUnit, getTempStep, roundTemp, getDisplayLimits } = useFormatting()
+const { convertToDisplay, convertToInternal, currentTempUnit, getTempStep, roundTemp, getDisplayLimits, formatTimeDisplay } = useFormatting()
 
 const props = defineProps({
   roomName: {
@@ -105,6 +133,18 @@ const temperature = ref(convertToDisplay(21))
 const durationOptions = [0.25, 0.5, 1, 2, 3, 4, 6, 9, 12, 18, 24]
 const durationIndex = ref(3) // Default to 2 hours (index 3)
 const duration = computed(() => durationOptions[durationIndex.value])
+
+// Optional "ready by": the zone should be at the temperature by this time, so the heating starts early enough
+// (worked out by the app), instead of the boost starting now. Off by default. The time is the next time the
+// clock reads it, so 07:00 set in the evening means tomorrow morning.
+const useReadyBy = ref(false)
+const readyByTime = ref('07:00')
+const readyByDate = computed(() => (useReadyBy.value && readyByTime.value ? nextOccurrence(readyByTime.value) : null))
+const readyByText = computed(() => {
+  if (!readyByDate.value) return ''
+  const time = formatTimeDisplay(readyByTime.value)
+  return readyByDate.value.toDateString() === new Date().toDateString() ? time : `${time} tomorrow`
+})
 
 const displayDuration = computed(() => {
   const totalMinutes = Math.round(duration.value * 60)
@@ -185,7 +225,9 @@ const handleSubmit = () => {
   emit('boost', {
     // Convert display temperature back to Celsius for storage
     temperature: convertToInternal(temperature.value),
-    duration: duration.value
+    duration: duration.value,
+    // A Date, or null to start now.
+    readyBy: readyByDate.value
   })
 }
 
@@ -385,6 +427,47 @@ const handleCancel = () => {
   font-size: 1.5rem;
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.start-options {
+  display: flex;
+  gap: 0.75rem;
+}
+
+/* Under .form-group so it outranks `.form-group label` (which makes labels block with a bottom margin). */
+.form-group .start-option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.form-group .start-option.selected {
+  border-color: var(--color-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.ready-by-time {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.ready-by-time input {
+  font-size: 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 .boost-info {

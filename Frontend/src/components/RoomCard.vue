@@ -92,6 +92,7 @@
       <BoostCard
         v-if="isBoostActive"
         :boost-end-time="room.boost.endTime"
+        :boost-ready-by="room.boost.readyBy ?? null"
         :boost-temperature="room.boost.temperature"
         :locked-by="lockedBy"
         :held-off-text="heldOffText"

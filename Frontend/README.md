@@ -57,6 +57,15 @@ says "Boosted with …" instead of offering Cancel, and the group itself shows "
 `roomLockedBy` / `groupLockedBy` (tested in `boosts.test.js`). The guest page shows the same lock. The
 server-side rules and the security model are in the Functions README and CLAUDE.md → "Access".
 
+**"Ready by" boosts** (since 2026-11-09). `BoostModal` offers **Start now** (the default) or **Ready by** with a time;
+the time is the next time the clock reads it, so 07:00 chosen in the evening means tomorrow (`nextOccurrence`). The
+modal emits `readyBy` (a Date or null), and `boostTimes` in `utils/boosts.js` turns it into the saved `startTime`,
+`readyBy` and `endTime`: with a ready-by time the hold of "Duration" (labelled **Hold for**) starts then, so
+`endTime = readyBy + duration`. Guest overrides have no ready-by. Until its ready-by time a boost is *pending*
+(`isBoostPending`): the card says "Boost scheduled" and the zone follows its schedule, while the NetDaemon app starts
+each device early enough to arrive on time (CLAUDE.md → heating). A pending boost still counts as active for locks and
+for the ⚡ "change" state, since the saved boost is what holds the zone.
+
 **The 3D house** (`/3d`). [HouseScene.vue](src/components/HouseScene.vue) draws the plan in
 [utils/houseModel.js](src/utils/houseModel.js) (tested) with three.js: rooms as floor slabs with see-through walls
 (a wall two rooms share is drawn once), stairs in the hallway, both storeys (the first lifted clear of the ground

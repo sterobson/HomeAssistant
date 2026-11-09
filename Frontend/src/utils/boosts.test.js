@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { fromLayoutDto, findNode, groupKey } from './roomLayout.js'
-import { isBoostActive, groupsAround, groupBoostActive, roomLockedBy, groupLockedBy, groupBoost } from './boosts.js'
+import {
+  isBoostActive, groupsAround, groupBoostActive, roomLockedBy, groupLockedBy, groupBoost,
+  isBoostPending, nextOccurrence, boostTimes
+} from './boosts.js'
 
 const NOW = Date.parse('2026-10-19T12:00:00Z')
 const LATER = '2026-10-19T14:00:00Z'
@@ -100,5 +103,55 @@ describe('groupBoost', () => {
       temperature: 21,
       groupId: 'dining'
     })
+  })
+
+  it('carries a ready-by time only when there is one', () => {
+    const readyBy = new Date('2026-10-19T13:00:00Z')
+    expect(groupBoost(dining, new Date(EARLIER), new Date(LATER), 21, readyBy).readyBy).toBe(readyBy.toISOString())
+    expect(groupBoost(dining, new Date(EARLIER), new Date(LATER), 21)).not.toHaveProperty('readyBy')
+  })
+})
+
+describe('a boost with a ready-by time', () => {
+  it('is pending until that time, then running', () => {
+    const pending = { ...boost(undefined), readyBy: '2026-10-19T13:00:00Z' }
+    expect(isBoostPending(pending, NOW)).toBe(true)
+    expect(isBoostPending(pending, Date.parse('2026-10-19T13:00:00Z'))).toBe(false)
+    expect(isBoostPending(boost(undefined), NOW)).toBe(false)
+  })
+
+  it('is not pending once it has ended', () => {
+    expect(isBoostPending({ ...boost(undefined, EARLIER), readyBy: LATER }, NOW)).toBe(false)
+  })
+
+  it('holds for its duration from the ready-by time, not from now', () => {
+    const now = new Date('2026-10-19T22:00:00Z')
+    const readyBy = new Date('2026-10-20T07:00:00Z')
+    const times = boostTimes(now, 2, readyBy)
+    expect(times.startTime).toBe(now)
+    expect(times.readyBy).toBe(readyBy)
+    expect(times.endTime.toISOString()).toBe('2026-10-20T09:00:00.000Z')
+  })
+
+  it('without one holds from now', () => {
+    const now = new Date('2026-10-19T22:00:00Z')
+    const times = boostTimes(now, 2)
+    expect(times.readyBy).toBeNull()
+    expect(times.endTime.toISOString()).toBe('2026-10-20T00:00:00.000Z')
+  })
+})
+
+describe('nextOccurrence', () => {
+  // Local-time constructors, so the test holds in any time zone.
+  const at = (hours, minutes) => new Date(2026, 9, 19, hours, minutes, 0, 0)
+
+  it('is today when the time is still ahead', () => {
+    expect(nextOccurrence('18:30', at(12, 0)).getTime()).toBe(at(18, 30).getTime())
+  })
+
+  it('is tomorrow when the time has passed, or is this very minute', () => {
+    const tomorrow = new Date(2026, 9, 20, 7, 0, 0, 0)
+    expect(nextOccurrence('07:00', at(12, 0)).getTime()).toBe(tomorrow.getTime())
+    expect(nextOccurrence('12:00', at(12, 0)).getTime()).toBe(new Date(2026, 9, 20, 12, 0, 0, 0).getTime())
   })
 })

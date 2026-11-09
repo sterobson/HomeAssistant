@@ -123,6 +123,14 @@ internal partial class HeatingControlService
     // was a little pessimistic would shut again part-way and start over.
     private readonly Dictionary<string, int> _autoPreHeatTrackIds = new(StringComparer.OrdinalIgnoreCase);
 
+    // Devices that have started pre-heating for a "ready by" boost, mapped to which boost (its start and ready-by
+    // instants), so a device carries on until the boost holds, as with _autoPreHeatTrackIds, and a boost set again
+    // starts afresh.
+    private readonly Dictionary<string, string> _boostPreHeatStarted = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>The longest a "ready by" boost will start ahead: a cold room can need hours, more than a schedule's pre-heat.</summary>
+    private static readonly TimeSpan LongestBoostPreHeat = TimeSpan.FromHours(6);
+
     public HeatingControlService(
         IHaContext ha,
         INamedEntities namedEntities,
@@ -479,7 +487,8 @@ internal partial class HeatingControlService
         DeviceTarget Base,
         IReadOnlyList<(TimeSpan StartsAt, HeatingScheduleTrack Track)> UpcomingWarmer,
         TimeSpan Now,
-        string? HeatStopsSoon)
+        string? HeatStopsSoon,
+        PendingBoost? PendingBoost = null)
     {
         /// <summary>The target for a device that pre-heats this many minutes ahead.</summary>
         public DeviceTarget For(int preHeatMinutes)
@@ -496,7 +505,10 @@ internal partial class HeatingControlService
         }
     }
 
-    private sealed record DeviceTarget(double Temperature, HeatingScheduleTrack? Track, string Reason);
+    private sealed record DeviceTarget(double Temperature, HeatingScheduleTrack? Track, string Reason, bool IsBoostPreHeat = false);
+
+    /// <summary>A "ready by" boost that has not reached its ready-by time yet: the room follows its schedule until a device must start for it.</summary>
+    private sealed record PendingBoost(double Temperature, DateTimeOffset ReadyBy, string Token);
 
     private static string? EntityIdOf(object device) => device switch
     {
@@ -507,6 +519,66 @@ internal partial class HeatingControlService
 
     /// <summary>This device's target: the room's, brought forward by the device's own pre-heat.</summary>
     private DeviceTarget TargetFor(RoomSchedule room, RoomTarget target, object device)
+    {
+        DeviceTarget scheduled = ScheduledTargetFor(room, target, device);
+        return target.PendingBoost is { } pending ? BoostPreHeatTarget(room, target, device, pending, scheduled) : scheduled;
+    }
+
+    /// <summary>
+    /// Where a device with a "ready by" boost ahead aims: the boost's temperature once it must start to get the room there
+    /// by <see cref="PendingBoost.ReadyBy"/>, else whatever the schedule has it aim at (<paramref name="scheduled"/>).
+    /// The lead is how long the room needs to rise from where it is now, at this device's measured warm-up rate (a valve
+    /// without one borrows its zone's slowest, see <see cref="WarmUpRateSourceFor"/>), whatever the device's pre-heat
+    /// setting for schedules says: the point is to arrive on time, not to start a fixed time early. Without any measured
+    /// rate it uses its configured pre-heat (30 minutes for a radiator). Once started it carries on until the boost holds,
+    /// so a rate a little pessimistic does not stop it as the room warms.
+    /// </summary>
+    private DeviceTarget BoostPreHeatTarget(RoomSchedule room, RoomTarget target, object device, PendingBoost pending, DeviceTarget scheduled)
+    {
+        // Nothing to warm: the boost is judged when it holds, and never pre-cools.
+        double rise = pending.Temperature - target.CurrentTemperature;
+        if (pending.Temperature <= scheduled.Temperature)
+        {
+            return scheduled;
+        }
+
+        string? entityId = EntityIdOf(device);
+        string key = entityId ?? $"towel-rail-{room.Id}";
+        bool isValve = device is ICustomClimateControlEntity or TowelRail;
+
+        if (!_boostPreHeatStarted.TryGetValue(key, out string? startedFor) || startedFor != pending.Token)
+        {
+            TimeSpan lead;
+            if (rise <= 0)
+            {
+                lead = TimeSpan.Zero;
+            }
+            else if (entityId != null
+                && WarmUpRateSourceFor(room, entityId, device is ICustomClimateControlEntity) is string rateSource
+                && _warmUpRates?.MinutesToRise(rateSource, rise) is int minutes)
+            {
+                lead = TimeSpan.FromMinutes(minutes);
+            }
+            else
+            {
+                lead = TimeSpan.FromMinutes(DeviceRulesDto.PreHeatFor(entityId == null ? null : GetRulesFor(entityId), isValve));
+            }
+
+            if (_timeProvider.GetUtcNow() < pending.ReadyBy - (lead < LongestBoostPreHeat ? lead : LongestBoostPreHeat))
+            {
+                return scheduled;
+            }
+
+            _boostPreHeatStarted[key] = pending.Token;
+            _logger.LogInformation(
+                "Room {Room}: {Device} starts for the boost to {Temperature}°C that is due by {ReadyBy:HH:mm} ({Lead:0} minutes ahead, room at {Current}°C)",
+                room.Name, key, pending.Temperature, pending.ReadyBy.ToLocalTime(), lead.TotalMinutes, target.CurrentTemperature);
+        }
+
+        return new DeviceTarget(pending.Temperature, null, "pre-heating for boost", IsBoostPreHeat: true);
+    }
+
+    private DeviceTarget ScheduledTargetFor(RoomSchedule room, RoomTarget target, object device)
     {
         string? entityId = EntityIdOf(device);
         DeviceRulesDto? rules = entityId == null ? null : GetRulesFor(entityId);
@@ -604,8 +676,24 @@ internal partial class HeatingControlService
     /// </summary>
     private bool IsBoostRunning(RoomSchedule room)
     {
+        DateTimeOffset now = _timeProvider.GetUtcNow();
         return room.Boost is { EndTime: DateTimeOffset boostEnd, Temperature: not null }
-            && boostEnd > _timeProvider.GetUtcNow();
+            && boostEnd > now
+            && (room.Boost.ReadyBy is not DateTimeOffset readyBy || readyBy <= now);
+    }
+
+    /// <summary>
+    /// The room's boost if it has a ready-by time that is still ahead (and the boost has not ended), else null. Until
+    /// that time the room follows its schedule, and each device starts early enough to be there by it
+    /// (<see cref="BoostPreHeatTarget"/>); from it the boost is running (<see cref="IsBoostRunning"/>).
+    /// </summary>
+    private PendingBoost? FindPendingBoost(RoomSchedule room)
+    {
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        return room.Boost is { EndTime: DateTimeOffset boostEnd, Temperature: double temperature, ReadyBy: DateTimeOffset readyBy }
+            && readyBy > now && boostEnd > now
+            ? new PendingBoost(temperature, readyBy, $"{room.Boost.StartTime:O}|{readyBy:O}")
+            : null;
     }
 
     /// <summary>
@@ -667,7 +755,8 @@ internal partial class HeatingControlService
         return new RoomTarget(currentTemperature.Value,
             new DeviceTarget(currentActiveTrack.Temperature, currentActiveTrack, "current active schedule"),
             upcoming, now.TimeOfDay,
-            await WhyHeatStopsSoonAsync(houseOccupancyState, roomHeatingSchedule, now, currentTemperature.Value));
+            await WhyHeatStopsSoonAsync(houseOccupancyState, roomHeatingSchedule, now, currentTemperature.Value),
+            FindPendingBoost(roomHeatingSchedule));
     }
 
     /// <summary>
@@ -1627,7 +1716,9 @@ internal partial class HeatingControlService
             if (_roomsCallingForHeat.Contains(roomSchedule.Id))
             {
                 anyRoomCallingToStart = true;
-                if (IsBoostRunning(roomSchedule))
+                // A radiator pre-heating for a "ready by" boost starts the boiler like a running boost: it was given the
+                // time to arrive by, so it must not wait for the total deficit.
+                if (IsBoostRunning(roomSchedule) || valveTarget.IsBoostPreHeat)
                 {
                     boostedRoomsCalling.Add(roomSchedule.Name);
                 }

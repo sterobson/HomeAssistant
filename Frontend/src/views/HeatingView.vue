@@ -155,7 +155,7 @@ import {
 } from '../utils/roomLayout.js'
 import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 import { drivableDevices, presenceSources } from '../utils/deviceRules.js'
-import { groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
+import { boostTimes, groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
 import { useFormatting } from '../composables/useFormatting.js'
 
 const props = defineProps({
@@ -663,18 +663,24 @@ const showToast = (message, type = 'success', duration = 3000) => {
   toast.visible = true
 }
 
+// A boost's ready-by time for a toast: the clock time, with "tomorrow" when it is not today.
+const readyByText = (readyBy) => {
+  const time = formatTimeDisplay(`${String(readyBy.getHours()).padStart(2, '0')}:${String(readyBy.getMinutes()).padStart(2, '0')}`)
+  return readyBy.toDateString() === new Date().toDateString() ? time : `${time} tomorrow`
+}
+
 // A zone's own boost. Refused while a group the zone sits in is boosted: only that group can change it.
 const handleBoost = async (roomId, boostData) => {
   const room = rooms.value.find(r => r.id === roomId)
   if (room && !roomLockedBy(layoutTree.value, room)) {
-    // Calculate start and end times in UTC
-    const startTime = new Date()
-    const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
+    // Calculate start and end times in UTC. With a ready-by time the hold starts then, not now.
+    const { startTime, endTime, readyBy } = boostTimes(new Date(), boostData.duration, boostData.readyBy)
 
     room.boost = {
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
-      temperature: boostData.temperature
+      temperature: boostData.temperature,
+      ...(readyBy ? { readyBy: readyBy.toISOString() } : {})
     }
 
     // Save immediately
@@ -697,7 +703,11 @@ const handleBoost = async (roomId, boostData) => {
         durationText = `${hourText} ${minutes} minutes`
       }
 
-      showToast(`Boost activated for ${roomLabel(room)} (${boostData.temperature}°C for ${durationText})`, 'success')
+      showToast(
+        readyBy
+          ? `Boost scheduled for ${roomLabel(room)}: ${boostData.temperature}°C by ${readyByText(readyBy)}, then held for ${durationText}`
+          : `Boost activated for ${roomLabel(room)} (${boostData.temperature}°C for ${durationText})`,
+        'success')
     } catch (err) {
       console.error('Error saving boost:', err)
       showToast('Failed to activate boost', 'error')
@@ -728,19 +738,22 @@ const handleCancelBoost = async (roomId) => {
 const handleGroupBoost = async (groupNode, boostData) => {
   if (groupLockedBy(layoutTree.value, groupNode, roomsById.value)) return
   const ids = new Set(roomIdsIn(groupNode))
-  const startTime = new Date()
-  const endTime = new Date(startTime.getTime() + boostData.duration * 60 * 60 * 1000)
+  const { startTime, endTime, readyBy } = boostTimes(new Date(), boostData.duration, boostData.readyBy)
   const previous = rooms.value.map(room => room.boost)
 
   for (const room of rooms.value) {
     if (ids.has(room.id)) {
-      room.boost = groupBoost(groupNode, startTime, endTime, boostData.temperature)
+      room.boost = groupBoost(groupNode, startTime, endTime, boostData.temperature, readyBy)
     }
   }
 
   try {
     await heatingApi.setSchedules(cleanRoomsForApi(rooms.value))
-    showToast(`Boost activated for ${groupNode.name} (${boostData.temperature}°C)`, 'success')
+    showToast(
+      readyBy
+        ? `Boost scheduled for ${groupNode.name}: ${boostData.temperature}°C by ${readyByText(readyBy)}`
+        : `Boost activated for ${groupNode.name} (${boostData.temperature}°C)`,
+      'success')
   } catch (err) {
     console.error('Error saving group boost:', err)
     rooms.value.forEach((room, index) => { room.boost = previous[index] })
