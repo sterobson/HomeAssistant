@@ -704,6 +704,15 @@ entity IDs (`sonoff_s60zbtpg_3`, `_11`) for the second plug once the first had b
 default entity ID does not identify a device; the device ID does. It did so again on 2026-10-23: the sideboard
 plug and the living room motion lights plug both joined as `switch.sonoff_s60zbtpg_3`.
 
+**The 9 pm desk warning** (`automation.dining_room_desk_night_time_notifies_if_plug_is_on`, created in the HA editor and kept
+in [tools/ha/automations/](tools/ha/automations/) since 2026-11-09): at 21:00 each day it notifies the owner's phone
+(`notify.mobile_app_sm_a546b`) and speaks on `media_player.dining_room` about each desk plug (dining room desk,
+games room desk) that is on and drawing **30 W or less**; a desk drawing more is in use and left out (owner,
+2026-11-09), the messages name the desks left on, and nothing is sent when there are none. Before that it fired
+whenever either plug was on, and its phone text always said the dining room desk. Only the message wording and the
+list were rendered on HA with made-up states; it had not yet run at 21:00 in its new form. There is no morning
+version.
+
 **The den multi button** (SNZB-01M, `Den - Multibutton`, paired 2026-11-06) drives two automations from
 [tools/ha/automations/](tools/ha/automations/), triggered by its `zha_event`s (gotcha 33). **Button 1**
 (`automation.den_multibutton_tall_lamp`): single click switches `light.den_tall_lamp` off if it is on, and on in the default white (2700 K at 75 %) if it is not, since a plain toggle (the first version) brought it back in whatever colour it was last left in, seen 2026-11-06 17:19 when it came back blue after the colour cycle; double click steps its

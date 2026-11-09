@@ -66,6 +66,7 @@ tree, washing machine and so on) are not here.
 | `den_multibutton_tall_lamp.json` | Den multi button 1: single click switches the den tall lamp off, or on in the default white (2700 K, 75 %), double steps its brightness, triple steps its colour |
 | `den_multibutton_tall_lamp_long_press.json` | Den multi button 1, long press: start the tall lamp's colour cycle, or (if it is running) stop it and set 2700 K at 75 % |
 | `den_multibutton_tall_lamp_colour_cycle.json` | The runner: one lap of every hue a minute until another click, the lamp going off or unavailable, a change of hue, or 3 hours (then sets 2700 K at 75 %) |
+| `dining_room_desk_night_time_notifies_if_plug_is_on.json` | 21:00: phone notification and spoken warning naming each desk plug that is on and drawing 30 W or less (a desk over 30 W is in use); nothing if none. Was made in the HA editor |
 | `den_tall_lamp_default_white_on_power_on.json` | Den tall lamp goes from off or unavailable to on → set 2700 K at 75 % (not while the colour cycle runs) |
 | `den_multibutton_sideboard_lamp_restart.json` | Den multi button 2, single click: sideboard lamp plug off, 5 s, on |
 
