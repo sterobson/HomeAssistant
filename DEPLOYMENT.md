@@ -286,6 +286,14 @@ Auto mode's classifier refused stopping the add-on ("Production Deploy"), as it 
 Functions publish ran in auto mode and the rest after it was switched off. Heating history recorded before this deploy has
 no per-source flags, so a zone with both a radiator and a heater (Bedroom 1) counts it in the total only.
 
+The 2026-11-09 16:48–16:55 GMT deploy (`4da9b4c`: an optional "ready by" time on boosts) was all three, in order: Functions
+`2026.11.09.16.48-4da9b4c` first (`BoostDto` gained `readyBy`, which an older Functions app would drop on the next save;
+production's five blobs were saved first), then NetDaemon `20261109165132` (34 files; the add-on stopped, a recursive copy
+without `appsettings.*.json`, `HomeAssistant.dll` and `version.txt` checked on the share, the add-on started, then the OTA
+upload; 11 apps running, relay mode carried on from the relay being off, `app-release/running` reporting the new version),
+then the frontend (entry `index-CLYFiQ_q.js`, which the live site then served). Auto mode's classifier refused the first
+Functions publish with no reason given; the same command went through when retried after the user said to go again.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this

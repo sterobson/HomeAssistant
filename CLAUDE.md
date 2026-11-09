@@ -403,8 +403,8 @@ More heating notes:
     anything that reads a device again in the same pass sees the old state and sends the command again (seen
     2026-10-19 on the kitchen plug, when a separate rules pass followed the room's switch). Each device is now
     decided once per pass; `SwitchingAZoneOn_SendsEachDeviceOneCommand` pins it with a switch that reports late.
-- **A boost can be "ready by" a time (owner request, since 2026-11-09; not yet deployed, and not tried against the
-  real house).** `boost.readyBy` (ISO instant, optional; `Boost.ReadyBy` in the app) means the zone should be at the
+- **A boost can be "ready by" a time (owner request, live since 16:54 GMT on 2026-11-09: NetDaemon `20261109165132`,
+  Functions `2026.11.09.16.48-4da9b4c`; not yet tried with a real boost).** `boost.readyBy` (ISO instant, optional; `Boost.ReadyBy` in the app) means the zone should be at the
   boost's temperature by then, and the hold lasts from then until `endTime` (so `endTime = readyBy + duration`).
   Without it a boost starts now, exactly as before. Until `readyBy` the boost is *pending*: `IsBoostRunning` is false,
   `ResolveTargetAsync` returns the schedule's target as usual and attaches the `PendingBoost`, and `TargetFor` lets
