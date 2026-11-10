@@ -217,7 +217,15 @@
       "Bash(node tools/ha/pair-zigbee.cjs --model SNZB-01M --name \"Den - Multibutton\" --area games_room --prefix den_multibutton)",
       "Bash(node tools/ha/list-devices.cjs --name \"Den - Multibutton\")",
       "Bash(node \"C:/Users/stero/AppData/Local/Temp/claude/C--Users-stero-source-repos-HomeAssistant/c0475c35-0f8b-4c29-b421-e8d69b1462a7/scratchpad/den-multibutton-events.cjs\")",
-      "Bash(node tools/ha/find-entities.cjs \"stand|sideboard|tall|den.*lamp|lamp.*den\")"
+      "Bash(node tools/ha/find-entities.cjs \"stand|sideboard|tall|den.*lamp|lamp.*den\")",
+      "PowerShell(Set-Location C:\\\\Users\\\\stero\\\\source\\\\repos\\\\HomeAssistant\\\\Backend\\\\HomeAssistant.Functions; $v = \\(Get-Date\\).ToString\\('yyyy.MM.dd.HH.mm'\\) + '-4da9b4c'; \"Publishing $v\"; func azure functionapp publish homeassistant-prod-functions --dotnet-isolated --dotnet-cli-params \"/p:DeploymentVersion=$v\" 2>&1 | Select-Object -Last 25)",
+      "Bash(git check-ignore *)",
+      "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6)",
+      "Bash(node -e \"const s=require\\('net'\\).connect\\(445,'192.168.1.188'\\);s.on\\('connect',\\(\\)=>{console.log\\('445 open'\\);s.end\\(\\)}\\);s.on\\('error',e=>console.log\\('445',e.code\\)\\);setTimeout\\(\\(\\)=>process.exit\\(\\),3000\\)\")",
+      "Bash(echo \"copy exit $?\")",
+      "Bash(node tools/ha/addon.cjs c6a2317c_netdaemon6 log \"Boiler control|Heating evaluation failed|apps|error|exception\" --lines 15)",
+      "PowerShell(pwsh -NoProfile -File \"C:\\\\Users\\\\stero\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\eee0f88800f6d7bd\\\\465a74fb-0e9c-454c-828b-6b1cdfae3911\\\\scratchpad\\\\frontend-deploy.ps1\")",
+      "Bash(node \"C:/Users/stero/AppData/Local/Temp/claude/eee0f88800f6d7bd/bfbe9074-368a-4f99-827b-4186e56d78d4/scratchpad/mock-api.cjs\")"
     ],
     "deny": [],
     "ask": []
