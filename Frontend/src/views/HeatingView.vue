@@ -10,7 +10,7 @@
         <path d="M8 0a8 8 0 100 16A8 8 0 008 0zM7 4h2v5H7V4zm0 6h2v2H7v-2z"/>
       </svg>
       <p>{{ error }}</p>
-      <button class="btn btn-retry" @click="loadSchedules">Retry</button>
+      <button class="btn btn-retry" @click="loadSchedules()">Retry</button>
     </div>
 
     <div v-else class="rooms-container">
@@ -20,6 +20,18 @@
           <path d="M5 4h6v1H5V4zm0 2h6v1H5V6zm0 2h6v1H5V8z"/>
         </svg>
         <p>No rooms configured yet</p>
+      </div>
+
+      <!-- What is on screen came from this device's saved copy while the server is asked for the latest. -->
+      <div v-if="rooms.length > 0 && !schedulesConfirmed" class="refresh-status" :class="{ failed: refreshFailed }" role="status">
+        <template v-if="refreshFailed">
+          <span>Showing saved data. The latest could not be loaded.</span>
+          <button type="button" class="refresh-retry" @click="loadSchedules(true)">Retry</button>
+        </template>
+        <template v-else>
+          <span class="refresh-spinner" aria-hidden="true"></span>
+          <span>Updating…</span>
+        </template>
       </div>
 
       <div v-if="rooms.length > 0" class="layout-toolbar">
@@ -157,6 +169,7 @@ import { HEATING_LAYOUT } from '../utils/layoutContext.js'
 import { drivableDevices, presenceSources } from '../utils/deviceRules.js'
 import { boostTimes, groupBoost, groupLockedBy, roomLockedBy } from '../utils/boosts.js'
 import { useFormatting } from '../composables/useFormatting.js'
+import { getCache, setCache } from '../utils/apiCache.js'
 
 const props = defineProps({
   occupancyFilter: {
@@ -172,6 +185,14 @@ const roomStates = ref([])
 const houseOccupancyState = ref(0) // 0 = Home, 1 = Away
 const loading = ref(true)
 const error = ref(null)
+// The page paints from this device's saved copy and then asks the server for the latest (stale-while-revalidate),
+// so a reload never starts with a spinner once there is something to show. `schedulesConfirmed` is false until the
+// server has answered this visit: until then what is on screen may be out of date, and every save is refused,
+// because a save replaces the whole schedules blob and would overwrite a change made on another device.
+const CACHE_CATEGORY = 'heating'
+const schedulesConfirmed = ref(false)
+const refreshFailed = ref(false)
+let loadSequence = 0
 const statePollingInterval = ref(null)
 const expandedRoomId = ref(null)
 // Groups open independently, any number at once (a nested group needs its parents open too).
@@ -269,6 +290,12 @@ watch(() => props.occupancyFilter, async (newFilter, oldFilter) => {
 
   // Only update if state actually changed
   if (newState !== houseOccupancyState.value) {
+    // Not before the server has confirmed what is stored: put the header back as it was.
+    if (!requireConfirmedData()) {
+      emit('house-state-changed', houseOccupancyState.value)
+      return
+    }
+
     houseOccupancyState.value = newState
 
     // Emit the change to App.vue
@@ -380,11 +407,17 @@ watch(houseId, async (newHouseId, oldHouseId) => {
     return
   }
 
-  // House connected or changed - clear error and reload
+  // House connected or changed: drop the old house's data, show this house's saved copy if there is one, and
+  // reload. With nothing saved, loadSchedules shows the spinner.
   error.value = null
-  loading.value = true
+  rooms.value = []
+  roomStates.value = []
+  layoutTree.value = []
+  boilerState.value = null
+  batteries.value = []
+  schedulesConfirmed.value = false
+  hydrateFromCache()
 
-  // Load schedules
   await loadSchedules()
 
   // Initialize SignalR connection
@@ -421,9 +454,8 @@ const handleVisibilityChange = async () => {
           }
         }
 
-        // Refresh schedules and states
-        await loadSchedules()
-        showToast('Data refreshed', 'info', 2000)
+        // Refresh schedules and states in the background: what is on screen stays until the new data lands.
+        loadSchedules(true)
       }
     }
 
@@ -524,58 +556,113 @@ const cleanRoomsForApi = (rooms) => {
   }
 }
 
+const applyRoomStates = (statesData) => {
+  roomStates.value = statesData?.roomStates || []
+  boilerState.value = statesData?.boiler ?? null
+  batteries.value = statesData?.batteries ?? []
+}
+
+// Shows a schedules response, merged with the room states already held.
+const applySchedules = (data) => {
+  houseOccupancyState.value = data.houseOccupancyState ?? 0
+
+  // Tell App.vue, which keeps the Home/Away filter in its header
+  emit('house-state-changed', houseOccupancyState.value)
+
+  data.rooms.forEach(room => {
+    sortSchedules(room.schedules)
+  })
+
+  rooms.value = mergeSchedulesWithStates(data.rooms, roomStates.value)
+  layoutTree.value = fromLayoutDto(data.layout, rooms.value)
+}
+
+// Paints the page from this device's saved copy, so a reload has something to show straight away. Called while the
+// component is set up, before the first render, so there is no flash of the spinner. Whatever is saved may be
+// out of date: schedulesConfirmed stays false until the server has answered.
+const hydrateFromCache = () => {
+  const id = houseId.value
+  if (!id) return
+
+  const savedSchedules = getCache(id, CACHE_CATEGORY, 'schedules')
+  if (!savedSchedules || !Array.isArray(savedSchedules.rooms)) return
+
+  try {
+    const savedStates = getCache(id, CACHE_CATEGORY, 'room-states')
+    if (savedStates) applyRoomStates(savedStates)
+    applySchedules(savedSchedules)
+    loading.value = false
+  } catch (err) {
+    // A saved copy this version cannot read: start from scratch, as if there were none.
+    console.warn('Ignoring the saved heating data:', err)
+    rooms.value = []
+    roomStates.value = []
+    layoutTree.value = []
+  }
+}
+
+// Fetches schedules and room states together and swaps them in once both have answered. With something already on
+// screen (the saved copy, or an earlier load) this is invisible apart from the small "Updating…" line: the old
+// values stay until new ones arrive, and a failure keeps them. The spinner and the error page are only for when
+// there is nothing to show.
 const loadSchedules = async (silent = false) => {
-  if (!silent) {
+  const sequence = ++loadSequence
+  refreshFailed.value = false
+
+  if (!silent && rooms.value.length === 0) {
     loading.value = true
     error.value = null
   }
 
-  try {
-    const data = await heatingApi.getSchedules()
+  const [schedulesResult, statesResult] = await Promise.allSettled([
+    heatingApi.getSchedules(),
+    heatingApi.getRoomStates()
+  ])
 
-    // Store house occupancy state
-    houseOccupancyState.value = data.houseOccupancyState ?? 0
+  // A newer load has started since: it will show its own result, and this older answer could be the staler one.
+  if (sequence !== loadSequence) return
 
-    // Emit initial state to App.vue
-    emit('house-state-changed', houseOccupancyState.value)
+  if (statesResult.status === 'fulfilled') {
+    setCache(houseId.value, CACHE_CATEGORY, 'room-states', statesResult.value)
+    applyRoomStates(statesResult.value)
+  } else {
+    // Keep the temperatures already shown rather than blanking them to defaults.
+    console.warn('Failed to load room states, keeping the last ones:', statesResult.reason)
+  }
 
-    // Sort schedules for each room
-    data.rooms.forEach(room => {
-      sortSchedules(room.schedules)
-    })
-
-    // Load room states separately
-    try {
-      const statesData = await heatingApi.getRoomStates()
-      roomStates.value = statesData.roomStates || []
-      boilerState.value = statesData.boiler ?? null
-      batteries.value = statesData.batteries ?? []
-    } catch (stateErr) {
-      console.warn('Failed to load room states, using defaults:', stateErr)
-      roomStates.value = []
-    }
-
-    // Merge schedules with states
-    rooms.value = mergeSchedulesWithStates(data.rooms, roomStates.value)
-    layoutTree.value = fromLayoutDto(data.layout, rooms.value)
-  } catch (err) {
-    if (!silent) {
+  if (schedulesResult.status === 'fulfilled') {
+    // Saved before it is shown: showing it sorts schedules in place.
+    setCache(houseId.value, CACHE_CATEGORY, 'schedules', schedulesResult.value)
+    applySchedules(schedulesResult.value)
+    schedulesConfirmed.value = true
+    error.value = null
+  } else {
+    console.error('Error loading schedules:', schedulesResult.reason)
+    refreshFailed.value = true
+    if (rooms.value.length === 0) {
       error.value = 'Failed to load schedules. Please try again.'
     }
-    console.error('Error loading schedules:', err)
-  } finally {
-    if (!silent) {
-      loading.value = false
-    }
   }
+
+  loading.value = false
+}
+
+// What a save needs: the server's own copy on screen, not just this device's. See schedulesConfirmed.
+const requireConfirmedData = () => {
+  if (schedulesConfirmed.value) return true
+  showToast(
+    refreshFailed.value
+      ? 'Changes cannot be saved while the latest data could not be loaded.'
+      : 'Still checking for updates. Try again in a moment.',
+    'info')
+  return false
 }
 
 const loadRoomStates = async () => {
   try {
     const statesData = await heatingApi.getRoomStates()
-    roomStates.value = statesData.roomStates || []
-    boilerState.value = statesData.boiler ?? null
-    batteries.value = statesData.batteries ?? []
+    setCache(houseId.value, CACHE_CATEGORY, 'room-states', statesData)
+    applyRoomStates(statesData)
 
     // Update room states without affecting schedule configuration
     rooms.value = rooms.value.map(room => {
@@ -600,6 +687,7 @@ const loadRoomStates = async () => {
 }
 
 const handleUpdateSchedule = async (roomId, updatedSchedule) => {
+  if (!requireConfirmedData()) return
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     const scheduleIndex = room.schedules.findIndex(s => s.id === updatedSchedule.id)
@@ -621,6 +709,7 @@ const handleUpdateSchedule = async (roomId, updatedSchedule) => {
 }
 
 const handleDeleteSchedule = async (roomId, scheduleId) => {
+  if (!requireConfirmedData()) return
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     room.schedules = room.schedules.filter(s => s.id !== scheduleId)
@@ -639,6 +728,7 @@ const handleDeleteSchedule = async (roomId, scheduleId) => {
 }
 
 const handleAddSchedule = async (roomId, newSchedule) => {
+  if (!requireConfirmedData()) return
   const room = rooms.value.find(r => r.id === roomId)
   if (room) {
     room.schedules.push(newSchedule)
@@ -671,6 +761,7 @@ const readyByText = (readyBy) => {
 
 // A zone's own boost. Refused while a group the zone sits in is boosted: only that group can change it.
 const handleBoost = async (roomId, boostData) => {
+  if (!requireConfirmedData()) return
   const room = rooms.value.find(r => r.id === roomId)
   if (room && !roomLockedBy(layoutTree.value, room)) {
     // Calculate start and end times in UTC. With a ready-by time the hold starts then, not now.
@@ -716,6 +807,7 @@ const handleBoost = async (roomId, boostData) => {
 }
 
 const handleCancelBoost = async (roomId) => {
+  if (!requireConfirmedData()) return
   const room = rooms.value.find(r => r.id === roomId)
   if (room && !roomLockedBy(layoutTree.value, room)) {
     room.boost = null
@@ -736,6 +828,7 @@ const handleCancelBoost = async (roomId) => {
 // the group (utils/boosts.js). Like a zone boost it sets that exact temperature, up or down, and boosting
 // again changes it. It replaces any boost already inside the group, a zone's own or a smaller group's.
 const handleGroupBoost = async (groupNode, boostData) => {
+  if (!requireConfirmedData()) return
   if (groupLockedBy(layoutTree.value, groupNode, roomsById.value)) return
   const ids = new Set(roomIdsIn(groupNode))
   const { startTime, endTime, readyBy } = boostTimes(new Date(), boostData.duration, boostData.readyBy)
@@ -763,6 +856,7 @@ const handleGroupBoost = async (groupNode, boostData) => {
 
 // Cancels this group's own boost only: a zone boost set since, or a smaller group's, is left alone.
 const handleCancelGroupBoost = async (groupNode) => {
+  if (!requireConfirmedData()) return
   if (groupLockedBy(layoutTree.value, groupNode, roomsById.value)) return
   const ids = new Set(roomIdsIn(groupNode))
   const previous = rooms.value.map(room => room.boost)
@@ -815,6 +909,7 @@ const handleToggleGroup = (id) => {
 }
 
 const handleMoveNode = async (key, delta) => {
+  if (!requireConfirmedData()) return
   const previous = snapshot()
   const next = move(layoutTree.value, key, delta)
   if (next === layoutTree.value) return
@@ -831,6 +926,7 @@ const handleMoveTo = async (targetId) => {
   const target = moveTarget.value
   moveTarget.value = null
   if (!target) return
+  if (!requireConfirmedData()) return
 
   const previous = snapshot()
   const next = moveTo(layoutTree.value, target.key, targetId)
@@ -867,6 +963,7 @@ const handleIconSave = async ({ icon, name } = {}) => {
   const target = iconTarget.value
   iconTarget.value = null
   if (!target) return
+  if (!requireConfirmedData()) return
 
   const previous = snapshot()
   const cleaned = normaliseIcon(icon)
@@ -895,6 +992,7 @@ const handleDeleteGroup = async () => {
   const target = iconTarget.value
   iconTarget.value = null
   if (!target || target.kind !== 'group') return
+  if (!requireConfirmedData()) return
 
   const previous = snapshot()
   layoutTree.value = deleteGroup(layoutTree.value, target.id)
@@ -906,6 +1004,10 @@ const handleToggleExpand = (roomId) => {
   expandedRoomId.value = expandedRoomId.value === roomId ? null : roomId
 }
 
+
+// Paint from the saved copy now, while setting up, so the first render already has the rooms. Last of the setup
+// code that matters, so everything it uses exists.
+hydrateFromCache()
 
 // Everything LayoutNode needs, provided last so every handler it points at already exists.
 provide(HEATING_LAYOUT, {
@@ -1040,6 +1142,37 @@ provide(HEATING_LAYOUT, {
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+.refresh-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.refresh-status.failed {
+  color: var(--color-warning);
+}
+
+.refresh-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.refresh-retry {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.8rem;
+  color: inherit;
+  cursor: pointer;
 }
 
 /* Pushed to the left of the toolbar, opposite the layout buttons. */

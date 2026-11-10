@@ -309,5 +309,20 @@ paints the coloured action zones and grey gaps) and `zoneInteractionPlugin`
   card at a time. Both are kept in `localStorage` as `heating-expanded` (`{ roomId, groupIds }`), saved by a watch
   in `HeatingView.vue` and restored on mount. It replaced the `heating-app-expanded-room` cookie, which stored the
   room id as text and so never matched the numeric id again; the old cookie is deleted on load.
+- **The heating page paints from a saved copy, then updates it** (owner request, 2026-11-10; checked in the browser
+  against a stand-in API; deployed to the live site the same day). `HeatingView.vue` keeps the last schedules and room-states
+  responses, and `useDeviceSettings` the last device settings, in `localStorage` through `utils/apiCache.js`
+  (`cache:{houseId}:heating:schedules`, `…:heating:room-states`, `cache:{houseId}:device-settings:current`; cleared on
+  disconnecting a house). On load the rooms render from it in the first frame, with no spinner, while schedules and
+  room states are fetched together; new values replace the old ones when both have arrived, and a failed fetch keeps
+  what is shown ("Showing saved data" with a Retry). The spinner and the error page appear only when there is nothing
+  saved. Three things to keep true if you touch it:
+  - **Saves are refused until the server has answered** (`schedulesConfirmed`, `requireConfirmedData`; in the composable,
+    `settingsLoaded` and `requireServerSettings`). A save replaces the whole blob from what is on screen, so one made
+    from a stale saved copy would undo a change made on another device. Every new save handler needs the guard.
+  - A refresh that is overtaken by a newer one is discarded (`loadSequence`), and a tab that was hidden refreshes
+    silently, with no toast.
+  - Room-state *failures* no longer reset temperatures to defaults; the last ones stay.
+  The page itself is still blank for the moment the JS bundle loads (there is no service worker).
 - **A group's header counts what sits directly inside it** as zones ("4 zones"), rooms and groups alike, not
   every room nested below.

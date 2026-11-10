@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
 import { deviceSettingsApi } from '../services/deviceSettingsApi.js'
+import { getHouseId } from '../utils/cookies.js'
+import { getCache, setCache } from '../utils/apiCache.js'
 import { firstSaveMap } from '../utils/deviceRules.js'
 import { occupancyFirstSaveMap } from '../utils/zoneOccupancy.js'
 
@@ -17,7 +19,33 @@ const loading = ref(false)
 const error = ref(null)
 
 let entitiesLoaded = false
+// True once the server has answered. The settings may already be on screen from this device's saved copy
+// (below) before then, but a save merges into them and replaces the whole blob, so it must wait for the real ones.
 let settingsLoaded = false
+
+const CACHE_CATEGORY = 'device-settings'
+
+// The saved copy of the settings, so a reload shows battery placement and the like straight away instead of
+// after the round trip. Read while the server is asked for the latest; see loadSettings.
+function loadSavedSettings() {
+  if (settings.value) return
+  const houseId = getHouseId()
+  if (!houseId) return
+  const saved = getCache(houseId, CACHE_CATEGORY, 'current')
+  if (saved) settings.value = saved
+}
+
+function saveSettingsCopy(value) {
+  const houseId = getHouseId()
+  if (houseId) setCache(houseId, CACHE_CATEGORY, 'current', value)
+}
+
+// Saving merges into what is held, so refuse when that is only the saved copy and the server has not answered.
+function requireServerSettings(what) {
+  if (!settingsLoaded || !settings.value) {
+    throw new Error(`Device settings have not loaded, so the ${what} was not saved.`)
+  }
+}
 
 async function loadEntities() {
   if (entitiesLoaded) return
@@ -42,12 +70,14 @@ async function reloadSettings() {
 
 async function loadSettings() {
   if (settingsLoaded) return
+  loadSavedSettings()
   try {
     loading.value = true
     error.value = null
     const response = await deviceSettingsApi.getSettings()
     settings.value = response
     settingsLoaded = true
+    saveSettingsCopy(response)
   } catch (err) {
     console.error('Failed to load device settings:', err)
     error.value = err.message
@@ -57,11 +87,18 @@ async function loadSettings() {
 }
 
 async function saveSettings(newSettings) {
+  // Whatever built newSettings may have started from the saved copy, which can be out of date.
+  if (settings.value && !settingsLoaded) {
+    const failure = new Error('Device settings have not loaded, so they were not saved.')
+    error.value = failure.message
+    throw failure
+  }
   try {
     loading.value = true
     error.value = null
     await deviceSettingsApi.saveSettings(newSettings)
     settings.value = newSettings
+    saveSettingsCopy(newSettings)
   } catch (err) {
     console.error('Failed to save device settings:', err)
     error.value = err.message
@@ -85,6 +122,8 @@ const boilerControlPath = computed(() => {
 // Saves only the boiler control path, keeping everything else in the device settings blob.
 async function saveBoilerControlPath(path) {
   await loadSettings()
+  // Only the saved copy would be merged into: it could undo a change made elsewhere.
+  if (settings.value) requireServerSettings('boiler control')
 
   await saveSettings({
     ...(settings.value || {}),
@@ -104,10 +143,8 @@ const deviceRules = computed(() => settings.value?.heating?.deviceRules ?? null)
 async function saveDeviceRules(entityId, rules, allDrivableDevices) {
   await loadSettings()
 
-  // A failed load leaves nothing to merge into, and saving then would replace the whole blob.
-  if (!settings.value) {
-    throw new Error('Device settings have not loaded, so the rules were not saved.')
-  }
+  // A failed load leaves nothing, or only the saved copy, to merge into, and saving then would replace the whole blob.
+  requireServerSettings('rules')
 
   const current = settings.value.heating?.deviceRules ?? null
   const nextRules = current === null
@@ -131,9 +168,7 @@ const zoneOccupancy = computed(() => settings.value?.heating?.zoneOccupancy ?? n
 async function saveZoneOccupancy(zoneName, detectorIds, allZones) {
   await loadSettings()
 
-  if (!settings.value) {
-    throw new Error('Device settings have not loaded, so the occupancy was not saved.')
-  }
+  requireServerSettings('occupancy')
 
   const current = settings.value.heating?.zoneOccupancy ?? null
   const next = current === null
@@ -157,9 +192,7 @@ const areaPlacement = computed(() => settings.value?.heating?.areaPlacement ?? {
 async function saveAreaPlacement(placement) {
   await loadSettings()
 
-  if (!settings.value) {
-    throw new Error('Device settings have not loaded, so the areas were not saved.')
-  }
+  requireServerSettings('areas')
 
   await saveSettings({
     ...settings.value,

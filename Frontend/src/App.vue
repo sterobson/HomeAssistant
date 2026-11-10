@@ -101,6 +101,7 @@ import SettingsMenu from './components/SettingsMenu.vue'
 import HouseIdModal from './components/HouseIdModal.vue'
 import PowerMonitorModal from './components/PowerMonitorModal.vue'
 import { hasHouseId as checkHouseId, setHouseId, getHouseId, clearHouseId, addSavedHouse, removeSavedHouse, getSavedHouses } from './utils/cookies.js'
+import { clearCache } from './utils/apiCache.js'
 import { useApiErrors } from './composables/useApiErrors.js'
 import { useDeviceSettings } from './composables/useDeviceSettings.js'
 
@@ -305,6 +306,7 @@ function handleDisconnect() {
   const currentId = getHouseId()
   if (currentId) {
     removeSavedHouse(currentId)
+    clearCache(currentId) // this device's saved copy of the house's data
   }
 
   // Check if there are other saved houses to switch to
