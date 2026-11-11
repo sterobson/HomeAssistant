@@ -294,6 +294,18 @@ upload; 11 apps running, relay mode carried on from the relay being off, `app-re
 then the frontend (entry `index-CLYFiQ_q.js`, which the live site then served). Auto mode's classifier refused the first
 Functions publish with no reason given; the same command went through when retried after the user said to go again.
 
+The 2026-11-11 11:43 GMT deploy (`9cb295e`: Ellie's phone detector pointed at her new router entry; HOME-ASSISTANT.md gotcha 35)
+was the NetDaemon app only, version `20261111114345`, run by the owner from the deploy tool's menu (**HomeAssistant → Deploy →
+production → `hardware` only**). An agent cannot drive that menu (its terminal tab sits at "Select project" and nothing can type
+into it), so offering it as the way to deploy was wrong: the by-hand steps above work from a session and were used before. Two
+things the tool did that matter:
+- **It ran `nd-codegen`**, which left `Backend/App/HomeAssistantGenerated.cs` and `NetDaemonCodegen/EntityMetaData.json` modified
+  and uncommitted, so the deployed build differs from `9cb295e`, as the note above says it will.
+- **It copied over the running app and did not restart it** (same as before). The restart was `addon.cjs c6a2317c_netdaemon6
+  restart` at 11:45, two minutes after the copy, with the relay off. The app came up at 11:45:40 with 11 apps and no errors,
+  carried on from the relay, and `app-release/running` reported the new version at 11:45:50. Whether the old process crashed
+  on the replaced DLLs in those two minutes was not checked (gotcha above: stop the add-on before copying).
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
