@@ -111,8 +111,12 @@ internal class PresenceService : IPresenceService
     /// </summary>
     internal const string RuthPhoneRouterId = "ec6744ee-6707-4f8d-8fa4-6de13650bdb7";
 
-    /// <summary>The router's id for Ellie's phone, listed as "Android_17YGONY5".</summary>
-    internal const string EllePhoneRouterId = "0461c717-bf51-4b13-b17a-f58c2e0cada0";
+    /// <summary>
+    /// The router's id for Ellie's phone, listed as "Android_U5X6Z9YZ" (Wi-Fi MAC B2:6D:B6:6C:0D:0F, read from her phone's
+    /// own Wi-Fi settings on 2026-11-11). It was "Android_17YGONY5" (0461c717-bf51-4b13-b17a-f58c2e0cada0) until the
+    /// phone took a new random address at about 00:45 UTC that day, which left the detector reading "away" while she was home.
+    /// </summary>
+    internal const string EllePhoneRouterId = "ddefda79-f4a1-44b1-998d-8f829ce2269e";
 
     /// <summary>The phones the router can see, each with the id it has as a device in a zone's Devices list.</summary>
     internal static readonly IReadOnlyList<PresencePhone> Phones =

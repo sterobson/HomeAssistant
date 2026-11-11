@@ -685,7 +685,7 @@ public sealed class PresenceServiceTests
         context.SetOnlineDevices(
             $$"""{ "name": "unknown", "id": "{{PresenceService.StePhoneRouterId}}" }""",
             $$"""{ "name": "Android_SBFUAFP4", "id": "{{PresenceService.RuthPhoneRouterId}}" }""",
-            $$"""{ "name": "Android_17YGONY5", "id": "{{PresenceService.EllePhoneRouterId}}" }""");
+            $$"""{ "name": "Android_U5X6Z9YZ", "id": "{{PresenceService.EllePhoneRouterId}}" }""");
 
         PresenceSnapshot snapshot = await context.Service.GetSnapshotAsync();
 

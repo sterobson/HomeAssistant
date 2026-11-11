@@ -284,9 +284,16 @@ off (`consider_home`). History, from HA's system log and states:
   2026.9.1 and starved the trackers, so they were **disabled** in the entity registry. Still disabled; not
   re-tested on 2026.10.1.
 - **Phones appear under random names.** Android phones use a random Wi-Fi address per network and show up as
-  `Android_XXXXXXXX`. **Ellie's phone (Samsung Galaxy A56, SM-A566B) is `Android_17YGONY5`**, found by its IP
-  (192.168.1.253 on 2026-10-19), router id `0461c717-bf51-4b13-b17a-f58c2e0cada0`, tracked as
-  `device_tracker.android_17ygony5` (read `home` 2026-10-20). The
+  `Android_XXXXXXXX`. **Ellie's phone (Samsung Galaxy A56, SM-A566B) is now `Android_U5X6Z9YZ`**, router id
+  `ddefda79-f4a1-44b1-998d-8f829ce2269e`, Wi-Fi MAC `B2:6D:B6:6C:0D:0F` on the CTHULU network (read from the phone's own
+  Wi-Fi settings by Ellie, 2026-11-11). **Her address changed once already:** she was `Android_17YGONY5` (found by its IP,
+  192.168.1.253 on 2026-10-19; router id `0461c717-bf51-4b13-b17a-f58c2e0cada0`, tracked as
+  `device_tracker.android_17ygony5`, read `home` 2026-10-20) until about 00:45 UTC on 2026-11-11, when that entry left the online
+  list for good and her detector read "away" all morning while she was home. The router rebooting at about 17:00 UTC the
+  evening before was *not* the cause: her old entry came back after it and stayed for seven hours. The phone's own
+  *hardware* MAC (About phone → Status, `A0:1B:9E:61:41:1A`) is never seen by the router; only the per-network address
+  under Wi-Fi → the network → Advanced is. `tools/ha/router-devices.cjs` lists the online devices to find the new entry,
+  and `device_tracker.ellie_phone_wifi` still follows the old one, so it reads `not_home`. The
   entries named `Ste-s-A54` and `Ruth-s-A55` (also tracked) were not online while both phones were at home, so
   they are probably stale entries from before the random addresses, and the phones' current entries are
   unknown. Find each by the IP the phone shows in its Wi-Fi settings, as for Ellie's.

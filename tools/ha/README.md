@@ -13,6 +13,7 @@ Run them from the repo root. They need Node 20+ and the `ws` package from `Front
 |---|---|---|
 | `entity-history.cjs <entity_id> [...] [--hours 48]` | no | Current state plus real transitions from the recorder. Use it for "when did this really fail / come back", never `last_changed` |
 | `find-entities.cjs <regex>` | no | Entities whose ID **or friendly name** matches, with state and `last_updated` |
+| `router-devices.cjs [regex]` | no | Everything the router lists as online (`sensor.mesh_online_devices` → `devices`: name, router id, MAC, IP, Velop unit), the list the app's phone detectors read, plus the HA device trackers. Use it when a phone reads "away" while it is on the Wi-Fi: a phone whose id from `PresenceService.cs` is missing from this list has probably taken a new random address. Written 2026-11-11 |
 | `trv-status.cjs` | no | Whether each radiator TRV is heating or idle, with its setpoint and its own onboard reading |
 | `trv-shut-leaks.cjs` | no | Each TRV's spells of its own sensor climbing 2 °C or more while its valve was shut (idle, not just after heating), from the recorder: hot water getting past a shut valve. Found den radiator 2, 2026-10-23 |
 | `trv-calibration.cjs` | no | Each TRVZB's valve opening/closing degree and calibration limit voltages over ZHA. Slow (battery TRVs answer when they wake; a few minutes for all seven). A TRV that shuts properly reads closing > opening voltage |
