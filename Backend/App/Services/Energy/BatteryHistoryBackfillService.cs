@@ -11,6 +11,7 @@ internal class BatteryHistoryBackfillService
 {
     private readonly ISignalRConnectionService _signalRConnection;
     private readonly HistoryService _historyService;
+    private readonly IEnergyRateHistoryReader _rateHistory;
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
     private readonly IBatteryRulesPersistenceService _rulesPersistence;
     private readonly IBatteryHistoryApiClient _historyApiClient;
@@ -22,6 +23,7 @@ internal class BatteryHistoryBackfillService
     public BatteryHistoryBackfillService(
         ISignalRConnectionService signalRConnection,
         HistoryService historyService,
+        IEnergyRateHistoryReader rateHistory,
         IDeviceSettingsPersistenceService deviceSettings,
         IBatteryRulesPersistenceService rulesPersistence,
         IBatteryHistoryApiClient historyApiClient,
@@ -32,6 +34,7 @@ internal class BatteryHistoryBackfillService
     {
         _signalRConnection = signalRConnection;
         _historyService = historyService;
+        _rateHistory = rateHistory;
         _deviceSettings = deviceSettings;
         _rulesPersistence = rulesPersistence;
         _historyApiClient = historyApiClient;
@@ -294,16 +297,19 @@ internal class BatteryHistoryBackfillService
         IReadOnlyList<NumericHistoryEntry> importHistory = [];
         IReadOnlyList<NumericHistoryEntry> exportHistory = [];
 
+        // Read through the rate-history reader, not as plain numbers: "unavailable" would otherwise become a
+        // price of 0 (HOME-ASSISTANT.md gotcha 36, which wrote a 0p slot into 2026-11-10's stored prices).
+        // Stretches Octopus cannot price either are left out, so the previous price carries over.
         if (!string.IsNullOrEmpty(importRateEntityId))
         {
-            importHistory = await _historyService.GetEntityNumericHistory(importRateEntityId, paddedFromUtc, paddedToUtc);
+            importHistory = (await _rateHistory.GetAsync(importRateEntityId, isExport: false, paddedFromUtc, paddedToUtc)).Entries;
             _logger.LogInformation("Retrieved {Count} HA import rate history points for month {Month}/{Year}",
                 importHistory.Count, requestedDate.Month, requestedDate.Year);
         }
 
         if (!string.IsNullOrEmpty(exportRateEntityId))
         {
-            exportHistory = await _historyService.GetEntityNumericHistory(exportRateEntityId, paddedFromUtc, paddedToUtc);
+            exportHistory = (await _rateHistory.GetAsync(exportRateEntityId, isExport: true, paddedFromUtc, paddedToUtc)).Entries;
             _logger.LogInformation("Retrieved {Count} HA export rate history points for month {Month}/{Year}",
                 exportHistory.Count, requestedDate.Month, requestedDate.Year);
         }

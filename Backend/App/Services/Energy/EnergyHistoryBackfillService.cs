@@ -11,6 +11,7 @@ internal class EnergyHistoryBackfillService
 {
     private readonly ISignalRConnectionService _signalRConnection;
     private readonly HistoryService _historyService;
+    private readonly IEnergyRateHistoryReader _rateHistory;
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
     private readonly IEnergyHistoryApiClient _apiClient;
     private readonly WebSynchronisationConfiguration _configuration;
@@ -20,6 +21,7 @@ internal class EnergyHistoryBackfillService
     public EnergyHistoryBackfillService(
         ISignalRConnectionService signalRConnection,
         HistoryService historyService,
+        IEnergyRateHistoryReader rateHistory,
         IDeviceSettingsPersistenceService deviceSettings,
         IEnergyHistoryApiClient apiClient,
         WebSynchronisationConfiguration configuration,
@@ -28,6 +30,7 @@ internal class EnergyHistoryBackfillService
     {
         _signalRConnection = signalRConnection;
         _historyService = historyService;
+        _rateHistory = rateHistory;
         _deviceSettings = deviceSettings;
         _apiClient = apiClient;
         _configuration = configuration;
@@ -329,11 +332,13 @@ internal class EnergyHistoryBackfillService
         Task<IReadOnlyList<NumericHistoryEntry>> gridImportTask = _historyService.GetEntityNumericHistory(gridImportId, fromUtc, toUtc);
         Task<IReadOnlyList<NumericHistoryEntry>> gridExportTask = _historyService.GetEntityNumericHistory(gridExportId, fromUtc, toUtc);
 
-        Task<IReadOnlyList<NumericHistoryEntry>>? importRateTask = !string.IsNullOrEmpty(importRateId)
-            ? _historyService.GetEntityNumericHistory(importRateId, fromUtc, toUtc)
+        // Rate history with any stretch the sensor was unavailable filled in from Octopus; reading the sensor as
+        // numbers would price those hours at 0p (HOME-ASSISTANT.md gotcha 36).
+        Task<EnergyRateHistory>? importRateTask = !string.IsNullOrEmpty(importRateId)
+            ? _rateHistory.GetAsync(importRateId, isExport: false, fromUtc, toUtc)
             : null;
-        Task<IReadOnlyList<NumericHistoryEntry>>? exportRateTask = !string.IsNullOrEmpty(exportRateId)
-            ? _historyService.GetEntityNumericHistory(exportRateId, fromUtc, toUtc)
+        Task<EnergyRateHistory>? exportRateTask = !string.IsNullOrEmpty(exportRateId)
+            ? _rateHistory.GetAsync(exportRateId, isExport: true, fromUtc, toUtc)
             : null;
 
         List<Task> allTasks = [solarTask, batteryTask, gridImportTask, gridExportTask];
@@ -345,11 +350,12 @@ internal class EnergyHistoryBackfillService
         IReadOnlyList<NumericHistoryEntry> batteryHistory = await batteryTask;
         IReadOnlyList<NumericHistoryEntry> gridImportHistory = await gridImportTask;
         IReadOnlyList<NumericHistoryEntry> gridExportHistory = await gridExportTask;
-        IReadOnlyList<NumericHistoryEntry>? importRateHistory = importRateTask != null ? await importRateTask : null;
-        IReadOnlyList<NumericHistoryEntry>? exportRateHistory = exportRateTask != null ? await exportRateTask : null;
+        EnergyRateHistory? importRates = importRateTask != null ? await importRateTask : null;
+        EnergyRateHistory? exportRates = exportRateTask != null ? await exportRateTask : null;
 
         List<EnergyBackfillPoint> points = [];
         int skippedEmptyHours = 0;
+        int skippedUnpricedHours = 0;
 
         for (int hour = 0; hour < maxHour; hour++)
         {
@@ -378,23 +384,32 @@ internal class EnergyHistoryBackfillService
                 continue;
             }
 
+            // Energy moved over a stretch with no rate anywhere: leave the hour out, which leaves whatever is stored
+            // untouched, rather than overwrite it with a cost of 0p.
+            if (EnergyHistoryPushService.HasUnpricedEnergy(importRates, gridImportKwh, hourFromUtc, hourToUtc) ||
+                EnergyHistoryPushService.HasUnpricedEnergy(exportRates, gridExportKwh, hourFromUtc, hourToUtc))
+            {
+                skippedUnpricedHours++;
+                continue;
+            }
+
             double gridKwh = gridImportKwh - gridExportKwh;
             double houseKwh = Math.Max(0, solarKwh + gridKwh - batteryKwh);
 
             double importCostPence = 0;
             double exportCostPence = 0;
-            if (importRateHistory != null)
+            if (importRates != null)
             {
                 importCostPence = EnergyHistoryPushService.IntegrateCostPence(
                     FilterToWindow(gridImportHistory, hourFromUtc, hourToUtc),
-                    FilterToWindow(importRateHistory, hourFromUtc, hourToUtc),
+                    FilterToWindow(importRates.Entries, hourFromUtc, hourToUtc),
                     hourFromUtc, hourToUtc);
             }
-            if (exportRateHistory != null)
+            if (exportRates != null)
             {
                 exportCostPence = EnergyHistoryPushService.IntegrateCostPence(
                     FilterToWindow(gridExportHistory, hourFromUtc, hourToUtc),
-                    FilterToWindow(exportRateHistory, hourFromUtc, hourToUtc),
+                    FilterToWindow(exportRates.Entries, hourFromUtc, hourToUtc),
                     hourFromUtc, hourToUtc);
             }
 
@@ -413,6 +428,14 @@ internal class EnergyHistoryBackfillService
         // After per-hour filtering, if nothing survived we have nothing to
         // write. Log at info — already-detailed warnings would have logged
         // per-hour skips if anyone cares to count them.
+        if (skippedUnpricedHours > 0)
+        {
+            _logger.LogWarning(
+                "Backfill {Date}: {Skipped} hours left out because there is no import or export rate for them, " +
+                "neither from Home Assistant nor from Octopus",
+                localDate, skippedUnpricedHours);
+        }
+
         if (points.Count == 0)
         {
             _logger.LogWarning(

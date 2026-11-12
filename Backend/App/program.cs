@@ -223,6 +223,7 @@ try
                 // still holds: DeviceBatteryApp is built once per app lifetime and keeps this one
                 // instance for every scheduled check.
                 .AddScoped<DeviceBatteryPushService>()
+                .AddScoped<IEnergyRateHistoryReader, EnergyRateHistoryReader>()
                 .AddScoped<BatteryHistoryPushService>()
                 .AddScoped<BatteryHistoryBackfillService>()
                 .AddScoped<EnergyHistoryPushService>()

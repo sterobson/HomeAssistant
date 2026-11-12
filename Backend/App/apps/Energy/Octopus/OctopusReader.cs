@@ -19,6 +19,12 @@ public class OctopusReader : IElectricityRatesReader
     private DateTime _lastRefresh;
     private const int _refreshIntervalMinutes = 30;
 
+    // How far back the cache reaches. A week, because the energy history backfill re-prices the last seven days
+    // from these rates wherever the Home Assistant rate sensor was unavailable (EnergyRateHistoryReader). Ten days
+    // of half-hourly records is about 480, so the request asks for the API's largest page (1500) to keep the
+    // oldest from being cut off: results come newest first.
+    private const int CacheDaysBack = 7;
+
     // The zone the four-rate night window is evaluated in. Local, like PricingSlot and the rest of
     // the battery pipeline, so the synthesised boundaries line up with how they are bucketed.
     private readonly TimeZoneInfo _timeZone;
@@ -158,7 +164,7 @@ public class OctopusReader : IElectricityRatesReader
     }
 
     /// <summary>
-    /// Rates for a tariff over the window the cache covers (yesterday to three days ahead).
+    /// Rates for a tariff over the window the cache covers (a week back to three days ahead).
     ///
     /// <c>standard-unit-rates</c> is tried first: it is the only source for ordinary tariffs, including
     /// export, and for the old INTELLI-FIX tariff, which encoded its cheap window as time-bounded
@@ -177,7 +183,7 @@ public class OctopusReader : IElectricityRatesReader
             return null;
         }
 
-        DateTime from = DateTime.UtcNow.AddDays(-1);
+        DateTime from = DateTime.UtcNow.AddDays(-CacheDaysBack);
         DateTime to = DateTime.UtcNow.AddDays(3);
 
         OctopusTariffRates? standard = await GetRatesAsync(productCode, tariffCode, "standard-unit-rates", from, to);
@@ -204,7 +210,7 @@ public class OctopusReader : IElectricityRatesReader
     {
         string periodFrom = from.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
         string periodTo = to.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        string requestUri = $"https://api.octopus.energy/v1/products/{productCode}/electricity-tariffs/{tariffCode}/{rateType}/?period_from={periodFrom}&period_to={periodTo}&page_size=500";
+        string requestUri = $"https://api.octopus.energy/v1/products/{productCode}/electricity-tariffs/{tariffCode}/{rateType}/?period_from={periodFrom}&period_to={periodTo}&page_size=1500";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, requestUri);
 
         using HttpResponseMessage response = await _httpClient.SendAsync(request);

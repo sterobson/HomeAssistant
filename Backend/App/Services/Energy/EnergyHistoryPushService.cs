@@ -8,6 +8,7 @@ namespace HomeAssistant.Services.Energy;
 internal class EnergyHistoryPushService
 {
     private readonly HistoryService _historyService;
+    private readonly IEnergyRateHistoryReader _rateHistory;
     private readonly IDeviceSettingsPersistenceService _deviceSettings;
     private readonly IEnergyHistoryApiClient _apiClient;
     private readonly WebSynchronisationConfiguration _configuration;
@@ -17,6 +18,7 @@ internal class EnergyHistoryPushService
 
     public EnergyHistoryPushService(
         HistoryService historyService,
+        IEnergyRateHistoryReader rateHistory,
         IDeviceSettingsPersistenceService deviceSettings,
         IEnergyHistoryApiClient apiClient,
         WebSynchronisationConfiguration configuration,
@@ -25,6 +27,7 @@ internal class EnergyHistoryPushService
         IGracefulShutdownService shutdownService)
     {
         _historyService = historyService;
+        _rateHistory = rateHistory;
         _deviceSettings = deviceSettings;
         _apiClient = apiClient;
         _configuration = configuration;
@@ -130,11 +133,13 @@ internal class EnergyHistoryPushService
             Task<IReadOnlyList<NumericHistoryEntry>> gridImportTask = _historyService.GetEntityNumericHistory(gridImportId, fromUtc, toUtc);
             Task<IReadOnlyList<NumericHistoryEntry>> gridExportTask = _historyService.GetEntityNumericHistory(gridExportId, fromUtc, toUtc);
 
-            Task<IReadOnlyList<NumericHistoryEntry>>? importRateTask = !string.IsNullOrEmpty(importRateId)
-                ? _historyService.GetEntityNumericHistory(importRateId, fromUtc, toUtc)
+            // The rates come from the sensors' history, with any stretch the sensor was unavailable filled in from
+            // Octopus. Reading them as numbers would turn "unavailable" into 0p/kWh (HOME-ASSISTANT.md gotcha 36).
+            Task<EnergyRateHistory>? importRateTask = !string.IsNullOrEmpty(importRateId)
+                ? _rateHistory.GetAsync(importRateId, isExport: false, fromUtc, toUtc)
                 : null;
-            Task<IReadOnlyList<NumericHistoryEntry>>? exportRateTask = !string.IsNullOrEmpty(exportRateId)
-                ? _historyService.GetEntityNumericHistory(exportRateId, fromUtc, toUtc)
+            Task<EnergyRateHistory>? exportRateTask = !string.IsNullOrEmpty(exportRateId)
+                ? _rateHistory.GetAsync(exportRateId, isExport: true, fromUtc, toUtc)
                 : null;
 
             List<Task> allTasks = [solarTask, batteryTask, gridImportTask, gridExportTask];
@@ -150,16 +155,31 @@ internal class EnergyHistoryPushService
             double gridKwh = gridImportKwh - gridExportKwh;
             double houseKwh = Math.Max(0, solarKwh + gridKwh - batteryKwh);
 
+            EnergyRateHistory? importRates = importRateTask != null ? await importRateTask : null;
+            EnergyRateHistory? exportRates = exportRateTask != null ? await exportRateTask : null;
+
+            // No rate anywhere for energy that moved: leave the hour out rather than store a cost of 0p. A later
+            // backfill of the day (on startup, or asked for by the web app) writes it once rates can be found.
+            if (HasUnpricedEnergy(importRates, gridImportKwh, fromUtc, toUtc) ||
+                HasUnpricedEnergy(exportRates, gridExportKwh, fromUtc, toUtc))
+            {
+                _logger.LogWarning(
+                    "Not pushing energy hour {Hour} for {Date}: there is no import or export rate for part of it, neither from " +
+                    "Home Assistant nor from Octopus, so its cost cannot be worked out. A backfill of the day will add it",
+                    hour, date);
+                return;
+            }
+
             // Calculate costs by integrating power × rate over the hour
             double importCostPence = 0;
             double exportCostPence = 0;
-            if (importRateTask != null)
+            if (importRates != null)
             {
-                importCostPence = IntegrateCostPence(await gridImportTask, await importRateTask, fromUtc, toUtc);
+                importCostPence = IntegrateCostPence(await gridImportTask, importRates.Entries, fromUtc, toUtc);
             }
-            if (exportRateTask != null)
+            if (exportRates != null)
             {
-                exportCostPence = IntegrateCostPence(await gridExportTask, await exportRateTask, fromUtc, toUtc);
+                exportCostPence = IntegrateCostPence(await gridExportTask, exportRates.Entries, fromUtc, toUtc);
             }
 
             await _apiClient.PostEnergyHourAsync(_configuration.HouseId, date, hour, gridKwh, batteryKwh, solarKwh, houseKwh, importCostPence, exportCostPence);
@@ -173,6 +193,13 @@ internal class EnergyHistoryPushService
             _logger.LogError(ex, "Error pushing energy history for hour {Hour} on {Date}", hour, date);
         }
     }
+
+    /// <summary>
+    /// True when energy moved in the window (more than a watt-hour) over a stretch for which no rate could be found.
+    /// An hour with nothing flowing needs no rate, so a missing one there does not matter.
+    /// </summary>
+    internal static bool HasUnpricedEnergy(EnergyRateHistory? rates, double kwh, DateTime fromUtc, DateTime toUtc) =>
+        rates != null && Math.Abs(kwh) > 0.001 && !rates.IsPricedThroughout(fromUtc, toUtc);
 
     /// <summary>
     /// Integrates power readings (watts) over a time window to produce energy (kWh).

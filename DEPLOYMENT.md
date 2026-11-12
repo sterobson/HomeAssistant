@@ -306,6 +306,13 @@ things the tool did that matter:
   carried on from the relay, and `app-release/running` reported the new version at 11:45:50. Whether the old process crashed
   on the replaced DLLs in those two minutes was not checked (gotcha above: stop the add-on before copying).
 
+The 2026-11-12 14:32 GMT NetDaemon-only deploy (uncommitted working tree on `main`, version `20261112143133`: energy costs priced from
+Octopus when its HA rate sensors are unavailable; HOME-ASSISTANT.md gotcha 36) used the safe order from a session, as one script:
+`dotnet publish` to a scratch folder, `addon.cjs c6a2317c_netdaemon6 stop`, a recursive copy without `appsettings.*.json` (34 files),
+`HomeAssistant.dll` and `version.txt` hashes checked on the share, `addon.cjs ... start`, then the OTA zip POSTed to
+`app-release/upload?version=...`. The build included the already-modified `HomeAssistantGenerated.cs` (left by the previous deploy's
+`nd-codegen`). Only `Backend/App` changed, so Functions and the frontend were not redeployed.
+
 ### The Samba share, and restarting add-ons
 
 - Use the IP, `\\192.168.1.188\config`. `\\homeassistant.local` did not resolve for SMB from this
