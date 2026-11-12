@@ -311,7 +311,13 @@ Octopus when its HA rate sensors are unavailable; HOME-ASSISTANT.md gotcha 36) u
 `dotnet publish` to a scratch folder, `addon.cjs c6a2317c_netdaemon6 stop`, a recursive copy without `appsettings.*.json` (34 files),
 `HomeAssistant.dll` and `version.txt` hashes checked on the share, `addon.cjs ... start`, then the OTA zip POSTed to
 `app-release/upload?version=...`. The build included the already-modified `HomeAssistantGenerated.cs` (left by the previous deploy's
-`nd-codegen`). Only `Backend/App` changed, so Functions and the frontend were not redeployed.
+`nd-codegen`). Commit `b4ad3c7` (pushed to `main` afterwards) holds that code. The Functions app was not redeployed: nothing
+under `Backend/HomeAssistant.Functions` or `Backend/App/Shared` had changed since `4da9b4c`, which `/api/version` still reports.
+The frontend was deployed afterwards (entry `index-C98c38aG.js`, live on the site): it had been behind since 2026-11-09, so it
+also carried `0f5ddf1` (the heating page painted from a saved copy), which had never been deployed. Built with the production
+`VITE_API_URL` and function key resolved in-process, `VITE_LOCALHOST_KEY` blanked and `VITE_USE_MOCK_API=false`, every
+`assets/*.js` checked for the production URL and for no `localhost:7159` / `7071`, then `swa deploy` with the token from
+`az staticwebapp secrets list --name HomeAssistant-Prod-WebApp`.
 
 ### The Samba share, and restarting add-ons
 
