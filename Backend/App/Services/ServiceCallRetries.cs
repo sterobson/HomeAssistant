@@ -62,21 +62,24 @@ internal sealed class ServiceCallRetrier
     private readonly Func<ServiceCall, Task> _send;
     private readonly Func<TimeSpan, Task> _delay;
     private readonly ILogger _logger;
+    private readonly CommandPacer? _pacer;
     private readonly object _lock = new();
     private readonly Dictionary<string, long> _latestCallByTarget = new(StringComparer.OrdinalIgnoreCase);
     private long _callCount;
 
     /// <param name="send">Sends the call and completes when Home Assistant has answered; throws if it answered with an error.</param>
     /// <param name="delay">Waits before a retry.</param>
-    internal ServiceCallRetrier(Func<ServiceCall, Task> send, Func<TimeSpan, Task> delay, ILogger logger)
+    /// <param name="pacer">Spaces the Zigbee commands out; none means every command goes at once.</param>
+    internal ServiceCallRetrier(Func<ServiceCall, Task> send, Func<TimeSpan, Task> delay, ILogger logger, CommandPacer? pacer = null)
     {
         _send = send;
         _delay = delay;
         _logger = logger;
+        _pacer = pacer;
     }
 
     public ServiceCallRetrier(IHomeAssistantRunner runner, TimeProvider timeProvider, ILogger<ServiceCallRetrier> logger)
-        : this(call => SendThroughRunnerAsync(runner, call), delay => Task.Delay(delay, timeProvider), logger)
+        : this(call => SendThroughRunnerAsync(runner, call), delay => Task.Delay(delay, timeProvider), logger, new CommandPacer(timeProvider))
     {
     }
 
@@ -93,6 +96,12 @@ internal sealed class ServiceCallRetrier
         Register(call);
         try
         {
+            // The caller is waiting on this one (the boiler relay, a switch from the 3D view): ahead of the valves.
+            if (_pacer != null)
+            {
+                await _pacer.WaitForTurnAsync(call, replaceable: false, priority: true);
+            }
+
             await _send(call);
             return true;
         }
@@ -109,6 +118,14 @@ internal sealed class ServiceCallRetrier
         {
             try
             {
+                // Zigbee commands go a few seconds apart. A newer command to the same entity may take this one's place
+                // while it waits, in which case that one is the one sent.
+                if (_pacer != null && !await _pacer.WaitForTurnAsync(call, replaceable: true, priority: false))
+                {
+                    _logger.LogDebug("Not sending {Call}: a newer command to the same entity took its place in the queue", call);
+                    return;
+                }
+
                 await _send(call);
                 if (attempt > 0)
                 {

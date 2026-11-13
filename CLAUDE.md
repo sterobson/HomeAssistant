@@ -571,6 +571,15 @@ cookie. Two consequences:
   `SendCommandAndReturnResponseRawAsync`, which waits up to 20 s and throws on an error *or no answer*.
   `ServiceCallAgainstRealClientTests` drives NetDaemon's real websocket client against a stand-in HA to pin that;
   never test this layer only against a fake that throws.
+- **Zigbee commands go 3 seconds apart (owner, 2026-11-13; not deployed when written).** The Zigbee network can be overloaded
+  by too many commands at once, and there are many radiator valves, so `ServiceCallRetrier` holds every `climate` and `switch`
+  command to an entity behind [CommandPacer](Backend/App/Services/CommandPacer.cs): at least `CommandPacer.Spacing` (3 s) after
+  the one before, the first after a quiet spell at once. Confirmed commands (the **boiler relay**, a switch from the 3D view) go
+  to the front of the queue, so the boiler is first in a pass and never waits behind valves an earlier pass queued. A
+  fire-and-forget command (valves, heater plugs) waits its turn, and a newer command to the same entity **takes the place** of
+  a waiting one rather than queueing a second, because the heating decides a device again on every thermometer report until
+  HA shows it moved. Notifications and the inverter's commands are not paced. A pass of ten changes therefore takes about
+  30 s to send, and the retries are paced too. `CommandPacerTests`.
 - **No `var` in C#** — explicit types everywhere.
 - **Sentence case** for all UI text: labels, buttons, modal titles, accordions.
   "Add new room", not "Add New Room".
