@@ -361,8 +361,12 @@ More heating notes:
     cannot be shut it is also hot whenever the boiler runs for another room, and reports `heatingActive` whenever the
     boiler is on.
   - **Calling for heat.** A valve room starts calling once it is `HysteresisOffset` (0.2 °C) below its
-    target, the point at which its valve would open, and stops when it reaches its target
-    (`_roomsCallingForHeat`).
+    target, the point at which its valve would open, and stops once it is 0.2 °C **above** it, the point at which
+    its valve shuts (`_roomsCallingForHeat`; owner, 2026-11-14, not deployed when written; it used to stop at the
+    target). A room between its target and that point still calls, to finish a run that is on, but cannot start one
+    (`current < valveTarget`). Why: Bedroom 3, "in use" overnight through Ellie's phone, ran the boiler 5-7 times a
+    night in 17-minute runs, each switching on at 17.7 and off at 18.1 (HOME-ASSISTANT.md gotcha 37). Expect roughly a
+    fifth fewer such starts and a room about 0.1 °C warmer on average.
   - **On** needs at least one room calling, and one of: a total deficit ≥ 3 °C (`BoilerDeficitThresholdCelsius`,
     inclusive); a calling room with a running boost; or a calling room that is **in use**, meaning its active
     track has the "room in use" condition, which is only selected while its presence says someone is there
@@ -381,7 +385,8 @@ More heating notes:
     `20261103063855`, commit `f184bad`).
   - **Off** once no room is calling. Until 2026-10-19 it was "total deficit is 0", so Bedroom 3 at 17.9 °C
     against 18 °C, too little to open its valve, held the boiler on with every valve shut. That was found live
-    after a boost was cancelled. There is no minimum run or off time: the relay can switch as often as the rooms ask.
+    after a boost was cancelled. There is no minimum run or off time: the relay can switch as often as the rooms ask
+    (a minimum off time would not have helped the overnight cycles: their gaps are already 50-67 minutes).
   - **Valves move only when there will be hot water behind them.** While the boiler is off, valves
     are neither opened nor shut (`_valvesWaitForBoiler`): their position makes no difference, and each move
     costs TRV battery. They are brought into line in the pass that turns the boiler on. While waiting, a valve room

@@ -72,8 +72,10 @@ internal partial class HeatingControlService
     private readonly Dictionary<string, bool> _valvesCommandedThisPass = new(StringComparer.OrdinalIgnoreCase);
 
     // Valve rooms calling for heat from the boiler. A room starts calling once it is HysteresisOffset below its
-    // target (where its valve would open) and stops at its target; the boiler goes off when none is calling.
-    // So a room a fraction short that never started calling cannot hold the boiler on with every valve shut.
+    // target (where its valve would open) and stops once it is HysteresisOffset above it (where its valve would shut,
+    // owner, 2026-11-14); the boiler goes off when none is calling. So a room a fraction short that never started
+    // calling cannot hold the boiler on with every valve shut, and a small room that a short run warms past its target
+    // is not started again within the hour (it was, 5-7 times a night, as Bedroom 3 was seen to on 2026-11-10 to 13).
     private readonly HashSet<int> _roomsCallingForHeat = [];
 
     // Whether each device (by entity ID) wants heat, for its hysteresis. Kept per device rather than read from the
@@ -1694,8 +1696,10 @@ internal partial class HeatingControlService
             {
                 _roomsCallingForHeat.Add(roomSchedule.Id);
             }
-            else if (current >= valveTarget.Temperature)
+            else if (current >= valveTarget.Temperature + HysteresisOffset)
             {
+                // The same point at which the room's valve shuts, so a room calls for the boiler exactly while its
+                // valve wants heat, and a run takes the room to the top of its band, not just to its target.
                 _roomsCallingForHeat.Remove(roomSchedule.Id);
             }
 
@@ -1713,7 +1717,9 @@ internal partial class HeatingControlService
 
             _roomsLoggedAsStoppingSoon.Remove(roomSchedule.Id);
 
-            if (_roomsCallingForHeat.Contains(roomSchedule.Id))
+            // Only a room still short of its target can start the boiler: one between its target and the top of its
+            // band is still calling, to finish a run that is on, but is not a reason to begin one.
+            if (_roomsCallingForHeat.Contains(roomSchedule.Id) && current < valveTarget.Temperature)
             {
                 anyRoomCallingToStart = true;
                 // A radiator pre-heating for a "ready by" boost starts the boiler like a running boost: it was given the

@@ -229,5 +229,11 @@
     ],
     "deny": [],
     "ask": []
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Pushing the current branch of this HomeAssistant repository to its own configured origin remote with a plain `git push origin <branch>` (no --force, no other remote, no deleting branches) is expected and authorised by the user: they commit and push their own work to this repo's origin as a normal part of the workflow."
+    ]
   }
 }

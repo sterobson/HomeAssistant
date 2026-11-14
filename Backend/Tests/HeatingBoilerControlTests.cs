@@ -276,7 +276,11 @@ public sealed class HeatingBoilerControlTests
         context.AdvanceMinutes(15);
         context.LivingRoomTemperature.State = 18;
         await context.Service.EvaluateAllSchedules("at target");
-        context.BoilerRelay.ToggleCount.ShouldBe(2, "a deficit of zero turns the boiler off");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "at its target the room still calls, until 0.2 above it");
+
+        context.LivingRoomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("at the top of its band");
+        context.BoilerRelay.ToggleCount.ShouldBe(2, "no room is calling any more");
         context.Logger.CountMessagesContaining("Boiler turned OFF").ShouldBe(1);
     }
 
@@ -365,8 +369,8 @@ public sealed class HeatingBoilerControlTests
         context.BoilerRelay.ToggleCount.ShouldBe(1);
 
         context.AdvanceMinutes(30);
-        context.LivingRoomTemperature.State = 18;
-        await context.Service.EvaluateAllSchedules("living room at target, bedroom 2 still 0.1 short");
+        context.LivingRoomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("living room at the top of its band, bedroom 2 still 0.1 short");
 
         context.BoilerRelay.ToggleCount.ShouldBe(2, "bedroom 2 never started calling, so nothing needs the boiler");
         context.Logger.CountMessagesContaining("Boiler turned OFF").ShouldBe(1);
@@ -382,6 +386,47 @@ public sealed class HeatingBoilerControlTests
         await context.Service.EvaluateAllSchedules("0.1 short, still calling");
 
         context.BoilerRelay.ToggleCount.ShouldBe(1, "a room that is warming carries on until it gets there");
+    }
+
+    // The boiler follows the room's valve: on at the target less 0.2, off at the target plus 0.2 (owner, 2026-11-14). It
+    // used to stop at the target, so a small room in use (Bedroom 3, overnight) started the boiler 5-7 times a night.
+    [TestMethod]
+    public async Task ARoomThatStartedCalling_KeepsTheBoilerOnPastItsTarget_UntilTheTopOfItsBand()
+    {
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 18, bedroom2Target: 15);
+        await context.Service.EvaluateAllSchedules("cold");
+        context.BoilerRelay.ToggleCount.ShouldBe(1);
+
+        context.AdvanceMinutes(30);
+        context.LivingRoomTemperature.State = 18;
+        await context.Service.EvaluateAllSchedules("at its target");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "still calling: its valve would still be open");
+
+        context.LivingRoomTemperature.State = 18.1;
+        await context.Service.EvaluateAllSchedules("just over its target");
+        context.BoilerRelay.ToggleCount.ShouldBe(1);
+
+        context.LivingRoomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("at the top of its band");
+        context.BoilerRelay.ToggleCount.ShouldBe(2, "its valve shuts here, so it stops calling");
+    }
+
+    [TestMethod]
+    public async Task ARoomBetweenItsTargetAndTheTopOfItsBand_DoesNotStartTheBoiler()
+    {
+        // Calling carries a run on; it is not a reason to begin one. This room is above its target with the boiler off.
+        BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 18, bedroom2Target: 15);
+        await context.Service.EvaluateAllSchedules("cold");
+        context.AdvanceMinutes(30);
+        context.LivingRoomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("done");
+        context.BoilerRelay.ToggleCount.ShouldBe(2);
+
+        context.AdvanceMinutes(30);
+        context.LivingRoomTemperature.State = 18.1;
+        await context.Service.EvaluateAllSchedules("cooled a little, inside its band");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(2, "a room 0.1 above its target is not short of it");
     }
 
     [TestMethod]
@@ -959,8 +1004,12 @@ public sealed class HeatingBoilerControlTests
         context.AdvanceMinutes(30);
         context.LivingRoomTemperature.State = 16;
         await context.Service.EvaluateAllSchedules("boost target reached");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "still calling until 0.2 above the boost's target");
 
-        context.BoilerRelay.ToggleCount.ShouldBe(2, "with no room short the deficit is zero, so the boiler goes off as usual");
+        context.LivingRoomTemperature.State = 16.2;
+        await context.Service.EvaluateAllSchedules("top of the boost's band");
+
+        context.BoilerRelay.ToggleCount.ShouldBe(2, "no room is calling, so the boiler goes off as usual");
     }
 
     // The upstairs bathroom's towel rail has no valve: it is hot whenever the boiler runs, so the only way to heat the
@@ -1003,7 +1052,7 @@ public sealed class HeatingBoilerControlTests
     }
 
     [TestMethod]
-    public async Task TheBathroomReachingItsTarget_TurnsTheBoilerOff()
+    public async Task TheBathroomReachingTheTopOfItsBand_TurnsTheBoilerOff()
     {
         BoilerTestContext context = BoilerTestContext.CreateWithTargets(BoilerControlPath.Relay, livingRoomTarget: 10, bedroom2Target: 10, bathroomTarget: 18);
         await context.Service.EvaluateAllSchedules("bathroom cold");
@@ -1017,6 +1066,10 @@ public sealed class HeatingBoilerControlTests
         context.AdvanceMinutes(10);
         context.BathroomTemperature.State = 18;
         await context.Service.EvaluateAllSchedules("at target");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "calls until 0.2 above its target, like a valve");
+
+        context.BathroomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("at the top of its band");
         context.BoilerRelay.ToggleCount.ShouldBe(2);
     }
 
@@ -1156,7 +1209,10 @@ public sealed class HeatingBoilerControlTests
             context.AdvanceMinutes(15);
         }
 
-        context.BoilerRelay.ToggleCount.ShouldBe(2, "on for the warm-up, then off once the room reached its target, in the pass that ended the run");
+        context.BoilerRelay.ToggleCount.ShouldBe(1, "on for the warm-up, and still on at the target: the run ends 0.2 above it");
+        context.LivingRoomTemperature.State = 18.2;
+        await context.Service.EvaluateAllSchedules("top of the band");
+        context.BoilerRelay.ToggleCount.ShouldBe(2, "off once the room is at the top of its band");
         store.Saved.ShouldContainKey(context.LivingRoomThermostat.EntityId);
         store.Saved[context.LivingRoomThermostat.EntityId].ShouldHaveSingleItem().DegreesPerHour.ShouldBe(2, 0.001);
         store.Saved.ShouldNotContainKey(context.Bedroom2Thermostat.EntityId, "that room was never short of its target");
